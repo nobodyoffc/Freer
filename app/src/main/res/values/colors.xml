@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#000000</color>
+    <color name="white">#FFFFFF</color>
+    <color name="background_light">#EEEEEE</color>
+    <color name="background_dark">#CCCCCC</color>
+    <color name="main_background">#F5F5F5</color>
+    <color name="text_area_background">#F0F0F0</color>
+    <color name="text_color">#000000</color>
+    <color name="hint">#777777</color>
+    <color name="disabled">#AAAAAA</color>
+    <color name="error">#FF0000</color>
+    <color name="outline_light">#AAAAAA</color>
+    <color name="stroke_color">#DDDDDD</color>
+    <color name="outline_heavy">#666666</color>
+    <color name="colorAccent">#2196F3</color>
+    <color name="colorPrimary">#1976D2</color>
+    <color name="headerBackground">#908C8C</color>
+    <color name="field_name">#7050A0</color>
+    <color name="input_field_background">#FFFFFF</color>
+    <color name="cash_card_background">#E8F4FD</color>
+    <color name="cash_card_border">#BBDEFB</color>
+    <color name="cash_card_dark_background">#E0E0E0</color>
+	<color name="selected_card_background">#E8E8E8</color>
+</resources>

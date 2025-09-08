@@ -1,0 +1,18 @@
+---
+description: 在创建按钮时应用统一的ButtonStyle样式，确保UI一致性
+globs: ["**/*.xml"]
+alwaysApply: true
+---
+please apply @style/ButtonStyle when creating buttons.
+
+ButtonStyle 包含以下样式属性：
+- 文本颜色：@color/main_background
+- 背景色调：@color/colorAccent  
+- 内边距：8dp
+- 文本大小：16sp
+- 文本大写：false
+- 布局宽度：wrap_content
+- 布局高度：@dimen/button_height
+- 布局权重：1
+- 外边距：8dp
+- 布局重力：center

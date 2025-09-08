@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Reusable FID Card Layout -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/fidCard"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="8dp"
+    android:background="@drawable/rounded_textbox_background"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- First Line: Avatar and Name -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="14dp">
+
+        <!-- Avatar (bigger) -->
+        <ImageView
+            android:id="@+id/fidAvatar"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_marginEnd="16dp"
+            android:src="@drawable/ic_person"
+            android:contentDescription="@string/person_avatar" />
+
+        <!-- Name and Label Container -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center_vertical">
+
+            <!-- Name (CID or FID) -->
+            <TextView
+                android:id="@+id/fidName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Loading..."
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="@color/colorAccent"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <!-- Label (clickable for editing) -->
+            <TextView
+                android:id="@+id/fidLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="@color/hint"
+                android:background="?attr/selectableItemBackground"
+                android:padding="4dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:visibility="gone"
+                android:minWidth="20dp"
+                android:minHeight="20dp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <!-- Label icon (shown when no label) -->
+            <ImageView
+                android:id="@+id/fidEditIcon"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_marginTop="2dp"
+                android:src="@drawable/ic_label"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="2dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:contentDescription="@string/enter_label"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+        <!-- No Private Key Icon (shown when fid != mainFid) -->
+        <ImageView
+            android:id="@+id/fidNoPrikeyIcon"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginTop="-22dp"
+            android:src="@drawable/ic_no_prikey"
+            android:visibility="gone"
+            android:scaleType="centerInside" />
+
+    </LinearLayout>
+
+    <!-- Second Line: Values -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <!-- Cash Value with C suffix -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.8"
+            android:orientation="horizontal"
+            android:gravity="center_vertical|end">
+            
+            <TextView
+                android:id="@+id/fidCash"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/field_name"
+                android:layout_marginEnd="4dp"
+                android:minWidth="20dp"
+                android:minHeight="20dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="cash"
+                android:textSize="16sp"
+                android:textColor="@color/hint" />
+        </LinearLayout>
+
+        <!-- Balance Value with F suffix -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="2.8"
+            android:orientation="horizontal"
+            android:gravity="center_vertical|end">
+
+            <TextView
+                android:id="@+id/fidBalance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/field_name"
+                android:layout_marginEnd="2dp"
+                android:minWidth="20dp"
+                android:minHeight="20dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="F"
+                android:textSize="16sp"
+                android:textColor="@color/hint" />
+        </LinearLayout>
+
+        <!-- CD Value with CD suffix -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="2"
+            android:orientation="horizontal"
+            android:gravity="center_vertical|end">
+            
+            <TextView
+                android:id="@+id/fidCd"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:textColor="@color/field_name"
+                android:layout_marginEnd="2dp"
+                android:minWidth="20dp"
+                android:minHeight="20dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="cd"
+                android:textSize="16sp"
+                android:textColor="@color/hint" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

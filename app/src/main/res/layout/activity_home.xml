@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <!-- Title and Setting Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
+
+        <TextView
+            android:id="@+id/freer_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/freer"
+            android:textStyle="bold"
+            android:textSize="32sp"
+            android:textColor="@color/colorAccent"/>
+
+        <ImageButton
+            android:id="@+id/menu_qr"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_scan"
+            app:tint="@color/hint"
+            android:contentDescription="@string/menu_settings"
+            />
+
+        <ImageButton
+            android:id="@+id/menu_settings"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_gear"
+            app:tint="@color/hint"
+            android:contentDescription="@string/menu_settings"
+            />
+
+        <ImageButton
+            android:id="@+id/menu_person"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginEnd="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_person"
+            android:contentDescription="@string/person_menu"
+            app:tint="@color/hint" />
+
+
+    </LinearLayout>
+
+    <!-- Live FID Card -->
+    <include
+        android:id="@+id/liveFidCard"
+        layout="@layout/layout_fid_card" />
+
+    <!-- Bottom Icon Container (3/4 of screen) -->
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/iconContainer"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="3"
+        android:fillViewport="true"
+        android:scrollbars="vertical"
+        android:fadeScrollbars="false"
+        android:overScrollMode="always">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="300dp"
+                android:layout_margin="8dp"
+                android:padding="8dp"
+                android:gravity="center"
+                android:textSize="24sp"
+                android:textColor="@color/text_color"
+                />
+
+            <GridLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="16dp"
+                android:columnCount="3"
+                android:rowCount="6"
+                android:alignmentMode="alignMargins"
+                android:useDefaultMargins="true">
+
+
+                <!-- List  -->
+                <LinearLayout
+                    android:id="@+id/menu_list"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="0"
+                    android:layout_column="0"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:contentDescription="@string/menu_list"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_list"
+                        android:textAlignment="center"/>
+
+                </LinearLayout>
+
+                <!-- Multi Sign (second row left) -->
+                <LinearLayout
+                    android:id="@+id/menu_multisign"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="1"
+                    android:layout_column="2"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:contentDescription="@string/menu_multi_sign"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_multi_sign"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+
+
+
+
+                <!-- TOTP (fourth row left) -->
+                <LinearLayout
+                    android:id="@+id/menu_totp"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="1"
+                    android:layout_column="0"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:contentDescription="@string/time_based_one_time_password"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_totp"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+
+                <!-- Sign TX (fourth row right) -->
+                <LinearLayout
+                    android:id="@+id/menu_sign_tx"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="2"
+                    android:layout_column="2"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:contentDescription="@string/menu_sign_tx"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_sign_tx"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+
+                <!-- Secrets (fifth row middle) -->
+                <LinearLayout
+                    android:id="@+id/menu_secrets"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="2"
+                    android:layout_column="1"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:contentDescription="@string/menu_secrets"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_secrets"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+
+                <!-- Cash (sixth row left) -->
+                <LinearLayout
+                    android:id="@+id/menu_cash"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="1"
+                    android:layout_column="1"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:contentDescription="@string/cash"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/cash"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+                <!-- Test (sixth row left) -->
+                <LinearLayout
+                    android:id="@+id/menu_test"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="2"
+                    android:layout_column="0"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:contentDescription="@string/menu_test"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_test"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+                <!-- Convert (sixth row middle) -->
+                <LinearLayout
+                    android:id="@+id/menu_convert_new"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="0"
+                    android:layout_column="1"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:contentDescription="@string/menu_convert"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_convert"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+                <!-- Tools (sixth row right) -->
+                <LinearLayout
+                    android:id="@+id/menu_tools"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="0"
+                    android:layout_column="2"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:contentDescription="@string/menu_tools"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_tools"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+
+            </GridLayout>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</LinearLayout> 

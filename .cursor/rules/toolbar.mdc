@@ -1,0 +1,65 @@
+# 工具栏统一规则
+
+## 布局文件要求
+为每个Activity的布局文件添加统一的工具栏：
+
+1. **使用include方式**（推荐）：
+```xml
+<include
+    android:id="@+id/toolbar"
+    layout="@layout/common_toolbar" />
+```
+
+2. **直接使用Toolbar**（如果common_toolbar不适用）：
+```xml
+<androidx.appcompat.widget.Toolbar
+    android:id="@+id/toolbar"
+    android:layout_width="match_parent"
+    android:layout_height="?attr/actionBarSize"
+    android:background="@color/colorAccent"
+    android:theme="@style/ThemeOverlay.Freer.Toolbar" />
+```
+
+## Activity代码要求
+在Activity的onCreate方法中设置工具栏：
+
+```java
+// 在setContentView之后调用
+ToolbarUtils.setupToolbar(this, "Activity Title");
+```
+
+## 特殊情况处理
+- **HomeActivity**: 不需要工具栏，保持现有设计
+- **MainActivity**: 不需要工具栏，保持现有设计
+- **已有工具栏的Activity**: 确保使用ToolbarUtils.setupToolbar而不是手动设置
+
+## 标题设置规则
+- 使用字符串资源：`getString(R.string.activity_title)`
+- 使用硬编码字符串：`"Activity Title"`
+- 动态标题：根据实体类型或其他条件设置
+
+## 布局结构要求
+工具栏必须放在布局的最顶部，作为第一个子元素：
+
+```xml
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+    
+    <!-- 工具栏必须是第一个子元素 -->
+    <include
+        android:id="@+id/toolbar"
+        layout="@layout/common_toolbar" />
+    
+    <!-- 其他内容 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+        <!-- 页面内容 -->
+    </LinearLayout>
+</LinearLayout>
+description: 为所有Activity布局添加统一的工具栏，并使用ToolbarUtils进行设置
+globs: ["app/src/main/res/layout/activity_*.xml"]
+alwaysApply: false

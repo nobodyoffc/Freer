@@ -1,0 +1,10 @@
+
+description: All messages other than the log messages are defined in strings.xml in en and zh.
+globs:
+  - "app/src/main/res/values/strings.xml"
+  - "app/src/main/res/values-zh/strings.xml"
+  - "FC-AJDK/src/main/res/values/strings.xml"
+  - "**/res/values/*.xml"
+  - "**/res/values-*/strings.xml"
+alwaysApply: true
+---

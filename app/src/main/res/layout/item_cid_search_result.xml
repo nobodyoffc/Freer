@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_result_item"
+    android:layout_marginBottom="8dp"
+    android:padding="12dp">
+
+    <!-- FID -->
+    <TextView
+        android:id="@+id/fidTextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/text_color"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="4dp"
+        android:text="FxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxX" />
+
+    <!-- CID Name -->
+    <TextView
+        android:id="@+id/cidNameTextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/colorAccent"
+        android:textSize="12sp"
+        android:layout_marginBottom="8dp"
+        android:text="CID Name"
+        android:visibility="gone" />
+
+    <!-- Action Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end">
+
+        <Button
+            android:id="@+id/detailButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/detail"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/menu_item_background"
+            android:textColor="@color/text_color"
+            android:textSize="12sp"
+            android:padding="8dp"
+            android:minHeight="0dp" />
+
+        <Button
+            android:id="@+id/selectButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/select"
+            android:background="@drawable/menu_item_background"
+            android:textColor="@color/colorAccent"
+            android:textSize="12sp"
+            android:padding="8dp"
+            android:minHeight="0dp" />
+
+    </LinearLayout>
+
+</LinearLayout>

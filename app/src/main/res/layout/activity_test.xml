@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context=".home.TestActivity">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/title_bar_height"
+        android:background="@color/colorPrimary"
+        android:elevation="4dp"
+        android:theme="@style/ThemeOverlay.AppCompat.ActionBar"
+        app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
+
+    <ScrollView
+        android:id="@+id/scrollView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- ImageView moved to top -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="4dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <ImageView
+                        android:id="@+id/imageView"
+                        android:layout_width="200dp"
+                        android:layout_height="200dp"
+                        android:layout_gravity="center_horizontal"
+                        android:scaleType="fitCenter"
+                        android:contentDescription="Generated Circle Image" />
+
+                </LinearLayout>
+
+            </androidx.cardview.widget.CardView>
+
+            <Button
+                android:id="@+id/generateKeysButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Generate Keys"
+                android:layout_marginTop="16dp" />
+
+            <Button
+                android:id="@+id/checkAvatarButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Check Avatars"
+                android:layout_marginTop="16dp" />
+
+            <Button
+                android:id="@+id/showInputDialogButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/show_input_dialog"
+                android:layout_marginTop="16dp" />
+
+            <Button
+                android:id="@+id/showUserConfirmDialogButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Show User Confirm Dialog"
+                android:layout_marginTop="16dp" />
+
+            <Button
+                android:id="@+id/testSquareIconButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Test Square Icon"
+                android:layout_marginTop="16dp" />
+
+            <Button
+                android:id="@+id/testRoundIconButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Test Round Icon"
+                android:layout_marginTop="16dp" />
+
+            <Button
+                android:id="@+id/testSquareIconFilesButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Test Square Icon Files"
+                android:layout_marginTop="16dp" />
+
+            <Button
+                android:id="@+id/testRoundIconFilesButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Test Round Icon Files"
+                android:layout_marginTop="16dp" />
+
+            <Button
+                android:id="@+id/testNetworkButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Test Network"
+                android:layout_marginTop="16dp" />
+
+            <Button
+                android:id="@+id/testNetworkConfigButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Test Network Config"
+                android:layout_marginTop="16dp" />
+
+            <Button
+                android:id="@+id/testNetworkUtilsButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Test Network Utils"
+                android:layout_marginTop="16dp" />
+
+            <Button
+                android:id="@+id/testInputObjectButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Test Input Object Activity"
+                android:layout_marginTop="16dp" />
+
+            <Button
+                android:id="@+id/testUpdateObjectButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Test Update Object Activity"
+                android:layout_marginTop="16dp" />
+
+            <Button
+                android:id="@+id/testApiProviderHandlerButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Test ApiProviderHandler"
+                android:layout_marginTop="16dp" />
+
+            <Button
+                android:id="@+id/clearResultsButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Clear Results"
+                android:layout_marginTop="8dp" />
+
+            <!-- 结果视图 -->
+            <com.fc.freer.ui.ResultView
+                android:id="@+id/resultView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp" />
+
+            <!-- Spacer to push content to bottom initially -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="200dp" />
+
+        </LinearLayout>
+
+    </ScrollView>
+
+</LinearLayout> 

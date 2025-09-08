@@ -1,0 +1,109 @@
+# FcEntity序列化规则
+
+## 核心原则
+当传递或存储任何继承自FcEntity的对象时，必须首先将其转换为JSON字符串。
+
+## 使用场景
+
+### 1. Intent传递
+当通过Intent在Activity或Fragment之间传递FcEntity对象时：
+```java
+// ✅ 正确做法
+intent.putExtra("entity_json", fcEntity.toJson());
+intent.putExtra("entity_class", fcEntity.getClass().getName());
+
+// ❌ 错误做法
+intent.putExtra("entity", fcEntity); // 直接传递对象
+```
+
+### 2. 数据库存储
+当将FcEntity存储到数据库时：
+```java
+// ✅ 正确做法
+String jsonValue = fcEntity.toJson();
+database.put(key, jsonValue);
+
+// ❌ 错误做法
+database.put(key, fcEntity); // 直接存储对象
+```
+
+### 3. 网络请求
+当发送包含FcEntity的网络请求时：
+```java
+// ✅ 正确做法
+String requestBody = fcEntity.toJson();
+// 或者
+requestBody.setData(fcEntity.toJson());
+
+// ❌ 错误做法
+requestBody.setData(fcEntity); // 直接设置对象
+```
+
+### 4. 文件存储
+当将FcEntity保存到文件时：
+```java
+// ✅ 正确做法
+String jsonContent = fcEntity.toJson();
+FileUtils.writeToFile(filePath, jsonContent);
+
+// ❌ 错误做法
+FileUtils.writeToFile(filePath, fcEntity); // 直接写入对象
+```
+
+### 5. 反序列化
+当从JSON字符串恢复FcEntity对象时：
+```java
+// ✅ 正确做法
+FcEntity entity = FcEntity.fromJson(jsonString, EntityClass.class);
+
+// ❌ 错误做法
+FcEntity entity = (FcEntity) someObject; // 直接类型转换
+```
+
+## 注意事项
+
+1. **空值检查**: 在序列化前检查对象是否为null
+2. **异常处理**: 序列化和反序列化操作应包含适当的异常处理
+3. **类型安全**: 反序列化时确保指定正确的Class类型
+4. **性能考虑**: 对于大量数据，考虑使用流式处理
+
+## 常见错误模式
+
+```java
+// ❌ 错误：直接传递对象
+Intent intent = new Intent();
+intent.putExtra("data", fcEntity);
+
+// ❌ 错误：直接存储对象
+SharedPreferences.Editor editor = prefs.edit();
+editor.putString("key", fcEntity.toString());
+
+// ❌ 错误：直接序列化到Map
+Map<String, Object> data = new HashMap<>();
+data.put("entity", fcEntity);
+```
+
+## 正确模式
+
+```java
+// ✅ 正确：JSON序列化传递
+Intent intent = new Intent();
+intent.putExtra("data_json", fcEntity.toJson());
+intent.putExtra("data_class", fcEntity.getClass().getName());
+
+// ✅ 正确：JSON序列化存储
+SharedPreferences.Editor editor = prefs.edit();
+editor.putString("key", fcEntity.toJson());
+
+// ✅ 正确：JSON序列化到Map
+Map<String, String> data = new HashMap<>();
+data.put("entity", fcEntity.toJson());
+```
+
+## 相关方法
+
+- `fcEntity.toJson()` - 序列化为JSON字符串
+- `fcEntity.toNiceJson()` - 序列化为格式化的JSON字符串
+- `FcEntity.fromJson(json, Class)` - 从JSON字符串反序列化
+- `fcEntity.toBytes()` - 序列化为字节数组
+- `FcEntity.fromBytes(bytes, Class)` - 从字节数组反序列化

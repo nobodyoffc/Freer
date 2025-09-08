@@ -1,0 +1,356 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
+                     android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+                     android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-feature android:name="android.hardware.camera" android:required="true" />
+
+    <application
+        android:name="com.fc.freer.FreerApplication"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Freer"
+        android:networkSecurityConfig="@xml/network_security_config"
+        tools:targetApi="31">
+        
+        <activity
+            android:name="com.fc.freer.MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        
+        <activity
+            android:name="com.fc.freer.initiate.CreatePasswordActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+            
+        <activity
+            android:name="com.fc.freer.initiate.CheckPasswordActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+<!--        <activity-->
+<!--            android:name=".CreateSettingsActivity"-->
+<!--            android:exported="false" />-->
+
+        <activity
+            android:name="com.fc.freer.home.HomeActivity"
+            android:exported="true">
+        </activity>
+            
+        <activity
+            android:name="com.fc.freer.qr.QrCodeActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+            
+        <activity
+            android:name="com.fc.freer.home.DecodeActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.fc.freer.home.HashActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+            
+        <activity
+            android:name="com.fc.freer.home.SecretActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+            
+        <activity
+            android:name="com.fc.freer.myKeys.CreateSecretActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+            
+        <activity
+            android:name="com.fc.freer.myKeys.CreateKeyByPrikeyActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+            
+        <activity
+            android:name="com.fc.freer.ui.DetailActivity"
+            android:exported="false" />
+            
+        <activity
+            android:name="com.fc.freer.home.DecryptActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+            
+        <activity
+            android:name="com.fc.freer.home.TestActivity"
+            android:exported="false" />
+
+        <activity
+            android:name="com.fc.freer.home.EncryptActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.home.SignMsgActivity"
+            android:exported="false"
+            android:label="Sign Words"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.home.VerifyActivity"
+            android:exported="false"
+            android:label="Verify Words"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.myKeys.CreateKeyByPubkeyActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.myKeys.CreateKeyByFidActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.myKeys.CreateKeyByPrikeyCipherActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.myKeys.RandomNewKeysActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.myKeys.CreateKeyByPhraseActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.myKeys.FindNiceKeysActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.tools.RandomBytesGeneratorActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.tools.PrikeyConverterActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.tools.PubkeyConverterActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.tools.AddressConverterActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.home.MultisignActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.multisign.CreateMultisignIdActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.home.MultisignDetailActivity"
+            android:exported="false" />
+
+        <activity
+            android:name="com.fc.freer.multisign.CreateMultisignTxActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.multisign.ChooseMultisignIdActivity"
+            android:exported="false"
+            android:label="@string/choose_multisign_id"
+            android:theme="@style/Theme.Freer" />
+
+        <activity
+            android:name="com.fc.freer.tx.ImportTxInfoActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.tx.ShowTxJsonActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.multisign.ImportMultisignTxActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.multisign.SignMultisignTxActivity"
+            android:exported="false" 
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
+            android:name="com.fc.freer.multisign.BuildMultisignTxActivity"
+            android:exported="false"
+            android:label="Build Multisign TX"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name="com.fc.freer.home.CreateTxActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.tx.SendTxActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.secret.ImportSecretActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.secret.ImportTotpActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.secret.ExportSecretActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity android:name="com.fc.freer.home.TotpActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity android:name="com.fc.freer.ui.SingleInputActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"  />
+
+        <activity
+            android:name="com.fc.freer.myKeys.ExportKeysActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.myKeys.BackupKeysActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.home.ArticleDisplayActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.secret.BackupSecretsActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.ui.ChangePasswordActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.home.FidListActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.home.AddFidActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.home.SetMasterActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.home.CashActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.home.ImportCashActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="com.fc.freer.tools.JsonConvertActivity"
+            android:exported="false" 
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
+            android:name="com.fc.freer.initiate.ChooseCidActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
+            android:name="com.fc.freer.ui.InputObjectActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"/>
+            
+        <activity
+            android:name="com.fc.freer.ui.UpdateObjectActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"/>
+            
+        <activity
+            android:name="com.fc.freer.myKeys.ImportKeyInfoActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"/>
+            
+        <activity
+            android:name="com.fc.freer.home.ChooseWatchedFidActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"/>
+            
+        <activity
+            android:name="com.fc.freer.home.AddWatchedFidActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
+            android:name="com.fc.freer.home.ChooseMultisignFidActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
+            android:name="com.fc.freer.home.AddMultisignFidActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
+            android:name="com.fc.freer.home.ChooseServantFidActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
+            android:name="com.fc.freer.home.AddServantFidActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"/>
+    </application>
+
+</manifest>
