@@ -1,8 +1,5 @@
 package com.fc.fc_ajdk.data.apipData;
 
-import com.fc.fc_ajdk.ui.Inputer;
-import com.fc.fc_ajdk.ui.Menu;
-
 import java.io.BufferedReader;
 import java.util.Arrays;
 
@@ -13,9 +10,10 @@ public class FcQuery {
     public static final String MATCH = "match";
     public static final String RANGE = "range";
     public static final String EQUALS = "equals";
+    public static final String UNEQUALS = "unequals";
     public static final String EXISTS = "exists";
     public static final String UNEXISTS = "unexists";
-    public static final String[] QUERY_FIELDS = new String[]{TERMS, PART, MATCH, RANGE, EQUALS, EXISTS, UNEXISTS};
+    public static final String[] QUERY_FIELDS = new String[]{TERMS, PART, MATCH, RANGE, EQUALS, UNEQUALS, EXISTS, UNEXISTS};
     protected String[] exists;
     protected String[] unexists;
     protected Terms terms;
@@ -23,6 +21,7 @@ public class FcQuery {
     protected Match match;
     protected Range range;
     protected Equals equals;
+    protected Equals unequals;
 
     public Terms addNewTerms() {
         Terms newOne = new Terms();
@@ -51,6 +50,12 @@ public class FcQuery {
     public Equals addNewEquals() {
         Equals newOne = new Equals();
         this.setEquals(newOne);
+        return newOne;
+    }
+
+    public Equals addNewUnequals() {
+        Equals newOne = new Equals();
+        this.setUnequals(newOne);
         return newOne;
     }
 
@@ -135,112 +140,12 @@ public class FcQuery {
         this.equals = equals;
     }
 
-    public void promoteInput(String name, BufferedReader br) {
-        while (true) {
-            Menu menu = new Menu();
-            menu.setTitle("Adding Query");
-            menu.add(QUERY_FIELDS);
-            menu.show();
-            int choice = menu.choose(br);
-            switch (choice) {
-                case 1 -> inputTerms(br);
-                case 2 -> inputPart(br);
-                case 3 -> inputMatch(br);
-                case 4 -> inputRange(br);
-                case 5 -> inputEquals(br);
-                case 6 -> inputExists(br);
-                case 7 -> inputUnexists(br);
-                case 0 -> {
-                    return;
-                }
-            }
-        }
+    public Equals getUnequals() {
+        return unequals;
     }
 
-    private void inputTerms(BufferedReader br) {
-        String[] fields = Inputer.inputStringArray(br, "Input the fields. Enter to end:", 0);
-        String[] values = Inputer.inputStringArray(br, "Input the values. Enter to end:", 0);
-        if (fields.length > 0 && values.length > 0) {
-            terms = new Terms();
-            terms.setFields(fields);
-            terms.setValues(values);
-        }
+    public void setUnequals(Equals unequals) {
+        this.unequals = unequals;
     }
 
-    private void inputPart(BufferedReader br) {
-        String[] fields = Inputer.inputStringArray(br, "Input the fields. Enter to end:", 0);
-        System.out.println("Input the value. Enter to exit:");
-        String value = Inputer.inputString(br);
-        if (fields.length == 0 || "".equals(value)) return;
-        part = new Part();
-        part.setFields(fields);
-        part.setValue(value);
-    }
-
-    private void inputMatch(BufferedReader br) {
-        String[] fields = Inputer.inputStringArray(br, "Input the fields. Enter to end:", 0);
-        System.out.println("Input the value. Enter to exit:");
-        String value = Inputer.inputString(br);
-        if (fields.length == 0 || "".equals(value)) return;
-        match = new Match();
-        match.setFields(fields);
-        match.setValue(value);
-    }
-
-    private void inputRange(BufferedReader br) {
-        String[] fields = Inputer.inputStringArray(br, "Input the fields. Enter to end:", 0);
-        System.out.println("Input the value. Enter to exit:");
-        range = new Range();
-        range.setFields(fields);
-
-        while (true) {
-            Menu menu = new Menu();
-            menu.add("gt", "lt", "gte", "lte");
-            menu.show();
-            int choice = menu.choose(br);
-            switch (choice) {
-                case 1 -> {
-                    String numStr = Inputer.inputIntegerStr(br, "Input a integer. Enter to skip:");
-                    if ("".equals(numStr)) break;
-                    range.setGt(numStr);
-                }
-                case 2 -> {
-                    String numStr = Inputer.inputIntegerStr(br, "Input a integer. Enter to skip:");
-                    if ("".equals(numStr)) break;
-                    range.setLt(numStr);
-                }
-                case 3 -> {
-                    String numStr = Inputer.inputIntegerStr(br, "Input a integer. Enter to skip:");
-                    if ("".equals(numStr)) break;
-                    range.setGte(numStr);
-                }
-                case 4 -> {
-                    String numStr = Inputer.inputIntegerStr(br, "Input a integer. Enter to skip:");
-                    if ("".equals(numStr)) break;
-                    range.setLte(numStr);
-                }
-                case 0 -> {
-                    return;
-                }
-            }
-        }
-    }
-
-    private void inputEquals(BufferedReader br) {
-        String[] fields = Inputer.inputStringArray(br, "Input the fields. Enter to end:", 0);
-        String[] values = Inputer.inputStringArray(br, "Input the values. Enter to end:", 0);
-        if (fields.length > 0 && values.length > 0) {
-            equals = new Equals();
-            equals.setFields(fields);
-            equals.setValues(values);
-        }
-    }
-
-    private void inputExists(BufferedReader br) {
-        exists = Inputer.inputStringArray(br, "Input exists fields. Enter to end:", 0);
-    }
-
-    private void inputUnexists(BufferedReader br) {
-        unexists = Inputer.inputStringArray(br, "Input unexists fields. Enter to end:", 0);
-    }
 }

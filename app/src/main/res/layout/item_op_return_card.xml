@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="4dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/container_outline"
+        android:orientation="vertical"
+        android:padding="8dp">
+
+        <!-- Top row: time (left) and height (right) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/op_return_time"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="12sp"
+                android:textColor="@color/hint"
+                android:gravity="start" />
+
+            <TextView
+                android:id="@+id/op_return_height"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="@color/hint"
+                android:gravity="end" />
+
+        </LinearLayout>
+
+        <!-- OpReturn text content -->
+        <TextView
+            android:id="@+id/op_return_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="6dp"
+            android:textSize="14sp"
+            android:textColor="@color/text"
+            android:textIsSelectable="true" />
+
+        <!-- Bottom row: recipient (left) and paid (right) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/op_return_recipient"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="12sp"
+                android:textColor="@color/accent"
+                android:maxLines="1"
+                android:ellipsize="middle"
+                android:gravity="start" />
+
+            <TextView
+                android:id="@+id/op_return_paid"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="@color/field_name"
+                android:gravity="end" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- New indicator dot at top left -->
+    <View
+        android:id="@+id/new_indicator"
+        android:layout_width="10dp"
+        android:layout_height="10dp"
+        android:layout_gravity="start|top"
+        android:background="@android:color/holo_red_light"
+        android:visibility="gone" />
+
+</FrameLayout>

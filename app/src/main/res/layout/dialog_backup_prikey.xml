@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/titleTextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/please_backup_your_prikey"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- QR Code Container -->
+    <FrameLayout
+        android:id="@+id/qrCodeContainer"
+        android:layout_width="match_parent"
+        android:layout_height="300dp"
+        android:layout_gravity="center"
+        android:layout_marginBottom="16dp">
+
+        <ImageView
+            android:id="@+id/qrCodeImageView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter"
+            android:contentDescription="@string/prikey_qr_code" />
+    </FrameLayout>
+
+    <!-- Encrypt Checkbox -->
+    <CheckBox
+        android:id="@+id/encryptCheckbox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/encrypted_with_password"
+        android:checked="true"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Prikey Text Container -->
+    <RelativeLayout
+        android:id="@+id/prikeyTextContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:id="@+id/prikeyTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_toStartOf="@+id/iconContainer"
+            android:padding="12dp"
+            android:background="@drawable/container_outline"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/field_name"
+            android:fontFamily="monospace"
+            android:textIsSelectable="false"
+            android:focusable="false"
+            android:clickable="false" />
+
+        <LinearLayout
+            android:id="@+id/iconContainer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:orientation="vertical"
+            android:layout_marginStart="8dp">
+
+            <ImageView
+                android:id="@+id/visibilityToggle"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:padding="8dp"
+                android:src="@drawable/ic_visibility_off"
+                android:scaleX="1.1"
+                android:scaleY="1.1"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/toggle_prikey_visibility" />
+
+            <ImageView
+                android:id="@+id/makeQrToggle"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:padding="8dp"
+                android:scaleX="0.7"
+                android:scaleY="0.7"
+                android:src="@drawable/ic_make_qr"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/make_qr_code" />
+        </LinearLayout>
+    </RelativeLayout>
+
+    <!-- Base58 Checkbox -->
+    <CheckBox
+        android:id="@+id/base58Checkbox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/show_in_base58"
+        android:checked="true"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Buttons Container -->
+    <LinearLayout
+        android:id="@+id/buttonsContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/doneButton"
+            style="@style/ButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/done"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/copyCipherButton"
+            style="@style/ButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/copy_cipher"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/laterButton"
+            style="@style/ButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/later" />
+    </LinearLayout>
+
+</LinearLayout>

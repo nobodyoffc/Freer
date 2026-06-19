@@ -34,32 +34,33 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="end"
         android:padding="16dp"
-        android:background="?android:attr/windowBackground">
+        android:background="?android:attr/windowBackground"
+        android:gravity="end">
 
-        <Button
+        <ImageButton
             android:id="@+id/makeQrButton"
-            style="@style/ButtonStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/make_qr"
-            android:layout_marginEnd="8dp"/>
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_make_qr"
+            android:contentDescription="@string/make_qr" />
 
-        <Button
+        <ImageButton
             android:id="@+id/copyButton"
-            style="@style/ButtonStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/copy_tx"
-            android:layout_marginEnd="8dp"/>
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_copy"
+            android:contentDescription="@string/copy_tx" />
 
-        <Button
+        <ImageButton
             android:id="@+id/signButton"
-            style="@style/ButtonStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/sign"/>
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_send"
+            android:contentDescription="@string/sign" />
+
+        <ImageButton
+            android:id="@+id/back_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_back"
+            android:contentDescription="@string/back" />
 
     </LinearLayout>
 </LinearLayout> 

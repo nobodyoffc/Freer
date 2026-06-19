@@ -4,9 +4,9 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.View;
-import android.widget.Button;
 import android.widget.LinearLayout;
-import android.widget.Toast;
+
+import com.fc.freer.utils.ToastUtils;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
@@ -16,11 +16,12 @@ import com.fc.fc_ajdk.core.crypto.KeyTools;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
-import com.fc.freer.home.BaseCryptoActivity;
+import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.ui.DetailFragment;
 import com.fc.freer.utils.TextIconsUtils;
 import com.google.android.material.textfield.TextInputEditText;
 import com.fc.freer.utils.ToolbarUtils;
+import android.widget.ImageButton;
 
 public class CreateKeyByPubkeyActivity extends BaseCryptoActivity {
     private static final String TAG = "CreateKeyByPubkey";
@@ -30,9 +31,9 @@ public class CreateKeyByPubkeyActivity extends BaseCryptoActivity {
     private DetailFragment detailFragment;
     private TextInputEditText pubkeyInput;
     private TextInputEditText labelInput;
-    private Button clearButton;
-    private Button previewButton;
-    private Button saveButton;
+    private ImageButton clearButton;
+    private ImageButton previewButton;
+    private ImageButton saveButton;
     private LinearLayout keyInfoContainer;
     private LinearLayout inputContainer;
     private LinearLayout buttonContainer;
@@ -130,9 +131,6 @@ public class CreateKeyByPubkeyActivity extends BaseCryptoActivity {
             }
         });
 
-        // Initialize views
-        initializeViews();
-
         // Setup buttons
         setupButtons();
     }
@@ -162,7 +160,7 @@ public class CreateKeyByPubkeyActivity extends BaseCryptoActivity {
         }
 
         if(!KeyTools.isPubkey(pubkey)){
-            Toast.makeText(this, "Invalid public key", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Invalid public key");
             return;
         }
 
@@ -190,12 +188,12 @@ public class CreateKeyByPubkeyActivity extends BaseCryptoActivity {
         String label = labelInput.getText() != null ? labelInput.getText().toString() : "";
 
         if (pubkey.isEmpty()) {
-            Toast.makeText(this, "Please enter a public key", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Please enter a public key");
             return;
         }
 
         if (!KeyTools.isPubkey(pubkey)) {
-            Toast.makeText(this, "Invalid public key", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Invalid public key");
             return;
         }
 

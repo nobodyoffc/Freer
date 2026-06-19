@@ -1,5 +1,7 @@
 package com.fc.fc_ajdk.data.feipData;
 
+import com.fc.fc_ajdk.constants.FieldNames;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +21,7 @@ public class TeamOpData {
 	private String confirm;
 	private String[] list;
 	private Integer rate;  // Changed from int to Integer
-
+	private Map<String, String> home;
 
 	public enum Op {
 		CREATE(FeipOp.CREATE),
@@ -62,8 +64,8 @@ public class TeamOpData {
 
 	public static final Map<String, String[]> OP_FIELDS = new HashMap<>();
 	static {
-		OP_FIELDS.put(Op.CREATE.toLowerCase(), new String[]{"stdName", "consensusId"});
-		OP_FIELDS.put(Op.UPDATE.toLowerCase(), new String[]{"tid", "stdName", "consensusId"});
+		OP_FIELDS.put(Op.CREATE.toLowerCase(), new String[]{"stdName", "consensusId", FieldNames.HOME});
+		OP_FIELDS.put(Op.UPDATE.toLowerCase(), new String[]{"tid", "stdName", "consensusId", FieldNames.HOME});
 		OP_FIELDS.put(Op.JOIN.toLowerCase(), new String[]{"tid", "consensusId", "confirm"});
 		OP_FIELDS.put(Op.LEAVE.toLowerCase(), new String[]{"tids"});
 		OP_FIELDS.put(Op.TRANSFER.toLowerCase(), new String[]{"tid", "transferee", "confirm"});
@@ -287,5 +289,13 @@ public class TeamOpData {
 
 	public void setAccounts(String[] accounts) {
 		this.accounts = accounts;
+	}
+
+	public Map<String, String> getHome() {
+		return home;
+	}
+
+	public void setHome(Map<String, String> home) {
+		this.home = home;
 	}
 }

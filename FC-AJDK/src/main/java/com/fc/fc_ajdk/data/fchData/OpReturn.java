@@ -11,6 +11,7 @@ public class OpReturn extends FcObject {
 	private String signer;	//address of the first input.
 	private String recipient;	//address of the first output, but the first input address and opReturn output.
 	private Long cdd;
+	private Long paid;
 
 	public Long getHeight() {
 		return height;
@@ -54,7 +55,12 @@ public class OpReturn extends FcObject {
 	public void setCdd(Long cdd) {
 		this.cdd = cdd;
 	}
-
+	public Long getPaid() {
+		return paid;
+	}
+	public void setPaid(Long paid) {
+		this.paid = paid;
+	}
 	
 	
 }

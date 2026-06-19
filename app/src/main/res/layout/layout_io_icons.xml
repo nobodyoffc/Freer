@@ -23,11 +23,20 @@
         android:contentDescription="@string/scan" />
 
     <ImageButton
+        android:id="@+id/pasteButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@drawable/ic_paste"
+        android:padding="4dp"
+        android:contentDescription="@string/paste" />
+
+    <ImageButton
         android:id="@+id/makeQrButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:background="?attr/selectableItemBackgroundBorderless"
-        android:src="@drawable/ic_make"
+        android:src="@drawable/ic_make_qr"
         android:padding="4dp"
         android:contentDescription="@string/make" />
 

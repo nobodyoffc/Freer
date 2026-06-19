@@ -24,6 +24,14 @@ public class UserConfirmDialog extends Dialog {
     }
 
     public UserConfirmDialog(Context context, String title, String prompt, OnChoiceListener listener, boolean isWarning) {
+        this(context, title, prompt, null, null, listener, isWarning);
+    }
+
+    public UserConfirmDialog(Context context, String title, String prompt, String yesButtonText, String noButtonText, OnChoiceListener listener) {
+        this(context, title, prompt, yesButtonText, noButtonText, listener, false);
+    }
+
+    public UserConfirmDialog(Context context, String title, String prompt, String yesButtonText, String noButtonText, OnChoiceListener listener, boolean isWarning) {
         super(context);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.dialog_user_confirm);
@@ -42,9 +50,17 @@ public class UserConfirmDialog extends Dialog {
         } else {
             titleTextView.setVisibility(View.GONE);
         }
-        
+
         promptTextView.setText(prompt);
         warningIcon.setVisibility(isWarning ? View.VISIBLE : View.GONE);
+
+        // Set custom button text if provided
+        if (yesButtonText != null && !yesButtonText.trim().isEmpty()) {
+            yesButton.setText(yesButtonText);
+        }
+        if (noButtonText != null && !noButtonText.trim().isEmpty()) {
+            noButton.setText(noButtonText);
+        }
 
         stopButton.setOnClickListener(v -> {
             dismiss();

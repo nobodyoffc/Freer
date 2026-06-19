@@ -1,7 +1,6 @@
 package com.fc.fc_ajdk.data.fcData;
 
 public class DiskItem extends FcObject{
-    private String did;
     private Long since;
     private Long expire;
     private Long size;
@@ -9,22 +8,13 @@ public class DiskItem extends FcObject{
     public static final String MAPPINGS = "{\"mappings\":{\"properties\":{\"did\":{\"type\":\"keyword\"},\"since\":{\"type\":\"long\"},\"expire\":{\"type\":\"long\"},\"size\":{\"type\":\"long\"}}}}";
     public DiskItem() {}
 
-    public DiskItem(String did, Long since, Long expire, long size) {
-        this.did = did;
+    public DiskItem(String id, Long since, Long expire, long size) {
+        this.id = id;
         this.since = since;
         this.expire = expire;
         this.size = size;
     }
 
-
-
-    public String getDid() {
-        return did;
-    }
-
-    public void setDid(String did) {
-        this.did = did;
-    }
 
     public Long getSince() {
         return since;

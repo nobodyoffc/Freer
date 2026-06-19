@@ -1,5 +1,70 @@
 # task
 
+[] set home with sid.
+
+[x] room: ROOM_ACCEPT, ROOM_DISBAND。解散时由房主发出 DISBAND 消息。成员端收到后标注已解散，可自主选择是否删除历史信息。
+[x] show members
+[x] p2p dock logic
+[] when 'im manager not ready, try later', return causes crash.
+[] pending message logic: reject and block it. accept and resume.
+[] the symkey sharing message is shown in p2p chat.
+
+[x] opreturn list +
+[x] fetch the messages of myself
+[x] double notification ImManager not ready
+[x] voice message
+[x] no cid of chunhua
+[x] when send is clicked, the waiting circle should pop up immediately. in carve, send, 
+[x] choose the fast default Fapi services
+[x] ROOT: search by height in block page
+[x] test gid -> squareId
+[x] test localName from list -> map
+[x] show dock expire in the conversation
+[x] channel label missed
+[x] p2p chat setup:
+    1. only contact. add contact before send p2p message to me.
+    2. stranger dialog: add to blacklist
+    3. ignore stranger
+    4. accept stranger if it is in contacts.
+[x] manage black list
+[x] new peer dialog looks not good.
+[x] apiGroups to components
+[x] rate freer and others.
+[x] server: every day task: delete expired dock items
+[x] server: maxDataSize
+[x] server: Dock items do not store in files
+[x] when failed store dock, restart fudp and fapi? No
+[x] failed state in red. 
+[x] Chinese version of the chat type in the notification text above the input box
+
+[x] no symkey dialog + cancel button
+[x] don't show request fch dialog if the fapiClient isn't connected.
+
+[x] only set dock. others are only for advanced.
+
+[x] share-history
+[x] group->square
+[x] recharging should add orderVia the dealer of the app.
+[x] max file size in DISK service
+[x] input box
+[x] hide input box and all buttons except back in left room/group/team
+[x] leave room
+[x] new room dialog
+[x] when member leaves room, it should inform the owner. the owner should update the room. 
+[x] why there are no delivered and read./group,team,room can not show such states.
+
+[x] send file
+[x] emoji
+[x] control: hat, records, symkey
+[x] receive from fudpNode
+
+[x] delete local data; 
+[x] upload: check first, then put. 200
+[x] DISK operate list: check list; upload; download.
+[] dialog:whisper,P2P
+[] talk: 在线直发，不在线的dock
+[] 对话不需要中介，中介用于群聊和组聊，组聊的解密怎么解决？去中介，发送者声明房间。
+[] 链下List名单,按FID排列哈希为ID。创建和获得名单保存在聊天历史中。名单在db中持久化保存，可管理。
 [] 代码整理：db已完成
 
 [] cash

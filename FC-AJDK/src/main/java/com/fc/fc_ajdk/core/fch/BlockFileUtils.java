@@ -1,9 +1,6 @@
 package com.fc.fc_ajdk.core.fch;
 
-import com.fc.fc_ajdk.constants.IndicesNames;
-import com.fc.fc_ajdk.data.fchData.Block;
 import java.io.File;
-import java.io.IOException;
 
 public class BlockFileUtils {
 

@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/main_background">
+
+    <include layout="@layout/common_toolbar" />
+
+    <!-- Current DISK info (shown only by SetDiskActivity) -->
+    <TextView
+        android:id="@+id/current_disk_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="8dp"
+        android:layout_marginTop="8dp"
+        android:padding="8dp"
+        android:background="@drawable/container_outline"
+        android:textSize="13sp"
+        android:textColor="@color/text"
+        android:textIsSelectable="true"
+        android:visibility="gone" />
+
+    <ScrollView
+        android:id="@+id/scroll_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_margin="8dp"
+        android:padding="4dp"
+        android:background="@drawable/container_outline">
+
+        <!-- API Cards Container -->
+        <LinearLayout
+            android:id="@+id/api_cards_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="8dp" />
+
+    </ScrollView>
+
+    <!-- Sort Container -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/background_light"
+        android:padding="8dp">
+
+        <!-- Time Sort Button -->
+        <LinearLayout
+            android:id="@+id/time_sort_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="?android:attr/selectableItemBackground"
+            android:padding="8dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:id="@+id/time_sort_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/time"
+                android:textSize="14sp"
+                android:textColor="@color/accent"
+                android:layout_marginEnd="4dp" />
+
+            <ImageView
+                android:id="@+id/time_sort_icon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_sort_none"
+                android:contentDescription="@string/time" />
+
+        </LinearLayout>
+
+        <!-- Rate Sort Button -->
+        <LinearLayout
+            android:id="@+id/rate_sort_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="?android:attr/selectableItemBackground"
+            android:padding="8dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginStart="8dp">
+
+            <TextView
+                android:id="@+id/rate_sort_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/rate"
+                android:textSize="14sp"
+                android:textColor="@color/accent"
+                android:layout_marginEnd="4dp" />
+
+            <ImageView
+                android:id="@+id/rate_sort_icon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_sort_none"
+                android:contentDescription="@string/rate" />
+
+        </LinearLayout>
+
+        <!-- CDD Sort Button -->
+        <LinearLayout
+            android:id="@+id/cdd_sort_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="?android:attr/selectableItemBackground"
+            android:padding="8dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginStart="8dp">
+
+            <TextView
+                android:id="@+id/cdd_sort_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/cdd"
+                android:textSize="14sp"
+                android:textColor="@color/accent"
+                android:layout_marginEnd="4dp" />
+
+            <ImageView
+                android:id="@+id/cdd_sort_icon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_sort_none"
+                android:contentDescription="@string/cdd" />
+
+        </LinearLayout>
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+    </LinearLayout>
+
+    <!-- Search Box -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/rounded_textbox_background"
+        android:padding="8dp"
+        android:gravity="center_vertical"
+        >
+
+        <EditText
+            android:id="@+id/api_search_box"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:hint="@string/Input_url_or_search_api_services"
+            android:background="@drawable/bg_input_view"
+            android:textSize="16sp"
+            android:textColor="@color/text"
+            android:textColorHint="@color/hint"
+            android:inputType="text" />
+
+        <ImageButton
+            android:id="@+id/do_button"
+            style="@style/ImageButtonStyle"
+            android:layout_margin="4dp"
+            android:src="@drawable/ic_search"
+            android:contentDescription="@string/search" />
+
+    </LinearLayout>
+
+    <!-- Bottom Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@color/main_background"
+        android:gravity="end">
+
+        <ImageButton
+            android:id="@+id/clear_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_clear"
+            android:contentDescription="@string/clear" />
+
+        <ImageButton
+            android:id="@+id/done_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_tick"
+            android:contentDescription="@string/confirm" />
+
+        <ImageButton
+            android:id="@+id/back_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_back"
+            android:contentDescription="@string/back" />
+
+    </LinearLayout>
+
+</LinearLayout>

@@ -1,17 +1,16 @@
 package com.fc.freer.myKeys;
 
-import android.content.Intent;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
-import android.widget.Toast;
+
+import com.fc.freer.utils.ToastUtils;
 
 import com.fc.fc_ajdk.core.crypto.KeyTools;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
-import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
-import com.fc.freer.home.BaseCryptoActivity;
-import com.fc.freer.initiate.ConfigureManager;
+import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.ui.DetailFragment;
 import com.google.android.material.textfield.TextInputEditText;
 import com.fc.freer.utils.TextIconsUtils;
@@ -24,9 +23,9 @@ public class CreateKeyByFidActivity extends BaseCryptoActivity {
     private DetailFragment detailFragment;
     private TextInputEditText fidInput;
     private TextInputEditText labelInput;
-    private Button clearButton;
-    private Button previewButton;
-    private Button saveButton;
+    private ImageButton clearButton;
+    private ImageButton previewButton;
+    private ImageButton saveButton;
     private LinearLayout keyInfoContainer;
     private LinearLayout inputContainer;
     private LinearLayout buttonContainer;
@@ -107,7 +106,7 @@ public class CreateKeyByFidActivity extends BaseCryptoActivity {
     private void previewKeyInfo() {
         String fid = fidInput.getText() != null ? fidInput.getText().toString() : "";
         if(!KeyTools.isGoodFid(fid)){
-            Toast.makeText(this, "Invalid FID", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Invalid FID");
             return;
         }
         String label = labelInput.getText() != null ? labelInput.getText().toString() : "";
@@ -147,7 +146,7 @@ public class CreateKeyByFidActivity extends BaseCryptoActivity {
             // Use the previewed KeyInfo
             KeyInfo keyInfo = (KeyInfo) detailFragment.getCurrentEntity();
             if (keyInfo == null) {
-                Toast.makeText(this, "Failed to save key info", Toast.LENGTH_SHORT).show();
+                ToastUtils.makeText(this, "Failed to save key info");
                 return;
             }
             saveAndFinishWithKeyInfo(keyInfo);
@@ -157,13 +156,13 @@ public class CreateKeyByFidActivity extends BaseCryptoActivity {
     private KeyInfo createKeyInfoFromInputs() {
         String fid = fidInput.getText() != null ? fidInput.getText().toString() : "";
         if(!KeyTools.isGoodFid(fid)){
-            Toast.makeText(this, "Invalid FID", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Invalid FID");
             return null;
         }
         String label = labelInput.getText() != null ? labelInput.getText().toString() : "";
 
         if (fid.isEmpty()) {
-            Toast.makeText(this, "FID is empty", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "FID is empty");
             return null;
         }
 

@@ -3,22 +3,25 @@ package com.fc.fc_ajdk.data.feipData;
 import com.fc.fc_ajdk.data.fcData.FcObject;
 import com.fc.fc_ajdk.utils.JsonUtils;
 
+import java.util.List;
+import java.util.Map;
+
 public class Team extends FcObject {
 
 	private String owner;
 	private String stdName;
-	private String[] localNames;
-	private String[] waiters;
-	private String[] accounts;
+	private Map<String, String> localNames;
+	private List<String> waiters;
+	private List<String> accounts;
 	private String consensusId;
 	private String desc;
-	private String[] members;
+	private List<String> members;
 	private Long memberNum;
-	private String[] exMembers;
-	private String[] managers;
+	private List<String> exMembers;
+	private List<String> managers;
 	private String transferee;
-	private String[] invitees;
-	private String[] notAgreeMembers;
+	private List<String> invitees;
+	private List<String> notAgreeMembers;
 	
 	private Long birthTime;
 	private Long birthHeight;
@@ -28,6 +31,7 @@ public class Team extends FcObject {
 	private Long tCdd;
 	private Float tRate;
 	private Boolean active;
+	private Map<String, String> home;
 
 	public String toJson(){
 		return JsonUtils.toJson(this);
@@ -50,60 +54,91 @@ public class Team extends FcObject {
 	public void setStdName(String stdName) {
 		this.stdName = stdName;
 	}
-	public String[] getLocalNames() {
+
+	public Map<String, String> getLocalNames() {
 		return localNames;
 	}
-	public void setLocalNames(String[] localNames) {
+
+	public void setLocalNames(Map<String, String> localNames) {
 		this.localNames = localNames;
 	}
+
+	public void setWaiters(List<String> waiters) {
+		this.waiters = waiters;
+	}
+
+	public void setAccounts(List<String> accounts) {
+		this.accounts = accounts;
+	}
+
 	public String getConsensusId() {
 		return consensusId;
 	}
+
 	public void setConsensusId(String consensusId) {
 		this.consensusId = consensusId;
 	}
+
 	public String getDesc() {
 		return desc;
 	}
+
 	public void setDesc(String desc) {
 		this.desc = desc;
 	}
-	public String[] getMembers() {
+
+	public List<String> getMembers() {
 		return members;
 	}
-	public void setMembers(String[] members) {
+
+	public void setMembers(List<String> members) {
 		this.members = members;
 	}
-	public String[] getExMembers() {
+
+	public List<String> getExMembers() {
 		return exMembers;
 	}
-	public void setExMembers(String[] exMembers) {
+
+	public void setExMembers(List<String> exMembers) {
 		this.exMembers = exMembers;
 	}
-	public String[] getManagers() {
+
+	public List<String> getManagers() {
 		return managers;
 	}
-	public void setManagers(String[] managers) {
+
+	public void setManagers(List<String> managers) {
 		this.managers = managers;
 	}
+
 	public String getTransferee() {
 		return transferee;
 	}
+
 	public void setTransferee(String transferee) {
 		this.transferee = transferee;
 	}
-	public String[] getInvitees() {
+
+	public List<String> getInvitees() {
 		return invitees;
 	}
-	public void setInvitees(String[] invitees) {
+
+	public void setInvitees(List<String> invitees) {
 		this.invitees = invitees;
 	}
-	public String[] getNotAgreeMembers() {
+
+	public List<String> getNotAgreeMembers() {
 		return notAgreeMembers;
 	}
-	public void setNotAgreeMembers(String[] notAgreeMembers) {
+
+	public void setNotAgreeMembers(List<String> notAgreeMembers) {
 		this.notAgreeMembers = notAgreeMembers;
 	}
+
+	public Boolean getActive() {
+		return active;
+	}
+
 	public Long getBirthTime() {
 		return birthTime;
 	}
@@ -157,23 +192,23 @@ public class Team extends FcObject {
 		return memberNum;
 	}
 
+	public List<String> getWaiters() {
+		return waiters;
+	}
+
+	public List<String> getAccounts() {
+		return accounts;
+	}
+
 	public void setMemberNum(Long memberNum) {
 		this.memberNum = memberNum;
 	}
 
-	public String[] getWaiters() {
-		return waiters;
+	public Map<String, String> getHome() {
+		return home;
 	}
 
-	public void setWaiters(String[] waiters) {
-		this.waiters = waiters;
-	}
-
-	public String[] getAccounts() {
-		return accounts;
-	}
-
-	public void setAccounts(String[] accounts) {
-		this.accounts = accounts;
+	public void setHome(Map<String, String> home) {
+		this.home = home;
 	}
 }

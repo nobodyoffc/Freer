@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/key_card_background">
+
+    <!-- Include common toolbar -->
+    <include layout="@layout/common_toolbar" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="16dp">
+
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:orientation="vertical">
+
+            <!-- FID Display Section (Read-only) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="16dp"
+                android:background="@drawable/bg_result_view"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/contact_fid"
+                    android:textStyle="bold"
+                    android:textSize="14sp"
+                    android:textColor="@color/field_name"
+                    android:layout_marginBottom="4dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <ImageView
+                        android:id="@+id/contactAvatarImageView"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:layout_marginEnd="12dp"
+                        android:scaleType="centerCrop"
+                        android:contentDescription="@string/contact_avatar" />
+
+                    <TextView
+                        android:id="@+id/fidDisplayTextView"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:textSize="16sp"
+                        android:textColor="@color/text"
+                        android:padding="12dp"
+                        android:text="FID: Loading..." />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- Input Container -->
+            <LinearLayout
+                android:id="@+id/inputContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="8dp">
+
+                <include
+                    android:id="@+id/titlesView"
+                    layout="@layout/layout_text_input_with_scan"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    android:layout_marginBottom="8dp" />
+
+                <include
+                    android:id="@+id/memoView"
+                    layout="@layout/layout_text_input_with_scan"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp" />
+
+            </LinearLayout>
+
+            <!-- Check Container -->
+            <LinearLayout
+                android:id="@+id/checkContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="16dp">
+
+                <CheckBox
+                    android:id="@+id/seeStatementCheckBox"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/see_statement"
+                    android:textColor="@color/text"
+                    android:layout_marginEnd="16dp" />
+
+                <CheckBox
+                    android:id="@+id/seeWritingsCheckBox"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/see_writings"
+                    android:textColor="@color/text" />
+
+            </LinearLayout>
+
+            <!-- Button Container -->
+            <LinearLayout
+                android:id="@+id/buttonContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="end">
+
+                <ImageButton
+                    android:id="@+id/clearButton"
+                    style="@style/ImageButtonStyle"
+                    android:src="@drawable/ic_clear"
+                    android:contentDescription="@string/clear" />
+
+                <ImageButton
+                    android:id="@+id/carveButton"
+                    style="@style/ImageButtonStyle"
+                    android:src="@drawable/ic_send"
+                    android:contentDescription="@string/carve" />
+
+                <ImageButton
+                    android:id="@+id/updateButton"
+                    style="@style/ImageButtonStyle"
+                    android:src="@drawable/ic_tick"
+                    android:contentDescription="@string/confirm" />
+
+                <ImageButton
+                    android:id="@+id/back_button"
+                    style="@style/ImageButtonStyle"
+                    android:src="@drawable/ic_back"
+                    android:contentDescription="@string/back" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </ScrollView>
+
+</LinearLayout>

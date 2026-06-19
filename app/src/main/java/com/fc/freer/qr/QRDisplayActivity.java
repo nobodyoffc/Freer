@@ -12,7 +12,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
-import android.widget.Toast;
+
+import com.fc.freer.utils.ToastUtils;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -72,9 +73,9 @@ public class QRDisplayActivity extends AppCompatActivity {
         }
 
         if (savedCount > 0) {
-            Toast.makeText(this, getString(R.string.qr_saved_count, savedCount), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.qr_saved_count, savedCount));
         } else {
-            Toast.makeText(this, getString(R.string.error_saving_qr), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.error_saving_qr));
         }
     }
     

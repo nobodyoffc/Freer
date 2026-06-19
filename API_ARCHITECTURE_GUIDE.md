@@ -205,7 +205,7 @@ static {
 public static final String[] freeAPIs = new String[]{
     "https://apip.cash/APIP",
     "https://freecash.info/APIP",
-    "https://cid.cash/APIP",
+    "https://freer.cash/APIP",
     "https://help.cash/APIP"
 };
 ```

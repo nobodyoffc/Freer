@@ -1,8 +1,5 @@
 package com.fc.freer.secret;
 
-
-import static com.fc.freer.myKeys.ExportKeysActivity.SYMKEY;
-
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -10,31 +7,30 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.view.View;
-import android.widget.Button;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
-import android.widget.Toast;
 
-import com.fc.freer.model.Configure;
-import com.fc.fc_ajdk.core.crypto.CryptoDataByte;
-import com.fc.fc_ajdk.core.crypto.Decryptor;
 import com.fc.fc_ajdk.core.crypto.Encryptor;
 import com.fc.fc_ajdk.data.fcData.AlgorithmId;
-import com.fc.fc_ajdk.data.fcData.SecretDetail;
+import com.fc.fc_ajdk.data.feipData.Secret;
 import com.fc.fc_ajdk.utils.Base32;
 import com.fc.fc_ajdk.utils.BytesUtils;
-import com.fc.fc_ajdk.utils.Hex;
 import com.fc.fc_ajdk.utils.IdNameUtils;
 import com.fc.fc_ajdk.utils.JsonUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
-import com.fc.freer.home.BaseCryptoActivity;
+import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.initiate.ConfigureManager;
+import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.BackupHeader;
 import com.fc.freer.model.BackupKey;
+import com.fc.freer.model.Configure;
 import com.fc.freer.ui.SingleInputActivity;
 import com.fc.freer.utils.QRCodeGenerator;
+import com.fc.freer.utils.SecurePrikeyManager;
+import com.fc.freer.utils.ToastUtils;
 import com.google.android.material.textfield.TextInputEditText;
+import android.widget.ImageButton;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,22 +41,20 @@ public class ExportSecretActivity extends BaseCryptoActivity {
     public static final String RANDOM_PASSWORD = "Random Password";
     public static final String DON_T_ENCRYPT = "Don't encrypt";
 
-    private List<SecretDetail> secretList;
+    private List<Secret> secretList;
     private RadioGroup encryptByGroup;
-    private Button exportButton;
-    private Button makeQrButton;
-    private Button copyButton;
+    private ImageButton exportButton;
+    private ImageButton makeQrButton;
+    private ImageButton copyButton;
     private View resultView;
     private TextInputEditText resultTextBox;
     private final List<String> jsonList = new ArrayList<>();
     List<List<Bitmap>> bitmapListList = new ArrayList<>();
 
     private RadioButton currentPasswordButton;
-    private RadioButton symKeyButton;
     private RadioButton randomPasswordButton;
     private RadioButton noneButton;
     private static final int REQUEST_CODE_PASSWORD = 3001;
-    private static final int REQUEST_CODE_SYMKEY = 3002;
     private BackupHeader backupHeader = null;
 
     @Override
@@ -70,37 +64,43 @@ public class ExportSecretActivity extends BaseCryptoActivity {
         // Get and parse the secret list from intent
         String secretListJson = getIntent().getStringExtra("secretList");
         if(secretListJson == null){
-            Toast.makeText(this,R.string.secret_list_is_null, Toast.LENGTH_LONG).show();
+            ToastUtils.showError(this,R.string.secret_list_is_null);
             finish(); // Finish activity if secret list is null
             return;
         }
-        secretList = JsonUtils.listFromJson(secretListJson,SecretDetail.class);
+        secretList = JsonUtils.listFromJson(secretListJson, Secret.class);
         if (secretList.isEmpty()) {
-            Toast.makeText(this, R.string.secret_list_is_empty, Toast.LENGTH_LONG).show();
+            ToastUtils.showError(this, R.string.secret_list_is_empty);
             finish(); // Finish activity if secret list is empty
             return;
         }
-        
-        // Decrypt content and clear contentCipher
-        for (SecretDetail secret : secretList) {
+
+        // Decrypt content using private key (contentCipher is encrypted with user's public key)
+        String prikeyCipher = FidManager.getInstance().getLiveKeyInfo().getPrikeyCipher();
+        if (prikeyCipher == null) {
+            ToastUtils.showError(this, R.string.prikey_not_available);
+            finish();
+            return;
+        }
+
+        byte[] prikey = SecurePrikeyManager.fetchPrikeySilentAndPersistent(prikeyCipher);
+        if (prikey == null) {
+            ToastUtils.showError(this, R.string.failed_to_get_prikey);
+            finish();
+            return;
+        }
+
+        // Decrypt all secrets with the private key
+        for (Secret secret : secretList) {
             if (secret.getContentCipher() != null) {
-                try{    
-                    CryptoDataByte cryptoDataByte = CryptoDataByte.fromJson(secret.getContentCipher());
-                    byte[] symKey = ConfigureManager.getInstance().getSymkey();
-                    if(symKey==null){
-                        Toast.makeText(this,R.string.symkey_is_null, Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    Decryptor.decryptBySymkey(cryptoDataByte, com.fc.fc_ajdk.utils.Hex.toHex(symKey));
-                    if(cryptoDataByte.getData() != null){
-                        secret.setContent(new String(cryptoDataByte.getData()));
-                        secret.setContentCipher(null);
-                    }
-                }catch (Exception e){
-                    TimberLogger.e(e.getMessage());
-                }
+                secret.decryptContent(prikey);
+                // Clear the cipher since we now have plaintext content
+                secret.setContentCipher(null);
             }
         }
+
+        // Clean up private key after use
+        BytesUtils.clearByteArray(prikey);
     }
 
     @Override
@@ -123,7 +123,6 @@ public class ExportSecretActivity extends BaseCryptoActivity {
         resultTextBox = resultView.findViewById(R.id.textBoxWithMakeQrLayout);
 
         currentPasswordButton = findViewById(R.id.encrypt_current_password);
-        symKeyButton = findViewById(R.id.encrypt_symkey);
         randomPasswordButton = findViewById(R.id.encrypt_random_password);
         noneButton = findViewById(R.id.encrypt_none);
 
@@ -132,7 +131,7 @@ public class ExportSecretActivity extends BaseCryptoActivity {
         // The IoIconsView setup seems to be for a different make QR icon inside the resultView.
         // We will handle the new makeQrButton's click listener in setupButtons()
         setupIoIconsView(R.id.resultView, R.id.makeQrIcon, true, false, false, false,
-                this::makeQr, null, null, null); // Renamed to avoid conflict
+                false, this::makeQr, null, null, null, null); // Renamed to avoid conflict
 
         updateButtonStates();
     }
@@ -158,14 +157,14 @@ public class ExportSecretActivity extends BaseCryptoActivity {
             // Show QR codes in a dialog using QRCodeGenerator
             QRCodeGenerator.showQRDialog(this, flattenedBitmaps);
         } else {
-            Toast.makeText(this, getString(R.string.no_data_to_make_qr_code), Toast.LENGTH_SHORT).show();
+            ToastUtils.showWarning(this, getString(R.string.no_data_to_make_qr_code));
         }
     }
 
     private void setupRadioButtonListeners() {
-        
-        RadioButton[] allButtons = {currentPasswordButton, symKeyButton, randomPasswordButton, noneButton};
-        
+
+        RadioButton[] allButtons = {currentPasswordButton, randomPasswordButton, noneButton};
+
         // Set up listeners for all buttons
         for (RadioButton button : allButtons) {
             button.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -188,10 +187,7 @@ public class ExportSecretActivity extends BaseCryptoActivity {
 
             // Determine which method is selected
             if (currentPasswordButton.isChecked()) {
-                getInputtedString("Input current password:");
-                return; // Wait for user input
-            } else if (symKeyButton.isChecked()) {
-                getSymKeyString("Input the symmetric key:");
+                getPasswordString(getString(R.string.input_the_password));
                 return; // Wait for user input
             } else {
                 // For random password or no encryption, proceed directly
@@ -207,12 +203,12 @@ public class ExportSecretActivity extends BaseCryptoActivity {
                 ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                 ClipData clip = ClipData.newPlainText("Exported Secrets", textToCopy);
                 clipboard.setPrimaryClip(clip);
-                Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show();
+                ToastUtils.makeText(this, getString(R.string.copied));
             } else {
-                Toast.makeText(this, "Nothing to copy", Toast.LENGTH_SHORT).show();
+                ToastUtils.showWarning(this, getString(R.string.nothing_to_copy));
             }
         });
-        
+
         // The makeQrIcon click listener is set up in initializeViews via setupIoIconsView
         // If makeQrIcon refers to the button, this might be redundant or conflicting.
         // Assuming makeQrIcon is a separate icon within the result view.
@@ -220,7 +216,7 @@ public class ExportSecretActivity extends BaseCryptoActivity {
 
     // New method to handle the actual export
     private void doExport(String password, String inputSymKeyStr) {
-        String result = generateExportResult(password, inputSymKeyStr);
+        String result = generateExportResult(password);
         if (result != null && !result.isEmpty()) {
             displayResult(result);
         }
@@ -228,94 +224,81 @@ public class ExportSecretActivity extends BaseCryptoActivity {
     }
 
     // Refactor generateExportResult to accept parameters
-    private String generateExportResult(String enteredPassword, String inputSymKeyStr) {
+    private String generateExportResult(String enteredPassword) {
         backupHeader = new BackupHeader();
         backupHeader.setTime(System.currentTimeMillis());
         backupHeader.setItems(secretList.size());
 
-        RadioButton encryptByRadio = null;
+        String encryptMethod;
         if (currentPasswordButton != null && currentPasswordButton.isChecked()) {
-            encryptByRadio = currentPasswordButton;
-        } else if (symKeyButton != null && symKeyButton.isChecked()) {
-            encryptByRadio = symKeyButton;
+            encryptMethod = CURRENT_PASSWORD;
         } else if (randomPasswordButton != null && randomPasswordButton.isChecked()) {
-            encryptByRadio = randomPasswordButton;
+            encryptMethod = RANDOM_PASSWORD;
         } else if (noneButton != null && noneButton.isChecked()) {
-            encryptByRadio = noneButton;
-        }
-
-        if (encryptByRadio == null) {
-            Toast.makeText(this, getString(R.string.select_encryption_method), Toast.LENGTH_SHORT).show();
+            encryptMethod = DON_T_ENCRYPT;
+        } else {
+            ToastUtils.showWarning(this, getString(R.string.select_encryption_method));
             return null;
         }
-        String encryptMethod = encryptByRadio.getText().toString();
 
         String randomPassword = null;
-        byte[] symKey = null;
         switch (encryptMethod) {
             case CURRENT_PASSWORD -> {
                 if (enteredPassword == null || enteredPassword.isEmpty()) {
-                    Toast.makeText(this, getString(R.string.please_enter_password), Toast.LENGTH_SHORT).show();
+                    ToastUtils.showWarning(this, getString(R.string.please_enter_password));
                     return null;
                 }
                 byte[] passwordBytes = enteredPassword.getBytes();
                 String passwordName = IdNameUtils.makePasswordHashName(passwordBytes);
-                Configure configure = ConfigureManager.getInstance().getConfigure(this, passwordName);
+                Configure configure = ConfigureManager.getInstance().getConfigure();
                 if (configure == null || !passwordName.equals(configure.getPasswordName())) {
-                    Toast.makeText(this, getString(R.string.incorrect_password), Toast.LENGTH_SHORT).show();
+                    ToastUtils.showError(this, getString(R.string.incorrect_password));
                     return null;
                 }
-                backupHeader.setAlg(AlgorithmId.FC_AesCbc256_No1_NrC7.getDisplayName());
+                backupHeader.setAlg(AlgorithmId.FC_AesGcm256_No1_NrC7.getDisplayName());
                 backupHeader.setKeyName(IdNameUtils.makeKeyName(passwordBytes));
             }
             case RANDOM_PASSWORD -> {
                 randomPassword = Base32.toBase32(BytesUtils.getRandomBytes(8));
-                backupHeader.setAlg(AlgorithmId.FC_AesCbc256_No1_NrC7.getDisplayName());
+                backupHeader.setAlg(AlgorithmId.FC_AesGcm256_No1_NrC7.getDisplayName());
                 backupHeader.setKeyName(IdNameUtils.makeKeyName(randomPassword.getBytes()));
-            }
-            case SYMKEY -> {
-                if (inputSymKeyStr == null || inputSymKeyStr.isEmpty() || !Hex.isHex32(inputSymKeyStr)) {
-                    Toast.makeText(this, getString(R.string.sym_key_has_to_be_a_hex_of_32_bytes), Toast.LENGTH_SHORT).show();
-                    return null;
-                }
-                symKey = Hex.fromHex(inputSymKeyStr);
-                backupHeader.setAlg(AlgorithmId.FC_AesCbc256_No1_NrC7.getDisplayName());
-                backupHeader.setKeyName(IdNameUtils.makeKeyName(symKey));
             }
             case DON_T_ENCRYPT -> {}
         }
 
+        backupHeader.settClass(Secret.class.getSimpleName());
+
         if (!encryptMethod.equals(DON_T_ENCRYPT)) {
-            backupHeader.setAlg(AlgorithmId.FC_AesCbc256_No1_NrC7.getDisplayName());
-            BackupKey backupKey = BackupKey.makeBackupKey(backupHeader,inputSymKeyStr, randomPassword);
+            BackupKey backupKey = BackupKey.makeBackupKey(backupHeader, null, randomPassword,this);
             jsonList.add(JsonUtils.toNiceJson(backupKey));
         }
-        backupHeader.settClass(SecretDetail.class.getSimpleName());
 
         String headerNiceJson = backupHeader.toNiceJson();
         jsonList.add(headerNiceJson);
 
         for (int i = 0; i < secretList.size(); i++) {
-            SecretDetail secret = secretList.get(i);
+            Secret secret = secretList.get(i);
             if (secret == null) continue;
-            addItemJson(enteredPassword, encryptMethod, secret, randomPassword, symKey);
+            addItemJson(enteredPassword, encryptMethod, secret, randomPassword);
         }
 
         return JsonUtils.makeJsonListString(jsonList);
     }
 
-    private void addItemJson(String enteredPassword, String encryptMethod, SecretDetail secret, String randomPassword, byte[] symKey) {
+    private void addItemJson(String enteredPassword, String encryptMethod, Secret secret, String randomPassword) {
         String encryptedJson = "";
+        secret.setSaveTime((String) null);
+
+        // Clear contentCipher before exporting - we'll export plaintext content
+        secret.setContentCipher(null);
+
         try {
             switch (encryptMethod) {
                 case CURRENT_PASSWORD:
-                    encryptedJson = new Encryptor().encryptByPassword(secret.toBytes(), enteredPassword.toCharArray()).toNiceJson();
+                    encryptedJson = new Encryptor(AlgorithmId.FC_AesGcm256_No1_NrC7).encryptByPassword(secret.toBytes(), enteredPassword.toCharArray()).toNiceJson();
                     break;
                 case RANDOM_PASSWORD:
-                    encryptedJson = new Encryptor().encryptByPassword(secret.toBytes(), randomPassword.toCharArray()).toNiceJson();
-                    break;
-                case SYMKEY:
-                    encryptedJson = new Encryptor().encryptBySymkey(secret.toBytes(), symKey).toNiceJson();
+                    encryptedJson = new Encryptor(AlgorithmId.FC_AesGcm256_No1_NrC7).encryptByPassword(secret.toBytes(), randomPassword.toCharArray()).toNiceJson();
                     break;
                 case DON_T_ENCRYPT:
                     encryptedJson = JsonUtils.toNiceJson(secret);
@@ -326,24 +309,17 @@ public class ExportSecretActivity extends BaseCryptoActivity {
             }
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error encrypting secret: %s", secret.getTitle());
-            Toast.makeText(this, "Error encrypting secret: " + secret.getTitle(), Toast.LENGTH_SHORT).show();
+            ToastUtils.showError(this, getString(R.string.error_encrypting_secret, secret.getTitle()));
             return;
         }
         jsonList.add(encryptedJson);
     }
 
-    private void getInputtedString(String promote) {
+    private void getPasswordString(String promote) {
         Intent intent = new Intent(this, SingleInputActivity.class);
         intent.putExtra(SingleInputActivity.EXTRA_PROMOTE, promote);
         intent.putExtra(SingleInputActivity.EXTRA_INPUT_TYPE, "password");
         startActivityForResult(intent, REQUEST_CODE_PASSWORD);
-    }
-
-    private void getSymKeyString(String promote) {
-        Intent intent = new Intent(this, SingleInputActivity.class);
-        intent.putExtra(SingleInputActivity.EXTRA_PROMOTE, promote);
-        intent.putExtra(SingleInputActivity.EXTRA_INPUT_TYPE, "text");
-        startActivityForResult(intent, REQUEST_CODE_SYMKEY);
     }
 
     @Override
@@ -353,9 +329,6 @@ public class ExportSecretActivity extends BaseCryptoActivity {
             if (requestCode == REQUEST_CODE_PASSWORD) {
                 String password = data.getStringExtra(SingleInputActivity.EXTRA_RESULT);
                 doExport(password, null);
-            } else if (requestCode == REQUEST_CODE_SYMKEY) {
-                String symKeyStr = data.getStringExtra(SingleInputActivity.EXTRA_RESULT);
-                doExport(null, symKeyStr);
             }
         }
     }
@@ -372,4 +345,4 @@ public class ExportSecretActivity extends BaseCryptoActivity {
         // Since this activity is for exporting secrets, we don't need to handle QR scan results
         // This method is required by BaseCryptoActivity but not used in this context
     }
-} 
+}

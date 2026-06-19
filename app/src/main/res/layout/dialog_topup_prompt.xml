@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <!-- Scrollable Content -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Message Text -->
+            <TextView
+                android:id="@+id/topupMessageText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/topUp_prompt_message"
+                android:textSize="18sp"
+                android:textColor="?attr/colorOnSurface"
+                android:layout_marginBottom="16dp" />
+
+
+            <!-- QR Code Image -->
+            <ImageView
+                android:id="@+id/topupQrCode"
+                android:layout_width="match_parent"
+                android:layout_height="250dp"
+                android:scaleType="fitCenter"
+                android:layout_marginBottom="24dp"
+                android:contentDescription="@string/qr_code" />
+
+            <!-- FID Display -->
+            <TextView
+                android:id="@+id/topupFidText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="20sp"
+                android:textColor="?attr/colorPrimary"
+                android:fontFamily="monospace"
+                android:textIsSelectable="true"
+                android:layout_marginBottom="16dp"
+                android:background="@drawable/bg_input_view"
+                android:padding="12dp" />
+
+        </LinearLayout>
+
+    </ScrollView>
+
+    <!-- Button Container -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end">
+
+        <!-- Ignore Button -->
+        <Button
+            android:id="@+id/topupIgnoreButton"
+            style="@style/ButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/ignore"
+            android:layout_marginEnd="8dp"
+            android:visibility="gone"
+            />
+
+        <!-- Copy Button -->
+        <Button
+            android:id="@+id/topupCopyButton"
+            style="@style/ButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/copy_fid"
+            android:layout_marginEnd="8dp" />
+
+        <!-- OK Button -->
+        <Button
+            android:id="@+id/topupOkButton"
+            style="@style/ButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/ok" />
+
+    </LinearLayout>
+
+</LinearLayout>

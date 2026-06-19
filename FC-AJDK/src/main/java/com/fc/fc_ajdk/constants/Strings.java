@@ -78,6 +78,7 @@ public class Strings {
     public static final String INIT_SYM_KEY_CIPHER = "initSymKeyCipher";
     public static final String WEB_PARAMS = "webParams";
     public static final String API = "api";
+    public static final String ORG = "org";
     public static final String USER_ID = "userId";
     public static final String CHECK = "check";
     public static final String FOUND = "found";

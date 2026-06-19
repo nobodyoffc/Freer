@@ -3,29 +3,64 @@ package com.fc.freer;
 import android.app.Activity;
 import android.app.Application;
 import android.os.Bundle;
-import android.widget.Toast;
 
+import com.fc.fc_ajdk.android.FcProviders;
 import com.fc.fc_ajdk.data.feipData.Service;
+import com.fc.freer.android.FreerLogProvider;
+import com.fc.freer.android.FreerMessageCallback;
+import com.fc.freer.android.FreerStorageProvider;
+import com.fc.freer.manager.CidFidManager;
 import com.fc.freer.manager.DatabaseManager;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.manager.FcManager;
 import com.fc.freer.model.Configure;
 import com.orhanobut.hawk.Hawk;
+import com.tencent.mmkv.MMKV;
 import com.fc.freer.utils.BackgroundTimeoutManager;
+import com.fc.freer.config.ApiComponentConfig;
+import com.fc.freer.im.ImManager;
+import com.fc.freer.initiate.SettingManager;
+import com.fc.freer.model.Setting;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class FreerApplication extends Application {
-    public static final int TOAST_LASTING = Toast.LENGTH_SHORT;
-    public static final String FREER_APP_DEALER = "FJgzvgUiYPNeRinB8v3CCwThDVrJKkreer";
-    public static final FcManager.ManagerType[] managers = new FcManager.ManagerType[]{FcManager.ManagerType.CASH};
+    public static final String VER = "v2.7";
+
+    public static final int DEFAULT_PAGE_SIZE = 10;
+    public static final int MAX_CONTAINER_SIZE =40;
+    public static final int DEFAULT_REQUEST_SIZE = 10;
+    public static final int DEFAULT_REQUEST_PAGE_COUNT = 1;
+    public static final String FREER_APP_DEALER = "FJjw8CiHEezwvVHFDY1z7n5sbwejm4reer";
+
+    public static final FcManager.ManagerType[] managers = new FcManager.ManagerType[]{
+            FcManager.ManagerType.APP,
+            FcManager.ManagerType.CASH,
+            FcManager.ManagerType.SECRET,
+            FcManager.ManagerType.CONTACT,
+            FcManager.ManagerType.MAIL,
+            FcManager.ManagerType.FC_OBJECT,
+            FcManager.ManagerType.PROOF};
     public static final Map<Service.ServiceType,Integer> serviceNumberMap = new HashMap<>();
-    public static final int DEFAULT_PAGE_SIZE = 20;
+
+    // API 组件配置映射
+    public static final Map<String, ApiComponentConfig> API_COMPONENT_CONFIG = new HashMap<>();
+    
+    static {
+        // BASE 组件：关键组件，需要 1 个客户端（当前需求）
+        API_COMPONENT_CONFIG.put("BASE", 
+            new ApiComponentConfig("BASE", 1, 10, true));
+        
+        // 其他组件配置（为未来扩展准备，当前未使用）
+        // API_COMPONENT_CONFIG.put("MAP", new ApiComponentConfig("MAP", 1, 8, false));
+        // API_COMPONENT_CONFIG.put("DISK", new ApiComponentConfig("DISK", 1, 7, false));
+        // API_COMPONENT_CONFIG.put("TALK", new ApiComponentConfig("TALK", 1, 6, false));
+    }
 
     private static final List<String> fidList = new ArrayList<>();
-    private static String activeFid = null;
     private static Activity currentActivity;
     @Override
     public void onCreate() {
@@ -35,10 +70,22 @@ public class FreerApplication extends Application {
 
         // Initialize Configure context
         Configure.setContext(this);
-
-        serviceNumberMap.put(Service.ServiceType.APIP,1);
         
-        // Initialize Hawk at the application level
+        // Initialize FC-AJDK providers for Android
+        FcProviders.init(
+            new FreerLogProvider(),
+            new FreerStorageProvider(this),
+            new FreerMessageCallback(this)
+        );
+
+        // Use FAPI as the primary API service
+        serviceNumberMap.put(Service.ServiceType.FAPI_No1_NrC7, 1);
+
+        // Initialize MMKV at the application level (must be called before any MMKVDB usage)
+        String rootDir = MMKV.initialize(this);
+        TimberLogger.d("FreerApp", "MMKV initialized with root dir: " + rootDir);
+
+        // Initialize Hawk at the application level (kept for migration purposes)
         Hawk.init(this).build();
         
         // Register activity lifecycle callbacks
@@ -53,6 +100,7 @@ public class FreerApplication extends Application {
             public void onActivityResumed(android.app.Activity activity) {
                 currentActivity = activity;
                 BackgroundTimeoutManager.onAppForeground(activity);
+                notifyImForeground();
             }
 
             @Override
@@ -82,6 +130,26 @@ public class FreerApplication extends Application {
     }
 
     /**
+     * Notify the active ImManager that the app returned to the foreground so it can
+     * reconnect any DOCK servers whose FUDP connection died during a long sleep.
+     * Cheap no-op unless a dock is actually marked failed.
+     */
+    private static void notifyImForeground() {
+        try {
+            SettingManager sm = SettingManager.getInstance();
+            if (sm == null) return;
+            Setting setting = sm.getCurrentSetting();
+            if (setting == null) return;
+            ImManager imManager = setting.getImManager();
+            if (imManager != null) {
+                imManager.onAppForeground();
+            }
+        } catch (Exception e) {
+            TimberLogger.w("FreerApp", "notifyImForeground failed: " + e.getMessage());
+        }
+    }
+
+    /**
      * Get the current foreground activity
      * @return Current activity or null if no activity is in foreground
      */
@@ -102,6 +170,12 @@ public class FreerApplication extends Application {
      * @param fid The fid to add
      */
     public static synchronized void addFid(String fid) {
+        if(fid.contains("_")){
+            CidFidManager cidFidManager = CidFidManager.getInstance();
+            if(cidFidManager!=null){
+                fid = cidFidManager.getFidByCid(fid);
+            }
+        }
         if (!fidList.contains(fid)) {
             fidList.add(fid);
         }
@@ -123,5 +197,24 @@ public class FreerApplication extends Application {
      */
     public static void clearFidList() {
         fidList.clear();
+    }
+
+    /**
+     * Get a copy of the API component configuration map
+     * @return Map of component name to ApiComponentConfig
+     */
+    public static Map<String, ApiComponentConfig> getApiComponentConfig() {
+        return new HashMap<>(API_COMPONENT_CONFIG);
+    }
+
+    /**
+     * Get the list of critical (required) component names
+     * @return List of critical component names
+     */
+    public static List<String> getRequiredComponents() {
+        return API_COMPONENT_CONFIG.values().stream()
+            .filter(ApiComponentConfig::isCritical)
+            .map(ApiComponentConfig::getComponentName)
+            .collect(Collectors.toList());
     }
 } 

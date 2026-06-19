@@ -23,13 +23,13 @@
             android:layout_marginBottom="16dp">
 
             <TextView
-                android:id="@+id/multisignResultsHint"
+                android:id="@+id/multisigResultsHint"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/my_multisign_fids"
+                android:text="@string/my_multisig"
                 android:textStyle="bold"
                 android:textSize="16sp"
-                android:textColor="@color/text_color"
+                android:textColor="@color/text"
                 android:layout_marginBottom="8dp"
                 android:visibility="gone" />
 
@@ -45,7 +45,7 @@
                     android:orientation="vertical">
 
                     <LinearLayout
-                        android:id="@+id/multisignResultsLayout"
+                        android:id="@+id/multisigResultsLayout"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical" />
@@ -65,15 +65,11 @@
                         android:layout_marginTop="4dp"
                         android:visibility="gone" />
 
-                    <Button
+                    <ImageButton
                         android:id="@+id/moreButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/more"
-                        android:layout_marginTop="8dp"
-                        android:visibility="gone"
-                        android:layout_gravity="center_vertical"
-                        style="@style/ButtonStyle" />
+                        style="@style/SmallImageButton"
+                        android:src="@drawable/ic_more_down"
+                        android:contentDescription="@string/more"/>
                     </LinearLayout>
 
                 </LinearLayout>
@@ -84,20 +80,13 @@
 
         <!-- Select All Checkbox -->
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="78dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
+            android:layout_gravity="right"
             android:layout_marginBottom="16dp"
+            android:orientation="horizontal"
             android:paddingStart="8dp"
             android:paddingEnd="8dp">
-
-            <CheckBox
-                android:id="@+id/selectAllCheckbox"
-                android:layout_width="30dp"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_vertical"
-                android:layout_marginStart="0dp"
-                android:textColor="@color/text_color"/>
 
             <TextView
                 android:id="@+id/selectAllLabel"
@@ -106,8 +95,17 @@
                 android:layout_gravity="center_vertical"
                 android:layout_marginStart="8dp"
                 android:text="@string/all"
-                android:textSize="16sp"
-                android:textColor="@color/text_color" />
+                android:textColor="@color/text"
+                android:textSize="16sp" />
+
+            <CheckBox
+                android:id="@+id/selectAllCheckbox"
+                android:layout_width="30dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="0dp"
+                android:textColor="@color/text" />
+
 
         </LinearLayout>
 
@@ -115,34 +113,31 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:gravity="end">
 
-            <Button
+            <ImageButton
                 android:id="@+id/refreshButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/refresh"
-                android:layout_marginEnd="8dp"
-                style="@style/ButtonStyle" />
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_refresh"
+                android:contentDescription="@string/refresh"
+                />
 
-            <Button
-                android:id="@+id/cancelButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/cancel"
-                android:layout_marginEnd="8dp"
-                style="@style/ButtonStyle" />
-
-            <Button
-                android:id="@+id/addMultisignFidButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/add"
-                style="@style/ButtonStyle"
+            <ImageButton
+                android:id="@+id/addMultisigFidButton"
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_tick"
+                android:contentDescription="@string/add"
                 android:enabled="false" />
+
+            <ImageButton
+                android:id="@+id/backButton"
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_back"
+                android:contentDescription="@string/back"
+                />
+
+
 
         </LinearLayout>
 

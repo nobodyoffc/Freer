@@ -31,17 +31,26 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:gravity="end">
 
-            <Button
+            <ImageButton
                 android:id="@+id/cashClearButton"
-                style="@style/ButtonStyle"
-                android:text="@string/clear" />
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_clear"
+                android:contentDescription="@string/clear" />
 
-            <Button
+            <ImageButton
                 android:id="@+id/cashImportButton"
-                style="@style/ButtonStyle"
-                android:text="@string/import_tx" />
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_import"
+                android:contentDescription="@string/import_a" />
+
+            <ImageButton
+                android:id="@+id/back_button"
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_back"
+                android:contentDescription="@string/back" />
 
         </LinearLayout>
 

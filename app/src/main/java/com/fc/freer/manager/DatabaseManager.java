@@ -1,31 +1,36 @@
 package com.fc.freer.manager;
 
-import android.content.Context;
-
 import com.fc.fc_ajdk.data.fcData.FcEntity;
 import com.fc.fc_ajdk.db.LocalDB;
-import com.fc.fc_ajdk.db.HawkDB;
+import com.fc.fc_ajdk.db.MMKVDB;
 import com.fc.fc_ajdk.utils.TimberLogger;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 public class DatabaseManager {
+    public static final String LAST_UPDATED = "lastUpdated";
+    public static final String EARLIEST_ACTIVE = "earliestActive";
+    public static final String HAS_MORE_EARLIER = "hasMoreEarlier";
+    public static final String HAS_MORE_NEWER = "hasMoreNewer";
+    public static final String EARLIEST_VALID = "earliestValid";
+    public static final String TOTAL = "total";
+    public static final String BEST_HEIGHT = "bestHeight";
+    public static final String BEST_BLOCK_ID = "bestBlockId";
     private static DatabaseManager instance;
-    private final Context context;
+//    private final Context context;
     private String currentPasswordName;
     private final Map<String, LocalDB<? extends FcEntity>> databases;
     private final Map<String, Class<? extends FcEntity>> databaseClasses = new HashMap<>();
 
-    private DatabaseManager(Context context) {
-        this.context = context.getApplicationContext();
+    private DatabaseManager() {
+//        this.context = context.getApplicationContext();
         this.databases = new HashMap<>();
     }
 
-    public static synchronized DatabaseManager getInstance(Context context) {
+    public static synchronized DatabaseManager getInstance() {
         if (instance == null) {
-            instance = new DatabaseManager(context.getApplicationContext());
+            instance = new DatabaseManager();
         }
         return instance;
     }
@@ -52,124 +57,15 @@ public class DatabaseManager {
         databaseClasses.clear();
     }
 
-    public void changePassword(String passwordName) {
-        if (passwordName.equals(this.currentPasswordName)) {
-            return;
-        }
-
-        try {
-            TimberLogger.d("DatabaseManager", "Changing password from " + this.currentPasswordName + " to " + passwordName);
-            Map<String, LocalDB<? extends FcEntity>> newDatabases = new HashMap<>();
-            Map<String, Class<? extends FcEntity>> newDatabaseClasses = new HashMap<>();
-
-            for (Map.Entry<String, LocalDB<? extends FcEntity>> entry : databases.entrySet()) {
-                String oldDbKey = entry.getKey();
-                if (oldDbKey.startsWith(this.currentPasswordName)) {
-                    String dbName = oldDbKey.substring(this.currentPasswordName.length() + 1);
-                    String newDbKey = oldDbKey.replace(this.currentPasswordName,passwordName);
-                    LocalDB<? extends FcEntity> oldDb = entry.getValue();
-
-                    if (oldDb instanceof HawkDB) {
-                        HawkDB<?> oldHawkDB = (HawkDB<?>) oldDb;
-                        HawkDB<?> newHawkDB = new HawkDB<>(oldHawkDB.getSortType(), oldHawkDB.getSortField());
-                        newHawkDB.initialize(null, null, null, null, newDbKey);
-
-                        // Transfer all data
-                        transferHawkDBData(oldHawkDB, newHawkDB);
-                        
-                        oldHawkDB.clearDB();
-                        newDatabases.put(newDbKey, newHawkDB);
-                        newDatabaseClasses.put(newDbKey, databaseClasses.get(oldDbKey));
-                    }
-                }
-            }
-
-            databases.clear();
-            databases.putAll(newDatabases);
-            databaseClasses.clear();
-            databaseClasses.putAll(newDatabaseClasses);
-            this.currentPasswordName = passwordName;
-            
-            TimberLogger.d("DatabaseManager", "Password change completed successfully");
-        } catch (Exception e) {
-            TimberLogger.e("DatabaseManager", "Failed to change password: " + e.getMessage());
-            throw new RuntimeException("Failed to change password: " + e.getMessage());
-        }
-    }
-
-    private void transferHawkDBData(HawkDB<?> oldHawkDB, HawkDB<?> newHawkDB) {
-        // Transfer main data
-        Map<String, ?> allData = oldHawkDB.getAll();
-        if (allData != null) {
-            @SuppressWarnings("unchecked")
-            Map<String, FcEntity> typedData = (Map<String, FcEntity>) allData;
-            ((HawkDB<FcEntity>) newHawkDB).putAll(typedData);
-        }
-
-        // Transfer ID maps
-        Map<String, Long> idIndexMap = oldHawkDB.getIdIndexMap();
-        if (idIndexMap != null) {
-            newHawkDB.saveIdIndexMap(idIndexMap);
-        }
-
-        Map<Long, String> indexIdMap = oldHawkDB.getIndexIdMap();
-        if (indexIdMap != null) {
-            newHawkDB.saveIndexIdMap(indexIdMap);
-        }
-
-        // Transfer settings
-        Map<String, String> allSettings = oldHawkDB.getAllSettings();
-        if (allSettings != null) {
-            for (Map.Entry<String, String> setting : allSettings.entrySet()) {
-                newHawkDB.putSetting(setting.getKey(), setting.getValue());
-            }
-        }
-
-        // Transfer state
-        Map<String, Object> allState = oldHawkDB.getStateMap();
-        if (allState != null) {
-            for (Map.Entry<String, Object> state : allState.entrySet()) {
-                newHawkDB.putState(state.getKey(), state.getValue());
-            }
-        }
-
-        // Transfer meta
-        Map<String, Object> allMeta = oldHawkDB.getMetaMap();
-        if (allMeta != null) {
-            for (Map.Entry<String, Object> meta : allMeta.entrySet()) {
-                newHawkDB.putMeta(meta.getKey(), meta.getValue());
-            }
-        }
-
-        // Transfer maps
-        for (String mapName : oldHawkDB.getMapNames()) {
-            Class<?> mapType = oldHawkDB.getMapType(mapName);
-            if (mapType != null) {
-                newHawkDB.registerMapType(mapName, mapType);
-                Map<String, ?> mapData = oldHawkDB.getAllFromMap(mapName);
-                if (mapData != null && !mapData.isEmpty()) {
-                    if (Objects.equals(mapType.getName(), byte[].class.getName())) {
-                        for (Map.Entry<String, ?> mapEntry : mapData.entrySet()) {
-                            if (mapEntry.getValue() instanceof byte[]) {
-                                newHawkDB.putInMap(mapName, mapEntry.getKey(), mapEntry.getValue());
-                            }
-                        }
-                    } else {
-                        newHawkDB.putAllInMap(mapName, mapData);
-                    }
-                }
-            }
-        }
-    }
-
-    public <T extends FcEntity> LocalDB<T> createEntityDatabase(String fid, String dbName, String passwordName, Class<T> entityClass, LocalDB.SortType sortType, String sortField) {
+    public <T extends FcEntity> LocalDB<T> createEntityDatabase(String fid, String dbName, String passwordName, Class<T> entityClass, Class<T> tClass) {
         TimberLogger.d("DatabaseManager", "Creating new database for " + dbName + " with password " + passwordName);
-        LocalDB<T> db = new HawkDB<>(sortType, sortField);
+        // Use MMKVDB for much better performance (~100x faster than HawkDB)
+        LocalDB<T> db = new MMKVDB<>(tClass);
         String dbKey = db.initialize(passwordName, fid, null, null, dbName);
-
 
         databases.put(dbKey, db);
         databaseClasses.put(dbKey, entityClass);
+        TimberLogger.d("DatabaseManager", "Created MMKVDB instance with key: " + dbKey);
         return db;
     }
 
@@ -178,11 +74,10 @@ public class DatabaseManager {
      *
      * @param fid
      * @param entityClass The entity class for the database
-     * @param sortType
-     * @param sortField
+     * @param tClass
      * @return The encrypted database
      */
-    public <T extends FcEntity> LocalDB<T> getEntityDatabase(String fid, Class<T> entityClass, LocalDB.SortType sortType, String sortField) {
+    public <T extends FcEntity> LocalDB<T> getEntityDatabase(String fid, Class<T> entityClass, Class<T> tClass) {
         String dbKey = makeDatabaseKey(currentPasswordName,fid , entityClass.getSimpleName());
         
         // Check if database already exists for this password
@@ -191,7 +86,7 @@ public class DatabaseManager {
         }
         
         // Create a new encrypted database for this password
-        return createEntityDatabase(fid, entityClass.getSimpleName(), currentPasswordName, entityClass, sortType, sortField);
+        return createEntityDatabase(fid, entityClass.getSimpleName(), currentPasswordName, entityClass, tClass);
     }
 
     public Class<? extends FcEntity> getDatabaseClass(String fid,String dbName) {
@@ -223,6 +118,49 @@ public class DatabaseManager {
             }
         }
         databases.clear();
+    }
+
+    public void removeAllDatabases() {
+        if(currentPasswordName==null)return;
+        TimberLogger.d("DatabaseManager", "Removing all databases for password: " + currentPasswordName);
+        databases.entrySet().removeIf(entry -> {
+            String dbKey = entry.getKey();
+            if (dbKey.startsWith(currentPasswordName)) {
+                LocalDB<?> db = entry.getValue();
+                if (db != null) {
+                    try {
+                        db.close();
+                        db.clearDB();
+                    } catch (Exception e) {
+                        TimberLogger.e("DatabaseManager", "Error closing database: " + e.getMessage());
+                    }
+                }
+                databaseClasses.remove(dbKey);
+                return true;
+            }
+            return false;
+        });
+    }
+
+    public void removeAllDatabasesOfFid(String fid) {
+        if(fid==null||currentPasswordName==null)return;
+        TimberLogger.d("DatabaseManager", "Removing all databases for FID: " + fid);
+        databases.entrySet().removeIf(entry -> {
+            String dbKey = entry.getKey();
+            if (dbKey.startsWith(currentPasswordName+"_"+fid)) {
+                LocalDB<?> db = entry.getValue();
+                if (db != null) {
+                    try {
+                        db.clearDB();
+                    } catch (Exception e) {
+                        TimberLogger.e("DatabaseManager", "Error closing database: " + e.getMessage());
+                    }
+                }
+                databaseClasses.remove(dbKey);
+                return true;
+            }
+            return false;
+        });
     }
 
     public String getCurrentPasswordName() {

@@ -4,16 +4,17 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="4dp"
-    android:background="@color/main_background"
     app:cardCornerRadius="8dp"
-    app:cardElevation="4dp">
+    app:cardElevation="0dp"
+    app:cardPreventCornerOverlap="false"
+    app:cardUseCompatPadding="false">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:background="@color/main_background"
-        android:padding="4dp"
+        android:background="@color/cash_card_dark_background"
+        android:padding="6dp"
         >
 
         <!-- Avatar -->
@@ -39,65 +40,85 @@
                 android:orientation="horizontal">
 
                 <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/fid"
-                    android:textColor="@color/field_name"
-                    android:layout_marginEnd="4dp"
-                    android:textStyle="bold"
-                    android:textSize="14sp" />
-
-                <EditText
                     android:id="@+id/fidText"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:textSize="14sp"
-                    android:textColor="@color/text_color"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:background="@drawable/edit_text_background"
-                    android:inputType="text"
-                    android:imeOptions="actionNext"
-                    android:maxLines="1"
-                    android:padding="4dp" />
-
+                    android:maxLines="2"
+                    android:padding="4dp"
+                    android:textColor="@color/field_name"
+                    android:textSize="14sp" />
             </LinearLayout>
 
             <!-- Row 2: Amount -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
                 android:orientation="horizontal">
 
                 <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/amount"
-                    android:textColor="@color/field_name"
-                    android:layout_marginEnd="4dp"
-                    android:textStyle="bold"
-                    android:textSize="14sp" />
-
-                <EditText
                     android:id="@+id/amountText"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:textSize="14sp"
-                    android:textColor="@color/text_color"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:background="@drawable/edit_text_background"
-                    android:inputType="numberDecimal"
-                    android:imeOptions="actionDone"
+                    android:textColor="@color/accent"
+                    android:clickable="false"
+                    android:focusable="false"
                     android:maxLines="1"
                     android:padding="4dp" />
 
             </LinearLayout>
 
+            <!-- Row 3: LockTime (hidden by default, shown only for CLTV outputs) -->
+            <LinearLayout
+                android:id="@+id/lockTimeContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:visibility="gone"
+               >
+
+                <ImageView
+                    android:id="@+id/lockTimeIcon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginEnd="6dp"
+                    android:contentDescription="@string/lock_time"
+                    android:src="@drawable/ic_lock"
+                    android:visibility="gone"
+                    app:tint="@color/warning" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/lockTimeDaysText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/warning"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
         </LinearLayout>
+
+        <ImageView
+            android:id="@+id/deadIcon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginStart="4dp"
+            android:src="@drawable/ic_dead"
+            android:visibility="gone"
+            android:contentDescription="@string/nobody" />
+
 
         <!-- Right side: Delete Button -->
         <ImageButton

@@ -33,4 +33,18 @@ public class FcUtils {
         return (time-genesisTime)/(60*1000);
     }
 
+
+    public void test(){
+        long height = 2961246;
+        Date date = heightToDate(height);
+        System.out.println(DateUtils.getNiceDate(date));
+
+        System.out.println(DateUtils.longToTime(genesisTime+height*60*1000,"yyyy/MM/dd HH:mm:ss"));
+        System.out.println(dateToHeight(date));
+        System.out.println(timeToHeight(date.getTime()));
+
+        FcDate fcDate = FcDate.fromHeight(height);
+
+        System.out.println(fcDate.getYear() +"年"+ fcDate.getDay() +"天"+ fcDate.getHour() +"时"+ fcDate.getMinute() +"分");
+    }
 }

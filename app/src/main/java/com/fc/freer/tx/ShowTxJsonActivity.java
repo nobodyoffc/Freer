@@ -1,20 +1,19 @@
 package com.fc.freer.tx;
 
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
-import com.fc.freer.home.BaseCryptoActivity;
-import com.fc.freer.utils.QRCodeGenerator;
+import com.fc.freer.BaseCryptoActivity;
 
 public class ShowTxJsonActivity extends BaseCryptoActivity {
     private static final String TAG = "ShowTxJsonActivity";
@@ -23,14 +22,15 @@ public class ShowTxJsonActivity extends BaseCryptoActivity {
     private LinearLayout jsonDisplayContainer;
     private LinearLayout buttonContainer;
     private TextView jsonDisplay;
-    private Button qrCodeButton;
-    private Button copyButton;
-    private Button closeButton;
+    private ImageButton qrCodeButton;
+    private ImageButton copyButton;
     private String txInfoJson;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Session lost (process death while backgrounded): base is redirecting to re-auth.
+        if (isSessionRedirected()) return;
         TimberLogger.i(TAG, "onCreate started");
     }
 
@@ -42,7 +42,6 @@ public class ShowTxJsonActivity extends BaseCryptoActivity {
         
         qrCodeButton = findViewById(R.id.qrCodeButton);
         copyButton = findViewById(R.id.copyButton);
-        closeButton = findViewById(R.id.closeButton);
 
         // Get JSON data from intent
         txInfoJson = getIntent().getStringExtra(EXTRA_TX_INFO_JSON);
@@ -82,15 +81,6 @@ public class ShowTxJsonActivity extends BaseCryptoActivity {
             }
         });
 
-        closeButton.setOnClickListener(v -> {
-            // Hide keyboard
-            View currentFocus = getCurrentFocus();
-            if (currentFocus != null) {
-                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                imm.hideSoftInputFromWindow(currentFocus.getWindowToken(), 0);
-            }
-            finish();
-        });
     }
 
     @Override

@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:layout_margin="4dp">
+
+<androidx.cardview.widget.CardView
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
     android:background="@color/cash_card_dark_background"
-    android:layout_margin="4dp"
     app:cardCornerRadius="8dp"
-    app:cardElevation="4dp">
+    app:cardElevation="0dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -15,15 +19,36 @@
         android:background="@color/cash_card_dark_background"
         android:padding="4dp">
 
+            <CheckBox
+                android:id="@+id/cash_checkbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:visibility="gone"
+                />
+            <RadioButton
+                android:id="@+id/cash_radio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:visibility="gone"
+                />
+
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:orientation="vertical"
+            android:paddingStart="8dp"
             android:layout_gravity="center_vertical">
 
-            <!-- Amount and CD -->
+            <!-- Row 1: Amount and CD -->
             <LinearLayout
+                android:id="@+id/amountCdRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
@@ -34,7 +59,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:textSize="14sp"
-                    android:textColor="@color/text_color"
+                    android:textColor="@color/field_name"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackground"
@@ -46,27 +71,184 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:textSize="14sp"
-                    android:textColor="@color/text_color"
+                    android:textColor="@color/text"
                     android:clickable="true"
                     android:focusable="true"
                     android:background="?attr/selectableItemBackground"/>
 
             </LinearLayout>
 
+            <!-- Row 2a: TxId and Index (for cash without owner info) -->
+            <LinearLayout
+                android:id="@+id/txIdIndexRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="2dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/txid"
+                    android:textColor="@color/field_name"
+                    android:layout_marginEnd="4dp"
+                    android:textStyle="bold"
+                    android:textSize="12sp"
+                    android:maxLines="1"
+                    android:ellipsize="middle"/>
+
+                <TextView
+                    android:id="@+id/txIdText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textSize="12sp"
+                    android:textColor="@color/text"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:maxLines="1"
+                    android:ellipsize="middle"
+                    android:background="?attr/selectableItemBackground"
+                    android:layout_marginEnd="8dp"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/index"
+                    android:textColor="@color/field_name"
+                    android:layout_marginEnd="4dp"
+                    android:textStyle="bold"
+                    android:textSize="12sp"/>
+
+                <TextView
+                    android:id="@+id/indexText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="12sp"
+                    android:textColor="@color/text"/>
+
+            </LinearLayout>
+
+            <!-- Row 2b: ID Brief and Last Time (for cash with owner info) -->
+            <LinearLayout
+                android:id="@+id/idBriefLastTimeRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="2dp">
+
+                <TextView
+                    android:id="@+id/cash_id_brief"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textSize="12sp"
+                    android:textColor="@color/text"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:maxLines="1"
+                    android:ellipsize="middle"
+                    android:background="?attr/selectableItemBackground"
+                    android:layout_marginEnd="8dp"/>
+
+                <TextView
+                    android:id="@+id/cash_last_time"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textSize="10sp"
+                    android:textColor="@color/text"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackground"/>
+
+            </LinearLayout>
+
+            <!-- Row 3: LockTime (hidden by default, shown only for CLTV outputs) -->
+            <LinearLayout
+                android:id="@+id/lockTimeContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="2dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/lockTimeIcon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginEnd="6dp"
+                    android:contentDescription="@string/lock_time"
+                    android:src="@drawable/ic_lock"
+                    app:tint="@color/warning" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/lockTimeDaysText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/warning"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </LinearLayout>
+            <ImageButton
+                android:id="@+id/deleteButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end|bottom"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/delete"
+                android:src="@drawable/ic_clear"
+                android:visibility="gone"
+                />
+
         </LinearLayout>
 
-        <!-- Right side: Delete Button -->
-        <ImageButton
-            android:id="@+id/deleteButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="end|bottom"
-            android:layout_marginTop="2dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/delete"
-            android:padding="2dp"
-            android:src="@drawable/ic_clear" />
+</androidx.cardview.widget.CardView>
 
-    </LinearLayout>
+    <!-- New indicator dot at top left (must be after CardView to appear on top) -->
+    <View
+        android:id="@+id/new_indicator"
+        android:layout_width="10dp"
+        android:layout_height="10dp"
+        android:layout_gravity="start|top"
+        android:layout_margin="0dp"
+        android:background="@android:color/holo_red_light"
+        android:visibility="gone"/>
 
-</androidx.cardview.widget.CardView> 
+    <!-- Unconfirmed indicator at top right corner -->
+    <ImageView
+        android:id="@+id/unconfirmed_indicator"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_gravity="end|top"
+        android:layout_margin="4dp"
+        android:src="@drawable/ic_on_chain_unknown"
+        android:contentDescription="@string/off_chain"
+        android:visibility="gone"/>
+
+    <!-- Conflicted indicator at top center (spent in mempool) -->
+    <ImageView
+        android:id="@+id/conflicted_indicator"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_gravity="center_horizontal|top"
+        android:layout_margin="4dp"
+        android:src="@drawable/ic_closed"
+        android:contentDescription="@string/conflicted"
+        app:tint="@android:color/holo_orange_dark"
+        android:visibility="gone"/>
+
+</FrameLayout> 

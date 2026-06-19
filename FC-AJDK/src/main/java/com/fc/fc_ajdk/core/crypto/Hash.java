@@ -65,6 +65,28 @@ public class Hash {
         return Hashing.sha256().hashBytes(Hashing.sha256().hashBytes(b).asBytes()).asBytes();
     }
 
+    /**
+     * Compute SHA256x2 hash from an InputStream (streaming, no full-file memory load).
+     * Reads the stream in 8KB chunks, computing SHA256 incrementally, then applies SHA256 again.
+     *
+     * @param input the input stream to hash
+     * @return SHA256x2 hash bytes, or null on error
+     */
+    public static byte[] sha256x2FromStream(java.io.InputStream input) {
+        try {
+            Hasher hasher = Hashing.sha256().newHasher();
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = input.read(buffer)) != -1) {
+                hasher.putBytes(buffer, 0, bytesRead);
+            }
+            byte[] firstHash = hasher.hash().asBytes();
+            return Hashing.sha256().hashBytes(firstHash).asBytes();
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
     public static byte[] sha512x2(byte[] b) {
         return Hashing.sha512().hashBytes(Hashing.sha512().hashBytes(b).asBytes()).asBytes();
     }
@@ -84,28 +106,45 @@ public class Hash {
         return Hashing.sha512().hashBytes(Hashing.sha512().hashBytes(s.getBytes()).asBytes()).toString();
     }
 
+    public static byte[] hmacSha256(byte[] message, byte[] key) {
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(key, "HmacSHA256"));
+            return mac.doFinal(message);
+        } catch (Exception e) {
+            throw new RuntimeException("HmacSHA256 not available", e);
+        }
+    }
+
+    public static String hmacSha256Hex(byte[] message, byte[] key) {
+        return BytesUtils.bytesToHexStringBE(hmacSha256(message, key));
+    }
+
     public static byte[] getSign(byte[] text, byte[] symKey) {
-        byte[] bytes = BytesUtils.bytesMerger(text, symKey);
-        return Hash.sha256x2(bytes);
+        return hmacSha256(text, symKey);
     }
 
     public static String getSign(String text, byte[] symKey) {
         byte[] textBytes = text.getBytes(StandardCharsets.UTF_8);
-        byte[] signBytes = getSign(textBytes, symKey);
-        return BytesUtils.bytesToHexStringBE(signBytes);
+        return BytesUtils.bytesToHexStringBE(hmacSha256(textBytes, symKey));
     }
 
     public static String getSign(String symKey, String text) {
         byte[] textBytes = text.getBytes(StandardCharsets.UTF_8);
         byte[] keyBytes = BytesUtils.hexToByteArray(symKey);
-        byte[] bytes = BytesUtils.bytesMerger(textBytes, keyBytes);
-        System.out.println("----");
-        System.out.println("Content in hex to be signed: ");
-        System.out.println("----");
-        System.out.println(Hex.toHex(bytes));
-//        System.out.println("------");
-        byte[] signBytes = Hash.sha256x2(bytes);
-        return BytesUtils.bytesToHexStringBE(signBytes);
+        return BytesUtils.bytesToHexStringBE(hmacSha256(textBytes, keyBytes));
+    }
+
+    @Deprecated
+    public static byte[] getSignLegacy(byte[] text, byte[] symKey) {
+        byte[] bytes = BytesUtils.bytesMerger(text, symKey);
+        return Hash.sha256x2(bytes);
+    }
+
+    @Deprecated
+    public static String getSignLegacy(String text, byte[] symKey) {
+        byte[] textBytes = text.getBytes(StandardCharsets.UTF_8);
+        return BytesUtils.bytesToHexStringBE(getSignLegacy(textBytes, symKey));
     }
 
     public static byte[] Ripemd160(byte[] b) {

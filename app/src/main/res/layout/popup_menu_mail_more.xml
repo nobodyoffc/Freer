@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="?android:attr/colorBackground"
+    android:padding="8dp">
+
+    <TextView
+        android:id="@+id/set_notice_fee_item"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/set_notice_fee"
+        android:textSize="16sp"
+        android:textColor="@color/text"
+        android:padding="12dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:drawablePadding="8dp" />
+
+    <TextView
+        android:id="@+id/deleted_item"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/deleted"
+        android:textSize="16sp"
+        android:textColor="@color/text"
+        android:padding="12dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:drawablePadding="8dp" />
+
+    <TextView
+        android:id="@+id/mark_all_read_item"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/mark_all_read"
+        android:textSize="16sp"
+        android:textColor="@color/text"
+        android:padding="12dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:drawablePadding="8dp" />
+
+</LinearLayout>

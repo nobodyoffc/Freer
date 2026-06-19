@@ -1,9 +1,6 @@
 package com.fc.fc_ajdk.utils;
 
 import com.fc.fc_ajdk.constants.Constants;
-import com.fc.fc_ajdk.constants.FieldNames;
-import com.fc.fc_ajdk.constants.IndicesNames;
-import com.fc.fc_ajdk.data.fchData.Cid;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -17,7 +14,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 public class FchUtils {
     public final static String TAG = "FchUtils";
@@ -130,8 +126,11 @@ public class FchUtils {
         return varint;
     }
 
-    public static long cdd(long value, long birthTime, long spentTime) {
-        return Math.floorDiv(value * Math.floorDiv((spentTime - birthTime), (60 * 60 * 24)), 100000000);
+    public static long cdd(long value, long birthHeight, long spendHeight) {
+        // FCH block time is fixed at 1 minute, so block height is a deterministic clock.
+        // age_days = floor((spendHeight - birthHeight) / 1440); CD/CDD = floor(value * age_days / 1e8).
+        if (spendHeight <= birthHeight) return 0;
+        return Math.floorDiv(value * Math.floorDiv((spendHeight - birthHeight), Constants.OneDayInterval), 100000000);
     }
 
     public static void waitForChangeInDirectory(String directoryPathStr, AtomicBoolean running) {
@@ -223,12 +222,20 @@ public class FchUtils {
         return NumberUtils.roundDouble2((double) satoshis / Constants.CASH_TO_SATOSHI);
     }
 
+    public static String formatSatoshiToCash(long satoshis) {
+        double cash = NumberUtils.roundDouble2((double) satoshis / Constants.CASH_TO_SATOSHI);
+        String formatted = String.format("%.2f", cash);
+        // Remove trailing zeros after decimal point
+        formatted = formatted.replaceAll("0*$", "").replaceAll("\\.$", "");
+        return formatted;
+    }
+
     /**
      * Formats a satoshi value to coin with up to 8 decimal places, removing trailing zeros
      * @param satoshis The satoshi value to format
      * @return Formatted string representation
      */
-    public static String formatSatoshiValue(long satoshis) {
+    public static String formatSatoshiToCoin(long satoshis) {
         try {
             // Use satoshiToCoin for more precision (1 coin = 100000000 satoshis)
             double coinValue = satoshiToCoin(satoshis);

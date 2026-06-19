@@ -6,17 +6,29 @@ android {
     namespace = "com.fc.freer"
     compileSdk = 34
 
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("${System.getProperty("user.home")}/.android/freer-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.fc.freer"
         minSdk = 28
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 104
+        versionName = "1.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
+        debug {
+            isDebuggable = true
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -44,7 +56,9 @@ android {
 }
 
 dependencies {
-    implementation(libs.hawk)
+    implementation(libs.hawk) // Keep for migration
+    implementation("com.tencent:mmkv:1.3.9") // New primary database
+    implementation(libs.swiperefreshlayout)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     
     implementation("androidx.appcompat:appcompat:1.6.1")
@@ -76,4 +90,7 @@ dependencies {
     
     // Gson for JSON parsing
     implementation("com.google.code.gson:gson:2.10.1")
+    
+    // WorkManager for background tasks
+    implementation("androidx.work:work-runtime:2.9.0")
 }

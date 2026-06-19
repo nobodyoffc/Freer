@@ -61,6 +61,9 @@ dependencies {
         exclude(group = "org.json", module = "json")
         exclude(group = "org.slf4j", module = "slf4j-api")
     }
+    // Note: BouncyCastle (bcprov-jdk15to18) comes transitively via freecashj and
+    // supplies Argon2BytesGenerator. Do not add bcprov-jdk18on explicitly — it
+    // clashes with bcprov-jdk15to18 as duplicate org.bouncycastle.* classes.
 
     // Networking
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
@@ -75,7 +78,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
     //Database
-    implementation ("com.orhanobut:hawk:2.0.1")
+    implementation ("com.orhanobut:hawk:2.0.1") // Keep for migration
+    implementation ("com.tencent:mmkv:1.3.9") // New primary database
     // For encryption support
     implementation ("net.zetetic:android-database-sqlcipher:4.5.3")
     implementation ("androidx.security:security-crypto:1.1.0-alpha06")

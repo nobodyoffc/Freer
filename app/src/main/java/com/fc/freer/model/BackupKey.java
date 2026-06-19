@@ -1,6 +1,10 @@
 package com.fc.freer.model;
 
+import android.content.Context;
+
 import com.fc.fc_ajdk.data.fcData.FcObject;
+import com.fc.freer.R;
+import com.fc.freer.secret.ExportSecretActivity;
 
 public class BackupKey extends FcObject {
     private String password;
@@ -9,7 +13,7 @@ public class BackupKey extends FcObject {
     private String keyName;
     private String hint;
 
-    public static BackupKey makeBackupKey(BackupHeader backupHeader, String inputSymKeyStr, String randomPassword) {
+    public static BackupKey makeBackupKey(BackupHeader backupHeader, String inputSymKeyStr, String randomPassword, Context context) {
         BackupKey backupKey = new BackupKey();
         backupKey.setTime(backupHeader.getTime());
         backupKey.setKeyName(backupHeader.getKeyName());
@@ -19,7 +23,7 @@ public class BackupKey extends FcObject {
             backupKey.setSymkey(inputSymKeyStr);
 
         } else {
-            backupKey.setHint("App password can not be shown. Please keep it carefully.");
+            backupKey.setHint(context.getString(R.string.app_password_can_not_be_shown_please_keep_it_carefully));
         }
         return backupKey;
     }

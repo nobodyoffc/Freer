@@ -1,16 +1,19 @@
 package com.fc.freer.ui;
 
 import android.app.Activity;
-import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.PopupWindow;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import androidx.appcompat.app.AlertDialog;
+import com.fc.fc_ajdk.data.fchData.Freer;
+import com.fc.freer.home.ChooseMultisigFidActivity;
+import com.fc.freer.manager.AvatarManager;
+import com.fc.freer.utils.ToastUtils;
 
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.data.feipData.Service;
@@ -20,12 +23,8 @@ import com.fc.freer.R;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.Setting;
 import com.fc.freer.initiate.SettingManager;
-import com.fc.freer.network.ApipClient;
+import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.freer.utils.ApiCenter;
-import com.fc.freer.ui.UserConfirmDialog;
-import com.fc.freer.ui.WaitingDialog;
-
-import java.util.List;
 
 /**
  * PopupMenuHelper for person/FID switching menu
@@ -70,7 +69,7 @@ public class PersonPopupMenuHelper {
             
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error showing person popup menu: %s", e.getMessage());
-            Toast.makeText(activity, "Error showing menu", Toast.LENGTH_SHORT).show();
+            ToastUtils.showError(activity, activity.getString(R.string.error_showing_menu));
         }
     }
     
@@ -103,11 +102,11 @@ public class PersonPopupMenuHelper {
             }
         }
         
-        // Check if it's in multisign list
-        if (currentSetting.getMultisignKeyInfoList() != null) {
-            for (KeyInfo keyInfo : currentSetting.getMultisignKeyInfoList()) {
+        // Check if it's in multisig list
+        if (currentSetting.getMultisigKeyInfoList() != null) {
+            for (KeyInfo keyInfo : currentSetting.getMultisigKeyInfoList()) {
                 if (liveFid.equals(keyInfo.getId())) {
-                    return "Multisign";
+                    return "Multisig";
                 }
             }
         }
@@ -130,15 +129,26 @@ public class PersonPopupMenuHelper {
     private void setupPopupContent(View popupView) {
         // Current FID display
         TextView currentFidText = popupView.findViewById(R.id.current_fid_text);
+        ImageView currentFidAvatar = popupView.findViewById(R.id.current_fid_avatar);
         String liveFid = fidManager.getLiveFid();
         boolean isMainFid = fidManager.isLiveFidMain();
-        
+
         if (liveFid != null) {
             String fidType = determineFidType(liveFid);
             String displayText = "Living: " + fidType;
             currentFidText.setText(displayText);
+
+            // Set the living FID avatar
+            AvatarManager avatarManager = AvatarManager.getInstance(activity);
+            Bitmap avatarBitmap = avatarManager.getAvatarBitmap(liveFid);
+            if (avatarBitmap != null) {
+                currentFidAvatar.setImageBitmap(avatarBitmap);
+            } else {
+                currentFidAvatar.setImageResource(R.drawable.ic_person);
+            }
         } else {
             currentFidText.setText(R.string.living_not_set);
+            currentFidAvatar.setImageResource(R.drawable.ic_person);
         }
         
         // Switch to Main FID menu item removed - redundant with Main FID option
@@ -153,7 +163,7 @@ public class PersonPopupMenuHelper {
             mainFidMenu.setOnClickListener(null);
         } else {
             // Not current FID - make it clickable
-            mainFidMenu.setTextColor(activity.getColor(R.color.text_color));
+            mainFidMenu.setTextColor(activity.getColor(R.color.text));
             mainFidMenu.setClickable(true);
             mainFidMenu.setOnClickListener(v -> {
                 dismissPopup();
@@ -165,7 +175,7 @@ public class PersonPopupMenuHelper {
         TextView myMasterMenu = popupView.findViewById(R.id.menu_my_master);
         if (MAIN_FID.equals(fidType)) {
             // Main FID - make it clickable
-            myMasterMenu.setTextColor(activity.getColor(R.color.text_color));
+            myMasterMenu.setTextColor(activity.getColor(R.color.text));
             myMasterMenu.setClickable(true);
             myMasterMenu.setOnClickListener(v -> {
                 dismissPopup();
@@ -183,7 +193,7 @@ public class PersonPopupMenuHelper {
         TextView watchedFidsMenu = popupView.findViewById(R.id.menu_my_watched_fids);
         if (MAIN_FID.equals(fidType)) {
             // Main FID - make it clickable
-            watchedFidsMenu.setTextColor(activity.getColor(R.color.text_color));
+            watchedFidsMenu.setTextColor(activity.getColor(R.color.text));
             watchedFidsMenu.setClickable(true);
             watchedFidsMenu.setOnClickListener(v -> {
                 dismissPopup();
@@ -196,11 +206,11 @@ public class PersonPopupMenuHelper {
             watchedFidsMenu.setOnClickListener(null);
         }
         
-        // My Multisign FIDs
+        // My Multisig FIDs
         TextView multisignFidsMenu = popupView.findViewById(R.id.menu_my_multisign_fids);
         if (MAIN_FID.equals(fidType)) {
             // Main FID - make it clickable
-            multisignFidsMenu.setTextColor(activity.getColor(R.color.text_color));
+            multisignFidsMenu.setTextColor(activity.getColor(R.color.text));
             multisignFidsMenu.setClickable(true);
             multisignFidsMenu.setOnClickListener(v -> {
                 dismissPopup();
@@ -217,7 +227,7 @@ public class PersonPopupMenuHelper {
         TextView servantsMenu = popupView.findViewById(R.id.menu_my_servants);
         if (MAIN_FID.equals(fidType)) {
             // Main FID - make it clickable
-            servantsMenu.setTextColor(activity.getColor(R.color.text_color));
+            servantsMenu.setTextColor(activity.getColor(R.color.text));
             servantsMenu.setClickable(true);
             servantsMenu.setOnClickListener(v -> {
                 dismissPopup();
@@ -231,7 +241,24 @@ public class PersonPopupMenuHelper {
         }
         
         // Quit Main FID
-        TextView quitMainFidMenu = popupView.findViewById(R.id.menu_quit_main_fid);
+        View quitMainFidMenu = popupView.findViewById(R.id.menu_quit_main_fid);
+        ImageView quitMainFidAvatar = popupView.findViewById(R.id.menu_quit_main_fid_avatar);
+
+        // Set the main FID avatar
+        Setting currentSetting = SettingManager.getInstance().getCurrentSetting();
+        if (currentSetting != null && currentSetting.getMainKeyInfo() != null) {
+            String mainFid = currentSetting.getMainKeyInfo().getId();
+            if (mainFid != null) {
+                AvatarManager avatarManager = AvatarManager.getInstance(activity);
+                Bitmap avatarBitmap = avatarManager.getAvatarBitmap(mainFid);
+                if (avatarBitmap != null) {
+                    quitMainFidAvatar.setImageBitmap(avatarBitmap);
+                } else {
+                    quitMainFidAvatar.setImageResource(R.drawable.ic_person);
+                }
+            }
+        }
+
         quitMainFidMenu.setOnClickListener(v -> {
             dismissPopup();
             quitMainFid();
@@ -245,7 +272,7 @@ public class PersonPopupMenuHelper {
     private void showMainFidOptions() {
         Setting currentSetting = SettingManager.getInstance().getCurrentSetting();
         if (currentSetting == null || currentSetting.getMainKeyInfo() == null) {
-            Toast.makeText(activity, activity.getString(R.string.no_main_fid_available), Toast.LENGTH_SHORT).show();
+            ToastUtils.showWarning(activity, activity.getString(R.string.no_main_fid_available));
             return;
         }
         
@@ -261,13 +288,13 @@ public class PersonPopupMenuHelper {
     private void showMasterOptions() {
         Setting currentSetting = SettingManager.getInstance().getCurrentSetting();
         if (currentSetting == null) {
-            Toast.makeText(activity, "No current setting available", Toast.LENGTH_SHORT).show();
+            ToastUtils.showWarning(activity, activity.getString(R.string.no_current_setting_available));
             return;
         }
-        
+
         KeyInfo liveKeyInfo = fidManager.getLiveKeyInfo();
         if (liveKeyInfo == null) {
-            Toast.makeText(activity, "No live FID info available", Toast.LENGTH_SHORT).show();
+            ToastUtils.showWarning(activity, activity.getString(R.string.no_live_fid_info_available));
             return;
         }
         
@@ -292,13 +319,13 @@ public class PersonPopupMenuHelper {
             String masterFid = currentSetting.getMainKeyInfo().getMaster();
 
             if(masterFid == null){
-                Toast.makeText(activity, "No master yet.", Toast.LENGTH_SHORT).show();
+                ToastUtils.showWarning(activity, activity.getString(R.string.no_master_yet));
                 return;
             }
             KeyInfo masterKeyInfo = currentSetting.getKeyInfoMap().get(masterFid);
 
             if (masterKeyInfo == null) {
-                // Master KeyInfo not available locally, fetch it using ApipClient on background thread
+                // Master KeyInfo not available locally, fetch it using FapiClient on background thread
                 fetchMasterKeyInfoAsync(masterFid, currentSetting);
                 return; // Will handle switching after async fetch completes
             }
@@ -307,32 +334,29 @@ public class PersonPopupMenuHelper {
             switchToMasterAsync(masterFid, masterKeyInfo);
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error switching to master: %s", e.getMessage());
-            Toast.makeText(activity, "Error switching to master FID", Toast.LENGTH_SHORT).show();
+            ToastUtils.showError(activity, activity.getString(R.string.error_switching_to_master_fid));
         }
     }
     
     /**
-     * Fetch master KeyInfo using ApipClient when not available locally
+     * Fetch master KeyInfo using FapiClient when not available locally
      */
     private KeyInfo fetchMasterKeyInfo(String masterFid, Setting currentSetting) {
         try {
-            // Get ApipClient from current setting
+            // Get FapiClient from current setting
             ApiCenter apiCenter = ApiCenter.getInstance();
-            ApipClient apipClient = (ApipClient) apiCenter.getClient(Service.ServiceType.APIP);
-            if (apipClient == null) {
-                Toast.makeText(activity, "ApipClient not available", Toast.LENGTH_SHORT).show();
+            FapiClient fapiClient = (FapiClient) apiCenter.getClient(Service.ServiceType.FAPI_No1_NrC7);
+            if (fapiClient == null) {
+                ToastUtils.showError(activity, activity.getString(R.string.apip_client_not_available));
                 return null;
             }
             
-            // Fetch CID info using ApipClient
-            com.fc.fc_ajdk.data.fchData.Cid cidInfo = apipClient.cidInfoById(masterFid, 
-                com.fc.fc_ajdk.utils.http.RequestMethod.POST, 
-                com.fc.fc_ajdk.utils.http.AuthType.FC_SIGN_BODY, 
-                activity);
-                
-            if (cidInfo != null) {
-                // Convert Cid to KeyInfo using existing fromCid method
-                KeyInfo masterKeyInfo = KeyInfo.fromCid(cidInfo);
+            // Fetch CID info using FapiClient
+            Freer freerInfo = fapiClient.getFreer(masterFid);
+
+            if (freerInfo != null) {
+                // Convert Freer to KeyInfo using existing fromCid method
+                KeyInfo masterKeyInfo = KeyInfo.fromCid(freerInfo);
                 
                 // Save to currentSetting.keyInfoMap
                 if (currentSetting.getKeyInfoMap() == null) {
@@ -346,13 +370,13 @@ public class PersonPopupMenuHelper {
                 TimberLogger.d(TAG, "Successfully fetched and saved master KeyInfo for: %s", masterFid);
                 return masterKeyInfo;
             } else {
-                Toast.makeText(activity, "Failed to fetch master FID info from network", Toast.LENGTH_SHORT).show();
+                ToastUtils.showError(activity, activity.getString(R.string.failed_to_fetch_master_fid_info_from_network));
                 TimberLogger.w(TAG, "Failed to fetch CID info for master FID: %s", masterFid);
             }
-            
+
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error fetching master KeyInfo: %s", e.getMessage());
-            Toast.makeText(activity, "Error fetching master FID info", Toast.LENGTH_SHORT).show();
+            ToastUtils.showError(activity, activity.getString(R.string.error_fetching_master_fid_info));
         }
         return null;
     }
@@ -373,20 +397,20 @@ public class PersonPopupMenuHelper {
                 
                 if (success) {
                     refreshHomeActivityCard();
-                    Toast.makeText(activity, "Switched to master FID successfully", Toast.LENGTH_SHORT).show();
-                    
+                    ToastUtils.makeText(activity, activity.getString(R.string.fid_switched));
+
                     // Refresh cidInfo from API for the master FID
                     refreshCidInfoAsync(masterFid);
                 } else {
                     refreshHomeActivityCard(); // Refresh to show current FID
-                    Toast.makeText(activity, message != null ? message : "Failed to switch to master FID", Toast.LENGTH_SHORT).show();
+                    ToastUtils.showError(activity, message != null ? message : activity.getString(R.string.failed_to_switch_fid,""));
                 }
             }
         });
     }
     
     /**
-     * Fetch master KeyInfo using ApipClient asynchronously
+     * Fetch master KeyInfo using FapiClient asynchronously
      */
     private void fetchMasterKeyInfoAsync(String masterFid, Setting currentSetting) {
         // Show waiting dialog
@@ -410,16 +434,17 @@ public class PersonPopupMenuHelper {
                         public void onSwitchComplete(boolean success, String message) {
                             // Dismiss waiting dialog
                             dismissWaitingDialog();
-                            
+
                             if (success) {
                                 refreshHomeActivityCard();
-                                Toast.makeText(activity, "Fetched master info and switched successfully", Toast.LENGTH_SHORT).show();
-                                
+                                ToastUtils.makeText(activity, activity.getString(R.string.got_master_info_and_switched));
+
                                 // Refresh cidInfo from API for the master FID
                                 refreshCidInfoAsync(masterFid);
                             } else {
                                 refreshHomeActivityCard(); // Refresh to show current FID
-                                Toast.makeText(activity, message != null ? message : "Fetched master info but failed to switch", Toast.LENGTH_SHORT).show();
+                                ToastUtils.makeText(activity, message != null ? message : activity.getString(R.string.got_master_info));
+                                ToastUtils.showError(activity, message != null ? message : activity.getString(R.string.failed_to_switch));
                             }
                         }
                     });
@@ -427,15 +452,15 @@ public class PersonPopupMenuHelper {
                     // Failed to fetch master info
                     activity.runOnUiThread(() -> {
                         dismissWaitingDialog();
-                        Toast.makeText(activity, "Failed to fetch master FID info", Toast.LENGTH_SHORT).show();
+                        ToastUtils.showError(activity, activity.getString(R.string.failed_to_fetch_master_fid_info));
                     });
                 }
-                
+
             } catch (Exception e) {
                 TimberLogger.e(TAG, "Error in async fetch master KeyInfo: %s", e.getMessage());
                 activity.runOnUiThread(() -> {
                     dismissWaitingDialog();
-                    Toast.makeText(activity, "Error fetching master FID info: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    ToastUtils.showError(activity, activity.getString(R.string.error_fetching_master_fid_info_with_message, e.getMessage()));
                 });
             }
         }).start();
@@ -470,11 +495,11 @@ public class PersonPopupMenuHelper {
     }
     
     /**
-     * Show multisign FIDs options
+     * Show multisig FIDs options
      */
     private void showMultisignFidsOptions() {
-        // Launch ChooseMultisignFidActivity with startActivityForResult to enable HomeActivity refresh
-        Intent intent = new Intent(activity, com.fc.freer.home.ChooseMultisignFidActivity.class);
+        // Launch ChooseMultisigFidActivity with startActivityForResult to enable HomeActivity refresh
+        Intent intent = new Intent(activity, ChooseMultisigFidActivity.class);
         activity.startActivityForResult(intent, 1002);
     }
     
@@ -503,13 +528,13 @@ public class PersonPopupMenuHelper {
                 
                 if (success) {
                     refreshHomeActivityCard();
-                    Toast.makeText(activity, activity.getString(R.string.fid_switched_successfully), Toast.LENGTH_SHORT).show();
+                    ToastUtils.makeText(activity, activity.getString(R.string.fid_switched));
                     
                     // Refresh cidInfo from API for the switched FID
                     refreshCidInfoAsync(fid);
                 } else {
                     refreshHomeActivityCard(); // Refresh to show current FID
-                    Toast.makeText(activity, message != null ? message : activity.getString(R.string.failed_to_switch_fid), Toast.LENGTH_SHORT).show();
+                    ToastUtils.showError(activity, message != null ? message : activity.getString(R.string.failed_to_switch_fid,""));
                 }
             }
         });
@@ -536,7 +561,7 @@ public class PersonPopupMenuHelper {
             
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error quitting main FID: %s", e.getMessage());
-            Toast.makeText(activity, "Error logging out", Toast.LENGTH_SHORT).show();
+            ToastUtils.showError(activity, activity.getString(R.string.error_logging_out));
         }
     }
     
@@ -556,24 +581,22 @@ public class PersonPopupMenuHelper {
         new Thread(() -> {
             try {
                 ApiCenter apiCenter = ApiCenter.getInstance();
-                ApipClient apipClient = (ApipClient) apiCenter.getClient(Service.ServiceType.APIP);
-                if (apipClient == null || !apipClient.getConnected()) {
-                    TimberLogger.w(TAG, "APIP client not available for cidInfo refresh");
+                FapiClient fapiClient = (FapiClient) apiCenter.getClient(Service.ServiceType.FAPI_No1_NrC7);
+                if (fapiClient == null || !fapiClient.isConnected()) {
+                    TimberLogger.w(TAG, "FAPI client not available for freerInfo refresh");
                     return;
                 }
                 
-                // Fetch fresh cidInfo from API
-                com.fc.fc_ajdk.data.fchData.Cid cidInfo = apipClient.cidInfoById(fid, 
-                    com.fc.fc_ajdk.utils.http.RequestMethod.POST, 
-                    com.fc.fc_ajdk.utils.http.AuthType.FC_SIGN_BODY, 
-                    activity);
-                    
-                if (cidInfo != null) {
+                // Fetch fresh freerInfo from API
+                // Fetch CID info using FapiClient
+                Freer freerInfo = fapiClient.getFreer(fid);
+
+                if (freerInfo != null) {
                     // Update KeyInfo with fresh data
                     KeyInfo currentKeyInfo = fidManager.getLiveKeyInfo();
                     if (currentKeyInfo != null) {
                         // Preserve user-specific data while updating API data
-                        KeyInfo updatedKeyInfo = KeyInfo.fromCid(cidInfo);
+                        KeyInfo updatedKeyInfo = KeyInfo.fromCid(freerInfo);
                         updatedKeyInfo.setLabel(currentKeyInfo.getLabel());
                         updatedKeyInfo.setPrikeyCipher(currentKeyInfo.getPrikeyCipher());
                         updatedKeyInfo.setWatchOnly(currentKeyInfo.getWatchOnly());
@@ -581,8 +604,8 @@ public class PersonPopupMenuHelper {
                         
                         // Update in FidManager and save
                         if (fidManager.updateKeyInfo(activity, fid, updatedKeyInfo)) {
-                            TimberLogger.d(TAG, "Updated cidInfo for FID: %s - Cash: %d, Balance: %d, CD: %d", 
-                                fid, cidInfo.getCash(), cidInfo.getBalance(), cidInfo.getCd());
+                            TimberLogger.d(TAG, "Updated freerInfo for FID: %s - Cash: %d, Balance: %d, CD: %d",
+                                fid, freerInfo.getCash(), freerInfo.getBalance(), freerInfo.getCd());
                             
                             // Refresh UI with updated data
                             activity.runOnUiThread(() -> {
@@ -591,15 +614,15 @@ public class PersonPopupMenuHelper {
                         }
                     }
                 } else {
-                    TimberLogger.w(TAG, "Failed to fetch cidInfo for FID: %s", fid);
+                    TimberLogger.w(TAG, "Failed to fetch freerInfo for FID: %s", fid);
                 }
             } catch (Exception e) {
                 TimberLogger.e(TAG, "Error refreshing cidInfo for FID %s: %s", fid, e.getMessage());
             }
         }).start();
     }
-    
-    
+
+
     /**
      * Show waiting dialog with message
      */

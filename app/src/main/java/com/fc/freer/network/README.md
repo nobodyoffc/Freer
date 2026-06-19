@@ -105,9 +105,9 @@ ApipServiceManager apipManager = new ApipServiceManager(context);
 // 执行APIP请求（包含网络环境检测和重试）
 apipManager.requestApipService(new ApipServiceManager.RequestCallback() {
     @Override
-    public void onSuccess(ApipServiceManager.RequestResult result) {
+    public void onSuccess(ApipServiceManager.RequestResult fcDate) {
         // 请求成功，包含详细的请求和响应信息
-        System.out.println(result.toString());
+        System.out.println(fcDate.toString());
     }
     
     @Override
@@ -117,18 +117,18 @@ apipManager.requestApipService(new ApipServiceManager.RequestCallback() {
     }
     
     @Override
-    public void onError(ApipServiceManager.RequestResult result, Exception exception) {
+    public void onError(ApipServiceManager.RequestResult fcDate, Exception exception) {
         // 最终失败
-        System.out.println("Final error: " + result.toString());
+        System.out.println("Final error: " + fcDate.toString());
     }
 });
 
 // 测试备用服务器
 apipManager.testAlternativeServers(new ApipServiceManager.ServerTestCallback() {
     @Override
-    public void onServerResult(ApipServiceManager.ServerTestResult result) {
+    public void onServerResult(ApipServiceManager.ServerTestResult fcDate) {
         // 单个服务器测试结果
-        System.out.println(result.toString());
+        System.out.println(fcDate.toString());
     }
     
     @Override

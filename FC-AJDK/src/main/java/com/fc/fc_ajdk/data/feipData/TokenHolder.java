@@ -2,6 +2,7 @@ package com.fc.fc_ajdk.data.feipData;
 
 import com.fc.fc_ajdk.core.crypto.Hash;
 import com.fc.fc_ajdk.data.fcData.FcObject;
+import com.fc.fc_ajdk.utils.Hex;
 
 import java.util.HexFormat;
 
@@ -13,13 +14,13 @@ public class TokenHolder extends FcObject {
     private Long lastHeight;
 
     public static String getTokenHolderId(String fid, String tokenId) {
-        return HexFormat.of().formatHex(Hash.sha256((fid + tokenId).getBytes()));
+        return Hex.toHex(Hash.sha256((fid + tokenId).getBytes()));
     }
 
     @Override
     public String getId() {
         if(this.id==null)
-            this.id = HexFormat.of().formatHex(Hash.sha256((fid + tokenId).getBytes()));
+            this.id = Hex.toHex(Hash.sha256((fid + tokenId).getBytes()));
         return this.id;
     }
 

@@ -1,8 +1,12 @@
 package com.fc.freer;
 
+import static com.fc.freer.initiate.ChooseCidActivity.SELECTED_KEY_INFO_JSON;
+
 import android.content.Intent;
 import android.os.Bundle;
-import android.widget.Toast;
+
+import com.fc.freer.ui.RemindDialog;
+import com.fc.freer.utils.ToastUtils;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
@@ -23,23 +27,31 @@ import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
-    public static final String TAG = "CryptoSign";
+    public static final String TAG = "MainActivity";
     private ActivityResultLauncher<Intent> cidLauncher;
+    private ActivityResultLauncher<Intent> passwordLauncher;
+    private boolean hasLaunchedPasswordActivity;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_main);
-        
+
         setupEdgeToEdge();
-        
+
+        // Initialize passwordLauncher
+        passwordLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                this::handlePasswordResult
+        );
+
         // Initialize cidLauncher
         cidLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 this::handleCidResult
         );
-        
+
         initiate();
     }
 
@@ -52,27 +64,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initiate() {
-        ActivityResultLauncher<Intent> passwordLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(),
-                this::handlePasswordResult
-        );
-        
-        Intent intent;
-        
-        // Check if there are any Configure objects in ConfigureManager
-        if (ConfigureManager.getInstance().isConfigEmpty(this)) {
-            intent = new Intent(this, CreatePasswordActivity.class);
-        } else {
-            intent = new Intent(this, CheckPasswordActivity.class);
+        if (!hasLaunchedPasswordActivity) {
+            hasLaunchedPasswordActivity = true;
+            Intent checkPasswordIntent = new Intent(this, CheckPasswordActivity.class);
+            checkPasswordIntent.putExtra("allow_back_navigation", false);
+
+            passwordLauncher.launch(checkPasswordIntent);
         }
-        
-        passwordLauncher.launch(intent);
     }
 
     private void handlePasswordResult(androidx.activity.result.ActivityResult result) {
-        String activityName = result.getData() != null ? 
+        String activityName = result.getData() != null ?
             Objects.requireNonNull(result.getData().getComponent()).getClassName() : "Unknown";
-        
+
         if (result.getResultCode() == RESULT_OK) {
             Configure configure = ConfigureManager.getInstance().getConfigure();
             if (configure == null) {
@@ -84,7 +88,10 @@ public class MainActivity extends AppCompatActivity {
             Intent cidIntent = new Intent(this, ChooseCidActivity.class);
             cidLauncher.launch(cidIntent);
         } else {
-            handleError(activityName + " failed with result code: " + result.getResultCode());
+            // User cancelled password verification during initial authentication
+            // Close the app as authentication is required to proceed
+            TimberLogger.d(TAG, "Password verification cancelled, closing app");
+            finishAffinity();
         }
     }
 
@@ -92,8 +99,8 @@ public class MainActivity extends AppCompatActivity {
         if (result.getResultCode() == RESULT_OK) {
             // Get the selected KeyInfo from the result
             Intent data = result.getData();
-            if (data != null && data.hasExtra("selected_key_info_json")) {
-                String keyInfoJson = data.getStringExtra("selected_key_info_json");
+            if (data != null && data.hasExtra(SELECTED_KEY_INFO_JSON)) {
+                String keyInfoJson = data.getStringExtra(SELECTED_KEY_INFO_JSON);
                 KeyInfo selectedKeyInfo = KeyInfo.fromJson(keyInfoJson, KeyInfo.class);
                 if (selectedKeyInfo != null) {
                     // Get or create Setting for the selected KeyInfo
@@ -102,11 +109,11 @@ public class MainActivity extends AppCompatActivity {
                         Setting setting = settingManager.getOrCreateSetting(this, selectedKeyInfo);
                         if (setting != null) {
                             TimberLogger.d(TAG, "Successfully got or created setting for FID: " + setting.getFid());
-                            
+
                             // Set as current setting
-                            settingManager.setCurrentSetting(this, setting);
+                            settingManager.setCurrentSetting(setting);
                             TimberLogger.d(TAG, "Set current setting to FID: " + setting.getFid());
-                            
+
                             // Launch HomeActivity immediately - it will load modules there
                             launchHomeActivity();
                         } else {
@@ -123,25 +130,32 @@ public class MainActivity extends AppCompatActivity {
                 handleError("No KeyInfo data received from CID selection");
             }
         } else {
-            // User cancelled CID selection, show error
-            handleError("No CID selected");
+            // User cancelled CID selection, return to CheckPasswordActivity
+            TimberLogger.d(TAG, "CID selection cancelled, returning to password verification");
+            Intent intent = new Intent(this, CheckPasswordActivity.class);
+            // Allow back navigation from CheckPasswordActivity
+            intent.putExtra("allow_back_navigation", true);
+            passwordLauncher.launch(intent);
         }
     }
 
 
     private void handleError(String message) {
         TimberLogger.e(TAG, message);
-        Toast.makeText(this, getString(R.string.failed_to_initiate), Toast.LENGTH_SHORT).show();
+        ToastUtils.makeText(this, getString(R.string.failed_to_initiate));
     }
 
     private void launchHomeActivity() {
         try {
             Intent intent = new Intent(this, HomeActivity.class);
+            // Clear the entire activity stack when launching HomeActivity
+            // This ensures a clean state and prevents back navigation to authentication screens
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
             finish(); // Close MainActivity
         } catch (Exception ex) {
             TimberLogger.e(TAG, "Error launching HomeActivity: " + ex.getMessage(), ex);
-            Toast.makeText(this, getString(R.string.error_launching_homeactivity) + ex.getMessage(), Toast.LENGTH_LONG).show();
+            ToastUtils.makeText(this, getString(R.string.error_launching_homeactivity) + ex.getMessage());
         }
     }
 

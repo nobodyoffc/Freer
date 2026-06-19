@@ -15,7 +15,7 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Result View (4/9) -->
+        <!-- FcDate View (4/9) -->
         <include
             android:id="@+id/resultView"
             layout="@layout/layout_text_box_with_make_qr"
@@ -73,22 +73,31 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:layout_marginTop="8dp"
-            android:layout_marginBottom="8dp">
+            android:layout_marginBottom="8dp"
+            android:gravity="end">
 
-            <Button
+            <ImageButton
                 android:id="@+id/clearButton"
-                style="@style/ButtonStyle"
-                android:text="@string/clear" />
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_clear"
+                android:contentDescription="@string/clear" />
 
-            <Button
+            <ImageButton
                 android:id="@+id/copyButton"
-                style="@style/ButtonStyle"
-                android:text="@string/copy" />
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_copy"
+                android:contentDescription="@string/copy" />
 
-            <Button
+            <ImageButton
                 android:id="@+id/signButton"
-                style="@style/ButtonStyle"
-                android:text="@string/sign" />
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_play"
+                android:contentDescription="@string/sign" />
+            <ImageButton
+                android:id="@+id/back_button"
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_back"
+                android:contentDescription="@string/back" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout> 

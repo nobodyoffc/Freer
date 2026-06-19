@@ -2,10 +2,13 @@ package com.fc.fc_ajdk.data.feipData;
 
 import com.fc.fc_ajdk.data.fcData.FcObject;
 
+import java.util.List;
+
 public class ServiceMask extends FcObject {
 
 	protected String stdName;
-	protected String[] types;
+	protected Service.ServiceType type;
+	protected List<String> components;
 	protected String ver;
 	protected String owner;
 	protected String dealer;
@@ -18,7 +21,8 @@ public class ServiceMask extends FcObject {
 		ServiceMask serviceMask = new ServiceMask();
 		serviceMask.setId(service.getId());
 		serviceMask.setStdName(service.getStdName());
-		serviceMask.setTypes(service.getTypes());
+		serviceMask.setType(service.fetchServiceType());
+		serviceMask.setComponents(service.getComponents());
 		serviceMask.setVer(service.getVer());
 		serviceMask.setOwner(service.getOwner());
 		serviceMask.setLastTime(service.getLastTime());
@@ -36,12 +40,20 @@ public class ServiceMask extends FcObject {
 		this.stdName = stdName;
 	}
 
-	public String[] getTypes() {
-		return types;
+	public Service.ServiceType getType() {
+		return type;
 	}
 
-	public void setTypes(String[] types) {
-		this.types = types;
+	public void setType(Service.ServiceType type) {
+		this.type = type;
+	}
+
+	public List<String> getComponents() {
+		return components;
+	}
+
+	public void setComponents(List<String> components) {
+		this.components = components;
 	}
 
 	public String getVer() {

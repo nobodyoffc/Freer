@@ -1,0 +1,143 @@
+package com.fc.freer.multisig;
+
+import android.os.Bundle;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+
+import com.fc.fc_ajdk.core.fch.RawTxInfo;
+import com.fc.fc_ajdk.data.fchData.Cash;
+import com.fc.fc_ajdk.data.fchData.MultisigTxDetail;
+import com.fc.fc_ajdk.data.fchData.Multisig;
+import com.fc.fc_ajdk.data.fcData.KeyInfo;
+import com.fc.freer.R;
+import com.fc.freer.tx.view.CashAmountCard;
+import com.fc.freer.tx.view.TxOutputCard;
+import com.fc.freer.utils.ChooseMode;
+import com.fc.freer.utils.KeyCardContainer;
+
+import java.util.Map;
+
+public class MultisigTxDetailFragment extends Fragment {
+    private RawTxInfo rawTxInfo;
+    private MultisigTxDetail multisigTxDetail;
+    private LinearLayout senderContainer;
+    private LinearLayout cashContainer;
+    private LinearLayout sendToContainer;
+    private LinearLayout textContainer;
+    private LinearLayout signedFidContainer;
+    private LinearLayout unsignedFidContainer;
+
+    public static MultisigTxDetailFragment newInstance(RawTxInfo rawTxInfo) {
+        MultisigTxDetailFragment fragment = new MultisigTxDetailFragment();
+        fragment.rawTxInfo = rawTxInfo;
+        fragment.multisigTxDetail = MultisigTxDetail.fromMultiSigData(rawTxInfo, fragment.getContext());
+        return fragment;
+    }
+
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        return inflater.inflate(R.layout.fragment_multisign_tx_detail, container, false);
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        
+        senderContainer = view.findViewById(R.id.senderContainer);
+        cashContainer = view.findViewById(R.id.cashContainer);
+        sendToContainer = view.findViewById(R.id.sendToContainer);
+        textContainer = view.findViewById(R.id.textContainer);
+        signedFidContainer = view.findViewById(R.id.signedFidContainer);
+        unsignedFidContainer = view.findViewById(R.id.unsignedFidContainer);
+
+        setupSender();
+        setupCash();
+        setupSendTo();
+        setupText();
+        setupSignedFids();
+        setupUnsignedFids();
+    }
+
+    private void setupSender() {
+        if (multisigTxDetail.getSender() == null || multisigTxDetail.getSender().isEmpty()) {
+            return;
+        }
+        MultisigKeyCardManager keyCardManager = new MultisigKeyCardManager(getContext(), senderContainer, ChooseMode.CHOOSE_MULTI);
+        Multisig multisig = new Multisig();
+        multisig.setId(multisigTxDetail.getSender());
+        keyCardManager.addSenderKeyCard(multisig);
+    }
+
+    private void setupCash() {
+        if (multisigTxDetail.getCashIdAmountMap() == null || multisigTxDetail.getCashIdAmountMap().isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, String> entry : multisigTxDetail.getCashIdAmountMap().entrySet()) {
+            CashAmountCard card = new CashAmountCard(getContext());
+            card.setCashId(entry.getKey());
+            card.setAmount(entry.getValue());
+            cashContainer.addView(card);
+        }
+    }
+
+    private void setupSendTo() {
+        if (multisigTxDetail.getSendToList() == null || multisigTxDetail.getSendToList().isEmpty()) {
+            return;
+        }
+        for (Cash cash : multisigTxDetail.getSendToList()) {
+            TxOutputCard card = new TxOutputCard(getContext());
+            card.setSendTo(cash, getContext());
+            sendToContainer.addView(card);
+        }
+    }
+
+    private void setupText() {
+        if (multisigTxDetail.getOpReturn() != null && !multisigTxDetail.getOpReturn().isEmpty()) {
+            addTextLine("OpReturn: " + multisigTxDetail.getOpReturn());
+        }
+        if (multisigTxDetail.getmOfN() != null && !multisigTxDetail.getmOfN().isEmpty()) {
+            addTextLine("Required Signs/Total Member: " + multisigTxDetail.getmOfN());
+        }
+        if (multisigTxDetail.getRestSignNum() != null) {
+            addTextLine("Missing: " + multisigTxDetail.getRestSignNum());
+        }
+    }
+
+    private void addTextLine(String text) {
+        TextView textView = new TextView(getContext());
+        textView.setText(text);
+        textView.setTextColor(getResources().getColor(R.color.field_name, getContext().getTheme()));
+        textView.setTypeface(null, android.graphics.Typeface.BOLD);
+        textContainer.addView(textView);
+    }
+
+    private void setupSignedFids() {
+        if (multisigTxDetail.getSignedFidList() == null || multisigTxDetail.getSignedFidList().isEmpty()) {
+            return;
+        }
+        KeyCardContainer keyCardContainer = new KeyCardContainer(getContext(), signedFidContainer, ChooseMode.WITHOUT_CHOOSE);
+        for (String fid : multisigTxDetail.getSignedFidList()) {
+            KeyInfo keyInfo = new KeyInfo(null, fid);
+            keyCardContainer.addKeyCard(keyInfo);
+        }
+    }
+
+    private void setupUnsignedFids() {
+        if (multisigTxDetail.getUnSignedFidList() == null || multisigTxDetail.getUnSignedFidList().isEmpty()) {
+            return;
+        }
+        KeyCardContainer keyCardContainer = new KeyCardContainer(getContext(), unsignedFidContainer, ChooseMode.WITHOUT_CHOOSE);
+        for (String fid : multisigTxDetail.getUnSignedFidList()) {
+            KeyInfo keyInfo = new KeyInfo(null, fid);
+            keyCardContainer.addKeyCard(keyInfo);
+        }
+    }
+} 

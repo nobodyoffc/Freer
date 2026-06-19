@@ -3,6 +3,7 @@ package com.fc.fc_ajdk.data.feipData;
 import com.fc.fc_ajdk.data.fcData.FcObject;
 
 import java.util.List;
+import java.util.Map;
 
 public class TeamHistory extends FcObject {
 	private Long height;
@@ -23,6 +24,7 @@ public class TeamHistory extends FcObject {
 	private String transferee;
 	private String[] list;
 	private Integer rate;
+	private Map<String, String> home;
 
 	public Long getHeight() {
 		return height;
@@ -130,5 +132,12 @@ public class TeamHistory extends FcObject {
     public void setTids(List<String> tids) {
         this.tids = tids;
     }
-	
+
+	public Map<String, String> getHome() {
+		return home;
+	}
+
+	public void setHome(Map<String, String> home) {
+		this.home = home;
+	}
 }

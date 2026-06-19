@@ -1,33 +1,39 @@
 package com.fc.freer.home;
 
+import static com.fc.fc_ajdk.constants.FieldNames.DESC;
+import static com.fc.fc_ajdk.constants.FieldNames.FREER;
 import static com.fc.fc_ajdk.constants.FieldNames.ID;
+import static com.fc.fc_ajdk.constants.FieldNames.LAST_HEIGHT;
 import static com.fc.fc_ajdk.constants.FieldNames.USED_CIDS;
 
 import android.content.Intent;
+import android.text.Editable;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.view.View;
-import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
+
+import com.fc.fc_ajdk.data.fchData.Freer;
+import com.fc.freer.BaseCryptoActivity;
+import com.fc.freer.utils.ChooseMode;
+import com.fc.freer.utils.KeyCardContainer;
+import com.fc.freer.utils.ToastUtils;
 
 import com.fc.fc_ajdk.core.crypto.KeyTools;
 import com.fc.fc_ajdk.data.apipData.Fcdsl;
-import com.fc.fc_ajdk.data.fchData.Cid;
 import com.fc.fc_ajdk.utils.DateUtils;
 import com.fc.fc_ajdk.utils.StringUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
-import com.fc.fc_ajdk.utils.http.AuthType;
-import com.fc.fc_ajdk.utils.http.RequestMethod;
 import com.fc.freer.FreerApplication;
 import com.fc.freer.R;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.model.Setting;
-import com.fc.freer.network.ApipClient;
+import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.freer.ui.DetailActivity;
 import com.fc.freer.utils.ApiCenter;
-import com.fc.freer.utils.KeyCardManager;
 import com.fc.freer.ui.WaitingDialog;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 
@@ -39,24 +45,24 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
     
     private TextView searchResultsHint;
     private EditText fidSearchEditText;
-    private Button searchButton;
+    private View searchIcon;
+    private View clearSearchIcon;
     private LinearLayout searchResultsLayout;
-    private Button clearButton;
-    private Button cancelButton;
-    private Button confirmButton;
-    private Button moreButton;
+    private ImageButton confirmButton;
+    private ImageButton moreButton;
     private TextView moreResultsHint;
     
     private String selectedFid = null;
-    private Cid selectedCid = null;
+    private Freer selectedFreer = null;
     private View selectedCardView = null;
-    private ApipClient apipClient;
-    private KeyCardManager keyCardManager;
+    private FapiClient fapiClient;
+    private KeyCardContainer keyCardContainer;
     private WaitingDialog waitingDialog;
     private Setting currentSetting;
-    private List<Cid> currentSearchResults = new ArrayList<>();
+    private List<Freer> currentSearchResults = new ArrayList<>();
     private String currentSearchTerm = null;
     private boolean isExactFidSearch = false;
+    private List<String> lastValue;
 
     @Override
     protected int getLayoutId() {
@@ -80,6 +86,18 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
     }
 
     @Override
+    protected void setupBackButton() {
+        backButton = findViewById(R.id.backButton);
+        if (backButton != null) {
+            backButton.setOnClickListener(v -> {
+                hideKeyboard();
+                setResult(RESULT_CANCELED);
+                finish();
+            });
+        }
+    }
+
+    @Override
     protected void handleQrScanResult(int requestCode, String qrContent) {
         // Handle QR scan results if needed
     }
@@ -87,10 +105,9 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
     private void initViews() {
         searchResultsHint = findViewById(R.id.searchResultsHint);
         fidSearchEditText = findViewById(R.id.fidSearchEditText);
-        searchButton = findViewById(R.id.searchButton);
+        searchIcon = findViewById(R.id.search_icon);
+        clearSearchIcon = findViewById(R.id.clear_search_icon);
         searchResultsLayout = findViewById(R.id.searchResultsLayout);
-        clearButton = findViewById(R.id.clearButton);
-        cancelButton = findViewById(R.id.cancelButton);
         confirmButton = findViewById(R.id.addWatchedFidButton);
         moreButton = findViewById(R.id.moreButton);
         moreResultsHint = findViewById(R.id.moreResultsHint);
@@ -98,12 +115,11 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
         confirmButton.setEnabled(false);
         confirmButton.setAlpha(0.5f);
         
-        // Initialize search KeyCardManager with single choice and clickToReturn enabled
         List<com.fc.freer.ui.MenuItem> menuItems = new ArrayList<>();
         menuItems.add(com.fc.freer.ui.MenuItem.createDetailMenuItem(this));
-        keyCardManager = new KeyCardManager(this, searchResultsLayout, true, true, menuItems);
-        keyCardManager.setOnKeyClickedListener(this::onFidSelected);
-        keyCardManager.setOnMenuItemClickListener(this::onMenuItemClicked);
+        keyCardContainer = new KeyCardContainer(this, searchResultsLayout, ChooseMode.CHOOSE_ONE_RETURN, menuItems, true);
+        keyCardContainer.setOnKeyClickedListener(this::onFidSelected);
+        keyCardContainer.setOnMenuItemClickListener(this::onMenuItemClicked);
     }
     
     private void setupData() {
@@ -111,15 +127,15 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
             // Get current setting
             currentSetting = SettingManager.getInstance().getCurrentSetting();
             if (currentSetting == null) {
-                Toast.makeText(this, "Current setting not available", Toast.LENGTH_SHORT).show();
+                ToastUtils.makeText(this, getString(R.string.current_setting_not_available));
                 finish();
                 return;
             }
             
-            // Get APIP client
+            // Get FAPI client
             ApiCenter apiCenter = ApiCenter.getInstance();
             if (apiCenter != null) {
-                apipClient = (ApipClient) apiCenter.getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.APIP);
+                fapiClient = (FapiClient) apiCenter.getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.FAPI_No1_NrC7);
             }
             
         } catch (Exception e) {
@@ -128,17 +144,38 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
     }
     
     private void setupListeners() {
-        searchButton.setOnClickListener(v -> performSearch());
-        clearButton.setOnClickListener(v -> clearAll());
-        cancelButton.setOnClickListener(v -> finish());
-        confirmButton.setOnClickListener(v -> confirmAddWatchedFid());
+        searchIcon.setOnClickListener(v -> {
+            hideKeyboard();
+            performSearch();
+        });
+        clearSearchIcon.setOnClickListener(v -> {
+            fidSearchEditText.setText("");
+            hideKeyboard();
+            clearAll();
+        });
+        confirmButton.setOnClickListener(v -> {
+            hideKeyboard();
+            confirmAddWatchedFid();
+        });
         moreButton.setOnClickListener(v -> loadMoreResults());
         confirmButton.setEnabled(false);
         confirmButton.setAlpha(0.5f);
         moreButton.setVisibility(View.GONE);
         moreResultsHint.setVisibility(View.GONE);
-        
-        // Hide keyboard when fidSearchEditText loses focus
+
+        fidSearchEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                clearSearchIcon.setVisibility(s.length() > 0 ? View.VISIBLE : View.GONE);
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
         fidSearchEditText.setOnFocusChangeListener((v, hasFocus) -> {
             if (!hasFocus) {
                 hideKeyboard();
@@ -151,12 +188,12 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
 
         String searchString = fidSearchEditText.getText().toString().trim();
         if (TextUtils.isEmpty(searchString)) {
-            Toast.makeText(this, getString(R.string.please_enter_search_term), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.please_enter_search_term));
             return;
         }
         
-        if (apipClient == null) {
-            Toast.makeText(this, getString(R.string.apip_client_not_available), Toast.LENGTH_SHORT).show();
+        if (fapiClient == null) {
+            ToastUtils.makeText(this, getString(R.string.apip_client_not_available));
             return;
         }
         
@@ -189,20 +226,20 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
     private void searchExactFid(String fid) {
         new Thread(() -> {
             try {
-                Cid cidInfo = apipClient.cidInfoById(fid, RequestMethod.POST, AuthType.FREE, this);
+                Freer freerInfo = fapiClient.getFreer(fid);
                 
                 runOnUiThread(() -> {
                     dismissWaitingDialog();
 
-                    if (cidInfo != null) {
-                        List<Cid> results = new ArrayList<>();
-                        results.add(cidInfo);
+                    if (freerInfo != null) {
+                        List<Freer> results = new ArrayList<>();
+                        results.add(freerInfo);
                         currentSearchResults.clear();
                         currentSearchResults.addAll(results);
                         displaySearchResults(results);
                         moreButton.setVisibility(View.GONE); // No pagination for exact FID search
                     } else {
-                        Toast.makeText(this, getString(R.string.fid_not_found), Toast.LENGTH_SHORT).show();
+                        ToastUtils.makeText(this, getString(R.string.fid_not_found));
                         clearSearchResults();
                     }
                 });
@@ -210,7 +247,7 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
                 TimberLogger.e(TAG, "Error searching exact FID: %s", e.getMessage());
                 runOnUiThread(() -> {
                     dismissWaitingDialog();
-                    Toast.makeText(this, getString(R.string.search_failed), Toast.LENGTH_SHORT).show();
+                    ToastUtils.makeText(this, getString(R.string.search_failed));
                     clearSearchResults();
                 });
             }
@@ -224,14 +261,21 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
                 Fcdsl fcdsl = new Fcdsl();
                 fcdsl.addNewQuery().addNewPart().addNewFields(ID, USED_CIDS).addNewValue(searchString);
                 fcdsl.setSize(String.valueOf(FreerApplication.DEFAULT_PAGE_SIZE));
-                
+                fcdsl.addSort(LAST_HEIGHT,DESC).addSort(ID,DESC);
                 // Add 'after' parameter for pagination
                 if (afterValue != null) {
                     fcdsl.setAfter(afterValue);
                 }
 
-                List<Cid> results = apipClient.cidSearch(fcdsl, RequestMethod.POST, AuthType.FREE, this);
-                
+
+                List<Freer> results = fapiClient.entitySearch(FREER,fcdsl,Freer.class);
+
+
+                if (fapiClient.getLastResponse() != null &&
+                        fapiClient.getLastResponse().getLast() != null) {
+                    lastValue = fapiClient.getLastResponse().getLast();
+                }
+
                 runOnUiThread(() -> {
                     dismissWaitingDialog();
 
@@ -252,12 +296,12 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
                     } else {
                         if (afterValue == null) {
                             TimberLogger.d(TAG, "No CID results found, showing toast");
-                            Toast.makeText(this, getString(R.string.no_matching_cids_found), Toast.LENGTH_SHORT).show();
+                            ToastUtils.makeText(this, getString(R.string.no_matching_cids_found));
                             clearSearchResults();
                         } else {
                             // No more results
                             moreButton.setVisibility(View.GONE);
-                            Toast.makeText(this, getString(R.string.no_more_results), Toast.LENGTH_SHORT).show();
+                            ToastUtils.makeText(this, getString(R.string.no_more_results));
                         }
                     }
                 });
@@ -266,16 +310,16 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
                 TimberLogger.e(TAG, "Error searching partial CID: %s", e.getMessage());
                 runOnUiThread(() -> {
                     dismissWaitingDialog();
-                    Toast.makeText(this, getString(R.string.search_failed), Toast.LENGTH_SHORT).show();
+                    ToastUtils.makeText(this, getString(R.string.search_failed));
                     clearSearchResults();
                 });
             }
         }).start();
     }
     
-    private void displaySearchResults(List<Cid> results) {
+    private void displaySearchResults(List<Freer> results) {
         // Clear existing results and selection
-        keyCardManager.clearAll();
+        keyCardContainer.clearAll();
         selectedCardView = null;
         
         // Show search results hint
@@ -284,19 +328,19 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
         // Hide more results hint when displaying new results
         moreResultsHint.setVisibility(View.GONE);
         
-        // Convert Cid objects to KeyInfo objects and add them to KeyCardManager
-        for (Cid cid : results) {
-            KeyInfo keyInfo = KeyInfo.fromCid(cid);
+        // Convert Freer objects to KeyInfo objects and add them to KeyCardContainer
+        for (Freer freer : results) {
+            KeyInfo keyInfo = KeyInfo.fromCid(freer);
             if (keyInfo != null) {
                 // Don't set label - let CID value show in the CID field instead
-                keyCardManager.addKeyCard(keyInfo);
+                keyCardContainer.addKeyCard(keyInfo);
             }
         }
     }
     
     private void clearSearchResults() {
         TimberLogger.d(TAG, "clearSearchResults() called");
-        keyCardManager.clearAll();
+        keyCardContainer.clearAll();
         searchResultsHint.setVisibility(View.GONE);
         moreButton.setVisibility(View.GONE);
         moreResultsHint.setVisibility(View.GONE);
@@ -311,7 +355,7 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
         
         // Reset selection state
         selectedFid = null;
-        selectedCid = null;
+        selectedFreer = null;
         selectedCardView = null;
         
         // Disable add button
@@ -323,15 +367,15 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
         currentSearchResults.clear();
         isExactFidSearch = false;
         
-        Toast.makeText(this, getString(R.string.cleared), Toast.LENGTH_SHORT).show();
+        ToastUtils.makeText(this, getString(R.string.cleared));
     }
     
-    private void appendSearchResults(List<Cid> newResults) {
-        // Convert Cid objects to KeyInfo objects and add them to KeyCardManager
-        for (Cid cid : newResults) {
-            KeyInfo keyInfo = KeyInfo.fromCid(cid);
+    private void appendSearchResults(List<Freer> newResults) {
+        // Convert Freer objects to KeyInfo objects and add them to KeyCardContainer
+        for (Freer freer : newResults) {
+            KeyInfo keyInfo = KeyInfo.fromCid(freer);
             if (keyInfo != null) {
-                keyCardManager.addKeyCard(keyInfo);
+                keyCardContainer.addKeyCard(keyInfo);
             }
         }
     }
@@ -352,7 +396,7 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
     }
     
     private void loadMoreResults() {
-        if (currentSearchTerm == null || apipClient == null) {
+        if (currentSearchTerm == null || fapiClient == null) {
             return;
         }
         
@@ -361,37 +405,30 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
         waitingDialog.show();
         
         try {
-            // Get the 'last' value from the last response
-            List<String> afterValue = null;
-            if (apipClient.getApiEvent() != null && 
-                apipClient.getApiEvent().getResponseBody() != null && 
-                apipClient.getApiEvent().getResponseBody().getLast() != null) {
-                afterValue = apipClient.getApiEvent().getResponseBody().getLast();
-            }
             
-            if (afterValue != null) {
-                searchPartialCid(currentSearchTerm, afterValue);
+            if (lastValue != null) {
+                searchPartialCid(currentSearchTerm, lastValue);
             } else {
                 dismissWaitingDialog();
-                Toast.makeText(this, getString(R.string.no_more_results), Toast.LENGTH_SHORT).show();
+                ToastUtils.makeText(this, getString(R.string.no_more_results));
                 moreButton.setVisibility(View.GONE);
                 moreResultsHint.setVisibility(View.GONE);
             }
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error loading more results: %s", e.getMessage());
             dismissWaitingDialog();
-            Toast.makeText(this, getString(R.string.failed_to_load_more), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.failed_to_load_more));
         }
     }
     
     private void onFidSelected(KeyInfo keyInfo) {
         selectedFid = keyInfo.getId();
         
-        // Convert KeyInfo back to Cid for compatibility with existing logic
-        selectedCid = new Cid();
-        selectedCid.setId(keyInfo.getId());
-        selectedCid.setCid(keyInfo.getCid());
-        selectedCid.setPubkey(keyInfo.getPubkey());
+        // Convert KeyInfo back to Freer for compatibility with existing logic
+        selectedFreer = new Freer();
+        selectedFreer.setId(keyInfo.getId());
+        selectedFreer.setCid(keyInfo.getCid());
+        selectedFreer.setPubkey(keyInfo.getPubkey());
 
     // Update card selection highlighting
         updateCardSelection(keyInfo);
@@ -404,7 +441,7 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
         fidSearchEditText.setText(displayText);
         confirmButton.setEnabled(true);
         confirmButton.setAlpha(1.0f);
-        Toast.makeText(this, "FID selected", Toast.LENGTH_SHORT).show();
+        ToastUtils.makeText(this, getString(R.string.fid_selected));
     }
     
     private void onMenuItemClicked(String menuItemId, KeyInfo keyInfo) {
@@ -421,13 +458,13 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
             startActivity(intent);
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error showing KeyInfo detail: %s", e.getMessage());
-            Toast.makeText(this, getString(R.string.error_showing_detail), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.error_showing_detail));
         }
     }
     
     private void confirmAddWatchedFid() {
-        if (selectedFid == null || selectedCid == null) {
-            Toast.makeText(this, "No FID selected", Toast.LENGTH_SHORT).show();
+        if (selectedFid == null || selectedFreer == null) {
+            ToastUtils.makeText(this, getString(R.string.no_fid_selected));
             return;
         }
         
@@ -437,14 +474,14 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
             if (watchedList != null) {
                 for (KeyInfo keyInfo : watchedList) {
                     if (selectedFid.equals(keyInfo.getId())) {
-                        Toast.makeText(this, getString(R.string.fid_already_watched), Toast.LENGTH_SHORT).show();
+                        ToastUtils.makeText(this, getString(R.string.fid_already_watched));
                         return;
                     }
                 }
             }
             
-            // Create KeyInfo from selected Cid
-            KeyInfo keyInfoToAdd = KeyInfo.fromCid(selectedCid);
+            // Create KeyInfo from selected Freer
+            KeyInfo keyInfoToAdd = KeyInfo.fromCid(selectedFreer);
             if (keyInfoToAdd != null) {
                 // Mark as watch-only
                 keyInfoToAdd.setWatchOnly(true);
@@ -458,17 +495,17 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
                 settingManager.saveSettings(this, currentSetting);
                 
                 TimberLogger.d(TAG, "Successfully added watched FID: %s", selectedFid);
-                Toast.makeText(this, getString(R.string.watched_fid_added_successfully), Toast.LENGTH_SHORT).show();
+                ToastUtils.makeText(this, getString(R.string.watched_fid_added_successfully));
                 
                 setResult(RESULT_OK);
                 finish();
             } else {
-                Toast.makeText(this, "Failed to create KeyInfo from selected FID", Toast.LENGTH_SHORT).show();
+                ToastUtils.makeText(this, getString(R.string.failed_to_create_keyinfo_from_fid));
             }
             
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error adding watched FID: %s", e.getMessage());
-            Toast.makeText(this, getString(R.string.failed_to_add_watched_fid) + ": " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.failed_to_add_watched_fid) + ": " + e.getMessage());
         }
     }
     
@@ -507,12 +544,11 @@ public class AddWatchedFidActivity extends BaseCryptoActivity {
     
     private void updateMoreResultsHint() {
         try {
-            if (apipClient != null && 
-                apipClient.getApiEvent() != null && 
-                apipClient.getApiEvent().getResponseBody() != null && 
-                apipClient.getApiEvent().getResponseBody().getTotal() != null) {
+            if (fapiClient != null && 
+                fapiClient.getLastResponse() != null &&
+                fapiClient.getLastResponse().getTotal() != null) {
                 
-                long totalResults = apipClient.getApiEvent().getResponseBody().getTotal();
+                long totalResults = fapiClient.getLastResponse().getTotal();
                 int currentResultsCount = currentSearchResults.size();
                 long remainingResults = totalResults - currentResultsCount;
                 

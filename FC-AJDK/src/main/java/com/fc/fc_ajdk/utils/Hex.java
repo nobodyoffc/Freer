@@ -7,6 +7,7 @@ public class Hex {
     private static final String HEX_PATTERN = "^[0-9a-fA-F]+$";
 
     public static String toHex(byte[] bytes) {
+        if(bytes==null)return null;
         StringBuilder hexString = new StringBuilder();
         for (byte b : bytes) {
             String hex = Integer.toHexString(0xff & b);

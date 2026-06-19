@@ -11,8 +11,6 @@ public class ToolbarUtils {
         activity.setSupportActionBar(toolbar);
         if (activity.getSupportActionBar() != null) {
             activity.getSupportActionBar().setTitle(title);
-            activity.getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
-        toolbar.setNavigationOnClickListener(v -> activity.finish());
     }
 } 

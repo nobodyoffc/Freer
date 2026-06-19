@@ -178,8 +178,12 @@ public class StringUtils {
                 .anyMatch(s -> s.equalsIgnoreCase(item));
     }
 
-    @NotNull
+
     public static String omitMiddle(String str, int width) {
+        if(str == null)
+            return null;
+        if( str.length()<=width)
+            return str;
         int halfWidth = (width -3) /2;
         String head = str.substring(0,halfWidth);
         String tail = str.substring(str.length()-halfWidth);

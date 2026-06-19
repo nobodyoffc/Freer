@@ -5,17 +5,17 @@ import android.content.Context;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.TextView;
-import android.widget.Toast;
+
+import com.fc.fc_ajdk.data.fchData.Cash;
+import com.fc.freer.utils.ToastUtils;
 
 import androidx.annotation.NonNull;
 
 import com.fc.fc_ajdk.constants.Constants;
 import com.fc.fc_ajdk.core.crypto.KeyTools;
 import com.fc.fc_ajdk.core.fch.RawTxInfo;
-import com.fc.fc_ajdk.data.fchData.SendTo;
 import com.fc.fc_ajdk.utils.FchUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
-import com.fc.freer.FreerApplication;
 import com.fc.freer.R;
 import com.fc.freer.utils.TextIconsUtils;
 import com.google.android.material.textfield.TextInputEditText;
@@ -39,7 +39,7 @@ public class AddTxOutputDialog extends Dialog {
     private static final int QR_SCAN_AMOUNT_REQUEST_CODE = 1004;
 
     public interface OnDoneListener {
-        void onDone(SendTo sendTo);
+        void onDone(Cash cash);
     }
 
     public AddTxOutputDialog(@NonNull Context context, RawTxInfo rawTxInfo, long rest) {
@@ -89,16 +89,16 @@ public class AddTxOutputDialog extends Dialog {
 
         doneButton.setOnClickListener(v -> {
             if(fidInput.getText() == null || amountInput.getText() == null){
-                Toast.makeText(getContext(), R.string.please_input_all_fields , FreerApplication.TOAST_LASTING).show();
+                ToastUtils.makeText(getContext(), R.string.please_input_all_fields);
                 return;
             }
             if(fidInput.getText().toString().isEmpty() || amountInput.getText().toString().isEmpty()){
-                Toast.makeText(getContext(),  R.string.please_input_all_fields , FreerApplication.TOAST_LASTING).show();
+                ToastUtils.makeText(getContext(),  R.string.please_input_all_fields);
                 return;
             }
             String fid = fidInput.getText().toString();
             if (!KeyTools.isGoodFid(fid)) {
-                Toast.makeText(getContext(), R.string.invalid_fid, FreerApplication.TOAST_LASTING).show();
+                ToastUtils.makeText(getContext(), R.string.invalid_fid);
                 return;
             }
 
@@ -106,21 +106,21 @@ public class AddTxOutputDialog extends Dialog {
             
             // Validate amount range
             if (amount < Constants.MIN_AMOUNT || amount > Constants.MAX_AMOUNT) {
-                Toast.makeText(getContext(), getContext().getString(R.string.amount_must_be_between, Constants.MIN_AMOUNT, Constants.MAX_AMOUNT), FreerApplication.TOAST_LASTING).show();
+                ToastUtils.makeText(getContext(), getContext().getString(R.string.amount_must_be_between, Constants.MIN_AMOUNT, Constants.MAX_AMOUNT));
                 return;
             }
 
             // Validate against rest
             if (amount > FchUtils.satoshiToCoin(rest)) {
-                Toast.makeText(getContext(),  R.string.total_amount_exceeds_available_balance, FreerApplication.TOAST_LASTING).show();
+                ToastUtils.makeText(getContext(),  R.string.total_amount_exceeds_available_balance);
                 return;
             }
 
-            SendTo sendTo = new SendTo(fid, amount);
-            rawTxInfo.getOutputs().add(sendTo);
+            Cash cash = new Cash(fid, amount);
+            rawTxInfo.getOutputs().add(cash);
 
             if (onDoneListener != null) {
-                onDoneListener.onDone(sendTo);
+                onDoneListener.onDone(cash);
             }
 
             dismiss();
@@ -155,7 +155,7 @@ public class AddTxOutputDialog extends Dialog {
     }
 
     private void showToast(String message) {
-        Toast.makeText(getContext(), message, Toast.LENGTH_SHORT).show();
+        ToastUtils.makeText(getContext(), message);
     }
 
     public void setOnDoneListener(OnDoneListener listener) {

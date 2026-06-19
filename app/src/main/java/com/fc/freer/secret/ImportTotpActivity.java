@@ -1,23 +1,27 @@
 package com.fc.freer.secret;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
-import android.widget.Button;
 import android.widget.LinearLayout;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 
-import com.fc.fc_ajdk.data.fcData.SecretDetail;
+import com.fc.fc_ajdk.data.feipData.Secret;
 import com.fc.freer.R;
-import com.fc.freer.home.BaseCryptoActivity;
+import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.manager.SecretManager;
+import com.fc.freer.utils.FcEntityImporter;
 import com.fc.freer.utils.FileUtils;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import android.widget.ImageButton;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -31,28 +35,30 @@ public class ImportTotpActivity extends BaseCryptoActivity {
     private LinearLayout secretJsonInputContainer;
     private LinearLayout secretButtonContainer;
     private TextInputEditText secretJsonInput;
-    private Button secretClearButton;
-    private Button secretImportButton;
+    private ImageButton secretClearButton;
+    private ImageButton secretImportButton;
     private String type;
-    private FcEntityImporter<SecretDetail> fcEntityImporter;
+    private FcEntityImporter<Secret> fcEntityImporter;
     private ActivityResultLauncher<Intent> filePickerLauncher;
     private ActivityResultLauncher<Intent> inputLauncher;
-    private List<SecretDetail> importedSecretList;
+    private List<Secret> importedSecretList;
     private String currentFilePath;
     private boolean isFileMode;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Session lost (process death while backgrounded): base is redirecting to re-auth.
+        if (isSessionRedirected()) return;
         type = getIntent().getStringExtra("type");
         initSecretImporter();
     }
 
     private void initSecretImporter() {
-        fcEntityImporter = new FcEntityImporter<>(this, SecretDetail.class, new FcEntityImporter.OnImportListener<>() {
+        fcEntityImporter = new FcEntityImporter<>(this, Secret.class, new FcEntityImporter.OnImportListener<>() {
             @Override
-            public void onImportSuccess(List<SecretDetail> result) {
-                SecretManager.saveAndFinish(ImportTotpActivity.this, result);
+            public void onImportSuccess(List<Secret> result) {
+                SecretManager.getInstance().saveAndFinish(ImportTotpActivity.this, result);
             }
 
             @Override
@@ -65,10 +71,6 @@ public class ImportTotpActivity extends BaseCryptoActivity {
                 inputLauncher.launch(intent);
             }
 
-            @Override
-            public void onSymkeyRequired(Intent intent) {
-                inputLauncher.launch(intent);
-            }
         });
         fcEntityImporter.setType(type);
     }
@@ -104,7 +106,7 @@ public class ImportTotpActivity extends BaseCryptoActivity {
                 });
 
         setupIoIconsView(R.id.secretJsonInput, R.id.scanIcon, false, false, true, true,
-                null, null, () -> startQrScan(QR_SCAN_JSON_REQUEST_CODE), this::openFilePicker);
+                true, null, null, () -> pasteFromClipboard(secretJsonInput), this::openFilePicker, () -> startQrScan(QR_SCAN_JSON_REQUEST_CODE));
     }
 
     private void handleFileSelection(Uri uri) {
@@ -131,6 +133,7 @@ public class ImportTotpActivity extends BaseCryptoActivity {
     }
 
     private void setupListeners() {
+
         secretClearButton.setOnClickListener(v -> {
             FcEntityImporter.hideKeyboard(getCurrentFocus());
             secretJsonInput.setText("");
@@ -156,9 +159,9 @@ public class ImportTotpActivity extends BaseCryptoActivity {
                     inputText = secretJsonInput.getText() != null ? secretJsonInput.getText().toString() : "";
                 }
 
-                List<SecretDetail> secretDetails = parseTotpInput(inputText);
-                if (secretDetails != null && !secretDetails.isEmpty()) {
-                    SecretManager.saveAndFinish(this, secretDetails);
+                List<Secret> secrets = parseTotpInput(inputText);
+                if (secrets != null && !secrets.isEmpty()) {
+                    SecretManager.getInstance().saveAndFinish(this, secrets);
                 } else if (fcEntityImporter.getFinalTList() != null && !fcEntityImporter.getFinalTList().isEmpty()) {
                     // If we have items in finalTList, it means we're waiting for password input
                     // The FcEntityImporter will handle the password input and decryption
@@ -172,14 +175,33 @@ public class ImportTotpActivity extends BaseCryptoActivity {
         });
     }
 
-    private List<SecretDetail> parseTotpInput(String input) {
-        List<SecretDetail> secretDetails = new ArrayList<>();
+    private void paste() {
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard != null && clipboard.hasPrimaryClip()) {
+            ClipData.Item item = clipboard.getPrimaryClip().getItemAt(0);
+            CharSequence pasteData = item.getText();
+            if (pasteData != null) {
+                secretJsonInput.setText(pasteData.toString());
+                secretJsonInput.setEnabled(true);
+                secretJsonInput.setTextColor(getColor(R.color.text));
+                isFileMode = false;
+                currentFilePath = null;
+            } else {
+                showToast(getString(R.string.clipboard_is_empty));
+            }
+        } else {
+            showToast(getString(R.string.clipboard_is_empty));
+        }
+    }
+
+    private List<Secret> parseTotpInput(String input) {
+        List<Secret> secrets = new ArrayList<>();
         
         // Try parsing as JSON first
         try {
             JsonObject jsonObject = JsonParser.parseString(input).getAsJsonObject();
             if (jsonObject.has("secret") && jsonObject.has("label")) {
-                SecretDetail secretDetail = new SecretDetail();
+                Secret secretDetail = new Secret();
                 String label =jsonObject.get("label").getAsString();
                 if(label.contains(" - ")){
                     label = label.split(" - ")[1];
@@ -193,8 +215,8 @@ public class ImportTotpActivity extends BaseCryptoActivity {
                 if(secret==null || secret.isEmpty())return null;
                 secretDetail.setContent(secret);
                 secretDetail.setType("TOTP");
-                secretDetails.add(secretDetail);
-                return secretDetails;
+                secrets.add(secretDetail);
+                return secrets;
             }
         } catch (Exception e) {
             // Not a valid JSON, continue to try other formats
@@ -209,14 +231,17 @@ public class ImportTotpActivity extends BaseCryptoActivity {
                     String account = path.substring(1); // Remove "/totp/"
                     String secret = uri.getQueryParameter("secret");
                     String issuer = uri.getQueryParameter("issuer");
-                    String title = issuer+": "+account;
+                    String title;
+                    if(issuer==null || issuer.isEmpty())title = account;
+                    else title = issuer+": "+account;
                     if (secret != null) {
-                        SecretDetail secretDetail = new SecretDetail();
+                        Secret secretDetail = new Secret();
                         secretDetail.setTitle(title);
                         secretDetail.setContent(secret);
-                        secretDetail.setType("TOTP");
-                        secretDetails.add(secretDetail);
-                        return secretDetails;
+                        secretDetail.setType(Secret.Type.TOTP.displayName);
+                        secretDetail.setOnChain(false);
+                        secrets.add(secretDetail);
+                        return secrets;
                     }
                 }
             }
@@ -226,7 +251,7 @@ public class ImportTotpActivity extends BaseCryptoActivity {
 
         // Try FcEntityImporter as last resort
         try {
-            List<SecretDetail> imported = fcEntityImporter.importEntity(input);
+            List<Secret> imported = fcEntityImporter.importEntity(input);
             if (imported != null) {
                 imported.removeIf(secretDetail -> secretDetail.getContent() == null || secretDetail.getContent().isEmpty());
                 if (!imported.isEmpty()) {

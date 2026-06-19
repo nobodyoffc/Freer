@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="4dp">
+
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/container_outline"
+    android:orientation="horizontal"
+    android:padding="8dp"
+    android:gravity="center_vertical"
+    android:clickable="true"
+    android:focusable="true">
+
+    <!-- Checkbox for selection -->
+    <CheckBox
+        android:id="@+id/income_checkbox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="4dp" />
+
+    <!-- Avatar for the from address -->
+    <ImageView
+        android:id="@+id/income_from_avatar"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginStart="0dp"
+        android:contentDescription="@string/avatar"
+        android:scaleType="centerCrop" />
+
+    <!-- From FID (truncated if longer than 13 chars) with F suffix -->
+    <TextView
+        android:id="@+id/income_from_value"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="2.2"
+        android:textSize="12sp"
+        android:textColor="@color/accent"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:maxLines="1"
+        android:ellipsize="middle"
+        android:gravity="center_vertical"
+        android:minHeight="20dp" />
+
+    <!-- Time display (date and time) -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.8"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp">
+
+        <TextView
+            android:id="@+id/income_time_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textColor="@color/hint"
+            android:gravity="center" />
+
+        <TextView
+            android:id="@+id/income_time_clock"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textColor="@color/hint"
+            android:gravity="center" />
+    </LinearLayout>
+
+    <!-- Income amount -->
+    <TextView
+        android:id="@+id/income_amount_value"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="2.8"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="@color/field_name"
+        android:layout_marginEnd="8dp"
+        android:minWidth="20dp"
+        android:minHeight="20dp"
+        android:gravity="center_vertical|start" />
+
+</LinearLayout>
+
+    <!-- New indicator dot at top left (must be after LinearLayout to appear on top) -->
+    <View
+        android:id="@+id/new_indicator"
+        android:layout_width="10dp"
+        android:layout_height="10dp"
+        android:layout_gravity="start|top"
+        android:layout_margin="0dp"
+        android:background="@android:color/holo_red_light"
+        android:visibility="gone"/>
+
+</FrameLayout>

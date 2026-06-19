@@ -1,6 +1,5 @@
 package com.fc.fc_ajdk.utils;
 
-import com.fc.fc_ajdk.ui.Shower;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -115,21 +114,21 @@ public class NumberUtils {
 
         if (str.length() <= width) return str;
 
-        long longvalue = Long.parseLong(str);
+        long longValue = Long.parseLong(str);
         // Try K format
-        if (longvalue >= 1000) {
-            str = String.valueOf(longvalue / 1000) + "K";
+        if (longValue >= 1000) {
+            str = String.valueOf(longValue / 1000) + "K";
             if (str.length() <= width) return str;
         }
 
         // Try M format
-        if (longvalue >= 1000000) {
-            str = String.valueOf(longvalue / 1000000) + "M";
+        if (longValue >= 1000000) {
+            str = String.valueOf(longValue / 1000000) + "M";
             if (str.length() <= width) return str;
         }
 
         // If still too long, use omitMiddle
-        return Shower.omitMiddle(String.valueOf(value), width);
+        return StringUtils.omitMiddle(String.valueOf(value), width);
     }
 
     public static long doubleToLong(double amount, int decimal) {
@@ -140,5 +139,41 @@ public class NumberUtils {
 
     public static String formatAmount(double amount) {
         return amountFormat.format(amount);
+    }
+
+    /**
+     * Parses a string to a positive integer, returning null for invalid or non-positive values.
+     * 
+     * @param str The string to parse
+     * @return Positive integer or null if invalid/non-positive
+     */
+    public static Integer parsePositiveInteger(String str) {
+        if (str == null || str.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            int value = Integer.parseInt(str.trim());
+            return value > 0 ? value : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Parses a string to a positive double, returning null for invalid or non-positive values.
+     * 
+     * @param str The string to parse
+     * @return Positive double or null if invalid/non-positive
+     */
+    public static Double parsePositiveDouble(String str) {
+        if (str == null || str.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            double value = Double.parseDouble(str.trim());
+            return value > 0 ? value : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

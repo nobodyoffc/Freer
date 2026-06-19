@@ -51,36 +51,26 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="16dp">
+        android:padding="16dp"
+        android:gravity="end">
 
-        <Button
-            android:id="@+id/deleteButton"
-            style="@style/ButtonStyle"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:layout_marginEnd="8dp"
-            android:text="@string/delete"/>
+        <ImageButtonButton
+            android:id="@+id/saveButton"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_save"
+            android:contentDescription="@string/save" />
 
-        <Button
+        <ImageButton
             android:id="@+id/copyButton"
-            style="@style/ButtonStyle"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:text="@string/copy"/>
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_copy"
+            android:contentDescription="@string/copy" />
 
-        <Button
-            android:id="@+id/createTxButton"
-            style="@style/ButtonStyle"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:text="@string/create_tx"/>
-
-
+        <ImageButton
+            android:id="@+id/back_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_back"
+            android:contentDescription="@string/back" />
 
     </LinearLayout>
 </LinearLayout> 

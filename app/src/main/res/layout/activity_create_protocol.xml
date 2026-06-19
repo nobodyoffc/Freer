@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <include layout="@layout/common_toolbar" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- Name -->
+            <include
+                android:id="@+id/nameView"
+                layout="@layout/layout_text_input_with_scan"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <!-- Type -->
+            <include
+                android:id="@+id/typeView"
+                layout="@layout/layout_text_input_with_scan"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" />
+
+            <!-- SN -->
+            <include
+                android:id="@+id/snView"
+                layout="@layout/layout_text_input_with_scan"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" />
+
+            <!-- Version -->
+            <include
+                android:id="@+id/verView"
+                layout="@layout/layout_text_input_with_scan"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" />
+
+            <!-- DID -->
+            <include
+                android:id="@+id/didView"
+                layout="@layout/layout_text_input_with_scan"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" />
+
+            <!-- Description -->
+            <include
+                android:id="@+id/descView"
+                layout="@layout/layout_text_input_with_scan"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" />
+
+            <!-- Language -->
+            <include
+                android:id="@+id/langView"
+                layout="@layout/layout_text_input_with_scan"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" />
+
+            <!-- File URLs (comma separated) -->
+            <include
+                android:id="@+id/fileUrlsView"
+                layout="@layout/layout_text_input_with_scan"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" />
+
+            <!-- Pre DID -->
+            <include
+                android:id="@+id/preDidView"
+                layout="@layout/layout_text_input_with_scan"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" />
+
+            <!-- Waiters (comma separated) -->
+            <include
+                android:id="@+id/waitersView"
+                layout="@layout/layout_text_input_with_scan"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" />
+
+        </LinearLayout>
+
+    </ScrollView>
+
+    <!-- Button Container -->
+    <LinearLayout
+        android:id="@+id/buttonContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:gravity="end">
+
+        <ImageButton
+            android:id="@+id/clearButton"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_clear"
+            android:contentDescription="@string/clear" />
+
+        <ImageButton
+            android:id="@+id/saveButton"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_save"
+            android:contentDescription="@string/save" />
+
+        <ImageButton
+            android:id="@+id/publishButton"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_send"
+            android:contentDescription="@string/publish" />
+
+        <ImageButton
+            android:id="@+id/back_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_back"
+            android:contentDescription="@string/back" />
+
+    </LinearLayout>
+
+</LinearLayout>
+

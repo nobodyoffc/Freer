@@ -2,12 +2,12 @@ package com.fc.fc_ajdk.data.feipData;
 
 
 import com.fc.fc_ajdk.constants.Values;
-import com.fc.fc_ajdk.data.fchData.SendTo;
 
 import java.util.List;
 import java.util.Map;
 
 import com.fc.fc_ajdk.constants.FieldNames;
+import com.fc.fc_ajdk.data.fchData.Cash;
 
 import java.util.HashMap;
 
@@ -27,8 +27,8 @@ public class TokenOpData {
     private String maxAmtPerIssue;
     private String minCddPerIssue;
     private String maxIssuesPerAddr;
-    private List<SendTo> issueTo;
-    private List<SendTo> transferTo;
+    private List<TokenHistory.FidAmount> issueTo;
+    private List<TokenHistory.FidAmount> transferTo;
 
     public enum Op {
         REGISTER(FeipOp.REGISTER),
@@ -88,7 +88,7 @@ public class TokenOpData {
         return data;
     }
 
-    public static TokenOpData makeIssue(String tokenId, List<SendTo> issueTo) {
+    public static TokenOpData makeIssue(String tokenId, List<TokenHistory.FidAmount> issueTo) {
         TokenOpData data = new TokenOpData();
         data.setOp(Op.ISSUE.toLowerCase());
         data.setTokenId(tokenId);
@@ -96,7 +96,7 @@ public class TokenOpData {
         return data;
     }
 
-    public static TokenOpData makeTransfer(String tokenId, List<SendTo> transferTo) {
+    public static TokenOpData makeTransfer(String tokenId, List<TokenHistory.FidAmount> transferTo) {
         TokenOpData data = new TokenOpData();
         data.setOp(Op.TRANSFER.toLowerCase());
         data.setTokenId(tokenId);
@@ -213,19 +213,19 @@ public class TokenOpData {
         this.minCddPerIssue = minCddPerIssue;
     }
 
-    public List<SendTo> getIssueTo() {
+    public List<TokenHistory.FidAmount> getIssueTo() {
         return issueTo;
     }
 
-    public void setIssueTo(List<SendTo> issueTo) {
+    public void setIssueTo(List<TokenHistory.FidAmount> issueTo) {
         this.issueTo = issueTo;
     }
 
-    public List<SendTo> getTransferTo() {
+    public List<TokenHistory.FidAmount> getTransferTo() {
         return transferTo;
     }
 
-    public void setTransferTo(List<SendTo> transferTo) {
+    public void setTransferTo(List<TokenHistory.FidAmount> transferTo) {
         this.transferTo = transferTo;
     }
 

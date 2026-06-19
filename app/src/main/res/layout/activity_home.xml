@@ -18,13 +18,33 @@
 
         <TextView
             android:id="@+id/freer_text"
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:text="@string/freer"
             android:textStyle="bold"
             android:textSize="32sp"
-            android:textColor="@color/colorAccent"/>
+            android:layout_gravity="start|bottom"
+            android:textColor="@color/accent"/>
+
+        <ImageView
+            android:id="@+id/fc_time_icon"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:tag="icon"
+            android:layout_marginStart="8dp"
+            android:layout_marginBottom="6dp"
+            android:layout_gravity="bottom|end"
+            android:src="@drawable/ic_time"
+            />
+        <TextView
+            android:id="@+id/fc_date_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="12sp"
+            android:layout_marginStart="4dp"
+            android:layout_gravity="start|bottom"
+            android:textColor="@color/hint"/>
 
         <ImageButton
             android:id="@+id/menu_qr"
@@ -34,6 +54,16 @@
             android:src="@drawable/ic_scan"
             app:tint="@color/hint"
             android:contentDescription="@string/menu_settings"
+            />
+
+        <ImageButton
+            android:id="@+id/menu_list_icon"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_list"
+            app:tint="@color/hint"
+            android:contentDescription="@string/menu_list"
             />
 
         <ImageButton
@@ -88,7 +118,7 @@
                 android:padding="8dp"
                 android:gravity="center"
                 android:textSize="24sp"
-                android:textColor="@color/text_color"
+                android:textColor="@color/text"
                 />
 
             <GridLayout
@@ -96,44 +126,61 @@
                 android:layout_height="wrap_content"
                 android:padding="16dp"
                 android:columnCount="3"
-                android:rowCount="6"
+                android:rowCount="8"
                 android:alignmentMode="alignMargins"
                 android:useDefaultMargins="true">
 
-
-                <!-- List  -->
+                <!-- Todo (row 0, column 0) -->
                 <LinearLayout
-                    android:id="@+id/menu_list"
+                    android:id="@+id/menu_todo"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_columnWeight="1"
-                    android:layout_row="0"
+                    android:layout_row="4"
                     android:layout_column="0"
                     android:gravity="center"
                     android:orientation="vertical"
                     android:padding="8dp"
                     android:background="?attr/selectableItemBackground">
 
-                    <ImageView
-                        android:layout_width="82dp"
-                        android:layout_height="82dp"
-                        android:tag="icon"
-                        android:contentDescription="@string/menu_list"
-                        android:background="@drawable/icon_background"
-                        android:padding="12dp"/>
+                    <FrameLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal">
+
+                        <ImageView
+                            android:layout_width="82dp"
+                            android:layout_height="82dp"
+                            android:tag="icon"
+                            android:src="@drawable/ic_todo"
+                            android:contentDescription="@string/menu_todo"
+                            android:background="@drawable/icon_background"
+                            android:padding="12dp"/>
+
+                        <TextView
+                            android:id="@+id/badge_todo"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_gravity="top|end"
+                            android:background="@drawable/red_badge_background"
+                            android:gravity="center"
+                            android:textColor="@android:color/white"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:visibility="gone" />
+                    </FrameLayout>
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="@string/menu_list"
+                        android:text="@string/menu_todo"
                         android:textAlignment="center"/>
-
                 </LinearLayout>
 
-                <!-- Multi Sign (second row left) -->
+                <!-- Code (row 0, column 0) -->
                 <LinearLayout
-                    android:id="@+id/menu_multisign"
+                    android:id="@+id/menu_code"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_columnWeight="1"
@@ -148,7 +195,8 @@
                         android:layout_width="82dp"
                         android:layout_height="82dp"
                         android:tag="icon"
-                        android:contentDescription="@string/menu_multi_sign"
+                        android:src="@drawable/ic_code"
+                        android:contentDescription="@string/menu_code"
                         android:background="@drawable/icon_background"
                         android:padding="12dp"/>
 
@@ -156,77 +204,13 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="@string/menu_multi_sign"
+                        android:text="@string/menu_code"
                         android:textAlignment="center"/>
                 </LinearLayout>
 
-
-
-
-
-                <!-- TOTP (fourth row left) -->
+                <!-- Token -->
                 <LinearLayout
-                    android:id="@+id/menu_totp"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_columnWeight="1"
-                    android:layout_row="1"
-                    android:layout_column="0"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:padding="8dp"
-                    android:background="?attr/selectableItemBackground">
-
-                    <ImageView
-                        android:layout_width="82dp"
-                        android:layout_height="82dp"
-                        android:tag="icon"
-                        android:contentDescription="@string/time_based_one_time_password"
-                        android:background="@drawable/icon_background"
-                        android:padding="12dp"/>
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="@string/menu_totp"
-                        android:textAlignment="center"/>
-                </LinearLayout>
-
-
-                <!-- Sign TX (fourth row right) -->
-                <LinearLayout
-                    android:id="@+id/menu_sign_tx"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_columnWeight="1"
-                    android:layout_row="2"
-                    android:layout_column="2"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:padding="8dp"
-                    android:background="?attr/selectableItemBackground">
-
-                    <ImageView
-                        android:layout_width="82dp"
-                        android:layout_height="82dp"
-                        android:tag="icon"
-                        android:contentDescription="@string/menu_sign_tx"
-                        android:background="@drawable/icon_background"
-                        android:padding="12dp"/>
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="@string/menu_sign_tx"
-                        android:textAlignment="center"/>
-                </LinearLayout>
-
-
-                <!-- Secrets (fifth row middle) -->
-                <LinearLayout
-                    android:id="@+id/menu_secrets"
+                    android:id="@+id/menu_token"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_columnWeight="1"
@@ -241,7 +225,8 @@
                         android:layout_width="82dp"
                         android:layout_height="82dp"
                         android:tag="icon"
-                        android:contentDescription="@string/menu_secrets"
+                        android:src="@drawable/ic_chip"
+                        android:contentDescription="@string/menu_token"
                         android:background="@drawable/icon_background"
                         android:padding="12dp"/>
 
@@ -249,99 +234,183 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="@string/menu_secrets"
+                        android:text="@string/menu_token"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+                <!-- Disk -->
+                <LinearLayout
+                    android:id="@+id/menu_disk"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="0"
+                    android:layout_column="0"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:src="@drawable/ic_disk"
+                        android:contentDescription="@string/menu_data"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_data"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+                <!-- News -->
+                <LinearLayout
+                    android:id="@+id/menu_news"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="3"
+                    android:layout_column="2"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:src="@drawable/ic_news"
+                        android:contentDescription="@string/menu_news"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_news"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+
+                <!-- Secret  -->
+                <LinearLayout
+                    android:id="@+id/menu_secret"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="3"
+                    android:layout_column="1"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:src="@drawable/ic_lock"
+                        android:contentDescription="@string/menu_secret"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_secret"
                         android:textAlignment="center"/>
                 </LinearLayout>
 
 
                 <!-- Cash (sixth row left) -->
                 <LinearLayout
-                    android:id="@+id/menu_cash"
+                    android:id="@+id/menu_account"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_columnWeight="1"
-                    android:layout_row="1"
-                    android:layout_column="1"
+                    android:layout_row="4"
+                    android:layout_column="2"
                     android:gravity="center"
                     android:orientation="vertical"
                     android:padding="8dp"
                     android:background="?attr/selectableItemBackground">
 
-                    <ImageView
-                        android:layout_width="82dp"
-                        android:layout_height="82dp"
-                        android:tag="icon"
-                        android:contentDescription="@string/cash"
-                        android:background="@drawable/icon_background"
-                        android:padding="12dp"/>
+                    <FrameLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal">
+
+                        <ImageView
+                            android:layout_width="82dp"
+                            android:layout_height="82dp"
+                            android:tag="icon"
+                            android:src="@drawable/ic_account"
+                            android:contentDescription="@string/cash"
+                            android:background="@drawable/icon_background"
+                            android:padding="12dp"/>
+
+                        <TextView
+                            android:id="@+id/badge_cash"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_gravity="top|end"
+                            android:background="@drawable/red_badge_background"
+                            android:gravity="center"
+                            android:textColor="@android:color/white"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:visibility="gone" />
+                    </FrameLayout>
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="@string/cash"
+                        android:text="@string/menu_wallet"
                         android:textAlignment="center"/>
                 </LinearLayout>
 
-                <!-- Test (sixth row left) -->
-                <LinearLayout
-                    android:id="@+id/menu_test"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_columnWeight="1"
-                    android:layout_row="2"
-                    android:layout_column="0"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:padding="8dp"
-                    android:background="?attr/selectableItemBackground">
-
-                    <ImageView
-                        android:layout_width="82dp"
-                        android:layout_height="82dp"
-                        android:tag="icon"
-                        android:contentDescription="@string/menu_test"
-                        android:background="@drawable/icon_background"
-                        android:padding="12dp"/>
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="@string/menu_test"
-                        android:textAlignment="center"/>
-                </LinearLayout>
 
                 <!-- Convert (sixth row middle) -->
+
+                <!-- Tools (sixth row right) -->
                 <LinearLayout
                     android:id="@+id/menu_convert_new"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_columnWeight="1"
                     android:layout_row="0"
                     android:layout_column="1"
+                    android:layout_columnWeight="1"
+                    android:background="?attr/selectableItemBackground"
                     android:gravity="center"
                     android:orientation="vertical"
-                    android:padding="8dp"
-                    android:background="?attr/selectableItemBackground">
+                    android:padding="8dp">
 
                     <ImageView
                         android:layout_width="82dp"
                         android:layout_height="82dp"
-                        android:tag="icon"
-                        android:contentDescription="@string/menu_convert"
                         android:background="@drawable/icon_background"
-                        android:padding="12dp"/>
+                        android:contentDescription="@string/menu_convert"
+                        android:padding="12dp"
+                        android:src="@drawable/ic_convert"
+                        android:tag="icon" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:text="@string/menu_convert"
-                        android:textAlignment="center"/>
+                        android:textAlignment="center" />
                 </LinearLayout>
 
-                <!-- Tools (sixth row right) -->
                 <LinearLayout
                     android:id="@+id/menu_tools"
                     android:layout_width="0dp"
@@ -358,6 +427,7 @@
                         android:layout_width="82dp"
                         android:layout_height="82dp"
                         android:tag="icon"
+                        android:src="@drawable/ic_tools"
                         android:contentDescription="@string/menu_tools"
                         android:background="@drawable/icon_background"
                         android:padding="12dp"/>
@@ -370,7 +440,544 @@
                         android:textAlignment="center"/>
                 </LinearLayout>
 
+                <!-- Contact (second row left) -->
+                <LinearLayout
+                    android:id="@+id/menu_contact"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="7"
+                    android:layout_column="0"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
 
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:src="@drawable/ic_contact"
+                        android:contentDescription="@string/menu_contact"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_contact"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+                <!-- Mail (third row left) -->
+                <LinearLayout
+                    android:id="@+id/menu_mail"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="7"
+                    android:layout_column="1"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <FrameLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal">
+
+                        <ImageView
+                            android:layout_width="82dp"
+                            android:layout_height="82dp"
+                            android:tag="icon"
+                            android:src="@drawable/ic_mail"
+                            android:contentDescription="@string/menu_mail"
+                            android:background="@drawable/icon_background"
+                            android:padding="12dp"/>
+
+                        <TextView
+                            android:id="@+id/badge_mail"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_gravity="top|end"
+                            android:background="@drawable/red_badge_background"
+                            android:gravity="center"
+                            android:textColor="@android:color/white"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:visibility="gone" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_mail"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+
+                <!-- Square (open for everyone) -->
+                <LinearLayout
+                    android:id="@+id/menu_square"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="6"
+                    android:layout_column="0"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <FrameLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal">
+
+                        <ImageView
+                            android:layout_width="82dp"
+                            android:layout_height="82dp"
+                            android:tag="icon"
+                            android:src="@drawable/ic_group"
+                            android:contentDescription="@string/menu_square"
+                            android:background="@color/accent"
+                            android:padding="12dp"/>
+
+                        <TextView
+                            android:id="@+id/badge_group"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_gravity="top|end"
+                            android:background="@drawable/red_badge_background"
+                            android:gravity="center"
+                            android:textColor="@android:color/white"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:visibility="gone" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_square"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+                <!-- Team -->
+                <LinearLayout
+                    android:id="@+id/menu_team"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="6"
+                    android:layout_column="1"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <FrameLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal">
+
+                        <ImageView
+                            android:layout_width="82dp"
+                            android:layout_height="82dp"
+                            android:tag="icon"
+                            android:src="@drawable/ic_team"
+                            android:contentDescription="@string/menu_team"
+                            android:background="@color/accent"
+                            android:padding="12dp"/>
+
+                        <TextView
+                            android:id="@+id/badge_team"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_gravity="top|end"
+                            android:background="@drawable/red_badge_background"
+                            android:gravity="center"
+                            android:textColor="@android:color/white"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:visibility="gone" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_team"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+                <!-- Room -->
+                <LinearLayout
+                    android:id="@+id/menu_room"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="6"
+                    android:layout_column="2"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <FrameLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal">
+
+                        <ImageView
+                            android:layout_width="82dp"
+                            android:layout_height="82dp"
+                            android:tag="icon"
+                            android:src="@drawable/ic_room"
+                            android:contentDescription="@string/menu_room"
+                            android:background="@color/accent"
+                            android:padding="12dp"/>
+
+                        <TextView
+                            android:id="@+id/badge_room"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_gravity="top|end"
+                            android:background="@drawable/red_badge_background"
+                            android:gravity="center"
+                            android:textColor="@android:color/white"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:visibility="gone" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_room"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+                <!-- App -->
+                <LinearLayout
+                    android:id="@+id/menu_app"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="2"
+                    android:layout_column="2"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:src="@drawable/ic_app"
+                        android:contentDescription="@string/menu_app"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_app"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+                <!-- service -->
+                <LinearLayout
+                    android:id="@+id/menu_service"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="1"
+                    android:layout_column="1"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:src="@drawable/ic_service"
+                        android:contentDescription="@string/menu_service"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_service"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+                <!-- FeipProtocol -->
+                <LinearLayout
+                    android:id="@+id/menu_protocol"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="1"
+                    android:layout_column="0"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:src="@drawable/ic_protocol"
+                        android:contentDescription="@string/menu_protocol"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_protocol"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+                <!-- Proof -->
+                <LinearLayout
+                    android:id="@+id/menu_proof"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="2"
+                    android:layout_column="0"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:src="@drawable/ic_seal"
+                        android:contentDescription="@string/menu_proof"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_proof"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+                <!-- talk -->
+                <LinearLayout
+                    android:id="@+id/menu_talk"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="7"
+                    android:layout_column="2"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <FrameLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal">
+
+                        <ImageView
+                            android:layout_width="82dp"
+                            android:layout_height="82dp"
+                            android:tag="icon"
+                            android:src="@drawable/ic_talk"
+                            android:contentDescription="@string/menu_talk"
+                            android:background="@color/accent"
+                            android:padding="12dp"/>
+
+                        <TextView
+                            android:id="@+id/badge_talk"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_gravity="top|end"
+                            android:background="@drawable/red_badge_background"
+                            android:gravity="center"
+                            android:textColor="@android:color/white"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:visibility="gone" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_talk"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+                <!-- TX -->
+                <LinearLayout
+                    android:id="@+id/menu_tx"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="4"
+                    android:layout_column="1"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:src="@drawable/ic_tx"
+                        android:contentDescription="@string/menu_tx"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_tx"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+                <!-- talk -->
+                <LinearLayout
+                    android:id="@+id/menu_receive"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="5"
+                    android:layout_column="1"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:src="@drawable/ic_receive"
+                        android:contentDescription="@string/menu_receive"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_receive"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+                <!-- Pay -->
+                <LinearLayout
+                    android:id="@+id/menu_pay"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="5"
+                    android:layout_column="2"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:src="@drawable/ic_send"
+                        android:contentDescription="@string/menu_pay"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_pay"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+                <!-- TOTP -->
+                <LinearLayout
+                    android:id="@+id/menu_totp"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="3"
+                    android:layout_column="0"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:src="@drawable/ic_totp"
+                        android:contentDescription="@string/menu_totp"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_totp"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
+                <!-- Carve -->
+                <LinearLayout
+                    android:id="@+id/menu_carve"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="5"
+                    android:layout_column="0"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:src="@drawable/ic_carve"
+                        android:contentDescription="@string/carve"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/carve"
+                        android:textAlignment="center"/>
+                </LinearLayout>
             </GridLayout>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

@@ -4,13 +4,14 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.widget.Button;
 import android.widget.RadioGroup;
+import android.widget.ImageButton;
 
 import com.fc.fc_ajdk.core.crypto.Base58;
 import com.fc.fc_ajdk.utils.Base32;
 import com.fc.fc_ajdk.utils.BytesUtils;
 import com.fc.fc_ajdk.utils.Hex;
 import com.fc.freer.R;
-import com.fc.freer.home.BaseCryptoActivity;
+import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.ui.IoIconsView;
 import com.google.android.material.textfield.TextInputEditText;
 
@@ -25,9 +26,6 @@ public class RandomBytesGeneratorActivity extends BaseCryptoActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        // Initialize views
-        initializeViews();
 
         // Set up buttons
         setupButtons();
@@ -55,13 +53,14 @@ public class RandomBytesGeneratorActivity extends BaseCryptoActivity {
         resultTextView.setHint(R.string.result);
         bytesOptionGroup = findViewById(R.id.bytesOptionGroup);
         formatOptionGroup = findViewById(R.id.formatOptionGroup);
-        copyButton = findViewById(R.id.copyButton);
+        ImageButton copyButton = findViewById(R.id.copyButton);
         resultIcons = findViewById(R.id.makeQrIcon);
     }
 
     protected void setupButtons() {
-        Button clearButton = findViewById(R.id.clearButton);
-        Button newButton = findViewById(R.id.newButton);
+        clearButton = findViewById(R.id.clearButton);
+        ImageButton newButton = findViewById(R.id.newButton);
+        copyButton = findViewById(R.id.copyButton);
 
         clearButton.setOnClickListener(v -> clearInputs());
         copyButton.setOnClickListener(v -> copyConvertedDataToClipboard());
@@ -84,7 +83,7 @@ public class RandomBytesGeneratorActivity extends BaseCryptoActivity {
     }
 
     private void setupResultIcons() {
-        resultIcons.init(this, true, false, false, false);
+        resultIcons.init(this, true, false, false, true,false);
         resultIcons.setOnMakeQrClickListener(this::handleQrGeneration);
     }
 

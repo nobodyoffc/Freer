@@ -36,19 +36,30 @@
         android:layout_marginTop="8dp"
         android:layout_marginBottom="8dp">
 
-        <Button
-            android:id="@+id/btn_make_qr"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/make_qr"
-            style="@style/ButtonStyle" />
+        <ImageButton
+            android:id="@+id/btn_rate"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_good"
+            android:contentDescription="@string/rate"
+            android:visibility="gone" />
 
-        <Button
+        <ImageButton
+            android:id="@+id/btn_make_qr"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_make_qr"
+            android:contentDescription="@string/clear" />
+
+        <ImageButton
             android:id="@+id/btn_copy_json"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/copy"
-            style="@style/ButtonStyle" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_copy"
+            android:contentDescription="@string/clear" />
+
+        <ImageButton
+            android:id="@+id/back_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_back"
+            android:contentDescription="@string/back" />
     </LinearLayout>
 
 </LinearLayout> 

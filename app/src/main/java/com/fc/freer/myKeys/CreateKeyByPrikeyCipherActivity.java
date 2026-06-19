@@ -1,26 +1,25 @@
 package com.fc.freer.myKeys;
 
-import android.content.Intent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
-import android.app.AlertDialog;
-import android.widget.Toast;
+
+import com.fc.freer.utils.ToastUtils;
 
 import androidx.annotation.Nullable;
-
+import android.widget.ImageButton;
 import com.fc.fc_ajdk.core.crypto.CryptoDataByte;
 import com.fc.fc_ajdk.core.crypto.Decryptor;
 import com.fc.fc_ajdk.core.crypto.KeyTools;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
-import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
-import com.fc.freer.home.BaseCryptoActivity;
+import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.initiate.ConfigureManager;
 import com.fc.freer.ui.DetailFragment;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.fc.freer.utils.TextIconsUtils;
+
 
 public class CreateKeyByPrikeyCipherActivity extends BaseCryptoActivity {
     private static final String TAG = "CreateKeyByPrikeyCipher";
@@ -32,9 +31,9 @@ public class CreateKeyByPrikeyCipherActivity extends BaseCryptoActivity {
     private TextInputEditText prikeyCipherInput;
     private TextInputEditText passwordInput;
     private TextInputEditText labelInput;
-    private Button clearButton;
-    private Button previewButton;
-    private Button saveButton;
+    private ImageButton clearButton;
+    private ImageButton previewButton;
+    private ImageButton saveButton;
     private LinearLayout detailContainer;
     private LinearLayout inputContainer;
     private LinearLayout buttonContainer;
@@ -61,7 +60,7 @@ public class CreateKeyByPrikeyCipherActivity extends BaseCryptoActivity {
         View labelView = findViewById(R.id.labelView);
         
         prikeyCipherInput = prikeyCipherView.findViewById(R.id.textInput);
-        prikeyCipherInput.setHint(R.string.input_the_prikeycipher);
+        prikeyCipherInput.setHint(R.string.input_the_prikey_cipher);
         passwordInput = passwordView.findViewById(R.id.textInput);
         passwordInput.setHint(R.string.input_the_password);
         labelInput = labelView.findViewById(R.id.textInput);
@@ -123,12 +122,12 @@ public class CreateKeyByPrikeyCipherActivity extends BaseCryptoActivity {
         String label = labelInput.getText() != null ? labelInput.getText().toString() : "";
 
         if (prikeyCipher.isEmpty()) {
-            Toast.makeText(this, "Private key cipher is empty", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Private key cipher is empty");
             return;
         }
 
         if (password.isEmpty()) {
-            Toast.makeText(this, "Password is empty", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Password is empty");
             return;
         }
 
@@ -138,7 +137,7 @@ public class CreateKeyByPrikeyCipherActivity extends BaseCryptoActivity {
 
         byte[] prikey32 = KeyTools.getPrikey32(prikey);
         if(prikey32 == null){
-            Toast.makeText(this, "Invalid private key", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Invalid private key");
             return;
         }
 
@@ -169,12 +168,12 @@ public class CreateKeyByPrikeyCipherActivity extends BaseCryptoActivity {
             if (keyInfo == null) {
                 return;
             }
-            saveKeyInfoToDatabase(keyInfo);
+            saveAndFinishWithKeyInfo(keyInfo);
         } else {
             // Use the previewed KeyInfo
             KeyInfo keyInfo = (KeyInfo) detailFragment.getCurrentEntity();
             if (keyInfo != null) {
-                saveKeyInfoToDatabase(keyInfo);
+                saveAndFinishWithKeyInfo(keyInfo);
             }
         }
     }
@@ -185,12 +184,12 @@ public class CreateKeyByPrikeyCipherActivity extends BaseCryptoActivity {
         String label = labelInput.getText() != null ? labelInput.getText().toString() : "";
 
         if (prikeyCipher.isEmpty()) {
-            Toast.makeText(this, "Private key cipher is empty", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Private key cipher is empty");
             return null;
         }
 
         if (password.isEmpty()) {
-            Toast.makeText(this, "Password is empty", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Password is empty");
             return null;
         }
 
@@ -200,30 +199,11 @@ public class CreateKeyByPrikeyCipherActivity extends BaseCryptoActivity {
 
         byte[] prikey32 = KeyTools.getPrikey32(prikey);
         if(prikey32 == null){
-            Toast.makeText(this, "Invalid private key", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Invalid private key");
             return null;
         }
 
         return new KeyInfo(label, prikey32, ConfigureManager.getInstance().getSymkey());
-    }
-
-    private void saveKeyInfoToDatabase(KeyInfo keyInfo) {
-        // Check if the key already exists
-        // Check if key already exists in configure
-        ConfigureManager configureManager = ConfigureManager.getInstance();
-        com.fc.freer.model.Configure configure = configureManager.getConfigure();
-        if (configure != null && configure.getMainCidInfoMap().containsKey(keyInfo.getId())) {
-            new AlertDialog.Builder(this)
-                .setTitle("Key Already Exists")
-                .setMessage("A key with this ID already exists. Do you want to replace it?")
-                .setPositiveButton("Replace", (dialog, which) -> {
-                    saveAndFinishWithKeyInfo(keyInfo);
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
-        } else {
-            saveAndFinishWithKeyInfo(keyInfo);
-        }
     }
 
 
@@ -231,12 +211,12 @@ public class CreateKeyByPrikeyCipherActivity extends BaseCryptoActivity {
     private byte[] decryptPrikey(String prikeyCipher, String password) {
         CryptoDataByte cryptoDataByte = Decryptor.decryptByPassword(prikeyCipher, password);
         if(cryptoDataByte.getCode() != 0){
-            Toast.makeText(this,"Failed to decrypt private key",Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this,"Failed to decrypt private key");
             return null;
         }
         byte[] prikey = cryptoDataByte.getData();
         if (prikey == null) {
-            Toast.makeText(this, "Failed to decrypt private key", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Failed to decrypt private key");
             return null;
         }
         return prikey;

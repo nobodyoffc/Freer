@@ -9,7 +9,7 @@ import android.view.Window;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
+import com.fc.freer.utils.ToastUtils;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -18,13 +18,9 @@ import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
 import com.fc.freer.manager.AvatarManager;
-import com.fc.freer.model.ApiAccount;
-import com.fc.freer.model.ApiProvider;
-import com.fc.freer.network.ApipClient;
-import com.fc.freer.network.FcHttpRequester;
+import com.fc.fc_ajdk.fapi.client.ApiProvider;
 import com.fc.freer.network.HttpRequester;
 import com.fc.freer.ui.InputObjectActivity;
-import com.fc.freer.ui.UpdateObjectActivity;
 import com.fc.freer.ui.SingleInputActivity;
 import com.fc.freer.utils.IconCreator;
 
@@ -75,7 +71,6 @@ public class TestActivity extends AppCompatActivity {
     private static final int REQUEST_CODE_UPDATE_OBJECT = 2003;
     private WaitingDialog waitingDialog;
     private HttpRequester httpRequester;
-    private FcHttpRequester fcHttpRequester;
     private AvatarManager avatarManager;
 
     @Override
@@ -124,9 +119,6 @@ public class TestActivity extends AppCompatActivity {
 
         // Initialize HttpRequester
         httpRequester = new HttpRequester(this);
-        
-        // Initialize FcHttpRequester
-        fcHttpRequester = new FcHttpRequester(this, new ApiProvider(), new ApiAccount());
         avatarManager = AvatarManager.getInstance(this);
 
         // Initialize avatar dialog
@@ -155,7 +147,7 @@ public class TestActivity extends AppCompatActivity {
     private void stopAvatarChecking() {
         if (avatarDialog != null && avatarDialog.isShowing()) {
             avatarDialog.dismiss();
-            Toast.makeText(this, "Avatar checking stopped", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Avatar checking stopped");
         }
     }
 
@@ -245,11 +237,11 @@ public class TestActivity extends AppCompatActivity {
 //            // Save the icon to mipmap directories
 //            saveIconToMipmap(iconBitmap, false);
 //
-//            Toast.makeText(this, "App icon generated successfully", Toast.LENGTH_SHORT).show();
+//            ToastUtils.makeText(this, "App icon generated successfully", Toast.LENGTH_SHORT);
 //            TimberLogger.i(TAG, "App icon generated successfully");
 //        } catch (Exception e) {
 //            String errorMsg = "Error generating app icon: " + e.getMessage();
-//            Toast.makeText(this, errorMsg, Toast.LENGTH_SHORT).show();
+//            ToastUtils.makeText(this, errorMsg, Toast.LENGTH_SHORT);
 //            TimberLogger.e(TAG, errorMsg, e);
 //        }
 //    }
@@ -265,11 +257,11 @@ public class TestActivity extends AppCompatActivity {
 //            // Display the generated icon
 //            imageView.setImageBitmap(iconBitmap);
 //
-//            Toast.makeText(this, "Round app icon generated successfully", Toast.LENGTH_SHORT).show();
+//            ToastUtils.makeText(this, "Round app icon generated successfully", Toast.LENGTH_SHORT);
 //            TimberLogger.i(TAG, "Round app icon generated successfully");
 //        } catch (Exception e) {
 //            String errorMsg = "Error generating round app icon: " + e.getMessage();
-//            Toast.makeText(this, errorMsg, Toast.LENGTH_SHORT).show();
+//            ToastUtils.makeText(this, errorMsg, Toast.LENGTH_SHORT);
 //            TimberLogger.e(TAG, errorMsg, e);
 //        }
 //    }
@@ -321,19 +313,13 @@ public class TestActivity extends AppCompatActivity {
         if (requestCode == REQUEST_CODE_SINGLE_INPUT && resultCode == RESULT_OK && data != null) {
             String input = data.getStringExtra(SingleInputActivity.EXTRA_RESULT);
             if (input != null) {
-                Toast.makeText(this, "Password: " + input, Toast.LENGTH_LONG).show();
+                ToastUtils.makeText(this, "Password: " + input);
             }
         } else if (requestCode == REQUEST_CODE_INPUT_OBJECT && resultCode == RESULT_OK && data != null) {
             String resultJson = InputObjectActivity.getResultJson(data);
             if (resultJson != null) {
-                resultView.addSuccess("Input Object Activity Result", resultJson);
-                Toast.makeText(this, "Input Object Result: " + resultJson, Toast.LENGTH_LONG).show();
-            }
-        } else if (requestCode == REQUEST_CODE_UPDATE_OBJECT && resultCode == RESULT_OK && data != null) {
-            String resultJson = UpdateObjectActivity.getResultJson(data);
-            if (resultJson != null) {
-                resultView.addSuccess("Update Object Activity Result", resultJson);
-                Toast.makeText(this, "Update Object Result: " + resultJson, Toast.LENGTH_LONG).show();
+                resultView.addSuccess("Input Object Activity FcDate", resultJson);
+                ToastUtils.makeText(this, "Input Object FcDate: " + resultJson);
             }
         }
     }
@@ -354,7 +340,7 @@ public class TestActivity extends AppCompatActivity {
                 default:
                     msg = "Unknown choice";
             }
-            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, msg);
         });
         dialog.show();
     }
@@ -366,17 +352,17 @@ public class TestActivity extends AppCompatActivity {
                 "Test",
                 512,
                 50,
-                getColor(R.color.text_color),
-                getColor(R.color.colorAccent)
+                getColor(R.color.text),
+                getColor(R.color.accent)
             );
             
             // Display the icon
             imageView.setImageBitmap(icon);
             
-            Toast.makeText(this, "Square icon created successfully", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Square icon created successfully");
         } catch (Exception e) {
             String errorMsg = "Error creating square icon: " + e.getMessage();
-            Toast.makeText(this, errorMsg, Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, errorMsg);
             TimberLogger.e(TAG, errorMsg, e);
         }
     }
@@ -395,10 +381,10 @@ public class TestActivity extends AppCompatActivity {
             // Display the icon
             imageView.setImageBitmap(icon);
             
-            Toast.makeText(this, "Round icon created successfully", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Round icon created successfully");
         } catch (Exception e) {
             String errorMsg = "Error creating round icon: " + e.getMessage();
-            Toast.makeText(this, errorMsg, Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, errorMsg);
             TimberLogger.e(TAG, errorMsg, e);
         }
     }
@@ -408,11 +394,11 @@ public class TestActivity extends AppCompatActivity {
             // Create square icon files
             String path = getFilesDir().getParent() + "/res";
             List<String> savedPaths = IconCreator.createSquareIconFiles(
-                "Safe",
+                "Fr",
                 10,
                 path,
-                getColor(R.color.text_color),
-                getColor(R.color.colorAccent)
+                getColor(R.color.text),
+                getColor(R.color.accent)
             );
             
             // Show paths in toast
@@ -420,10 +406,10 @@ public class TestActivity extends AppCompatActivity {
             for (String filePath : savedPaths) {
                 message.append(filePath).append("\n");
             }
-            Toast.makeText(this, message.toString(), Toast.LENGTH_LONG).show();
+            ToastUtils.makeText(this, message.toString());
         } catch (Exception e) {
             String errorMsg = "Error creating square icon files: " + e.getMessage();
-            Toast.makeText(this, errorMsg, Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, errorMsg);
             TimberLogger.e(TAG, errorMsg, e);
         }
     }
@@ -433,11 +419,11 @@ public class TestActivity extends AppCompatActivity {
             // Create round icon files
             String path = getFilesDir().getParent() + "/res";
             List<String> savedPaths = IconCreator.createRoundIconFiles(
-                "Safe",
+                "Fr",
                 10,
                 path,
-                getColor(R.color.text_color),
-                getColor(R.color.colorAccent)
+                getColor(R.color.text),
+                getColor(R.color.accent)
             );
             
             // Show paths in toast
@@ -445,10 +431,10 @@ public class TestActivity extends AppCompatActivity {
             for (String filePath : savedPaths) {
                 message.append(filePath).append("\n");
             }
-            Toast.makeText(this, message.toString(), Toast.LENGTH_LONG).show();
+            ToastUtils.makeText(this, message.toString());
         } catch (Exception e) {
             String errorMsg = "Error creating round icon files: " + e.getMessage();
-            Toast.makeText(this, errorMsg, Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, errorMsg);
             TimberLogger.e(TAG, errorMsg, e);
         }
     }
@@ -466,9 +452,6 @@ public class TestActivity extends AppCompatActivity {
         if (httpRequester != null) {
             httpRequester.shutdown();
         }
-        if (fcHttpRequester != null) {
-            fcHttpRequester.shutdown();
-        }
     }
 
     private void testNetwork() {
@@ -481,7 +464,7 @@ public class TestActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     dismissWaitingDialog();
                     resultView.addSuccess("网络连接测试", message);
-                    Toast.makeText(TestActivity.this, "Network test: " + message, Toast.LENGTH_LONG).show();
+                    ToastUtils.makeText(TestActivity.this, "Network test: " + message);
                 });
             }
 
@@ -490,7 +473,7 @@ public class TestActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     dismissWaitingDialog();
                     resultView.addFailure("网络连接测试", exception.getMessage());
-                    Toast.makeText(TestActivity.this, "Network test failed: " + exception.getMessage(), Toast.LENGTH_LONG).show();
+                    ToastUtils.makeText(TestActivity.this, "Network test failed: " + exception.getMessage());
                 });
             }
         });
@@ -516,12 +499,12 @@ public class TestActivity extends AppCompatActivity {
         networkInfo.append("URL with params: ").append(urlWithParams);
         
         resultView.addSuccess("网络工具测试", networkInfo.toString());
-        Toast.makeText(this, networkInfo.toString(), Toast.LENGTH_LONG).show();
+        ToastUtils.makeText(this, networkInfo.toString());
     }
 
     private void clearResults() {
         resultView.clearResults();
-        Toast.makeText(this, "结果已清除", Toast.LENGTH_SHORT).show();
+        ToastUtils.makeText(this, "结果已清除");
     }
 
     private void testInputObjectActivity() {
@@ -538,15 +521,15 @@ public class TestActivity extends AppCompatActivity {
             fieldRequiredMap.put("dealerPubkey", false); // Optional
             
             // Start InputObjectActivity for ApiProvider class
-            InputObjectActivity.startForResult(this, com.fc.freer.model.ApiProvider.class, fieldRequiredMap, REQUEST_CODE_INPUT_OBJECT);
+            InputObjectActivity.startForResult(this, ApiProvider.class, fieldRequiredMap, REQUEST_CODE_INPUT_OBJECT);
             
             resultView.addSuccess("Input Object Activity", "Started InputObjectActivity for ApiProvider class (with enum field 'type')");
-            Toast.makeText(this, "Started InputObjectActivity for ApiProvider class", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Started InputObjectActivity for ApiProvider class");
             
         } catch (Exception e) {
             String errorMsg = "Error starting InputObjectActivity: " + e.getMessage();
             resultView.addFailure("Input Object Activity", errorMsg);
-            Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show();
+            ToastUtils.makeText(this, errorMsg);
             TimberLogger.e(TAG, errorMsg, e);
         }
     }
@@ -577,16 +560,13 @@ public class TestActivity extends AppCompatActivity {
             
             String originalObjectJson = new com.google.gson.Gson().toJson(originalObject);
             
-            // Start UpdateObjectActivity for ApiProvider class
-            UpdateObjectActivity.startForResult(this, com.fc.freer.model.ApiProvider.class, fieldRequiredMap, originalObjectJson, REQUEST_CODE_UPDATE_OBJECT);
-            
             resultView.addSuccess("Update Object Activity", "Started UpdateObjectActivity for ApiProvider class with sample data");
-            Toast.makeText(this, "Started UpdateObjectActivity for ApiProvider class", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Started UpdateObjectActivity for ApiProvider class");
             
         } catch (Exception e) {
             String errorMsg = "Error starting UpdateObjectActivity: " + e.getMessage();
             resultView.addFailure("Update Object Activity", errorMsg);
-            Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show();
+            ToastUtils.makeText(this, errorMsg);
             TimberLogger.e(TAG, errorMsg, e);
         }
     }

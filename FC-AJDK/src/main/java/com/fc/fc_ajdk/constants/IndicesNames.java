@@ -11,15 +11,15 @@ public class IndicesNames {
     public static final String CASH = "cash";
     public static final String OPRETURN = "opreturn";
     public static final String ADDRESS = "address";
-    public static final String MULTISIGN = "multisign";
+    public static final String MULTISIG = "multisig";
     public static final String BLOCK_MARK = "block_mark";
-    public static final String CID = "cid";
-    public static final String CID_HISTORY = "cid_history";
+    public static final String FREER = "freer";
+    public static final String FREER_HISTORY = "freer_history";
     public static final String REPUTATION_HISTORY = "reputation_history";
     public static final String PROTOCOL = "protocol";
     public static final String CODE = "code";
     public static final String SERVICE = "service";
-    public static final String APP = "com/fc/fc_ajdk/app";
+    public static final String APP = "app";
     public static final String PROTOCOL_HISTORY = "protocol_history";
     public static final String CODE_HISTORY = "code_history";
     public static final String SERVICE_HISTORY = "service_history";
@@ -27,9 +27,10 @@ public class IndicesNames {
     public static final String CONTACT = "contact";
     public static final String MAIL = "mail";
     public static final String SECRET = "secret";
+    public static final String FC_OBJECT = "fc_object";
     public static final String BOX = "box";
     public static final String BOX_HISTORY = "box_history";
-    public static final String GROUP = "group";
+    public static final String SQUARE = "square";
     public static final String TEAM = "team";
     public static final String GROUP_HISTORY = "group_history";
     public static final String TEAM_HISTORY = "team_history";
@@ -41,7 +42,7 @@ public class IndicesNames {
     public static final String ORDER = "order";
     public static final String WEBHOOK = "webhook";
     public static final String NOBODY = "nobody";
-
+    public static final String NEWS = "news";
     public static final String SWAP_STATE = "swap_state";
     public static final String SWAP_LP = "swap_lp";
     public static final String SWAP_FINISHED = "swap_finished";
@@ -68,12 +69,12 @@ public class IndicesNames {
         TX_HAS(IndicesNames.TX_HAS,4),
         CASH(IndicesNames.CASH,5),
         OPRETURN(IndicesNames.OPRETURN,6),
-        ADDRESS(IndicesNames.CID,7),
-        Multisign(IndicesNames.MULTISIGN,8),
+        ADDRESS(IndicesNames.FREER,7),
+        Multisig(IndicesNames.MULTISIG,8),
         BLOCK_MARK(IndicesNames.BLOCK_MARK,9),
 
-        CID(IndicesNames.CID,10),
-        CID_HISTORY(IndicesNames.CID_HISTORY,11),
+        CID(IndicesNames.FREER,10),
+        CID_HISTORY(IndicesNames.FREER_HISTORY,11),
         REPUTATION_HISTORY(IndicesNames.REPUTATION_HISTORY,12),
 
         PROTOCOL(IndicesNames.PROTOCOL,13),
@@ -91,7 +92,7 @@ public class IndicesNames {
         BOX(IndicesNames.BOX,24),
         BOX_HISTORY(IndicesNames.BOX_HISTORY,25),
 
-        GROUP(IndicesNames.GROUP,26),
+        GROUP(IndicesNames.SQUARE,26),
         TEAM(IndicesNames.TEAM,27),
         GROUP_HISTORY(IndicesNames.GROUP_HISTORY,28),
         TEAM_HISTORY(IndicesNames.TEAM_HISTORY,29),

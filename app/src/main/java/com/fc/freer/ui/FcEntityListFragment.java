@@ -24,7 +24,8 @@ import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
+
+import com.fc.freer.utils.ToastUtils;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -471,7 +472,7 @@ public class FcEntityListFragment<T extends FcEntity> extends Fragment {
             headerView.setPadding((int) (8 * density), 0, (int) (8 * density), 0);
             
             // Set text color to text_color
-            headerView.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_color));
+            headerView.setTextColor(ContextCompat.getColor(requireContext(), R.color.text));
             
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                     (int) (fieldWidth * 8 * density), ViewGroup.LayoutParams.MATCH_PARENT);
@@ -546,11 +547,11 @@ public class FcEntityListFragment<T extends FcEntity> extends Fragment {
                 switch (which) {
                     case 0: // Add to FID list
                         FreerApplication.addFid(entity.getId());
-                        Toast.makeText(requireContext(), requireContext().getString(R.string.added_to_fid_list), Toast.LENGTH_SHORT).show();
+                        ToastUtils.makeText(requireContext(), requireContext().getString(R.string.added_to_fid_list));
                         break;
                     case 1: // Clear FID list
                         FreerApplication.clearFidList();
-                        Toast.makeText(requireContext(), requireContext().getString(R.string.fid_list_cleared), Toast.LENGTH_SHORT).show();
+                        ToastUtils.makeText(requireContext(), requireContext().getString(R.string.fid_list_cleared));
                         break;
                 }
             });
@@ -572,8 +573,8 @@ public class FcEntityListFragment<T extends FcEntity> extends Fragment {
                 radioButton.setGravity(Gravity.CENTER);
                 
                 // Apply text color to the radio button
-                radioButton.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_color));
-                radioButton.setButtonTintList(ContextCompat.getColorStateList(requireContext(), R.color.text_color));
+                radioButton.setTextColor(ContextCompat.getColor(requireContext(), R.color.text));
+                radioButton.setButtonTintList(ContextCompat.getColorStateList(requireContext(), R.color.text));
                 
                 // Set up radio button click listener
                 radioButton.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -601,8 +602,8 @@ public class FcEntityListFragment<T extends FcEntity> extends Fragment {
                 checkBox.setGravity(Gravity.CENTER);
                 
                 // Apply text color to the checkbox
-                checkBox.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_color));
-                checkBox.setButtonTintList(ContextCompat.getColorStateList(requireContext(), R.color.text_color));
+                checkBox.setTextColor(ContextCompat.getColor(requireContext(), R.color.text));
+                checkBox.setButtonTintList(ContextCompat.getColorStateList(requireContext(), R.color.text));
                 
                 // Set initial state
                 boolean isChecked = checkboxStates.getOrDefault(entity, false);
@@ -689,7 +690,7 @@ public class FcEntityListFragment<T extends FcEntity> extends Fragment {
             valueView.setEllipsize(TextUtils.TruncateAt.MIDDLE);
             
             // Set text color to text_color
-            valueView.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_color));
+            valueView.setTextColor(ContextCompat.getColor(requireContext(), R.color.text));
             
             // Set text color for boolean values
             if (fieldValue != null && fieldValue.toString().equals("✓")) {
@@ -798,8 +799,8 @@ public class FcEntityListFragment<T extends FcEntity> extends Fragment {
                 allCheckBox.setGravity(Gravity.CENTER);
                 
                 // Apply text color to the checkbox
-                allCheckBox.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_color));
-                allCheckBox.setButtonTintList(ContextCompat.getColorStateList(requireContext(), R.color.text_color));
+                allCheckBox.setTextColor(ContextCompat.getColor(requireContext(), R.color.text));
+                allCheckBox.setButtonTintList(ContextCompat.getColorStateList(requireContext(), R.color.text));
                 
                 // Set up click listener for the All checkbox
                 allCheckBoxListener = (buttonView, isChecked) -> {
@@ -914,7 +915,7 @@ public class FcEntityListFragment<T extends FcEntity> extends Fragment {
         button.setImageResource(iconResId);
         
         // Apply text color to the button icon
-        button.setColorFilter(ContextCompat.getColor(requireContext(), R.color.text_color));
+        button.setColorFilter(ContextCompat.getColor(requireContext(), R.color.text));
     }
     
     private void sortObjects() {
@@ -1005,7 +1006,7 @@ public class FcEntityListFragment<T extends FcEntity> extends Fragment {
         if (satoshiFieldList != null && satoshiFieldList.contains(fieldName) && value instanceof Number) {
             try {
                 long satoshiValue = ((Number) value).longValue();
-                return com.fc.fc_ajdk.utils.FchUtils.formatSatoshiValue(satoshiValue);
+                return com.fc.fc_ajdk.utils.FchUtils.formatSatoshiToCoin(satoshiValue);
             } catch (Exception ex) {
                 TimberLogger.e(TAG, "Failed to format satoshi value for field %s: %s", fieldName, ex.getMessage());
             }
@@ -1189,7 +1190,7 @@ public class FcEntityListFragment<T extends FcEntity> extends Fragment {
         if (id != null) {
             AvatarManager.showAvatarDialog(requireContext(), id);
         } else {
-            Toast.makeText(requireContext(), getString(R.string.no_id_found_for_avatar), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(requireContext(), getString(R.string.no_id_found_for_avatar));
         }
     }
     
@@ -1198,7 +1199,7 @@ public class FcEntityListFragment<T extends FcEntity> extends Fragment {
             // Create a bitmap from the image bytes
             Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
             if (bitmap == null) {
-                Toast.makeText(requireContext(), "Failed to decode image", FreerApplication.TOAST_LASTING).show();
+                ToastUtils.makeText(requireContext(), "Failed to decode image");
                 return;
             }
             
@@ -1220,18 +1221,18 @@ public class FcEntityListFragment<T extends FcEntity> extends Fragment {
             if (imageUri != null) {
                 try (OutputStream out = requireContext().getContentResolver().openOutputStream(imageUri)) {
                     bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
-                    Toast.makeText(requireContext(), "Avatar saved to gallery", FreerApplication.TOAST_LASTING).show();
+                    ToastUtils.makeText(requireContext(), "Avatar saved to gallery");
                 } catch (IOException e) {
-                    Toast.makeText(requireContext(), "Error saving avatar: " + e.getMessage(), FreerApplication.TOAST_LASTING).show();
+                    ToastUtils.makeText(requireContext(), "Error saving avatar: " + e.getMessage());
                 }
             } else {
-                Toast.makeText(requireContext(), "Failed to save avatar", FreerApplication.TOAST_LASTING).show();
+                ToastUtils.makeText(requireContext(), "Failed to save avatar");
             }
             
             // Recycle the bitmap to free memory
             bitmap.recycle();
         } catch (Exception e) {
-            Toast.makeText(requireContext(), "Error saving avatar: " + e.getMessage(), FreerApplication.TOAST_LASTING).show();
+            ToastUtils.makeText(requireContext(), "Error saving avatar: " + e.getMessage());
         }
     }
     
@@ -1310,7 +1311,7 @@ public class FcEntityListFragment<T extends FcEntity> extends Fragment {
         messageView.setText("No data available");
         messageView.setTextSize(18);
         messageView.setGravity(Gravity.CENTER);
-        messageView.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_color));
+        messageView.setTextColor(ContextCompat.getColor(requireContext(), R.color.text));
         
         LinearLayout.LayoutParams messageParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);

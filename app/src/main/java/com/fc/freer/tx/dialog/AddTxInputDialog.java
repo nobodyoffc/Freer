@@ -4,7 +4,7 @@ import android.app.Dialog;
 import android.content.Context;
 import android.os.Bundle;
 import android.widget.Button;
-import android.widget.Toast;
+import com.fc.freer.utils.ToastUtils;
 
 import androidx.annotation.NonNull;
 
@@ -12,7 +12,6 @@ import com.fc.fc_ajdk.constants.Constants;
 import com.fc.fc_ajdk.core.fch.RawTxInfo;
 import com.fc.fc_ajdk.data.fchData.Cash;
 import com.fc.fc_ajdk.utils.TimberLogger;
-import com.fc.freer.FreerApplication;
 import com.fc.freer.R;
 import com.fc.freer.utils.TextIconsUtils;
 import com.google.android.material.textfield.TextInputEditText;
@@ -76,12 +75,12 @@ public class AddTxInputDialog extends Dialog {
 
         doneButton.setOnClickListener(v -> {
             if(txIdInput.getText() ==null || indexInput.getText()==null || amountInput.getText()==null){
-                Toast.makeText(getContext(), R.string.please_input_all_fields, FreerApplication.TOAST_LASTING).show();
+                ToastUtils.makeText(getContext(), R.string.please_input_all_fields);
                 return;
             }
             if(txIdInput.getText().toString().isEmpty() || indexInput.getText().toString().isEmpty() || amountInput.toString().isEmpty()){
 
-                Toast.makeText(getContext(), R.string.please_input_all_fields , FreerApplication.TOAST_LASTING).show();
+                ToastUtils.makeText(getContext(), R.string.please_input_all_fields);
                 return;
             }
             String txId = txIdInput.getText().toString();
@@ -90,7 +89,7 @@ public class AddTxInputDialog extends Dialog {
 
             // Validate amount range
             if (amount < Constants.MIN_AMOUNT || amount > Constants.MAX_AMOUNT) {
-                Toast.makeText(getContext(), getContext().getString(R.string.amount_must_be_between, Constants.MIN_AMOUNT, Constants.MAX_AMOUNT), FreerApplication.TOAST_LASTING).show();
+                ToastUtils.makeText(getContext(), getContext().getString(R.string.amount_must_be_between, Constants.MIN_AMOUNT, Constants.MAX_AMOUNT));
 
                 return;
             }
@@ -133,6 +132,6 @@ public class AddTxInputDialog extends Dialog {
     }
 
     private void showToast(String message) {
-        Toast.makeText(getContext(), message, Toast.LENGTH_SHORT).show();
+        ToastUtils.makeText(getContext(), message);
     }
 } 

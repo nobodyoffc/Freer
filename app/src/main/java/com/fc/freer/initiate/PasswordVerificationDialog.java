@@ -6,7 +6,8 @@ import android.os.Bundle;
 import android.view.Window;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.Toast;
+
+import com.fc.freer.utils.ToastUtils;
 
 import androidx.annotation.NonNull;
 
@@ -39,7 +40,7 @@ public class PasswordVerificationDialog extends Dialog {
         verifyButton.setOnClickListener(v -> {
             String password = passwordInput.getText().toString();
             if (password.isEmpty()) {
-                Toast.makeText(getContext(), "Please enter your password", Toast.LENGTH_SHORT).show();
+                ToastUtils.makeText(getContext(), "Please enter your password");
                 return;
             }
             byte[] passwordBytes = password.getBytes();

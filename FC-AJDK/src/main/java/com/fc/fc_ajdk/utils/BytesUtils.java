@@ -4,7 +4,6 @@ import androidx.annotation.NonNull;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -69,16 +68,28 @@ public class BytesUtils {
         return false; // subArray was not found
     }
 
-    public static byte [] readAllBytes(InputStream inputStream) throws IOException {
+    public static byte [] getAllBytes(InputStream inputStream) throws IOException {
         byte[] rawTx;
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        byte[] buffer = new byte[1024];
-        int bytesRead;
-        while ((bytesRead = inputStream.read(buffer)) != -1) {
-            outputStream.write(buffer, 0, bytesRead);
-        }
+        ByteArrayOutputStream outputStream = getAllBytes(1024, inputStream);
         rawTx = outputStream.toByteArray();
         return rawTx;
+    }
+
+    @NonNull
+    public static String getAllBytesToString(InputStream in) throws IOException {
+        ByteArrayOutputStream baos = getAllBytes(4096, in);
+        return new String(baos.toByteArray(), StandardCharsets.UTF_8);
+    }
+
+    @NonNull
+    private static ByteArrayOutputStream getAllBytes(int x, InputStream in) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        byte[] buffer = new byte[x];
+        int n;
+        while ((n = in.read(buffer)) != -1) {
+            baos.write(buffer, 0, n);
+        }
+        return baos;
     }
 
     public static class ByteArrayAsKey implements Comparable<ByteArrayAsKey>{

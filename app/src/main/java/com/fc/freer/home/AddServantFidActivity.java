@@ -1,36 +1,35 @@
 package com.fc.freer.home;
 
 import android.view.View;
-import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import com.fc.fc_ajdk.data.fchData.Cid;
-import com.fc.fc_ajdk.data.feipData.CidHist;
+import com.fc.freer.BaseCryptoActivity;
+import com.fc.freer.utils.ChooseMode;
+import com.fc.freer.utils.KeyCardContainer;
+import com.fc.freer.utils.ToastUtils;
+
+import com.fc.fc_ajdk.data.fchData.Freer;
 import com.fc.fc_ajdk.utils.DateUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
-import com.fc.fc_ajdk.utils.http.AuthType;
-import com.fc.fc_ajdk.utils.http.RequestMethod;
 import com.fc.freer.FreerApplication;
 import com.fc.freer.R;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.Setting;
-import com.fc.freer.network.ApipClient;
+import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.freer.ui.DetailActivity;
 import com.fc.freer.ui.MenuItem;
 import com.fc.freer.ui.MenuItemType;
 import com.fc.freer.utils.ApiCenter;
-import com.fc.freer.utils.KeyCardManager;
 import com.fc.freer.ui.WaitingDialog;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 public class AddServantFidActivity extends BaseCryptoActivity {
@@ -38,19 +37,18 @@ public class AddServantFidActivity extends BaseCryptoActivity {
     
     private TextView servantResultsHint;
     private LinearLayout servantResultsLayout;
-    private Button refreshButton;
-    private Button cancelButton;
-    private Button confirmButton;
-    private Button moreButton;
+    private ImageButton refreshButton;
+    private ImageButton confirmButton;
+    private ImageButton moreButton;
     private TextView moreResultsHint;
     private CheckBox selectAllCheckbox;
     private TextView selectAllLabel;
     private List<KeyInfo> selectedServantFids = new ArrayList<>();
-    private ApipClient apipClient;
-    private KeyCardManager keyCardManager;
+    private FapiClient fapiClient;
+    private KeyCardContainer keyCardContainer;
     private WaitingDialog waitingDialog;
     private Setting currentSetting;
-    private List<CidHist> currentServantResults = new ArrayList<>();
+    private List<Freer> currentServantResults = new ArrayList<>();
 
     @Override
     protected int getLayoutId() {
@@ -82,7 +80,6 @@ public class AddServantFidActivity extends BaseCryptoActivity {
         servantResultsHint = findViewById(R.id.servantResultsHint);
         refreshButton = findViewById(R.id.refreshButton);
         servantResultsLayout = findViewById(R.id.servantResultsLayout);
-        cancelButton = findViewById(R.id.cancelButton);
         confirmButton = findViewById(R.id.addServantFidButton);
         moreButton = findViewById(R.id.moreButton);
         moreResultsHint = findViewById(R.id.moreResultsHint);
@@ -92,12 +89,12 @@ public class AddServantFidActivity extends BaseCryptoActivity {
         confirmButton.setEnabled(false);
         confirmButton.setAlpha(0.5f);
         
-        // Initialize KeyCardManager with checkbox selection (multiple choice)
+        // Initialize KeyCardContainer with CHOOSE_MULTI mode
         List<MenuItem> menuItems = new ArrayList<>();
         menuItems.add(new MenuItem("detail", getString(R.string.detail), MenuItemType.DETAIL));
-        keyCardManager = new KeyCardManager(this, servantResultsLayout, false, false, menuItems);
-        keyCardManager.setOnKeyListChangedListener(this::onServantSelectionChanged);
-        keyCardManager.setOnMenuItemClickListener(this::onMenuItemClicked);
+        keyCardContainer = new KeyCardContainer(this, servantResultsLayout, ChooseMode.CHOOSE_MULTI, menuItems, true);
+        keyCardContainer.setOnKeyListChangedListener(this::onServantSelectionChanged);
+        keyCardContainer.setOnMenuItemClickListener(this::onMenuItemClicked);
     }
     
     private void setupData() {
@@ -105,15 +102,15 @@ public class AddServantFidActivity extends BaseCryptoActivity {
             // Get current setting
             currentSetting = SettingManager.getInstance().getCurrentSetting();
             if (currentSetting == null) {
-                Toast.makeText(this, "Current setting not available", Toast.LENGTH_SHORT).show();
+                ToastUtils.makeText(this, getString(R.string.current_setting_not_available));
                 finish();
                 return;
             }
             
-            // Get APIP client
+            // Get FAPI client
             ApiCenter apiCenter = ApiCenter.getInstance();
             if (apiCenter != null) {
-                apipClient = (ApipClient) apiCenter.getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.APIP);
+                fapiClient = (FapiClient) apiCenter.getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.FAPI_No1_NrC7);
             }
             
         } catch (Exception e) {
@@ -123,7 +120,6 @@ public class AddServantFidActivity extends BaseCryptoActivity {
     
     private void setupListeners() {
         refreshButton.setOnClickListener(v -> loadMyServants());
-        cancelButton.setOnClickListener(v -> finish());
         confirmButton.setOnClickListener(v -> confirmAddServantFids());
         moreButton.setOnClickListener(v -> loadMoreServants());
         selectAllCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> onSelectAllChanged(isChecked));
@@ -132,16 +128,15 @@ public class AddServantFidActivity extends BaseCryptoActivity {
         moreButton.setVisibility(View.GONE);
         moreResultsHint.setVisibility(View.GONE);
         selectAllCheckbox.setVisibility(View.GONE);
+        selectAllLabel.setVisibility(View.GONE);
         
         // Auto-load servants on activity start
         loadMyServants();
     }
     
     private void loadMyServants() {
-        TimberLogger.d(TAG, "loadMyServants() called");
-
-        if (apipClient == null) {
-            Toast.makeText(this, getString(R.string.apip_client_not_available), Toast.LENGTH_SHORT).show();
+        if (fapiClient == null) {
+            ToastUtils.makeText(this, getString(R.string.apip_client_not_available));
             return;
         }
         
@@ -161,19 +156,19 @@ public class AddServantFidActivity extends BaseCryptoActivity {
         new Thread(() -> {
             try {
                 FidManager fidManager = FidManager.getInstance();
-                // Use myServants API to get CidHist list
-                List<CidHist> results = apipClient.myServants(fidManager.getLiveFid(), RequestMethod.POST, AuthType.FC_SIGN_BODY, this);
+                // Use myServants API to get FreerHist list
+                List<Freer> results = fapiClient.myServants(fidManager.getLiveFid());
                 
                 if (results == null || results.isEmpty()) {
                     runOnUiThread(() -> {
                         dismissWaitingDialog();
                         if (afterValue == null) {
-                            Toast.makeText(this, getString(R.string.fetch_servants_failed), Toast.LENGTH_SHORT).show();
+                            ToastUtils.makeText(this, getString(R.string.fetch_servants_failed));
                             clearServantResults();
                         } else {
                             // No more results
                             moreButton.setVisibility(View.GONE);
-                            Toast.makeText(this, getString(R.string.no_more_results), Toast.LENGTH_SHORT).show();
+                            ToastUtils.makeText(this, getString(R.string.no_more_results));
                         }
                     });
                     return;
@@ -185,39 +180,27 @@ public class AddServantFidActivity extends BaseCryptoActivity {
                 }
                 currentServantResults.addAll(results);
                 
-                // Extract signer FIDs from CidHist results
-                List<String> signerFids = new ArrayList<>();
-                for (CidHist cidHist : results) {
-                    if (cidHist.getSigner() != null && !cidHist.getSigner().trim().isEmpty()) {
-                        signerFids.add(cidHist.getSigner());
-                    }
-                }
-                
-                if (signerFids.isEmpty()) {
+                // Extract signer FIDs from FreerHist results
+
+                if (currentServantResults.isEmpty()) {
                     runOnUiThread(() -> {
                         dismissWaitingDialog();
-                        if (afterValue == null) {
-                            Toast.makeText(this, getString(R.string.fetch_servants_failed), Toast.LENGTH_SHORT).show();
-                            clearServantResults();
-                        } else {
-                            moreButton.setVisibility(View.GONE);
-                            Toast.makeText(this, getString(R.string.no_more_results), Toast.LENGTH_SHORT).show();
-                        }
+                        ToastUtils.makeText(this, getString(R.string.fetch_servants_failed));
+                        clearServantResults();
                     });
                     return;
                 }
                 
                 // Get CID info for all signer FIDs
-                Map<String, Cid> cidInfoMap = apipClient.cidInfoByIds(RequestMethod.POST, AuthType.FC_SIGN_BODY, this, signerFids.toArray(new String[0]));
 
                 runOnUiThread(() -> {
                     dismissWaitingDialog();
 
-                    if (cidInfoMap != null && !cidInfoMap.isEmpty()) {
+                    if (currentServantResults!=null && !currentServantResults.isEmpty()) {
                         if (afterValue == null) {
-                            displayServantResults(new ArrayList<>(cidInfoMap.values()));
+                            displayServantResults(currentServantResults);
                         } else {
-                            appendServantResults(new ArrayList<>(cidInfoMap.values()));
+                            appendServantResults(currentServantResults);
                         }
                         
                         // Show/hide More button based on result size
@@ -225,11 +208,11 @@ public class AddServantFidActivity extends BaseCryptoActivity {
                     } else {
                         if (afterValue == null) {
                             TimberLogger.d(TAG, "No servant results found, showing toast");
-                            Toast.makeText(this, getString(R.string.fetch_servants_failed), Toast.LENGTH_SHORT).show();
+                            ToastUtils.makeText(this, getString(R.string.fetch_servants_failed));
                             clearServantResults();
                         } else {
                             moreButton.setVisibility(View.GONE);
-                            Toast.makeText(this, getString(R.string.no_more_results), Toast.LENGTH_SHORT).show();
+                            ToastUtils.makeText(this, getString(R.string.no_more_results));
                         }
                     }
                 });
@@ -238,7 +221,7 @@ public class AddServantFidActivity extends BaseCryptoActivity {
                 TimberLogger.e(TAG, "Error fetching my servants: %s", e.getMessage());
                 runOnUiThread(() -> {
                     dismissWaitingDialog();
-                    Toast.makeText(this, getString(R.string.fetch_servants_failed), Toast.LENGTH_SHORT).show();
+                    ToastUtils.makeText(this, getString(R.string.fetch_servants_failed));
                     if (afterValue == null) {
                         clearServantResults();
                     }
@@ -247,9 +230,9 @@ public class AddServantFidActivity extends BaseCryptoActivity {
         }).start();
     }
     
-    private void displayServantResults(List<Cid> results) {
+    private void displayServantResults(List<Freer> results) {
         // Clear existing results and selection
-        keyCardManager.clearAll();
+        keyCardContainer.clearAll();
         selectedServantFids.clear();
         
         // Show servant results hint
@@ -272,16 +255,16 @@ public class AddServantFidActivity extends BaseCryptoActivity {
             }
         }
         
-        // Convert Cid objects to KeyInfo objects and add them to KeyCardManager
-        for (Cid cid : results) {
-            KeyInfo keyInfo = KeyInfo.fromCid(cid);
+        // Convert Freer objects to KeyInfo objects and add them to KeyCardContainer
+        for (Freer freer : results) {
+            KeyInfo keyInfo = KeyInfo.fromCid(freer);
             if (keyInfo != null && !existingFids.contains(keyInfo.getId())) {
-                keyCardManager.addKeyCard(keyInfo);
+                keyCardContainer.addKeyCard(keyInfo);
             }
         }
         
         // Show/hide select all checkbox based on whether there are results
-        if (keyCardManager.getKeyInfoList().isEmpty()) {
+        if (keyCardContainer.getKeyInfoList().isEmpty()) {
             TextView emptyMessageView = new TextView(this);
             emptyMessageView.setText(getString(R.string.all_servants_already_added));
             emptyMessageView.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
@@ -298,11 +281,13 @@ public class AddServantFidActivity extends BaseCryptoActivity {
     
     private void clearServantResults() {
         TimberLogger.d(TAG, "clearServantResults() called");
-        keyCardManager.clearAll();
+        keyCardContainer.clearAll();
         servantResultsHint.setVisibility(View.GONE);
         moreButton.setVisibility(View.GONE);
         moreResultsHint.setVisibility(View.GONE);
         selectAllCheckbox.setVisibility(View.GONE);
+        selectAllLabel.setVisibility(View.GONE);
+
         selectAllCheckbox.setOnCheckedChangeListener(null);
         selectAllCheckbox.setChecked(false);
         selectAllCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> onSelectAllChanged(isChecked));
@@ -312,7 +297,7 @@ public class AddServantFidActivity extends BaseCryptoActivity {
     }
     
     private void onServantSelectionChanged(List<KeyInfo> updatedKeyInfoList) {
-        selectedServantFids = new ArrayList<>(keyCardManager.getSelectedKeys());
+        selectedServantFids = new ArrayList<>(keyCardContainer.getSelectedKeys());
         updateConfirmButton();
         updateSelectAllCheckbox();
         
@@ -339,13 +324,13 @@ public class AddServantFidActivity extends BaseCryptoActivity {
             startActivity(intent);
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error showing KeyInfo detail: %s", e.getMessage());
-            Toast.makeText(this, getString(R.string.error_showing_detail), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.error_showing_detail));
         }
     }
     
     private void confirmAddServantFids() {
         if (selectedServantFids.isEmpty()) {
-            Toast.makeText(this, "No servant FIDs selected", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.no_servant_fids_selected));
             return;
         }
         
@@ -383,24 +368,24 @@ public class AddServantFidActivity extends BaseCryptoActivity {
                 settingManager.saveSettings(this, currentSetting);
                 
                 // Update the SettingManager's current setting reference to ensure other activities see the changes
-                settingManager.setCurrentSetting(this, currentSetting);
+                settingManager.setCurrentSetting(currentSetting);
                 
                 String message = addedCount == 1 ? 
                     getString(R.string.servant_fid_added_successfully) :
                     getString(R.string.servant_fids_added_successfully, addedCount);
-                Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+                ToastUtils.makeText(this, message);
                 
                 TimberLogger.d(TAG, "Successfully added %d servant FIDs", addedCount);
                 
                 setResult(RESULT_OK);
                 finish();
             } else {
-                Toast.makeText(this, "All selected FIDs were already added", Toast.LENGTH_SHORT).show();
+                ToastUtils.makeText(this, getString(R.string.all_selected_servant_fids_already_added));
             }
             
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error adding servant FIDs: %s", e.getMessage());
-            Toast.makeText(this, getString(R.string.failed_to_add_servant_fids) + ": " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.failed_to_add_servant_fids) + ": " + e.getMessage());
         }
     }
     
@@ -417,7 +402,7 @@ public class AddServantFidActivity extends BaseCryptoActivity {
         }
     }
     
-    private void appendServantResults(List<Cid> newResults) {
+    private void appendServantResults(List<Freer> newResults) {
         // Filter out already added servant FIDs
         List<KeyInfo> existingServants = currentSetting.getServantKeyInfoList();
         Set<String> existingFids = new HashSet<>();
@@ -427,17 +412,18 @@ public class AddServantFidActivity extends BaseCryptoActivity {
             }
         }
         
-        // Convert Cid objects to KeyInfo objects and add them to KeyCardManager
-        for (Cid cid : newResults) {
-            KeyInfo keyInfo = KeyInfo.fromCid(cid);
+        // Convert Freer objects to KeyInfo objects and add them to KeyCardContainer
+        for (Freer freer : newResults) {
+            KeyInfo keyInfo = KeyInfo.fromCid(freer);
             if (keyInfo != null && !existingFids.contains(keyInfo.getId())) {
-                keyCardManager.addKeyCard(keyInfo);
+                keyCardContainer.addKeyCard(keyInfo);
             }
         }
         
         // Show select all checkbox if there are results to display
-        if (!keyCardManager.getKeyInfoList().isEmpty()) {
+        if (!keyCardContainer.getKeyInfoList().isEmpty()) {
             selectAllCheckbox.setVisibility(View.VISIBLE);
+            selectAllLabel.setVisibility(View.VISIBLE);
         }
     }
     
@@ -457,7 +443,7 @@ public class AddServantFidActivity extends BaseCryptoActivity {
     }
     
     private void loadMoreServants() {
-        if (apipClient == null) {
+        if (fapiClient == null) {
             return;
         }
         
@@ -468,35 +454,32 @@ public class AddServantFidActivity extends BaseCryptoActivity {
         try {
             // Get the 'last' value from the last response
             List<String> afterValue = null;
-            if (apipClient.getApiEvent() != null && 
-                apipClient.getApiEvent().getResponseBody() != null && 
-                apipClient.getApiEvent().getResponseBody().getLast() != null) {
-                afterValue = apipClient.getApiEvent().getResponseBody().getLast();
+            if (fapiClient.getLastResponse() != null &&
+                fapiClient.getLastResponse().getLast() != null) {
+                afterValue = fapiClient.getLastResponse().getLast();
             }
             
             if (afterValue != null) {
                 fetchMyServantsFromApi(afterValue);
             } else {
                 dismissWaitingDialog();
-                Toast.makeText(this, getString(R.string.no_more_results), Toast.LENGTH_SHORT).show();
+                ToastUtils.makeText(this, getString(R.string.no_more_results));
                 moreButton.setVisibility(View.GONE);
                 moreResultsHint.setVisibility(View.GONE);
             }
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error loading more servants: %s", e.getMessage());
             dismissWaitingDialog();
-            Toast.makeText(this, getString(R.string.failed_to_load_more), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.failed_to_load_more));
         }
     }
     
     private void updateMoreResultsHint() {
         try {
-            if (apipClient != null && 
-                apipClient.getApiEvent() != null && 
-                apipClient.getApiEvent().getResponseBody() != null && 
-                apipClient.getApiEvent().getResponseBody().getTotal() != null) {
+            if (fapiClient != null && fapiClient.getLastResponse() != null &&
+                fapiClient.getLastResponse().getTotal() != null) {
                 
-                long totalResults = apipClient.getApiEvent().getResponseBody().getTotal();
+                long totalResults = fapiClient.getLastResponse().getTotal();
                 int currentResultsCount = currentServantResults.size();
                 long remainingResults = totalResults - currentResultsCount;
                 
@@ -518,19 +501,19 @@ public class AddServantFidActivity extends BaseCryptoActivity {
     
     private void onSelectAllChanged(boolean isChecked) {
         if (isChecked) {
-            keyCardManager.selectAll();
+            keyCardContainer.selectAll();
         } else {
-            keyCardManager.unselectAll();
+            keyCardContainer.unselectAll();
         }
-        selectedServantFids = new ArrayList<>(keyCardManager.getSelectedKeys());
+        selectedServantFids = new ArrayList<>(keyCardContainer.getSelectedKeys());
         updateConfirmButton();
         
         TimberLogger.d(TAG, "Select all changed to %b, selected %d servant FIDs", isChecked, selectedServantFids.size());
     }
     
     private void updateSelectAllCheckbox() {
-        List<KeyInfo> allKeyInfos = keyCardManager.getKeyInfoList();
-        List<KeyInfo> selectedKeys = keyCardManager.getSelectedKeys();
+        List<KeyInfo> allKeyInfos = keyCardContainer.getKeyInfoList();
+        List<KeyInfo> selectedKeys = keyCardContainer.getSelectedKeys();
         
         // Temporarily remove listener to prevent recursive calls
         selectAllCheckbox.setOnCheckedChangeListener(null);

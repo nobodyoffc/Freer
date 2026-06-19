@@ -91,17 +91,21 @@ public class Signature extends FcObject{
 
     public static boolean isGoodSha256Sign(byte[] bytes, String sign, byte[] symkey) {
         if (sign == null || bytes == null) return false;
+        // Try HMAC-SHA256 first
+        String hmacHash = Hex.toHex(Hash.hmacSha256(bytes, symkey));
+        if (sign.equals(hmacHash)) return true;
+        // Fall back to legacy SHA256x2(msg||key)
         byte[] signBytes = BytesUtils.bytesMerger(bytes, symkey);
         byte[] hash = Hash.sha256x2(signBytes);
         String doubleSha256Hash = Hex.toHex(hash);
-
         return (sign.equals(doubleSha256Hash));
     }
 
     public void strToBytes() {
         if(alg!=null)algBytes = switch (alg) {
-            case FC_Sha256SymSignMsg_No1_NrC7 -> new byte[]{0, 0, 0, 0, 0, 2};
-            case BTC_EcdsaSignMsg_No1_NrC7 -> new byte[]{0, 0, 0, 0, 0, 3};
+            case FC_Sha256SymSignMsg_No1_NrC7 -> new byte[]{0, 0, 0, 0, 0, 3};
+            case BTC_EcdsaSignMsg_No1_NrC7 -> new byte[]{0, 0, 0, 0, 0, 4};
+            case FC_SchnorrSignMsg_No1_NrC7 -> new byte[]{0, 0, 0, 0, 0, 5};
             default -> algBytes;
         };
 
@@ -119,8 +123,9 @@ public class Signature extends FcObject{
 
     public void bytesToStr() {
         if(algBytes!=null)alg = switch (Arrays.toString(algBytes)) {
-            case "[0, 0, 0, 0, 0, 3]" ->AlgorithmId.FC_Sha256SymSignMsg_No1_NrC7;
+            case "[0, 0, 0, 0, 0, 3]" -> AlgorithmId.FC_Sha256SymSignMsg_No1_NrC7;
             case "[0, 0, 0, 0, 0, 4]" -> AlgorithmId.BTC_EcdsaSignMsg_No1_NrC7;
+            case "[0, 0, 0, 0, 0, 5]" -> AlgorithmId.FC_SchnorrSignMsg_No1_NrC7;
             default -> alg;
         };
 
@@ -161,6 +166,13 @@ public class Signature extends FcObject{
                     if(fidBytes==null)return null;
                     outputStream.write(fidBytes);
                 }
+                case FC_SchnorrSignMsg_No1_NrC7 -> {
+                    algBytes = new byte[]{0, 0, 0, 0, 0, 5};
+                    outputStream.write(algBytes);
+
+                    if(fidBytes==null)return null;
+                    outputStream.write(fidBytes);
+                }
                 default -> {
                     return null;
                 }
@@ -180,7 +192,6 @@ public class Signature extends FcObject{
             return outputStream.toByteArray();
         } catch (IOException e) {
             // Handle potential IO exceptions (shouldn't happen with ByteArrayOutputStream)
-            e.printStackTrace();
             return null;
         }
     }
@@ -211,11 +222,19 @@ public class Signature extends FcObject{
             }
             case "[0, 0, 0, 0, 0, 4]" -> {
                 alg = AlgorithmId.BTC_EcdsaSignMsg_No1_NrC7;
-                byte[] hash120 = new byte[20];
-                System.arraycopy(bundle, offset, hash120, 0, 20);
+                byte[] hash160 = new byte[20];
+                System.arraycopy(bundle, offset, hash160, 0, 20);
                 offset+=20;
-                signature.setFidBytes(hash120);
-                signature.setFid(KeyTools.hash160ToFchAddr(hash120));
+                signature.setFidBytes(hash160);
+                signature.setFid(KeyTools.hash160ToFchAddr(hash160));
+            }
+            case "[0, 0, 0, 0, 0, 5]" -> {
+                alg = AlgorithmId.FC_SchnorrSignMsg_No1_NrC7;
+                byte[] hash160Schnorr = new byte[20];
+                System.arraycopy(bundle, offset, hash160Schnorr, 0, 20);
+                offset+=20;
+                signature.setFidBytes(hash160Schnorr);
+                signature.setFid(KeyTools.hash160ToFchAddr(hash160Schnorr));
             }
             default -> {
                 return null;
@@ -247,14 +266,29 @@ public class Signature extends FcObject{
 
     public static String symSign(String msg, String symkey) {
         if(msg==null || symkey==null)return null;
+        byte[] msgBytes = msg.getBytes();
+        byte[] keyBytes = Hex.fromHex(symkey);
+        byte[] signBytes = Hash.hmacSha256(msgBytes, keyBytes);
+        return Hex.toHex(signBytes);
+    }
+
+    public static byte[] symSign(byte[] msg, byte[] symKey) {
+        if(msg==null || symKey==null)return null;
+        return Hash.hmacSha256(msg, symKey);
+    }
+
+    @Deprecated
+    public static String symSignLegacy(String msg, String symkey) {
+        if(msg==null || symkey==null)return null;
         byte[] replyJsonBytes = msg.getBytes();
         byte[] keyBytes = Hex.fromHex(symkey);
-        byte[] bytes = BytesUtils.bytesMerger(replyJsonBytes,keyBytes);
+        byte[] bytes = BytesUtils.bytesMerger(replyJsonBytes, keyBytes);
         byte[] signBytes = Hash.sha256x2(bytes);
         return Hex.toHex(signBytes);
     }
 
-    public static byte[] symSign(byte[] msg, byte[] symkey) {
+    @Deprecated
+    public static byte[] symSignLegacy(byte[] msg, byte[] symkey) {
         if(msg==null || symkey==null)return null;
         byte[] bytes = BytesUtils.bytesMerger(msg, symkey);
         return Hash.sha256x2(bytes);
@@ -330,7 +364,6 @@ public class Signature extends FcObject{
                 signature.makeSignature();
             }
         } catch (Exception e) {
-            e.printStackTrace();
             return null;
         }
         return signature;
@@ -397,6 +430,10 @@ public class Signature extends FcObject{
 
     public static boolean verifySha256SymSign(byte[] msgBytes,byte[] key, String sign){
         if(sign==null)return false;
+        // Try HMAC-SHA256 first
+        String hmacHash = Hex.toHex(Hash.hmacSha256(msgBytes, key));
+        if(sign.equals(hmacHash)) return true;
+        // Fall back to legacy SHA256x2(msg||key)
         byte[] signBytes = BytesUtils.bytesMerger(msgBytes, key);
         String doubleSha256Hash = Hex.toHex(Hash.sha256x2(signBytes));
         return sign.equals(doubleSha256Hash);

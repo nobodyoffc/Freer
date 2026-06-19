@@ -1,13 +1,13 @@
 package com.fc.fc_ajdk.data.fcData;
 
-import com.fc.fc_ajdk.ui.Shower;
+import com.fc.fc_ajdk.data.fchData.Freer;
+import com.fc.fc_ajdk.data.feipData.Contact;
 import com.fc.fc_ajdk.core.crypto.Decryptor;
 import com.fc.fc_ajdk.core.crypto.Encryptor;
 import com.fc.fc_ajdk.core.crypto.KeyTools;
-import com.fc.fc_ajdk.data.fchData.Cid;
 import com.fc.fc_ajdk.utils.Hex;
+import com.fc.fc_ajdk.utils.StringUtils;
 
-import java.io.BufferedReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -23,11 +23,10 @@ import static com.fc.fc_ajdk.constants.FieldNames.PRI_KEY;
 import static com.fc.fc_ajdk.constants.FieldNames.WATCH_ONLY;
 import static com.fc.fc_ajdk.constants.Values.ASC;
 import static com.fc.fc_ajdk.constants.Values.DESC;
-import static com.fc.fc_ajdk.ui.Shower.DEFAULT_PAGE_SIZE;
 
 import androidx.annotation.NonNull;
 
-public class KeyInfo extends Cid {
+public class KeyInfo extends Freer {
     public final static String TAG = "KeyInfo";
     public static final String KEY_INFO_FILE_PATH = "keyInfo.json";
 
@@ -60,7 +59,7 @@ public class KeyInfo extends Cid {
         FcSubject fcSubject = FcSubject.createNew();
         byte[] prikeyBytes = fcSubject.getPrikeyBytes();
 
-        // Create CidInfo
+        // Create FreerInfo
         return KeyInfo.newKeyInfo(null, prikeyBytes, symkey);
     }
 
@@ -92,13 +91,13 @@ public class KeyInfo extends Cid {
         LinkedHashMap<String, Map<String, String>> fieldMap = new LinkedHashMap<>();
         
         // Add KeyInfo fields first (lines 32-35)
-        addFieldToMap(fieldMap, "prikeyCipher", "Private Key", "私钥");
+        addFieldToMap(fieldMap, "prikeyCipher", "Prikey Cipher", "私钥密文");
         addFieldToMap(fieldMap, "label", "Label", "标签");
         addFieldToMap(fieldMap, "watchOnly", "Watch Only", "观察");
         addFieldToMap(fieldMap, "saveTime", "Save Time", "保存时间");
         
-        // Add Cid fields by calling Cid.getFieldNameMap()
-        fieldMap.putAll(Cid.getFieldNameMap());
+        // Add Freer fields by calling Freer.getFieldNameMap()
+        fieldMap.putAll(Freer.getFieldNameMap());
         
         return fieldMap;
     }
@@ -164,8 +163,19 @@ public class KeyInfo extends Cid {
         keyInfo.makeAddrsFromId(fid);
         return keyInfo;
     }
-    public static List<KeyInfo> showList(List<KeyInfo> keyInfoList, BufferedReader br) {
-        return Shower.showOrChooseListInPages("FID Info", keyInfoList, DEFAULT_PAGE_SIZE, null, true, KeyInfo.class, br);
+
+    public static KeyInfo fromContact(Contact contact) {
+        KeyInfo keyInfo = new KeyInfo();
+        if(contact.getLabel()!=null){
+            keyInfo.setLabel(contact.getLabel());
+        }else{
+            keyInfo.setLabel(StringUtils.listToString(contact.getTitles()));
+        }
+        keyInfo.setPubkey(contact.getPubkey());
+        keyInfo.setId(contact.getFid());
+        keyInfo.setCid(contact.getCid());
+        keyInfo.setLastHeight(contact.getLastHeight());
+        return keyInfo;
     }
 
     public void makeAddresses() {
@@ -195,52 +205,57 @@ public class KeyInfo extends Cid {
     }
 
     /**
-     * Converts a Cid object to a CidInfo object
-     * @param cid The Cid object to convert
-     * @return A new CidInfo object with all properties from the Cid object
+     * Converts a Freer object to a FreerInfo object
+     * @param freer The Freer object to convert
+     * @return A new FreerInfo object with all properties from the Freer object
      */
-    public static KeyInfo fromCid(Cid cid) {
-        if (cid == null) return null;
+    public static KeyInfo fromCid(Freer freer) {
+        if (freer == null) return null;
         
         KeyInfo keyInfo = new KeyInfo();
-        keyInfo.setId(cid.getId());
-        keyInfo.setCid(cid.getCid());
-        keyInfo.setPubkey(cid.getPubkey());
-        keyInfo.setMaster(cid.getMaster());
-        keyInfo.setBalance(cid.getBalance());
-        keyInfo.setCash(cid.getCash());
-        keyInfo.setIncome(cid.getIncome());
-        keyInfo.setExpend(cid.getExpend());
-        keyInfo.setCd(cid.getCd());
-        keyInfo.setCdd(cid.getCdd());
-        keyInfo.setReputation(cid.getReputation());
-        keyInfo.setHot(cid.getHot());
-        keyInfo.setWeight(cid.getWeight());
-        keyInfo.setGuide(cid.getGuide());
-        keyInfo.setNoticeFee(cid.getNoticeFee());
-        keyInfo.setHomepages(cid.getHomepages());
-        keyInfo.setBtcAddr(cid.getBtcAddr());
-        keyInfo.setEthAddr(cid.getEthAddr());
-        keyInfo.setLtcAddr(cid.getLtcAddr());
-        keyInfo.setDogeAddr(cid.getDogeAddr());
-        keyInfo.setTrxAddr(cid.getTrxAddr());
-        keyInfo.setBchAddr(cid.getBchAddr());
-        keyInfo.setBirthHeight(cid.getBirthHeight());
-        keyInfo.setNameTime(cid.getNameTime());
-        keyInfo.setLastHeight(cid.getLastHeight());
-        keyInfo.setMultisign(cid.getMultisign());
+        keyInfo.setId(freer.getId());
+        keyInfo.setCid(freer.getCid());
+        keyInfo.setUsedCids(freer.getUsedCids());
+        keyInfo.setHome(freer.getHome());
+        keyInfo.setNobody(freer.getNobody());
+        keyInfo.setPrikey(freer.getPrikey());
+        keyInfo.setNoticeFee(freer.getNoticeFee());
+        keyInfo.setPubkey(freer.getPubkey());
+        keyInfo.setMaster(freer.getMaster());
+        keyInfo.setBalance(freer.getBalance());
+        keyInfo.setCash(freer.getCash());
+        keyInfo.setIncome(freer.getIncome());
+        keyInfo.setExpend(freer.getExpend());
+        keyInfo.setCd(freer.getCd());
+        keyInfo.setCdd(freer.getCdd());
+        keyInfo.setReputation(freer.getReputation());
+        keyInfo.setHot(freer.getHot());
+        keyInfo.setWeight(freer.getWeight());
+        keyInfo.setGuide(freer.getGuide());
+        keyInfo.setNoticeFee(freer.getNoticeFee());
+        keyInfo.setHome(freer.getHome());
+        keyInfo.setBtcAddr(freer.getBtcAddr());
+        keyInfo.setEthAddr(freer.getEthAddr());
+        keyInfo.setLtcAddr(freer.getLtcAddr());
+        keyInfo.setDogeAddr(freer.getDogeAddr());
+        keyInfo.setTrxAddr(freer.getTrxAddr());
+        keyInfo.setBchAddr(freer.getBchAddr());
+        keyInfo.setBirthHeight(freer.getBirthHeight());
+        keyInfo.setNameTime(freer.getNameTime());
+        keyInfo.setLastHeight(freer.getLastHeight());
+        keyInfo.setMultisign(freer.getMultisign());
         
         return keyInfo;
     }
     
     /**
-     * Converts a Cid object to a CidInfo object and sets the prikeyCipher
-     * @param cid The Cid object to convert
+     * Converts a Freer object to a FreerInfo object and sets the prikeyCipher
+     * @param freer The Freer object to convert
      * @param prikeyCipher The encrypted private key
-     * @return A new CidInfo object with all properties from the Cid object and the provided prikeyCipher
+     * @return A new FreerInfo object with all properties from the Freer object and the provided prikeyCipher
      */
-    public static KeyInfo fromCid(Cid cid, String prikeyCipher) {
-        KeyInfo keyInfo = fromCid(cid);
+    public static KeyInfo fromCid(Freer freer, String prikeyCipher) {
+        KeyInfo keyInfo = fromCid(freer);
         if (keyInfo != null) {
             keyInfo.setPrikeyCipher(prikeyCipher);
         }
@@ -280,13 +295,18 @@ public class KeyInfo extends Cid {
         return this.prikeyCipher;
     }
     @NonNull
-    public static KeyInfo updateFromCid(Cid cidInfo, KeyInfo currentKeyInfo) {
-        KeyInfo updatedKeyInfo = KeyInfo.fromCid(cidInfo);
+    public static KeyInfo updateFromCid(Freer freerInfo, KeyInfo currentKeyInfo) {
+        KeyInfo updatedKeyInfo = KeyInfo.fromCid(freerInfo);
         updatedKeyInfo.setLabel(currentKeyInfo.getLabel());
         updatedKeyInfo.setPrikeyCipher(currentKeyInfo.getPrikeyCipher());
         updatedKeyInfo.setWatchOnly(currentKeyInfo.getWatchOnly());
         updatedKeyInfo.setSaveTime(currentKeyInfo.getSaveTime());
-        updatedKeyInfo.setMultisign(currentKeyInfo.getMultisign());
+
+        // Only preserve current multisig if the new one from API is null
+        if (freerInfo.getMultisign() == null) {
+            updatedKeyInfo.setMultisign(currentKeyInfo.getMultisign());
+        }
+        // Otherwise keep the fresh multisig data from API response (already set by fromCid)
         return updatedKeyInfo;
     }
     /**

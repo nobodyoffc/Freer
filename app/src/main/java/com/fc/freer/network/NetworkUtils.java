@@ -6,7 +6,9 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.Build;
 
+import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
+import com.fc.freer.utils.ToastUtils;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -24,24 +26,64 @@ public class NetworkUtils {
     /**
      * 检查网络是否可用
      */
+
+    public static boolean isNetworkDownToast(Context context){
+        if(!isNetworkAvailable(context)){
+            ToastUtils.showError(context, context.getString(R.string.network_not_available));
+            TimberLogger.w("NetworkUtils", context.getString(R.string.network_not_available));
+            return true;
+        }
+        return false;
+    }
     public static boolean isNetworkAvailable(Context context) {
-        ConnectivityManager connectivityManager = (ConnectivityManager) 
+        ConnectivityManager connectivityManager = (ConnectivityManager)
                 context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        
+
         if (connectivityManager == null) {
+            TimberLogger.d("NetworkUtils", "ConnectivityManager is null");
             return false;
         }
 
         Network network = connectivityManager.getActiveNetwork();
         if (network == null) {
+            TimberLogger.d("NetworkUtils", "No active network");
             return false;
         }
 
         NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
-        return capabilities != null &&
-               (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
+        if (capabilities == null) {
+            TimberLogger.d("NetworkUtils", "Network capabilities is null");
+            return false;
+        }
+
+        // Log all capabilities for debugging
+        TimberLogger.d("NetworkUtils", "Network capabilities: " +
+                "hasWifi=" + capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) +
+                ", hasCellular=" + capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) +
+                ", hasEthernet=" + capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) +
+                ", hasInternet=" + capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) +
+                ", isValidated=" + capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED));
+
+        // Check if network has transport capability
+        boolean hasTransport = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                               capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                               capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET);
+
+        if (!hasTransport) {
+            TimberLogger.d("NetworkUtils", "No transport available");
+            return false;
+        }
+
+        // Check if network has internet capability.
+        // Note: NET_CAPABILITY_VALIDATED can be false on cellular/USB-debugging even when
+        // connectivity works (e.g. Chrome can browse). Requiring only hasInternet avoids
+        // false "Network not available" when the network is actually usable.
+        boolean hasInternet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+
+//        TimberLogger.d("NetworkUtils", "Network check result: hasInternet=" + hasInternet +
+//                ", isValidated=" + capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED));
+
+        return hasInternet;
     }
     
     /**

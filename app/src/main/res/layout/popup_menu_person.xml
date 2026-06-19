@@ -8,16 +8,33 @@
     android:minWidth="140dp">
 
     <!-- Current Live FID Display -->
-    <TextView
-        android:id="@+id/current_fid_text"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="12dp"
-        android:text="@string/current_live_fid"
-        android:textStyle="bold"
-        android:textColor="@color/colorAccent"
-        android:textSize="14sp"
-        android:background="?attr/selectableItemBackground" />
+        android:orientation="horizontal"
+        android:background="?attr/selectableItemBackground"
+        android:gravity="center_vertical">
+
+
+
+        <TextView
+            android:id="@+id/current_fid_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/current_live_fid"
+            android:textStyle="bold"
+            android:layout_marginEnd="16dp"
+            android:textColor="@color/accent"
+            android:textSize="14sp" />
+        <ImageView
+            android:id="@+id/current_fid_avatar"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:contentDescription="@string/current_live_fid"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_person" />
+    </LinearLayout>
 
     <View
         android:layout_width="match_parent"
@@ -32,7 +49,7 @@
         android:layout_height="wrap_content"
         android:padding="12dp"
         android:text="@string/main_fid"
-        android:textColor="@color/text_color"
+        android:textColor="@color/text"
         android:textSize="16sp"
         android:background="?attr/selectableItemBackground"
         android:gravity="center_vertical" />
@@ -44,7 +61,7 @@
         android:layout_height="wrap_content"
         android:padding="12dp"
         android:text="@string/my_master"
-        android:textColor="@color/text_color"
+        android:textColor="@color/text"
         android:textSize="16sp"
         android:background="?attr/selectableItemBackground"
         android:gravity="center_vertical" />
@@ -55,20 +72,20 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="12dp"
-        android:text="@string/my_watched_fids"
-        android:textColor="@color/text_color"
+        android:text="@string/my_watched"
+        android:textColor="@color/text"
         android:textSize="16sp"
         android:background="?attr/selectableItemBackground"
         android:gravity="center_vertical" />
 
-    <!-- My Multisign FIDs -->
+    <!-- My Multisig FIDs -->
     <TextView
         android:id="@+id/menu_my_multisign_fids"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="12dp"
-        android:text="@string/my_multisign_fids"
-        android:textColor="@color/text_color"
+        android:text="@string/my_multisig"
+        android:textColor="@color/text"
         android:textSize="16sp"
         android:background="?attr/selectableItemBackground"
         android:gravity="center_vertical" />
@@ -80,7 +97,7 @@
         android:layout_height="wrap_content"
         android:padding="12dp"
         android:text="@string/my_servants"
-        android:textColor="@color/text_color"
+        android:textColor="@color/text"
         android:textSize="16sp"
         android:background="?attr/selectableItemBackground"
         android:gravity="center_vertical" />
@@ -92,15 +109,33 @@
         android:layout_marginVertical="4dp" />
 
     <!-- Quit Main FID -->
-    <TextView
+    <LinearLayout
         android:id="@+id/menu_quit_main_fid"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="12dp"
-        android:text="@string/quit_main_fid"
-        android:textColor="@color/text_color"
-        android:textSize="16sp"
+        android:orientation="horizontal"
         android:background="?attr/selectableItemBackground"
-        android:gravity="center_vertical" />
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/menu_quit_main_fid_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/quit_main_fid"
+            android:textColor="@color/text"
+            android:textSize="16sp"
+            android:layout_marginEnd="16dp"
+            android:gravity="center_vertical" />
+
+        <ImageView
+            android:id="@+id/menu_quit_main_fid_avatar"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:contentDescription="@string/main_fid"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_person" />
+
+    </LinearLayout>
 
 </LinearLayout>

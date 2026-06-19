@@ -14,10 +14,10 @@ public class SecretOpData {
     private String alg;
 	private String msg;
 	private String cipher;
-	
-	
 
-	public String getOp() {
+
+
+    public String getOp() {
 		return op;
 	}
 	public void setOp(String op) {
@@ -116,6 +116,16 @@ public class SecretOpData {
         SecretOpData data = new SecretOpData();
         data.setOp(Op.RECOVER.toLowerCase());
         data.setSecretIds(secretIds);
+        return data;
+    }
+
+    // Factory method for UPDATE operation
+    public static SecretOpData makeUpdate(String secretId, String alg, String cipher) {
+        SecretOpData data = new SecretOpData();
+        data.setOp(Op.UPDATE.toLowerCase());
+        data.setSecretId(secretId);
+        data.setAlg(alg);
+        data.setCipher(cipher);
         return data;
     }
 }

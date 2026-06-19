@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/main_background">
+
+    <!-- Common Toolbar -->
+    <include layout="@layout/common_toolbar" />
+
+    <!-- Content Container -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Live FID Card -->
+        <LinearLayout
+            android:id="@+id/liveFidCard"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginBottom="16dp"
+            android:orientation="vertical">
+
+            <include layout="@layout/layout_fid_card" />
+
+        </LinearLayout>
+
+        <!-- Current CID Information -->
+        <TextView
+            android:id="@+id/currentCidLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="@string/current_cid"
+            android:textColor="@color/field_name"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/currentCidValue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:layout_marginStart="20dp"
+            android:textColor="@color/text"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/usedCidsLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="@string/used_cids"
+            android:textColor="@color/field_name"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/usedCidsValue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:layout_marginStart="20dp"
+            android:textColor="@color/text"
+            android:textSize="14sp" />
+
+        <!-- Empty view for spacing -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            />
+
+        <!-- Name Input Section -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="@string/please_set_a_name_for_yourself"
+            android:textColor="@color/field_name"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <EditText
+                android:id="@+id/nameInput"
+                android:layout_width="0dp"
+                android:layout_weight="3"
+                android:layout_height="wrap_content"
+
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_input_view"
+                android:hint="@string/name_hint"
+                android:textColor="@color/text"
+                android:textColorHint="@color/hint"
+                android:textSize="16sp"
+                android:inputType="textNoSuggestions|textVisiblePassword"
+                android:maxLines="1" />
+
+            <Button
+                android:id="@+id/checkButton"
+                style="@style/ButtonStyle"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/check"
+                android:enabled="true" />
+
+        </LinearLayout>
+        <!-- CID Preview -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/yourCidLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/your_cid_will_be"
+                android:textColor="@color/field_name"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="8dp"
+                android:visibility="gone"
+                />
+
+            <TextView
+                android:id="@+id/yourCidValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/accent"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                />
+            <ImageView
+                android:id="@+id/yourCidTick"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:src="@drawable/ic_tick"
+                android:visibility="gone"/>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Button Container -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@color/main_background"
+        android:gravity="end">
+
+        <ImageButton
+            android:id="@+id/clearButton"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_clear"
+            android:contentDescription="@string/cancel" />
+        
+        <Button
+            android:id="@+id/neverButton"
+            style="@style/ButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:text="@string/never" />
+
+        <ImageButton
+            android:id="@+id/carveButton"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_send"
+            android:contentDescription="@string/carve" />
+
+        <ImageButton
+            android:id="@+id/back_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_back"
+            android:contentDescription="@string/back" />
+    </LinearLayout>
+
+</LinearLayout>

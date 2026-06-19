@@ -25,6 +25,7 @@ public class IoIconsView extends LinearLayout {
     
     private ImageButton peopleButton;
     private ImageButton scanButton;
+    private ImageButton pasteButton;
     private ImageButton makeQrButton;
     private ImageButton fileButton;
     
@@ -36,7 +37,11 @@ public class IoIconsView extends LinearLayout {
     public interface OnScanClickListener {
         void onScanClick();
     }
-    
+
+    public interface OnPasteClickListener {
+        void onPasteClick();
+    }
+
     public interface OnMakeQrClickListener {
         void onMakeQrClick();
     }
@@ -47,6 +52,7 @@ public class IoIconsView extends LinearLayout {
     
     private OnPeopleClickListener peopleClickListener;
     private OnScanClickListener scanClickListener;
+    private OnPasteClickListener pasteClickListener;
     private OnMakeQrClickListener makeQrClickListener;
     private OnFileClickListener fileClickListener;
     private boolean isSingleChoice = false;
@@ -72,21 +78,22 @@ public class IoIconsView extends LinearLayout {
      * @param showMakeQr Whether to show the make QR icon
      * @param showPeople Whether to show the people icon
      * @param showScan Whether to show the scan icon
+     * @param showPaste Whether to show the paste icon
      * @param showFile Whether to show the file icon
      * @param isSingleChoice Whether to show the single choice mode
      * @return A new IoIconsView instance
      */
-    public static IoIconsView create(Context context, boolean showMakeQr, boolean showPeople, boolean showScan, boolean showFile, boolean isSingleChoice) {
+    public static IoIconsView create(Context context, boolean showMakeQr, boolean showPeople, boolean showScan, boolean showPaste, boolean showFile, boolean isSingleChoice) {
         IoIconsView view = new IoIconsView(context);
-        view.init(context, showMakeQr, showPeople, showScan, showFile);
+        view.init(context, showMakeQr, showPeople, showScan, showPaste, showFile);
         view.setSingleChoice(isSingleChoice);
         return view;
     }
     
     private void init(Context context, boolean showMakeQr) {
-        init(context, showMakeQr, true, true, true);
+        init(context, showMakeQr, true, true, true, true);
     }
-    
+
     /**
      * Initialize the view with the specified configuration
      *
@@ -94,9 +101,10 @@ public class IoIconsView extends LinearLayout {
      * @param showMakeQr Whether to show the make QR icon
      * @param showPeople Whether to show the people icon
      * @param showScan   Whether to show the scan icon
+     * @param showPaste  Whether to show the paste icon
      * @param showFile   Whether to show the file icon
      */
-    public void init(Context context, boolean showMakeQr, boolean showPeople, boolean showScan, boolean showFile) {
+    public void init(Context context, boolean showMakeQr, boolean showPeople, boolean showScan, boolean showPaste, boolean showFile) {
         TimberLogger.d(TAG, "Initializing IoIconsView");
         
         // Only inflate the layout if it hasn't been inflated yet
@@ -107,39 +115,47 @@ public class IoIconsView extends LinearLayout {
             // Find the buttons
             peopleButton = findViewById(R.id.peopleButton);
             scanButton = findViewById(R.id.scanButton);
+            pasteButton = findViewById(R.id.pasteButton);
             makeQrButton = findViewById(R.id.makeQrButton);
             fileButton = findViewById(R.id.fileButton);
-            
+
             // Set up click listeners
             peopleButton.setOnClickListener(v -> {
                 if (peopleClickListener != null) {
                     peopleClickListener.onPeopleClick(isSingleChoice);
                 }
             });
-            
+
             scanButton.setOnClickListener(v -> {
                 if (scanClickListener != null) {
                     scanClickListener.onScanClick();
                 }
             });
-            
+
+            pasteButton.setOnClickListener(v -> {
+                if (pasteClickListener != null) {
+                    pasteClickListener.onPasteClick();
+                }
+            });
+
             makeQrButton.setOnClickListener(v -> {
                 if (makeQrClickListener != null) {
                     makeQrClickListener.onMakeQrClick();
                 }
             });
-            
+
             fileButton.setOnClickListener(v -> {
                 if (fileClickListener != null) {
                     fileClickListener.onFileClick();
                 }
             });
         }
-        
+
         // Show or hide the buttons based on the parameters
         makeQrButton.setVisibility(showMakeQr ? View.VISIBLE : View.GONE);
         peopleButton.setVisibility(showPeople ? View.VISIBLE : View.GONE);
         scanButton.setVisibility(showScan ? View.VISIBLE : View.GONE);
+        pasteButton.setVisibility(showPaste ? View.VISIBLE : View.GONE);
         fileButton.setVisibility(showFile ? View.VISIBLE : View.GONE);
     }
     
@@ -156,7 +172,14 @@ public class IoIconsView extends LinearLayout {
     public void setOnScanClickListener(OnScanClickListener listener) {
         this.scanClickListener = listener;
     }
-    
+
+    /**
+     * Set the listener for the paste icon click
+     */
+    public void setOnPasteClickListener(OnPasteClickListener listener) {
+        this.pasteClickListener = listener;
+    }
+
     /**
      * Set the listener for the make QR icon click
      */

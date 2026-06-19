@@ -117,14 +117,10 @@ public class MailOpData {
 		this.mailIds = mailIds;
 	}
 	// Factory method for SEND operation
-	public static MailOpData makeSend(String alg, String cipher, String cipherSend, String cipherReci, String textId) {
+	public static MailOpData makeSend(String cipher) {
 		MailOpData data = new MailOpData();
 		data.setOp(Op.SEND.toLowerCase());
-		data.setAlg(alg);
 		data.setCipher(cipher);
-		data.setCipherSend(cipherSend);
-		data.setCipherReci(cipherReci);
-		data.setTextId(textId);
 		return data;
 	}
 

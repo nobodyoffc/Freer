@@ -18,31 +18,37 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:layout_marginTop="8dp"
-        android:layout_marginBottom="8dp">
+        android:layout_marginBottom="8dp"
+        android:gravity="end">
 
-        <Button
+        <ImageButton
             android:id="@+id/delete_button"
-            style="@style/ButtonStyle"
-            android:layout_margin="4dp"
-            android:text="@string/delete" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_delete"
+            android:contentDescription="@string/delete" />
 
-        <Button
+        <ImageButton
             android:id="@+id/export_button"
-            style="@style/ButtonStyle"
-            android:layout_margin="4dp"
-            android:text="@string/export_tx" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_export"
+            android:contentDescription="@string/export_tx" />
 
-        <Button
+        <ImageButton
             android:id="@+id/create_button"
-            style="@style/ButtonStyle"
-            android:layout_margin="4dp"
-            android:text="@string/create" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_plus"
+            android:contentDescription="@string/create" />
 
-        <Button
+        <ImageButton
             android:id="@+id/add_to_list_button"
-            style="@style/ButtonStyle"
-            android:layout_margin="4dp"
-            android:text="@string/to_list" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_list"
+            android:contentDescription="@string/to_list" />
+        <ImageButton
+            android:id="@+id/back_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_back"
+            android:contentDescription="@string/back" />
 
     </LinearLayout>
 

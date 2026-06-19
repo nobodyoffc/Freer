@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Affair Container Layout - Displays affair information in a structured, user-friendly format -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/affairContainer"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/rounded_textbox_background"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- Subject Line: FID + Avatar -->
+    <LinearLayout
+        android:id="@+id/byLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="12dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/subjectLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/affair_by"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/field_name"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:id="@+id/subjectFid"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="14sp"
+            android:textColor="@color/text"
+            android:maxLines="2"
+            android:ellipsize="middle" />
+
+        <ImageView
+            android:id="@+id/subjectAvatar"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ic_person"
+            android:contentDescription="@string/person_avatar" />
+    </LinearLayout>
+
+    <!-- Do Line: Operation + OpType -->
+    <LinearLayout
+        android:id="@+id/doLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="12dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/doLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/affair_do"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/field_name"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:id="@+id/doOp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:textColor="@color/text"
+            android:layout_marginEnd="4dp" />
+
+        <TextView
+            android:id="@+id/doOpType"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:textColor="@color/hint"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- On Line: Data or OID -->
+    <LinearLayout
+        android:id="@+id/onLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:id="@+id/onLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/affair_on"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/field_name"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:id="@+id/onData"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:textColor="@color/text"
+            android:fontFamily="monospace"
+            android:scrollbars="vertical" />
+    </LinearLayout>
+
+    <!-- To Line: FID B + Avatar -->
+    <LinearLayout
+        android:id="@+id/toLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/toLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/affair_to"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/field_name"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:id="@+id/toFidB"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="14sp"
+            android:textColor="@color/text"
+            android:maxLines="2"
+            android:ellipsize="middle" />
+
+        <ImageView
+            android:id="@+id/toAvatar"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ic_person"
+            android:contentDescription="@string/person_avatar" />
+    </LinearLayout>
+
+</LinearLayout>

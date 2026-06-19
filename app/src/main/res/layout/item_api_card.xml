@@ -1,0 +1,326 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:layout_marginBottom="8dp"
+    android:background="@drawable/rounded_textbox_background"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <!-- Header Row: Type and Index -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+
+        <ImageView
+            android:id="@+id/api_state_icon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="8dp"
+            android:contentDescription="@string/api_state"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/api_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="4"
+            android:text=""
+            android:textSize="18sp"
+            android:textColor="@color/accent"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/api_type"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="3"
+            android:text="Type"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:gravity="end"
+            android:textColor="@color/field_name" />
+
+        <TextView
+            android:id="@+id/api_index"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="#1"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/hint"
+            android:layout_marginEnd="8dp" />
+
+    </LinearLayout>
+
+    <!-- ID Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="4dp">
+
+        <TextView
+            android:id="@+id/api_id_label"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="8dp"
+            android:text="@string/id"
+            android:textColor="@color/hint"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/api_id"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text=""
+            android:textSize="14sp"
+            android:textColor="@color/link"
+            android:maxLines="1"
+            android:ellipsize="middle" />
+
+    </LinearLayout>
+
+    <!-- Name Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="4dp">
+
+    </LinearLayout>
+
+    <!-- Owner Row (conditionally shown) -->
+    <LinearLayout
+        android:id="@+id/owner_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="4dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/owner"
+            android:textSize="14sp"
+            android:textColor="@color/hint"
+            android:layout_marginEnd="8dp" />
+
+        <ImageView
+            android:id="@+id/owner_avatar"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="8dp"
+            android:src="@drawable/ic_person"
+            android:contentDescription="@string/owner_avatar" />
+
+        <TextView
+            android:id="@+id/api_owner"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text=""
+            android:textSize="14sp"
+            android:textColor="@color/link"
+            android:maxLines="1"
+            android:ellipsize="middle" />
+
+    </LinearLayout>
+
+    <!-- Dealer Row (conditionally shown) -->
+    <LinearLayout
+        android:id="@+id/dealer_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="4dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/dealer"
+            android:textSize="14sp"
+            android:textColor="@color/hint"
+            android:layout_marginEnd="8dp" />
+
+        <ImageView
+            android:id="@+id/dealer_avatar"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="8dp"
+            android:src="@drawable/ic_person"
+            android:contentDescription="@string/dealer_avatar" />
+
+        <TextView
+            android:id="@+id/api_dealer"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text=""
+            android:textSize="14sp"
+            android:textColor="@color/text"
+            android:maxLines="1"
+            android:ellipsize="middle"
+            />
+
+    </LinearLayout>
+
+    <!-- API URL Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="4dp">
+
+        <TextView
+            android:id="@+id/api_url_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/api_url"
+            android:textSize="14sp"
+            android:textColor="@color/hint"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:id="@+id/api_url"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text=""
+            android:textSize="14sp"
+            android:textColor="@color/text"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+    </LinearLayout>
+
+
+    <!-- Rest (Remaining Requests) Row -->
+    <LinearLayout
+        android:id="@+id/rest_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="4dp"
+        android:visibility="gone"
+        >
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/rest"
+            android:textSize="14sp"
+            android:textColor="@color/hint"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:id="@+id/api_rest"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text=""
+            android:textSize="14sp"
+            android:textColor="@color/text"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+    </LinearLayout>
+
+    <!-- Birth Time, tRate, and Cdd Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+    <LinearLayout
+        android:id="@+id/service_info_container"
+        android:layout_width="0dp"
+        android:layout_weight="1"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        >
+
+        <TextView
+            android:id="@+id/api_birth_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="14sp"
+            android:textColor="@color/field_name"
+            android:layout_marginEnd="8dp" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <ImageView
+            android:id="@+id/api_rate_icon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginEnd="4dp"
+            android:src="@drawable/ic_star"
+            android:contentDescription="@string/rate"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/api_rate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="14sp"
+            android:textColor="@color/text"
+            android:layout_marginEnd="8dp"
+            android:visibility="gone" />
+
+        <ImageView
+            android:id="@+id/api_cdd_icon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginEnd="4dp"
+            android:src="@drawable/ic_hot"
+            android:contentDescription="@string/cdd"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/api_cdd"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="14sp"
+            android:textColor="@color/text"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:maxEms="6"
+            android:visibility="gone" />
+
+    </LinearLayout>
+        <ImageView
+            android:id="@+id/api_converter_icon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:contentDescription="@string/change_api"
+            android:focusable="true"
+            android:src="@drawable/ic_convert"
+            app:tint="@color/accent" />
+    </LinearLayout>
+
+</LinearLayout>

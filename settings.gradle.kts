@@ -20,6 +20,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Safe"
+rootProject.name = "Freer"
 include(":app")
 include(":FC-AJDK")

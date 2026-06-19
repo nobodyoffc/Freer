@@ -1,34 +1,42 @@
 package com.fc.freer.myKeys;
 
-import android.content.Intent;
-import android.view.View;
-import android.widget.Button;
-import android.widget.LinearLayout;
 import android.app.AlertDialog;
-import android.widget.Toast;
+import android.app.ProgressDialog;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.View;
+import android.widget.ImageButton;
+import android.widget.LinearLayout;
+
+import com.fc.freer.utils.ToastUtils;
 
 import com.fc.fc_ajdk.core.crypto.Hash;
+import com.fc.fc_ajdk.core.crypto.Kdf;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
-import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
-import com.fc.freer.home.BaseCryptoActivity;
+import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.initiate.ConfigureManager;
-import com.fc.freer.manager.AvatarManager;
 import com.fc.freer.ui.DetailFragment;
 import com.google.android.material.textfield.TextInputEditText;
 import com.fc.freer.utils.TextIconsUtils;
+
+import java.util.Arrays;
+import java.util.concurrent.Executors;
 
 public class CreateKeyByPhraseActivity extends BaseCryptoActivity {
     private static final String TAG = "CreateKeyByPhrase";
     private static final int QR_SCAN_PHRASE_REQUEST_CODE = 1001;
     private static final int QR_SCAN_LABEL_REQUEST_CODE = 1002;
-    
+
+    private enum DerivationMode { ARGON2ID, SHA256 }
+    private interface KeyInfoCallback { void onReady(KeyInfo keyInfo); }
+
     private DetailFragment detailFragment;
     private TextInputEditText phraseInput;
     private TextInputEditText labelInput;
-    private Button clearButton;
-    private Button previewButton;
-    private Button saveButton;
+    private ImageButton clearButton;
+    private ImageButton previewButton;
+    private ImageButton saveButton;
     private LinearLayout keyInfoContainer;
     private LinearLayout inputContainer;
     private LinearLayout buttonContainer;
@@ -48,16 +56,16 @@ public class CreateKeyByPhraseActivity extends BaseCryptoActivity {
         keyInfoContainer = findViewById(R.id.keyInfoContainer);
         inputContainer = findViewById(R.id.inputContainer);
         buttonContainer = findViewById(R.id.buttonContainer);
-        
+
         // Initialize input fields from included layouts
         View phraseView = findViewById(R.id.pubkeyView);
         View labelView = findViewById(R.id.labelView);
-        
+
         phraseInput = phraseView.findViewById(R.id.textInput);
         phraseInput.setHint(R.string.input_the_phrase);
         labelInput = labelView.findViewById(R.id.textInput);
         labelInput.setHint(R.string.input_the_label);
-        
+
         clearButton = findViewById(R.id.clearButton);
         previewButton = findViewById(R.id.previewButton);
         saveButton = findViewById(R.id.saveButton);
@@ -66,8 +74,8 @@ public class CreateKeyByPhraseActivity extends BaseCryptoActivity {
     @Override
     protected void setupButtons() {
         clearButton.setOnClickListener(v -> clearInputs());
-        previewButton.setOnClickListener(v -> previewKeyInfo());
-        saveButton.setOnClickListener(v -> saveKeyInfo());
+        previewButton.setOnClickListener(v -> onPreviewClicked());
+        saveButton.setOnClickListener(v -> onSaveClicked());
 
         // Setup scan icons using TextIconsUtils
         TextIconsUtils.setupTextIcons(this, R.id.pubkeyView, R.id.scanIcon, QR_SCAN_PHRASE_REQUEST_CODE);
@@ -98,23 +106,87 @@ public class CreateKeyByPhraseActivity extends BaseCryptoActivity {
         }
     }
 
-    private void previewKeyInfo() {
+    private void onPreviewClicked() {
         String phrase = phraseInput.getText() != null ? phraseInput.getText().toString() : "";
-        String label = labelInput.getText() != null ? labelInput.getText().toString() : "";
-
         if (phrase.isEmpty()) {
-            Toast.makeText(this, getString(R.string.please_input_phrase), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.please_input_phrase));
+            return;
+        }
+        promptDerivationMode(mode -> deriveKeyInfoAsync(mode, this::showDetailFragment));
+    }
+
+    private void onSaveClicked() {
+        if (detailFragment != null) {
+            KeyInfo keyInfo = (KeyInfo) detailFragment.getCurrentEntity();
+            if (keyInfo == null) {
+                ToastUtils.makeText(this, getString(R.string.failed_to_get_keyinfo_from_preview));
+                return;
+            }
+            saveAndFinishWithKeyInfo(keyInfo);
             return;
         }
 
-        // Generate private key from phrase using SHA-256
-        byte[] priKey32 = Hash.sha256(phrase.getBytes());
+        String phrase = phraseInput.getText() != null ? phraseInput.getText().toString() : "";
+        if (phrase.isEmpty()) {
+            ToastUtils.makeText(this, getString(R.string.please_input_phrase));
+            return;
+        }
+        promptDerivationMode(mode -> deriveKeyInfoAsync(mode, this::saveAndFinishWithKeyInfo));
+    }
 
-        // Create a new KeyInfo object
-        KeyInfo keyInfo = new KeyInfo(label, priKey32, ConfigureManager.getInstance().getSymkey());
+    private void promptDerivationMode(java.util.function.Consumer<DerivationMode> onChosen) {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.choose_derivation_method)
+                .setMessage(R.string.choose_derivation_method_message)
+                .setPositiveButton(R.string.derivation_kdf_argon2id,
+                        (d, w) -> onChosen.accept(DerivationMode.ARGON2ID))
+                .setNegativeButton(R.string.derivation_sha256,
+                        (d, w) -> confirmSha256(onChosen))
+                .setNeutralButton(R.string.cancel, null)
+                .show();
+    }
 
-        // Show the KeyInfo in the detail fragment
-        showDetailFragment(keyInfo);
+    private void confirmSha256(java.util.function.Consumer<DerivationMode> onChosen) {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.derivation_sha256_warning_title)
+                .setMessage(R.string.derivation_sha256_warning_message)
+                .setPositiveButton(R.string.proceed,
+                        (d, w) -> onChosen.accept(DerivationMode.SHA256))
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void deriveKeyInfoAsync(DerivationMode mode, KeyInfoCallback callback) {
+        String phrase = phraseInput.getText() != null ? phraseInput.getText().toString() : "";
+        String label = labelInput.getText() != null ? labelInput.getText().toString() : "";
+        if (phrase.isEmpty()) {
+            ToastUtils.makeText(this, getString(R.string.please_input_phrase));
+            return;
+        }
+
+        if (mode == DerivationMode.SHA256) {
+            byte[] priKey32 = Hash.sha256(phrase.getBytes());
+            callback.onReady(new KeyInfo(label, priKey32, ConfigureManager.getInstance().getSymkey()));
+            return;
+        }
+
+        // Argon2id is intentionally slow — run off the UI thread.
+        ProgressDialog progress = new ProgressDialog(this);
+        progress.setMessage(getString(R.string.deriving_key));
+        progress.setCancelable(false);
+        progress.show();
+
+        Handler main = new Handler(Looper.getMainLooper());
+        Executors.newSingleThreadExecutor().execute(() -> {
+            // Deterministic per-phrase salt so the same phrase always derives the same key.
+            byte[] salt = Arrays.copyOf(Hash.sha256(phrase.getBytes()), 16);
+            byte[] priKey32 = Kdf.Argon2id_No1_NrC7.deriveSymkey(phrase.toCharArray(), salt);
+            KeyInfo keyInfo = new KeyInfo(label, priKey32, ConfigureManager.getInstance().getSymkey());
+            main.post(() -> {
+                if (progress.isShowing()) progress.dismiss();
+                if (!isFinishing() && !isDestroyed()) callback.onReady(keyInfo);
+            });
+        });
     }
 
     private void showDetailFragment(KeyInfo keyInfo) {
@@ -128,41 +200,4 @@ public class CreateKeyByPhraseActivity extends BaseCryptoActivity {
                 .commit();
     }
 
-    private void saveKeyInfo() {
-        KeyInfo keyInfo = null;
-        
-        if (detailFragment == null) {
-            // If no preview was done, try to create KeyInfo from inputs
-            keyInfo = createKeyInfoFromInputs();
-            if (keyInfo == null) {
-                return;
-            }
-        } else {
-            // Use the previewed KeyInfo
-            keyInfo = (KeyInfo) detailFragment.getCurrentEntity();
-            if (keyInfo == null) {
-                Toast.makeText(this, getString(R.string.failed_to_get_keyinfo_from_preview), Toast.LENGTH_SHORT).show();
-                return;
-            }
-        }
-
-        // Always generate and save avatar for the key before saving
-        saveAndFinishWithKeyInfo(keyInfo);
-    }
-
-    private KeyInfo createKeyInfoFromInputs() {
-        String phrase = phraseInput.getText() != null ? phraseInput.getText().toString() : "";
-        String label = labelInput.getText() != null ? labelInput.getText().toString() : "";
-
-        if (phrase.isEmpty()) {
-            Toast.makeText(this, getString(R.string.please_input_phrase), Toast.LENGTH_SHORT).show();
-            return null;
-        }
-
-        // Generate private key from phrase using SHA-256
-        byte[] priKey32 = Hash.sha256(phrase.getBytes());
-
-        return new KeyInfo(label, priKey32, ConfigureManager.getInstance().getSymkey());
-    }
-
-} 
+}

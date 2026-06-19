@@ -19,4 +19,8 @@ public class Values {
     public static final String DESC = "desc";
     public static final String ASC = "asc";
 
+    public static final String REFRESH = "refresh";
+    public static final String NEWER = "newer";
+    public static final String OLDER = "older";
+
 }

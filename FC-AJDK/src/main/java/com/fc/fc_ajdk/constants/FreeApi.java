@@ -3,7 +3,7 @@ package com.fc.fc_ajdk.constants;
 import com.fc.fc_ajdk.data.feipData.Service;
 
 public class FreeApi {
-    private String urlHead;
+    private String url;
     private Boolean active;
     private String sid;
     private Service.ServiceType serviceType;
@@ -11,18 +11,18 @@ public class FreeApi {
     public FreeApi() {
     }
 
-    public FreeApi(String urlHead, Boolean active, Service.ServiceType serviceType) {
+    public FreeApi(String url, Boolean active, Service.ServiceType serviceType) {
         this.active = active;
-        this.urlHead = urlHead;
+        this.url = url;
         this.serviceType = serviceType;
     }
 
-    public String getUrlHead() {
-        return urlHead;
+    public String getUrl() {
+        return url;
     }
 
-    public void setUrlHead(String urlHead) {
-        this.urlHead = urlHead;
+    public void setUrl(String url) {
+        this.url = url;
     }
 
     public Boolean getActive() {

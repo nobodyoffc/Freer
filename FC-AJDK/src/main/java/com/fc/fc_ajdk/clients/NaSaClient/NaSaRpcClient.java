@@ -824,7 +824,7 @@ public class NaSaRpcClient {
 
         @Override
         public String toString() {
-            return "BlockInfo{" +
+            return "Block{" +
                     "hash='" + hash + '\'' +
                     ", confirmations=" + confirmations +
                     ", height=" + height +

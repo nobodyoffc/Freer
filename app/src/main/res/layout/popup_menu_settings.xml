@@ -19,12 +19,13 @@
         android:layout_height="1dp"
         android:background="?android:attr/listDivider" />
 
+
     <TextView
-        android:id="@+id/backup_all_keys"
+        android:id="@+id/set_cid"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="16dp"
-        android:text="@string/backup_all_keys"
+        android:text="@string/set_cid"
         android:textColor="?android:attr/textColorPrimary"
         android:textSize="16sp" />
 
@@ -34,11 +35,11 @@
         android:background="?android:attr/listDivider" />
 
     <TextView
-        android:id="@+id/backup_all_secrets"
+        android:id="@+id/set_apis"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="16dp"
-        android:text="@string/backup_all_secrets"
+        android:text="@string/set_apis"
         android:textColor="?android:attr/textColorPrimary"
         android:textSize="16sp" />
 
@@ -48,39 +49,11 @@
         android:background="?android:attr/listDivider" />
 
     <TextView
-        android:id="@+id/import_keys"
+        android:id="@+id/backup_prikey"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="16dp"
-        android:text="@string/import_keys"
-        android:textColor="?android:attr/textColorPrimary"
-        android:textSize="16sp" />
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="?android:attr/listDivider" />
-
-    <TextView
-        android:id="@+id/import_secrets"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="16dp"
-        android:text="@string/import_secrets"
-        android:textColor="?android:attr/textColorPrimary"
-        android:textSize="16sp" />
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="?android:attr/listDivider" />
-
-    <TextView
-        android:id="@+id/clear_all_data"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="16dp"
-        android:text="@string/clear_all_data"
+        android:text="@string/backup_prikey"
         android:textColor="?android:attr/textColorPrimary"
         android:textSize="16sp" />
 
@@ -108,7 +81,21 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="16dp"
-        android:text="@string/security_guidelines"
+        android:text="@string/instruction"
+        android:textColor="?android:attr/textColorPrimary"
+        android:textSize="16sp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?android:attr/listDivider" />
+
+    <TextView
+        android:id="@+id/toast_messages"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        android:text="@string/app_messages"
         android:textColor="?android:attr/textColorPrimary"
         android:textSize="16sp" />
 

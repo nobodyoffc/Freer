@@ -18,7 +18,7 @@
 * 离线交易
 * 离线多签
 
-下载链接：https://cid.cash/download/safe-v0.7.apk
+下载链接：https://freer.cash/download/safe-v0.7.apk
 ！测试中，务必第一时间备份私钥和秘密
 
 Safe v0.7 for Android
@@ -39,9 +39,9 @@ Functions:
 * Private key conversion
 * QR code scanning and encoding
 * Sign TX off-line
-* Manage multisign off_line
+* Manage multisig off_line
 
-Download: https://cid.cash/download/safe-v0.7.apk
+Download: https://freer.cash/download/safe-v0.7.apk
 ! Still under testing, be sure to back up your private keys and secrets as soon as possible
 
 

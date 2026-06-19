@@ -4,9 +4,10 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.InputType;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.TextView;
 import com.fc.freer.R;
-import com.fc.freer.home.BaseCryptoActivity;
+import com.fc.freer.BaseCryptoActivity;
 import com.google.android.material.textfield.TextInputEditText;
 
 public class SingleInputActivity extends BaseCryptoActivity {
@@ -16,9 +17,9 @@ public class SingleInputActivity extends BaseCryptoActivity {
 
     private TextView promoteTextView;
     private TextInputEditText inputText;
-    private Button copyButton;
-    private Button clearButton;
-    private Button doneButton;
+    private ImageButton copyButton;
+    private ImageButton clearButton;
+    private ImageButton doneButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

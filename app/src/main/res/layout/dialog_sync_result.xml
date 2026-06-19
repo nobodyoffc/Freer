@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/main_background"
+    android:padding="20dp">
+
+    <TextView
+        android:id="@+id/sync_result_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/sync_result_title"
+        android:textAppearance="@android:style/TextAppearance.Material.Title"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:id="@+id/sync_result_total"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="14sp"
+        android:textColor="@color/text" />
+
+    <TextView
+        android:id="@+id/sync_result_success"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textSize="14sp"
+        android:textColor="@color/text" />
+
+    <TextView
+        android:id="@+id/sync_result_skipped"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textSize="14sp"
+        android:textColor="@color/hint" />
+
+    <TextView
+        android:id="@+id/sync_result_failed"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textSize="14sp"
+        android:textColor="@color/error" />
+
+    <TextView
+        android:id="@+id/sync_result_fee"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textSize="14sp"
+        android:textColor="@color/colorAccent" />
+
+    <Button
+        android:id="@+id/sync_result_ok"
+        style="@style/ButtonStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:layout_marginTop="20dp"
+        android:text="@string/ok" />
+</LinearLayout>

@@ -1,46 +1,51 @@
 package com.fc.fc_ajdk.data.fcData;
 
+import com.fc.fc_ajdk.core.crypto.Hash;
+import com.fc.fc_ajdk.utils.Hex;
+
 import java.util.List;
 
 public class Hat extends FcObject {
     //basic
-    private String hAlg;
-    private Long size;
-    private Long born;
+    private String hAlg; //hash algorithm
+    private Long size;  //size in bytes
+    private Long born;  //time being created
     private Long last; //last time being used.
 
     //extend
-    private String name;
-    private String desc;
-    private String[] types;
-    private String[] aids;
-    private String[] pids;
+    private String name;    //name of the data
+    private String desc;    //description of the data
+    private List<String> types; //types of the data
+    private List<String> aids;  //APP IDs
+    private List<String> pids;  //protocol IDs
 
     //version
-    private String srcDid;
-    private String priDid;
+    private String srcDid;  //DID of the first version
+    private String preDid;  //DID of the previous version
 
     //slice
-    private String tDid;
-    private Long tSize;
-    private Long offset;
+    private String tDid;    //DID of the whole data
+    private Long tSize;     //size of the whole data
+    private Long offset;    //offset of this data in the whole data
 
     //crypto
-    private String rawDid;
-    private String cAlg;
-    private String pubkeyA;
-    private String pubkeyB;
-    private String iv;
-    private String sum;
-    private String kCipher;
-    private String kName;
-    private Boolean Leaked;
+    private String rawDid;  //DID of the raw data
+    private String key; //the symkey
+    private String kCipher; //cipher of the key
+    private Boolean Leaked; //if key leaked
+    private List<String> cipherIds; //DID of the cipher data
 
     //manage
-    private Integer rank;
-    private DataState state;
-    private List<String> locas;
+    private Integer rank;   //rank of the data
+    private DataState state;    //state of the data
+    private List<String> locas; //locations of the data
 
+    public void checkIdWithCreate() {
+        if(id == null){
+            byte[] idBytes = Hash.sha256x2(this.toBytes());
+            id = Hex.toHex(idBytes);
+        }
+    }
 
 
     public enum DataState{
@@ -55,11 +60,11 @@ public class Hat extends FcObject {
             this.number = number;
         }
     }
-    public String gethAlg() {
+    public String getHAlg() {
         return hAlg;
     }
 
-    public void sethAlg(String hAlg) {
+    public void setHAlg(String hAlg) {
         this.hAlg = hAlg;
     }
 
@@ -71,27 +76,27 @@ public class Hat extends FcObject {
         this.name = name;
     }
 
-    public String[] getTypes() {
+    public List<String> getTypes() {
         return types;
     }
 
-    public void setTypes(String[] types) {
+    public void setTypes(List<String> types) {
         this.types = types;
     }
 
-    public String[] getAids() {
+    public List<String> getAids() {
         return aids;
     }
 
-    public void setAids(String[] aids) {
+    public void setAids(List<String> aids) {
         this.aids = aids;
     }
 
-    public String[] getPids() {
+    public List<String> getPids() {
         return pids;
     }
 
-    public void setPids(String[] pids) {
+    public void setPids(List<String> pids) {
         this.pids = pids;
     }
 
@@ -127,12 +132,12 @@ public class Hat extends FcObject {
         this.srcDid = srcDid;
     }
 
-    public String getPriDid() {
-        return priDid;
+    public String getPreDid() {
+        return preDid;
     }
 
-    public void setPriDid(String priDid) {
-        this.priDid = priDid;
+    public void setPreDid(String preDid) {
+        this.preDid = preDid;
     }
 
     public String gettDid() {
@@ -157,22 +162,6 @@ public class Hat extends FcObject {
 
     public void setOffset(Long offset) {
         this.offset = offset;
-    }
-
-    public String getcAlg() {
-        return cAlg;
-    }
-
-    public void setcAlg(String cAlg) {
-        this.cAlg = cAlg;
-    }
-
-    public String getPubkeyA() {
-        return pubkeyA;
-    }
-
-    public void setPubkeyA(String pKey) {
-        this.pubkeyA = pKey;
     }
 
     public String getkCipher() {
@@ -215,14 +204,6 @@ public class Hat extends FcObject {
         this.last = last;
     }
 
-    public String getkName() {
-        return kName;
-    }
-
-    public void setkName(String kName) {
-        this.kName = kName;
-    }
-
     public Boolean getLeaked() {
         return Leaked;
     }
@@ -239,27 +220,27 @@ public class Hat extends FcObject {
         this.rawDid = rawDid;
     }
 
-    public String getPubkeyB() {
-        return pubkeyB;
+    public String gethAlg() {
+        return hAlg;
     }
 
-    public void setPubkeyB(String pubkeyB) {
-        this.pubkeyB = pubkeyB;
+    public void sethAlg(String hAlg) {
+        this.hAlg = hAlg;
     }
 
-    public String getIv() {
-        return iv;
+    public String getKey() {
+        return key;
     }
 
-    public void setIv(String iv) {
-        this.iv = iv;
+    public void setKey(String key) {
+        this.key = key;
     }
 
-    public String getSum() {
-        return sum;
+    public List<String> getCipherIds() {
+        return cipherIds;
     }
 
-    public void setSum(String sum) {
-        this.sum = sum;
+    public void setCipherIds(List<String> cipherIds) {
+        this.cipherIds = cipherIds;
     }
 }

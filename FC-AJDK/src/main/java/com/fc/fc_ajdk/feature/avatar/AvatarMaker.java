@@ -349,7 +349,7 @@ public class AvatarMaker {
     public static byte[] createAvatar(String fid, Context context) throws IOException {
         init(context);
 
-        // Create avatar using the CidInfo ID
+        // Create avatar using the FreerInfo ID
         return makeAvatar(fid);
     }
 }

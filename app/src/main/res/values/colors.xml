@@ -3,18 +3,20 @@
     <color name="black">#000000</color>
     <color name="white">#FFFFFF</color>
     <color name="background_light">#EEEEEE</color>
-    <color name="background_dark">#CCCCCC</color>
+    <color name="background_dark">#999999</color>
     <color name="main_background">#F5F5F5</color>
+    <color name="transparent">#00000000</color>
     <color name="text_area_background">#F0F0F0</color>
-    <color name="text_color">#000000</color>
+    <color name="text">#000000</color>
+    <color name="pink">#DA63F8</color>
+    <color name="link">#0065FD</color>
     <color name="hint">#777777</color>
     <color name="disabled">#AAAAAA</color>
-    <color name="error">#FF0000</color>
-    <color name="outline_light">#AAAAAA</color>
-    <color name="stroke_color">#DDDDDD</color>
-    <color name="outline_heavy">#666666</color>
-    <color name="colorAccent">#2196F3</color>
-    <color name="colorPrimary">#1976D2</color>
+    <color name="outline_light">#888888</color>
+    <color name="stroke">#DDDDDD</color>
+    <color name="outline_heavy">#111111</color>
+    <color name="accent">#2196F3</color>
+    <color name="primary">#1976D2</color>
     <color name="headerBackground">#908C8C</color>
     <color name="field_name">#7050A0</color>
     <color name="input_field_background">#FFFFFF</color>
@@ -22,4 +24,23 @@
     <color name="cash_card_border">#BBDEFB</color>
     <color name="cash_card_dark_background">#E0E0E0</color>
 	<color name="selected_card_background">#E8E8E8</color>
+    <color name="container_outline">#AAAAAA</color>
+	<color name="text_secondary">#666666</color>
+	<color name="button_secondary">#F5F5F5</color>
+	<color name="background">#FFFFFF</color>
+	
+	<!-- Toast message level colors -->
+	<color name="info">#2196F3</color>
+	<color name="warning">#FF9800</color>
+	<color name="error">#FF0000</color>
+	
+	<!-- DataActivity colors -->
+	<color name="card_background">#FFFFFF</color>
+	<color name="text_primary">#212121</color>
+	<color name="divider">#DDDDDD</color>
+	<color name="colorAccent">#2196F3</color>
+	
+	<!-- Messaging colors -->
+	<color name="white_transparent">#B3FFFFFF</color>
+	<color name="red">#FF0000</color>
 </resources>

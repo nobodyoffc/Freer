@@ -80,22 +80,31 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:layout_marginTop="8dp"
-        android:layout_marginBottom="8dp">
+        android:layout_marginBottom="8dp"
+        android:gravity="end">
 
-        <Button
+        <ImageButton
             android:id="@+id/clearButton"
-            style="@style/ButtonStyle"
-            android:text="@string/clear" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_clear"
+            android:contentDescription="@string/clear" />
 
-        <Button
+        <ImageButton
             android:id="@+id/copyButton"
-            style="@style/ButtonStyle"
-            android:text="@string/copy" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_copy"
+            android:contentDescription="@string/copy" />
 
-        <Button
+        <ImageButton
             android:id="@+id/convertButton"
-            style="@style/ButtonStyle"
-            android:text="@string/convert" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_convert"
+            android:contentDescription="@string/convert" />
+        <ImageButton
+            android:id="@+id/back_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_back"
+            android:contentDescription="@string/back" />
     </LinearLayout>
 
 </LinearLayout> 

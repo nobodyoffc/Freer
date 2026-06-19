@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Left bracket '[' -->
+    <!-- Vertical line -->
+    <path
+        android:fillColor="@android:color/black"
+        android:pathData="M6,6 L7,6 Q7.5,6 7.5,6.5 L7.5,17.5 Q7.5,18 7,18 L6,18 Q5.5,18 5.5,17.5 L5.5,6.5 Q5.5,6 6,6 Z" />
+    <!-- Top horizontal -->
+    <path
+        android:fillColor="@android:color/black"
+        android:pathData="M6,6 L9,6 Q9.5,6 9.5,6.5 Q9.5,7 9,7 L6,7 Q5.5,7 5.5,6.5 Q5.5,6 6,6 Z" />
+    <!-- Bottom horizontal -->
+    <path
+        android:fillColor="@android:color/black"
+        android:pathData="M6,17 L9,17 Q9.5,17 9.5,17.5 Q9.5,18 9,18 L6,18 Q5.5,18 5.5,17.5 Q5.5,17 6,17 Z" />
+
+    <!-- Comma ',' -->
+    <!-- Top part of comma -->
+    <path
+        android:fillColor="@android:color/black"
+        android:pathData="M11.5,13 L12.5,13 Q13,13 13,13.5 L13,14 Q13,14.5 12.5,14.5 L11.5,14.5 Q11,14.5 11,14 L11,13.5 Q11,13 11.5,13 Z" />
+    <!-- Bottom tail of comma -->
+    <path
+        android:fillColor="@android:color/black"
+        android:pathData="M11.5,14.5 L12.5,14.5 Q13,14.5 13,15 L13,15.5 Q13,16 12.5,16.5 L11.5,17.5 Q11,18 10.5,17.5 Q10,17 10.5,16.5 L11,16 Q11.5,15.5 11.5,15 L11.5,14.5 Z" />
+
+    <!-- Right bracket ']' -->
+    <!-- Vertical line -->
+    <path
+        android:fillColor="@android:color/black"
+        android:pathData="M17,6 L18,6 Q18.5,6 18.5,6.5 L18.5,17.5 Q18.5,18 18,18 L17,18 Q16.5,18 16.5,17.5 L16.5,6.5 Q16.5,6 17,6 Z" />
+    <!-- Top horizontal -->
+    <path
+        android:fillColor="@android:color/black"
+        android:pathData="M15,6 L18,6 Q18.5,6 18.5,6.5 Q18.5,7 18,7 L15,7 Q14.5,7 14.5,6.5 Q14.5,6 15,6 Z" />
+    <!-- Bottom horizontal -->
+    <path
+        android:fillColor="@android:color/black"
+        android:pathData="M15,17 L18,17 Q18.5,17 18.5,17.5 Q18.5,18 18,18 L15,18 Q14.5,18 14.5,17.5 Q14.5,17 15,17 Z" />
+
+</vector>

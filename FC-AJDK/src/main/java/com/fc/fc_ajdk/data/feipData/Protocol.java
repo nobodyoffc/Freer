@@ -1,6 +1,30 @@
 package com.fc.fc_ajdk.data.feipData;
 
+import static com.fc.fc_ajdk.constants.FieldNames.ACTIVE;
+import static com.fc.fc_ajdk.constants.FieldNames.BIRTH_TIME;
+import static com.fc.fc_ajdk.constants.FieldNames.CLOSED;
+import static com.fc.fc_ajdk.constants.FieldNames.DESC;
+import static com.fc.fc_ajdk.constants.FieldNames.DID;
+import static com.fc.fc_ajdk.constants.FieldNames.HOME;
+import static com.fc.fc_ajdk.constants.FieldNames.ID;
+import static com.fc.fc_ajdk.constants.FieldNames.LANG;
+import static com.fc.fc_ajdk.constants.FieldNames.LAST_TIME;
+import static com.fc.fc_ajdk.constants.FieldNames.NAME;
+import static com.fc.fc_ajdk.constants.FieldNames.OWNER;
+import static com.fc.fc_ajdk.constants.FieldNames.PRE_PID;
+import static com.fc.fc_ajdk.constants.FieldNames.SN;
+import static com.fc.fc_ajdk.constants.FieldNames.T_CDD;
+import static com.fc.fc_ajdk.constants.FieldNames.T_RATE;
+import static com.fc.fc_ajdk.constants.FieldNames.TYPE;
+import static com.fc.fc_ajdk.constants.FieldNames.VER;
+import static com.fc.fc_ajdk.constants.FieldNames.WAITERS;
+
 import com.fc.fc_ajdk.data.fcData.FcObject;
+
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 public class Protocol extends FcObject {
 
@@ -12,10 +36,10 @@ public class Protocol extends FcObject {
 	private String lang;
 	private String desc;
 	private String prePid;
-	private String[] fileUrls;
+	private Map<String, String> home;
 	private String title;
 	private String owner;
-	private String[] waiters;
+	private List<String> waiters;
 	private String birthTxId;
 	private Long birthTime;
 	private Long birthHeight;
@@ -27,6 +51,7 @@ public class Protocol extends FcObject {
 	private Boolean active;
 	private Boolean closed;
 	private String closeStatement;
+	private Boolean onChain;
 
 	public String getType() {
 		return type;
@@ -70,11 +95,11 @@ public class Protocol extends FcObject {
 	public void setPrePid(String prePid) {
 		this.prePid = prePid;
 	}
-	public String[] getFileUrls() {
-		return fileUrls;
+	public Map<String, String> getHome() {
+		return home;
 	}
-	public void setFileUrls(String[] fileUrls) {
-		this.fileUrls = fileUrls;
+	public void setHome(Map<String, String> home) {
+		this.home = home;
 	}
 	public String getTitle() {
 		return title;
@@ -161,13 +186,124 @@ public class Protocol extends FcObject {
 		this.closeStatement = closeStatement;
 	}
 
-
-	public String[] getWaiters() {
+	public List<String> getWaiters() {
 		return waiters;
 	}
 
-	public void setWaiters(String[] waiters) {
+	public void setWaiters(List<String> waiters) {
 		this.waiters = waiters;
 	}
 
+	public Boolean getOnChain() {
+		return onChain;
+	}
+
+	public void setOnChain(Boolean onChain) {
+		this.onChain = onChain;
+	}
+
+	/**
+	 * Returns a LinkedHashMap with field names in their declaration order and their display names in multiple languages
+	 * @return LinkedHashMap with field name as key and language map (en, zh) as value
+	 */
+	public static LinkedHashMap<String, Map<String, String>> getFieldNameMap() {
+		LinkedHashMap<String, Map<String, String>> fieldMap = new LinkedHashMap<>();
+
+		addFieldToMap(fieldMap, NAME, "Name", "名称");
+		addFieldToMap(fieldMap, TYPE, "Type", "类型");
+		addFieldToMap(fieldMap, SN, "Serial Number", "序列号");
+		addFieldToMap(fieldMap, VER, "Version", "版本");
+		addFieldToMap(fieldMap, DID, "DID", "DID");
+		addFieldToMap(fieldMap, LANG, "Language", "语言");
+		addFieldToMap(fieldMap, DESC, "Description", "描述");
+		addFieldToMap(fieldMap, PRE_PID, "Previous PID", "前序PID");
+		addFieldToMap(fieldMap, HOME, "Home", "主页");
+		addFieldToMap(fieldMap, WAITERS, "Waiters", "服务员");
+		addFieldToMap(fieldMap, OWNER, "Owner", "所有者");
+		addFieldToMap(fieldMap, BIRTH_TIME, "Birth Time", "创建时间");
+		addFieldToMap(fieldMap, LAST_TIME, "Last Time", "最新时间");
+		addFieldToMap(fieldMap, T_CDD, "Total CDD", "总CDD");
+		addFieldToMap(fieldMap, T_RATE, "Total Rate", "总评分");
+		addFieldToMap(fieldMap, ACTIVE, "Active", "活跃");
+		addFieldToMap(fieldMap, CLOSED, "Closed", "已关闭");
+		addFieldToMap(fieldMap, ID, "ID", "ID");
+
+		return fieldMap;
+	}
+
+	public static void addFieldToMap(LinkedHashMap<String, Map<String, String>> fieldMap, String fieldName, String englishName, String chineseName) {
+		Map<String, String> languageMap = new HashMap<>();
+		languageMap.put("en", englishName);
+		languageMap.put("zh", chineseName);
+		fieldMap.put(fieldName, languageMap);
+	}
+
+	/**
+	 * Get field name by display name (searches in all languages)
+	 * @param displayName The display name to search for (English or Chinese)
+	 * @return Field name if found, null otherwise
+	 */
+	public static String getFieldNameByDisplayName(String displayName) {
+		if (displayName == null || displayName.isEmpty()) {
+			return null;
+		}
+
+		for (Map.Entry<String, Map<String, String>> entry : getFieldNameMap().entrySet()) {
+			if (entry.getValue().containsValue(displayName)) {
+				return entry.getKey();
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Get display name by field name and language
+	 * @param fieldName The field name
+	 * @param language The language code ("en" or "zh")
+	 * @return Display name if found, null otherwise
+	 */
+	public static String getDisplayNameByFieldName(String fieldName, String language) {
+		if (fieldName == null || fieldName.isEmpty() || language == null) {
+			return null;
+		}
+
+		Map<String, String> languages = getFieldNameMap().get(fieldName);
+		return languages != null ? languages.get(language) : null;
+	}
+
+	/**
+	 * Returns searchable fields that can be used in search queries.
+	 * Searchable fields: name, type, sn, desc, lang, home, waiters, owner
+	 *
+	 * @return LinkedHashMap with field names and their display names in both languages
+	 */
+	public static LinkedHashMap<String, Map<String, String>> getSearchableFields() {
+		return filterFieldsByNames(NAME, TYPE, SN, DESC, LANG, HOME, WAITERS, OWNER);
+	}
+
+	/**
+	 * Returns sortable fields that can be used for sorting results.
+	 * Sortable fields: name, owner, birthTime, lastTime, tCdd, tRate, active, closed
+	 *
+	 * @return LinkedHashMap with field names and their display names in both languages
+	 */
+	public static LinkedHashMap<String, Map<String, String>> getSortableFields() {
+		return filterFieldsByNames(NAME, OWNER, BIRTH_TIME, LAST_TIME, T_CDD, T_RATE, ACTIVE, CLOSED);
+	}
+
+	/**
+	 * Helper method to filter fields from getFieldNameMap() by specified field names
+	 */
+	private static LinkedHashMap<String, Map<String, String>> filterFieldsByNames(String... fieldNames) {
+		LinkedHashMap<String, Map<String, String>> filteredFields = new LinkedHashMap<>();
+		LinkedHashMap<String, Map<String, String>> allFields = getFieldNameMap();
+
+		for (String fieldName : fieldNames) {
+			if (allFields.containsKey(fieldName)) {
+				filteredFields.put(fieldName, allFields.get(fieldName));
+			}
+		}
+
+		return filteredFields;
+	}
 }

@@ -129,4 +129,38 @@ public class HttpUtils {
         return stringBuilder.toString();
     }
 
+    public static String get(String url, Map<String, String> requestHeaderMap) {
+        try {
+            Request.Builder requestBuilder = new Request.Builder()
+                    .url(url);
+
+            if (requestHeaderMap != null) {
+                for (Map.Entry<String, String> entry : requestHeaderMap.entrySet()) {
+                    requestBuilder.addHeader(entry.getKey(), entry.getValue());
+                }
+            }
+
+            Request request = requestBuilder.get().build();
+
+            try (Response response = client.newCall(request).execute()) {
+                if (!response.isSuccessful()) {
+                    TimberLogger.d(TAG, "GET response status: %d.%s", response.code(), response.message());
+                    return null;
+                }
+
+                ResponseBody body = response.body();
+                if (body != null) {
+                    return body.string();
+                }
+                return null;
+            } catch (IOException e) {
+                TimberLogger.d(TAG, "Failed to connect " + url + ". Check the URL.", e);
+                return null;
+            }
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error during HTTP GET request", e);
+            return null;
+        }
+    }
+
 }

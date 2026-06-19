@@ -19,6 +19,7 @@
             android:paddingStart="8dp"
             android:paddingEnd="70dp"
             android:paddingTop="8dp"
+            android:ellipsize="middle"
             android:paddingBottom="8dp" />
     </com.google.android.material.textfield.TextInputLayout>
 

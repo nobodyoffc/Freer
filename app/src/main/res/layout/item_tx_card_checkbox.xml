@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="4dp">
+
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/container_outline"
+    android:orientation="horizontal"
+    android:padding="8dp"
+    android:gravity="center_vertical"
+    android:clickable="true"
+    android:focusable="true">
+
+    <!-- Checkbox for selection -->
+    <CheckBox
+        android:id="@+id/tx_checkbox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="4dp" />
+
+    <!-- Payer Avatar (spentCashes[0].owner) -->
+    <ImageView
+        android:id="@+id/tx_payer_avatar"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginStart="0dp"
+        android:contentDescription="@string/payer"
+        android:scaleType="centerCrop" />
+
+    <!-- Time display (date and time) -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.3"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp">
+
+        <TextView
+            android:id="@+id/tx_time_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="10sp"
+            android:textColor="@color/hint"
+            android:gravity="center" />
+
+        <TextView
+            android:id="@+id/tx_time_clock"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="10sp"
+            android:textColor="@color/hint"
+            android:gravity="center" />
+    </LinearLayout>
+
+    <!-- In/Out count display -->
+    <TextView
+        android:id="@+id/tx_in_out_count"
+        android:layout_width="18dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="4dp"
+        android:layout_weight="0.5"
+        android:gravity="center"
+        android:textColor="@color/hint"
+        android:textSize="10sp" />
+
+    <!-- Transaction amount (outValueT) -->
+    <TextView
+        android:id="@+id/tx_amount_value"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="2.8"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="@color/field_name"
+        android:layout_marginEnd="4dp"
+        android:minWidth="20dp"
+        android:minHeight="20dp"
+        android:gravity="center_vertical|start" />
+
+    <!-- Payee Avatar (issuedCashes[0].owner) -->
+    <ImageView
+        android:id="@+id/tx_payee_avatar"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginStart="0dp"
+        android:contentDescription="@string/payee"
+        android:scaleType="centerCrop" />
+
+</LinearLayout>
+
+    <!-- New indicator dot at top left (must be after LinearLayout to appear on top) -->
+    <View
+        android:id="@+id/new_indicator"
+        android:layout_width="10dp"
+        android:layout_height="10dp"
+        android:layout_gravity="start|top"
+        android:layout_margin="0dp"
+        android:background="@android:color/holo_red_light"
+        android:visibility="gone"/>
+
+</FrameLayout>

@@ -55,8 +55,8 @@ public class CodeMessage {
     public static final String Msg1021FidIsRequired = "FID is Required.";
     public static final int Code1022NoSuchMethod = 1022;
     public static final String Msg1022NoSuchMethod = "No such method.";
-    public static final int Code1023MissSessionKey = 1023;
-    public static final String Msg1023MissSessionKey = "Miss sessionKey";
+    public static final int Code1023MissSymkey = 1023;
+    public static final String Msg1023MissSessionKey = "Miss symkey";
     public static final int Code1024UrlMissed = 1024;
     public static final String Msg1024UrlMissed = "URL missed in the request body";
     public static final int Code1025WrongSid = 1025;
@@ -263,7 +263,7 @@ public class CodeMessage {
             case Code1020OtherError -> Msg1020OtherError;
             case Code1021FidIsRequired -> Msg1021FidIsRequired;
             case Code1022NoSuchMethod -> Msg1022NoSuchMethod;
-            case Code1023MissSessionKey -> Msg1023MissSessionKey;
+            case Code1023MissSymkey -> Msg1023MissSessionKey;
             case Code1024UrlMissed -> Msg1024UrlMissed;
             case Code1025WrongSid -> Msg1025WrongSid;
             case Code1026InsufficientFchOnChain -> Msg1026InsufficientFchOnChain;

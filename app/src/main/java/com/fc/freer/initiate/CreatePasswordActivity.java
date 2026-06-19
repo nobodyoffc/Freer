@@ -1,11 +1,13 @@
 package com.fc.freer.initiate;
 
+import static com.fc.freer.utils.BackgroundTimeoutManager.FROM_BACKGROUND_TIMEOUT;
+
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
-import android.widget.Toast;
+import com.fc.freer.utils.ToastUtils;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -20,10 +22,12 @@ import com.fc.freer.utils.ToolbarUtils;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputLayout;
 
+import java.util.Map;
 import java.util.Objects;
 
 public class CreatePasswordActivity extends AppCompatActivity {
 
+    public static final String FROM_NEW_PASSWORD = "from_new_password";
     private EditText passwordInput;
     private EditText confirmPasswordInput;
     private TextView errorText;
@@ -40,7 +44,7 @@ public class CreatePasswordActivity extends AppCompatActivity {
         setContentView(R.layout.activity_create_password);
 
         // Set up toolbar
-        ToolbarUtils.setupToolbar(this, "Create Password");
+        ToolbarUtils.setupToolbar(this, getString(R.string.create_password));
 
         initializeViews();
         setupClickListeners();
@@ -122,13 +126,13 @@ public class CreatePasswordActivity extends AppCompatActivity {
             savePassword();
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error creating password: " + e.getMessage(), e);
-            showError("Error creating password");
+            showError(getString(R.string.error_creating_password));
         }
     }
 
     private boolean isPasswordValid(String password, String confirmPassword) {
         if (password.isEmpty()) {
-            showError("Please enter a password");
+            showError(getString(R.string.please_enter_password));
             return false;
         }
 
@@ -138,12 +142,12 @@ public class CreatePasswordActivity extends AppCompatActivity {
         }
 
         if (password.length() < MIN_PASSWORD_LENGTH) {
-            showError("Password must be at least " + MIN_PASSWORD_LENGTH + " characters long");
+            showError(getString(R.string.password_must_be_at_least_d_characters_long,MIN_PASSWORD_LENGTH));
             return false;
         }
 
         if (!password.equals(confirmPassword)) {
-            showError("Passwords do not match");
+            showError(getString(R.string.passwords_do_not_match));
             return false;
         }
 
@@ -153,33 +157,95 @@ public class CreatePasswordActivity extends AppCompatActivity {
     private void savePassword() {
         String password = passwordInput.getText().toString();
         if (password.isEmpty()) {
-            Toast.makeText(this, getString(R.string.please_enter_password), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.please_enter_password));
             return;
         }
 
         byte[] passwordBytes = password.getBytes();
         String passwordName = IdNameUtils.makePasswordHashName(passwordBytes);
-        
+
+        ConfigureManager configureManager = ConfigureManager.getInstance();
+        Map<String, Configure> configMap = configureManager.loadConfigMap(this);
+        if(configMap.get(passwordName)!=null){
+            ToastUtils.makeText(this,getString(R.string.this_password_existed));
+            return;
+        }
+
         // Create new Configure object
         Configure configure = new Configure();
         configure.makeSymkeyFromPassword(passwordBytes);
         configure.setPasswordName(passwordName);
-        
+
         // Get DatabaseManager instance
-        DatabaseManager databaseManager = DatabaseManager.getInstance(this);
+        DatabaseManager databaseManager = DatabaseManager.getInstance();
         databaseManager.setCurrentPasswordName(passwordName);
 
         // Store the Configure object in ConfigureManager
         ConfigureManager.getInstance().setConfigure(configure);
         ConfigureManager.getInstance().storeConfigure(this, configure);
-        
-        // Show reminder dialog and only finish activity after dialog is dismissed
-        RemindDialog dialog = new RemindDialog(this, getString(R.string.remember_backup_keys));
-        dialog.setOnDismissListener(d -> {
+
+        // Check if this is from background timeout
+        boolean fromBackgroundTimeout = getIntent().getBooleanExtra(FROM_BACKGROUND_TIMEOUT, false);
+
+        if (fromBackgroundTimeout) {
+            // Clean up old session before proceeding
+            cleanupOldSession();
+
+            // Launch ChooseCidActivity directly
+            Intent intent = new Intent(this, ChooseCidActivity.class);
+            intent.putExtra(FROM_NEW_PASSWORD, true);
+            startActivity(intent);
+
+            // Close CheckPasswordActivity and CreatePasswordActivity, leaving only ChooseCidActivity
+            finishAffinity();
+        } else {
             setResult(RESULT_OK);
             finish();
-        });
-        dialog.show();
+        }
+    }
+
+    /**
+     * Clean up all resources from the old password session
+     * This includes FidManager, ApiCenter, and SettingManager
+     */
+    private void cleanupOldSession() {
+        TimberLogger.d(TAG, "Cleaning up old password session");
+
+        try {
+            // 1. Clean up FidManager (closes all managers for old mainFid)
+            com.fc.freer.manager.FidManager fidManager = com.fc.freer.manager.FidManager.getInstance();
+            if (fidManager != null) {
+                fidManager.fullCleanup();
+                TimberLogger.d(TAG, "FidManager cleaned up");
+            }
+
+            // 2. Clean up ApiCenter (closes all API clients)
+            com.fc.freer.utils.ApiCenter apiCenter = com.fc.freer.utils.ApiCenter.getInstance();
+            if (apiCenter != null) {
+                apiCenter.closeAllClients();
+                TimberLogger.d(TAG, "ApiCenter cleaned up");
+            }
+
+            // 3. Clear current setting in SettingManager
+            com.fc.freer.initiate.SettingManager settingManager = com.fc.freer.initiate.SettingManager.getInstance();
+            if (settingManager != null) {
+                settingManager.clearCurrentSetting();
+                TimberLogger.d(TAG, "SettingManager current setting cleared");
+            }
+
+            // 4. Clear AvatarManager cache (optional, but good practice)
+            com.fc.freer.manager.AvatarManager avatarManager = com.fc.freer.manager.AvatarManager.getInstance(this);
+            if (avatarManager != null) {
+                avatarManager.clearCache();
+                TimberLogger.d(TAG, "AvatarManager cache cleared");
+            }
+
+            TimberLogger.d(TAG, "Old session cleanup completed successfully");
+
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error during old session cleanup: " + e.getMessage(), e);
+            // Continue anyway - we want to proceed with the new password
+        }
     }
 
     private void showError(String message) {

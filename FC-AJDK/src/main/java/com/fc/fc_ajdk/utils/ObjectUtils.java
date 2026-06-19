@@ -1,9 +1,9 @@
 package com.fc.fc_ajdk.utils;
 
+import com.fc.fc_ajdk.data.fchData.Freer;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.fc.fc_ajdk.data.fcData.ReplyBody;
-import com.fc.fc_ajdk.data.fchData.Cid;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -19,16 +19,16 @@ public class ObjectUtils {
     public static void main(String[] args) {
         ReplyBody replyBody = new ReplyBody();
 
-        Cid cid = new Cid();
-        cid.setCid("liu");
-        cid.setHot(13424L);
-        Map<String,Cid> map = new HashMap<>();
-        map.put(cid.getCid(),cid);
+        Freer freer = new Freer();
+        freer.setCid("liu");
+        freer.setHot(13424L);
+        Map<String, Freer> map = new HashMap<>();
+        map.put(freer.getCid(), freer);
         replyBody.setData(map);
         Gson gson = new Gson();
         String json = gson.toJson(replyBody);
         Object data = gson.fromJson(json, ReplyBody.class).getData();
-        Map<String, Cid> newMap = objectToMap(data, String.class, Cid.class);
+        Map<String, Freer> newMap = objectToMap(data, String.class, Freer.class);
         JsonUtils.printJson(newMap);
     }
 
@@ -44,7 +44,8 @@ public class ObjectUtils {
         try {
             String jsonString = (obj instanceof String) ? (String) obj : gson.toJson(obj);
             return gson.fromJson(jsonString, type);
-        } catch (Exception ignore) {
+        } catch (Exception e) {
+            TimberLogger.d("ObjectUtils", "Failed to convert object to " + type + ": " + e.getMessage());
             return null;
         }
     }

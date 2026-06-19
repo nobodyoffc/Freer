@@ -57,23 +57,19 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center">
+            android:gravity="end">
 
-            <Button
+            <ImageButton
                 android:id="@+id/copyButton"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                android:text="@string/copy" />
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_copy"
+                android:contentDescription="@string/copy" />
 
-            <Button
-                android:id="@+id/doneButton"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="@string/done" />
+            <ImageButton
+                android:id="@+id/back_button"
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_back"
+                android:contentDescription="@string/back" />
         </LinearLayout>
 
     </LinearLayout>

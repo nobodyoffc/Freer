@@ -83,7 +83,7 @@
         android:layout_margin="16dp"
         app:cardCornerRadius="12dp"
         app:cardElevation="1dp"
-        app:strokeColor="@color/stroke_color"
+        app:strokeColor="@color/stroke"
         app:strokeWidth="1dp"
         app:cardBackgroundColor="@color/text_area_background"
         app:layout_constraintBottom_toTopOf="@+id/buttonArea"
@@ -92,19 +92,35 @@
         app:layout_constraintTop_toBottomOf="@+id/scanAreaContainer"
         app:layout_constraintVertical_weight="1">
 
-        <EditText
-            android:id="@+id/qrContentEditText"
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@null"
-            android:gravity="top|start"
-            android:hint="@string/text_hint"
-            android:textColor="@color/text_color"
-            android:textColorHint="@color/hint"
-            android:importantForAutofill="no"
-            android:inputType="textMultiLine"
-            android:padding="16dp"
-            android:textSize="16sp" />
+            android:layout_height="match_parent">
+
+            <EditText
+                android:id="@+id/qrContentEditText"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@null"
+                android:gravity="top|start"
+                android:hint="@string/text_hint"
+                android:textColor="@color/text"
+                android:textColorHint="@color/hint"
+                android:importantForAutofill="no"
+                android:inputType="textMultiLine"
+                android:padding="16dp"
+                android:textSize="16sp" />
+
+            <!-- Do Button -->
+            <ImageButton
+                android:id="@+id/doButton"
+                style="@style/SmallImageButton"
+                android:layout_gravity="bottom|end"
+                android:layout_margin="8dp"
+                android:contentDescription="@string/do_affair"
+                android:src="@drawable/ic_play"
+                android:visibility="gone"
+                app:tint="@color/text" />
+        </FrameLayout>
     </com.google.android.material.card.MaterialCardView>
 
     <!-- Button Area -->
@@ -143,7 +159,7 @@
                     android:layout_height="24dp"
                     android:layout_gravity="center"
                     android:contentDescription="@string/make"
-                    android:src="@drawable/ic_make"
+                    android:src="@drawable/ic_make_qr"
                     app:tint="@android:color/white" />
             </FrameLayout>
 
@@ -152,7 +168,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="@string/make"
-                android:textColor="@color/text_color"
+                android:textColor="@color/text"
                 android:textSize="12sp" />
         </LinearLayout>
 
@@ -187,7 +203,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="@string/clear"
-                android:textColor="@color/text_color"
+                android:textColor="@color/text"
                 android:textSize="12sp" />
         </LinearLayout>
 
@@ -224,7 +240,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="@string/copy"
-                android:textColor="@color/text_color"
+                android:textColor="@color/text"
                 android:textSize="12sp" />
         </LinearLayout>
 
@@ -259,7 +275,33 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="@string/scan"
-                android:textColor="@color/text_color"
+                android:textColor="@color/text"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Back Button -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ImageButton
+                android:id="@+id/back_button"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:background="@drawable/bg_circle_button"
+                android:contentDescription="@string/back"
+                android:src="@drawable/ic_back"
+                app:tint="@android:color/white" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/back"
+                android:textColor="@color/text"
                 android:textSize="12sp" />
         </LinearLayout>
     </LinearLayout>

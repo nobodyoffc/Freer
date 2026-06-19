@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <include layout="@layout/common_toolbar" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_margin="8dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="8dp">
+
+            <!-- Token ID -->
+            <include
+                android:id="@+id/tokenIdView"
+                layout="@layout/layout_text_input_with_scan" />
+
+            <!-- Token Name -->
+            <include
+                android:id="@+id/tokenNameView"
+                layout="@layout/layout_text_input_with_scan" />
+
+            <!-- Description -->
+            <include
+                android:id="@+id/descView"
+                layout="@layout/layout_text_input_with_scan" />
+
+            <!-- Consensus ID -->
+            <include
+                android:id="@+id/consensusIdView"
+                layout="@layout/layout_text_input_with_scan" />
+
+            <!-- Capacity -->
+            <include
+                android:id="@+id/capacityView"
+                layout="@layout/layout_text_input_with_scan" />
+
+            <!-- Decimal -->
+            <include
+                android:id="@+id/decimalView"
+                layout="@layout/layout_text_input_with_scan" />
+
+            <!-- Checkboxes Row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <CheckBox
+                    android:id="@+id/transferable_checkbox"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/transferable"
+                    android:checked="true" />
+
+                <CheckBox
+                    android:id="@+id/closable_checkbox"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:text="@string/closable"
+                    android:checked="true" />
+
+                <CheckBox
+                    android:id="@+id/open_issue_checkbox"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:text="@string/open_issue" />
+
+            </LinearLayout>
+
+            <!-- Max Amount Per Issue -->
+            <include
+                android:id="@+id/maxAmtPerIssueView"
+                layout="@layout/layout_text_input_with_scan" />
+
+            <!-- Min CDD Per Issue -->
+            <include
+                android:id="@+id/minCddPerIssueView"
+                layout="@layout/layout_text_input_with_scan" />
+
+            <!-- Max Issues Per Address -->
+            <include
+                android:id="@+id/maxIssuesPerAddrView"
+                layout="@layout/layout_text_input_with_scan" />
+
+        </LinearLayout>
+
+    </ScrollView>
+
+    <!-- Action Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:gravity="end">
+
+        <ImageButton
+            android:id="@+id/clearButton"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_clear"
+            android:contentDescription="@string/clear" />
+
+        <ImageButton
+            android:id="@+id/saveButton"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_save"
+            android:contentDescription="@string/save" />
+
+        <ImageButton
+            android:id="@+id/publishButton"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_carve"
+            android:contentDescription="@string/carve" />
+
+        <ImageButton
+            android:id="@+id/back_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_back"
+            android:contentDescription="@string/back" />
+
+    </LinearLayout>
+
+</LinearLayout>

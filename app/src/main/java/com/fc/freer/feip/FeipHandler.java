@@ -11,13 +11,12 @@ import com.fc.fc_ajdk.data.feipData.MasterOpData;
 import com.fc.fc_ajdk.utils.Hex;
 import com.fc.fc_ajdk.utils.JsonUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
-import com.fc.freer.utils.SecurePrikeyManager;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 
 
 /**
- * Handler for FEIP (Freecash Improvement Protocol) operations
+ * Handler for FEIP (Freecash Improvement FeipProtocol) operations
  * Creates FEIP JSON data for various operations
  */
 public class FeipHandler {
@@ -42,19 +41,19 @@ public class FeipHandler {
 
 
     public String masterSet(String master, String priKeyCipher) {
-        Feip feip = Feip.fromProtocolName(Feip.ProtocolName.MASTER);
+        Feip feip = Feip.fromProtocolName(Feip.FeipProtocol.MASTER);
         MasterOpData masterOpData = MasterOpData.makeMaster(master, priKeyCipher,null);
         feip.setData(masterOpData);
         return JsonUtils.toJson(feip);
     }
 
     public String cidRegister(String name) {
-        Feip feip = Feip.fromProtocolName(Feip.ProtocolName.CID);
+        Feip feip = Feip.fromProtocolName(Feip.FeipProtocol.CID);
         feip.setData(CidOpData.makeRegister(name));
         return feip.toNiceJson();
     }
     public String unregisterCid() {
-        Feip feip = Feip.fromProtocolName(Feip.ProtocolName.CID);
+        Feip feip = Feip.fromProtocolName(Feip.FeipProtocol.CID);
         feip.setData(CidOpData.makeUnregister());
         return feip.toNiceJson();
     }
@@ -77,7 +76,7 @@ public class FeipHandler {
             // Encrypt main FID's private key with master's public key
             CryptoDataByte cipher;
             try {
-                Encryptor encryptor = new Encryptor(AlgorithmId.FC_EccK1AesCbc256_No1_NrC7);
+                Encryptor encryptor = new Encryptor(AlgorithmId.FC_EccK1AesGcm256_No1_NrC7);
                 cipher = encryptor.encryptByAsyOneWay(myPrikey, Hex.fromHex(masterPubkey));
             } catch (Exception e) {
                 TimberLogger.e(TAG, "Error encrypting private key: %s", e.getMessage());

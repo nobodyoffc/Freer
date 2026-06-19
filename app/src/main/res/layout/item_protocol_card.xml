@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="4dp"
+    android:background="@color/cash_card_dark_background"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="4dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/cash_card_dark_background"
+        android:orientation="horizontal"
+        android:padding="4dp">
+
+        <CheckBox
+            android:id="@+id/protocol_checkbox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:layout_marginStart="0dp"
+            android:layout_marginEnd="0dp"
+            android:visibility="gone" />
+
+        <RadioButton
+            android:id="@+id/protocol_radio"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:visibility="gone" />
+
+        <ImageView
+            android:id="@+id/protocol_owner_avatar"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center_vertical"
+            android:layout_marginEnd="8dp"
+            android:contentDescription="@string/owner_avatar"
+            android:scaleType="centerCrop" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <!-- Name -->
+            <TextView
+                android:id="@+id/protocol_name_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:ellipsize="end"
+                android:focusable="true"
+                android:maxLines="1"
+                android:textColor="@color/field_name"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <!-- Owner -->
+            <TextView
+                android:id="@+id/protocol_owner_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:ellipsize="middle"
+                android:focusable="true"
+                android:maxLines="1"
+                android:textColor="@color/accent"
+                android:textSize="14sp" />
+
+            <!-- Type -->
+            <TextView
+                android:id="@+id/protocol_type_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/hint"
+                android:textSize="12sp" />
+
+            <!-- tCdd and tRate Row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="end"
+                android:orientation="horizontal">
+
+                <!-- tCdd with ic_power -->
+                <ImageView
+                    android:id="@+id/protocol_tcdd_icon"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:contentDescription="@string/total_cdd"
+                    android:src="@drawable/ic_power" />
+
+                <TextView
+                    android:id="@+id/protocol_tcdd_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="2dp"
+                    android:layout_marginEnd="16dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <!-- tRate with ic_star -->
+                <ImageView
+                    android:id="@+id/protocol_trate_icon"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:contentDescription="@string/total_rate"
+                    android:src="@drawable/ic_star" />
+
+                <TextView
+                    android:id="@+id/protocol_trate_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="2dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Action buttons column -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="2dp">
+
+            <!-- On-chain status button -->
+            <ImageButton
+                android:id="@+id/protocol_chain_status_button"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_gravity="center"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/on_chain_status"
+                android:padding="0dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_on_chain"
+                android:visibility="gone" />
+
+            <!-- Edit button -->
+            <ImageButton
+                android:id="@+id/protocol_edit_button"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_gravity="center"
+                android:layout_marginTop="4dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/edit"
+                android:padding="0dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_edit" />
+
+            <!-- Rate button -->
+            <ImageButton
+                android:id="@+id/protocol_rate_button"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_gravity="center"
+                android:layout_marginTop="4dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/rate"
+                android:padding="0dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_good" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>

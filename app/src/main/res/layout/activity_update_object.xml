@@ -39,22 +39,27 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:layout_marginTop="8dp"
-            android:layout_marginBottom="8dp">
+            android:layout_marginBottom="8dp"
+            android:gravity="end">
 
-            <Button
+            <ImageButton
                 android:id="@+id/resetButton"
-                style="@style/ButtonStyle"
-                android:text="@string/reset" />
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_refresh"
+                android:contentDescription="@string/reset" />
 
-            <Button
-                android:id="@+id/cancelButton"
-                style="@style/ButtonStyle"
-                android:text="@string/cancel" />
 
-            <Button
+            <ImageButton
                 android:id="@+id/updateButton"
-                style="@style/ButtonStyle"
-                android:text="@string/update" />
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_tick"
+                android:contentDescription="@string/update" />
+
+            <ImageButton
+                android:id="@+id/back_button"
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_back"
+                android:contentDescription="@string/back" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout> 

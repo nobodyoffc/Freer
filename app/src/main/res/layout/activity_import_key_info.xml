@@ -29,18 +29,26 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center"
-        android:padding="16dp">
+        android:padding="16dp"
+        android:gravity="end">
 
-        <Button
-            android:id="@+id/keyInfoClearButton"
-            style="@style/ButtonStyle"
-            android:text="@string/clear" />
+        <ImageButton
+            android:id="@+id/keyInfoClearButton"    
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_clear"
+            android:contentDescription="@string/clear" />
 
-        <Button
+        <ImageButton
             android:id="@+id/keyInfoImportButton"
-            style="@style/ButtonStyle"
-            android:text="@string/import_tx" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_import"
+            android:contentDescription="@string/import_a" />
+
+        <ImageButton
+            android:id="@+id/back_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_back"
+            android:contentDescription="@string/back" />
 
     </LinearLayout>
 

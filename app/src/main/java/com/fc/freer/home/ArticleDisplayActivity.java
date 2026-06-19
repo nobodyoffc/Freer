@@ -8,11 +8,13 @@ import android.text.Spanned;
 import android.text.style.StyleSpan;
 import android.text.style.UnderlineSpan;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 
 import java.io.BufferedReader;
@@ -28,13 +30,13 @@ public class ArticleDisplayActivity extends BaseCryptoActivity {
 
     private TextView titleTextView;
     private TextView contentTextView;
-    private Button copyButton;
-    private Button doneButton;
+    private ImageButton copyButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        initializeViews();
+        // Session lost (process death while backgrounded): base is redirecting to re-auth.
+        if (isSessionRedirected()) return;
         setupButtons();
         loadContent();
     }
@@ -46,7 +48,7 @@ public class ArticleDisplayActivity extends BaseCryptoActivity {
 
     @Override
     protected String getActivityTitle() {
-        return getString(R.string.security_guidelines);
+        return getString(R.string.instruction);
     }
 
     @Override
@@ -54,7 +56,6 @@ public class ArticleDisplayActivity extends BaseCryptoActivity {
         titleTextView = findViewById(R.id.titleTextView);
         contentTextView = findViewById(R.id.contentTextView);
         copyButton = findViewById(R.id.copyButton);
-        doneButton = findViewById(R.id.doneButton);
     }
 
     @Override
@@ -66,7 +67,6 @@ public class ArticleDisplayActivity extends BaseCryptoActivity {
             copyToClipboard(fullText, "Article Content");
         });
 
-        doneButton.setOnClickListener(v -> finish());
     }
 
     @Override

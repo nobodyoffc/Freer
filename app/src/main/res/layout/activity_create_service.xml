@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <include layout="@layout/common_toolbar" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <include android:id="@+id/stdNameView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" />
+            <include android:id="@+id/localNamesView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/typeView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/descView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/verView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/componentsView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/urlsView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/waitersView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/protocolsView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/codesView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/servicesView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/pricePerKBView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/pricePerKBInView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/pricePerKBOutView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/pricePerDayKBView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/minPaymentView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/pricePerRequestView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/sessionDaysView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/consumeViaShareView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/orderViaShareView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/currencyView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/maxDataSizeView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+            <include android:id="@+id/dataExpireView" layout="@layout/layout_text_input_with_scan" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" />
+        </LinearLayout>
+    </ScrollView>
+
+    <LinearLayout android:id="@+id/buttonContainer" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:padding="8dp" android:gravity="end">
+        <ImageButton android:id="@+id/clearButton" style="@style/ImageButtonStyle" android:src="@drawable/ic_clear" android:contentDescription="@string/clear" />
+        <ImageButton android:id="@+id/saveButton" style="@style/ImageButtonStyle" android:src="@drawable/ic_save" android:contentDescription="@string/save" />
+        <ImageButton android:id="@+id/publishButton" style="@style/ImageButtonStyle" android:src="@drawable/ic_send" android:contentDescription="@string/publish" />
+        <ImageButton android:id="@+id/back_button" style="@style/ImageButtonStyle" android:src="@drawable/ic_back" android:contentDescription="@string/back" />
+    </LinearLayout>
+</LinearLayout>
+

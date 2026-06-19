@@ -1,16 +1,16 @@
 package com.fc.fc_ajdk.data.apipData;
 
-import com.fc.fc_ajdk.ui.Inputer;
-import com.fc.fc_ajdk.ui.Menu;
-import com.fc.fc_ajdk.utils.JsonUtils;
 import com.fc.fc_ajdk.utils.StringUtils;
 import com.fc.fc_ajdk.utils.http.HttpUtils;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 import java.io.BufferedReader;
 import java.util.*;
 
+import static com.fc.fc_ajdk.constants.FieldNames.ENTITY;
 import static com.fc.fc_ajdk.constants.FieldNames.INDEX;
 import static com.fc.fc_ajdk.constants.Values.ASC;
 import static com.fc.fc_ajdk.constants.Values.DESC;
@@ -18,7 +18,10 @@ import static com.fc.fc_ajdk.constants.Values.DESC;
 import timber.log.Timber;
 
 public class Fcdsl {
-    private String index;
+    private static final Logger log = LoggerFactory.getLogger(Fcdsl.class);
+    private String ver;
+    private String entity;
+    private String endpoint;  // For special API endpoints (e.g., "totals") that are not entity/index queries
     private List<String> ids;
     private FcQuery query;
     private Filter filter;
@@ -26,6 +29,8 @@ public class Fcdsl {
     private String size;
     private List<Sort> sort;
     private List<String> after;
+    private List<String> fields;
+    private List<String> noFields;
     private Map<String,String> other;
 
     public static final String MATCH_ALL = "matchAll";
@@ -36,8 +41,10 @@ public class Fcdsl {
     public static final String SIZE = "size";
     public static final String SORT = "sort";
     public static final String AFTER = "after";
+    public static final String FIELDS = "fields";
+    public static final String NO_FIELDS = "noFields";
     public static final String OTHER = "other";
-    public static final String[] FCDSL_FIELDS = new String[]{MATCH_ALL, IDS, QUERY, FILTER, EXCEPT, SIZE, SORT, AFTER, OTHER};
+    public static final String[] FCDSL_FIELDS = new String[]{MATCH_ALL, IDS, QUERY, FILTER, EXCEPT, SIZE, SORT, AFTER, FIELDS, NO_FIELDS, OTHER};
     /*
    Fcdsl to GET url parameters:
 
@@ -52,6 +59,8 @@ public class Fcdsl {
    sort = field1,order1,field2,order2
    size = <int in String>
    after = <List<String>>
+   fields = field1,field2,...
+   noFields = field1,field2,...
    other = String
 
    Filter and Except is forbidden.
@@ -60,7 +69,9 @@ public class Fcdsl {
         if("".equals(urlParams))return null;
         Fcdsl fcdsl = new Fcdsl();
         int i = urlParams.indexOf("?");
-        if(i!=-1) urlParams = urlParams.substring(i +1);
+        if(i!=-1) {
+            urlParams = urlParams.substring(i +1);
+        }else if(urlParams.startsWith("http"))return null;
 
         urlParams = urlParams.replaceAll(" ", "");
         String[] params = urlParams.split("&");
@@ -68,13 +79,19 @@ public class Fcdsl {
         for(String param : params){
             int splitIndex = param.indexOf("=");
             String method = param.substring(0, splitIndex);
-            String valueStr = param.substring(splitIndex+1);
-            if("".equals(method)||"".equals(valueStr)) {
+            String valueStr;
+            try {
+                valueStr = java.net.URLDecoder.decode(param.substring(splitIndex+1), "UTF-8");
+            } catch (java.io.UnsupportedEncodingException e) {
+                System.out.println("Unsupported encoding: " + e.getMessage());
+                return null;
+            }
+            if(method.isEmpty() ||"".equals(valueStr)) {
                 System.out.println("Bad url.");
                 return null;
             }
             switch (method){
-                case INDEX -> fcdsl.addIndex(valueStr);
+                case ENTITY -> fcdsl.addEntity(valueStr);
                 case IDS-> fcdsl.addIds(valueStr.split(","));
                 case FcQuery.TERMS-> {
                     if(fcdsl.getQuery()==null)fcdsl.addNewQuery();
@@ -102,7 +119,7 @@ public class Fcdsl {
 
                     fcdsl.getExcept().setTerms(terms);
                 }
-                
+
                 case FcQuery.MATCH-> {
                     if(fcdsl.getQuery()==null)fcdsl.addNewQuery();
                     String[] values = valueStr.split(",");
@@ -155,6 +172,14 @@ public class Fcdsl {
                     System.arraycopy(values, 1, newValues, 0, values.length - 1);
                     fcdsl.getQuery().getEquals().addNewValues(newValues);
                 }
+                case FcQuery.UNEQUALS-> {
+                    if(fcdsl.getQuery()==null)fcdsl.addNewQuery();
+                    String[] values = valueStr.split(",");
+                    fcdsl.getQuery().addNewUnequals().addNewFields(values[0]);
+                    String[] newValues = new String[values.length-1];
+                    System.arraycopy(values, 1, newValues, 0, values.length - 1);
+                    fcdsl.getQuery().getUnequals().addNewValues(newValues);
+                }
                 case SORT-> {
                     String[] values = valueStr.split(",");
                     Iterator<String> iter = Arrays.stream(values).iterator();
@@ -163,13 +188,15 @@ public class Fcdsl {
                         String order = iter.next();
                         if(!order.equals(DESC) && !order.equals(ASC)){
                             System.out.println("Wrong order. It should be 'desc' or 'asc'.");
-                            return null;
+                            throw new RuntimeException("Wrong order. It should be 'desc' or 'asc'.");
                         }
                         fcdsl.addSort(field,order);
                     }
                 }
                 case SIZE-> fcdsl.addSize(Integer.parseInt(valueStr));
                 case AFTER-> fcdsl.addAfter(List.of(valueStr.split(",")));
+                case FIELDS-> fcdsl.setFields(List.of(valueStr.split(",")));
+                case NO_FIELDS-> fcdsl.setNoFields(List.of(valueStr.split(",")));
 //                case OTHER-> fcdsl.addOther(valueStr);
                 default -> otherMap.put(method,valueStr);
             }
@@ -212,8 +239,8 @@ public class Fcdsl {
         boolean started = false;
         StringBuilder stringBuilder = new StringBuilder();
 
-        if(fcdsl.getIndex()!=null) {
-            stringBuilder.append(INDEX + "=").append(fcdsl.getIndex());
+        if(fcdsl.getEntity()!=null) {
+            stringBuilder.append(ENTITY + "=").append(fcdsl.getEntity());
             started = true;
         }
 
@@ -299,14 +326,26 @@ public class Fcdsl {
             started=true;
         }
 
-        if(fcdsl.getSize()!=null){
+        if(fcdsl.getSize()!=null && !fcdsl.getSize().isEmpty()){
             if(started)stringBuilder.append("&");
             stringBuilder.append(SIZE + "=").append(fcdsl.getSize());
             started=true;
         }
-        if(fcdsl.getAfter()!=null){
+        if(fcdsl.getAfter()!=null && !fcdsl.getAfter().isEmpty()){
             if(started)stringBuilder.append("&");
             stringBuilder.append(AFTER + "=").append(StringUtils.listToString(fcdsl.getAfter()));
+            started=true;
+        }
+
+        if(fcdsl.getFields()!=null && !fcdsl.getFields().isEmpty()){
+            if(started)stringBuilder.append("&");
+            stringBuilder.append(FIELDS + "=").append(StringUtils.listToString(fcdsl.getFields()));
+            started=true;
+        }
+
+        if(fcdsl.getNoFields()!=null && !fcdsl.getNoFields().isEmpty()){
+            if(started)stringBuilder.append("&");
+            stringBuilder.append(NO_FIELDS + "=").append(StringUtils.listToString(fcdsl.getNoFields()));
             started=true;
         }
 
@@ -374,11 +413,6 @@ public class Fcdsl {
         return started;
     }
 
-    public static boolean askIfAdd(String fieldName, BufferedReader br) {
-            System.out.println("Add " + fieldName + " ? y /others:");
-            String input = Inputer.inputString(br);
-        return "y".equals(input);
-    }
 
     public static Fcdsl addFilterTermsToFcdsl(RequestBody requestBody, String field, String value) {
         Fcdsl fcdsl;
@@ -432,7 +466,7 @@ public class Fcdsl {
 
         if(fcdsl.getFilter()!=null){
             if(fcdsl.getFilter().getTerms()!=null){
-                Timber.i("The fcdsl.filter.terms should be reserved. Clear it.");
+                log.info("The fcdsl.filter.terms should be reserved. Clear it.");
                 return null;
             }
             else fcdsl.getFilter().addNewTerms().addNewFields(filterFiled).addNewValues(filterValue);
@@ -446,7 +480,7 @@ public class Fcdsl {
 
         if(fcdsl.getExcept()!=null){
             if(fcdsl.getExcept().getTerms()!=null){
-                Timber.i("The fcdsl.except.terms should be reserved. Clear it.");
+                log.info("The fcdsl.except.terms should be reserved. Clear it.");
                 return null;
             }
             else fcdsl.getExcept().addNewTerms().addNewFields(exceptFiled).addNewValues(exceptValue);
@@ -454,22 +488,6 @@ public class Fcdsl {
         return fcdsl;
     }
 
-    public static void setSingleOtherMap(Fcdsl fcdsl, String key, String value) {
-        Map<String,String> otherMap = new HashMap<>();
-        otherMap.put(key, value);
-        fcdsl.setOther(otherMap);
-    }
-
-    public void promoteSearch(int defaultSize, String defaultSort, BufferedReader br) {
-        if (askIfAdd(QUERY, br)) inputQuery(br);
-        if (askIfAdd(FILTER, br)) inputFilter(br);
-        if (askIfAdd(EXCEPT, br)) inputExcept(br);
-        System.out.println("The default size is " + defaultSize + ".");
-        if (askIfAdd(SIZE, br)) inputSize(br);
-        System.out.println("The default sort is " + defaultSort + ".");
-        if (askIfAdd(SORT, br)) inputSort(br);
-        if (askIfAdd(AFTER, br)) inputAfter(br);
-    }
 
     public boolean isBadFcdsl() {
         //1. ids 不可有query，filter，except，matchAll
@@ -500,19 +518,11 @@ public class Fcdsl {
             }
         }
 
-        //2. 没有query就不能有filter，except
-        if (filter != null || except != null) {
-            if (query == null) {
-                System.out.println("Filter and except have to be used with a query.");
-                return true;
-            }
-        }
-
         return false;
     }
 
-    public void addIndex(String index) {
-        this.index = index;
+    public void addEntity(String entity) {
+        this.entity = entity;
     }
 
     public void addIds(String... ids) {
@@ -569,6 +579,33 @@ public class Fcdsl {
         if(this.after==null)
             this.after = new ArrayList<>();
         this.after.add(value);
+        return this;
+    }
+
+
+    public Fcdsl addFields(List<String> values) {
+        this.fields = new ArrayList<>();
+        this.fields.addAll(values);
+        return this;
+    }
+
+    public Fcdsl addFields(String value) {
+        if(this.fields==null)
+            this.fields = new ArrayList<>();
+        this.fields.add(value);
+        return this;
+    }
+
+    public Fcdsl addNoFields(List<String> values) {
+        this.noFields = new ArrayList<>();
+        this.noFields.addAll(values);
+        return this;
+    }
+
+    public Fcdsl addNoFields(String value) {
+        if(this.noFields==null)
+            this.noFields = new ArrayList<>();
+        this.noFields.add(value);
         return this;
     }
 
@@ -670,14 +707,6 @@ public class Fcdsl {
         this.after = after;
     }
 
-    public String getIndex() {
-        return index;
-    }
-
-    public void setIndex(String index) {
-        this.index = index;
-    }
-
     public Except getExcept() {
         return except;
     }
@@ -685,90 +714,44 @@ public class Fcdsl {
         this.except = except;
     }
 
-
-    public void promoteInput(BufferedReader br) {
-        while (true) {
-            Menu menu = new Menu();
-            menu.setTitle("Input FCDSL");
-            menu.add(FCDSL_FIELDS);
-            menu.show();
-            int choice = menu.choose(br);
-
-            switch (choice) {
-                case 1 -> inputMatchAll(br);
-                case 2 -> inputIds(br);
-                case 3 -> inputQuery(br);
-                case 4 -> inputFilter(br);
-                case 5 -> inputExcept(br);
-                case 6 -> inputSize(br);
-                case 7 -> inputSort(br);
-                case 8 -> inputAfter(br);
-                case 9 -> inputOther(br);
-                case 0 -> {
-                    return;
-                }
-            }
-        }
+    public List<String> getFields() {
+        return fields;
     }
 
-    private void inputOther(BufferedReader br) {
-        System.out.println("Input a string or a json. Enter to exit:");
-        other = Inputer.inputStringStringMap(br, "Input the key:", "Input the value:");
+    public void setFields(List<String> fields) {
+        this.fields = fields;
     }
 
-    public void inputMatchAll(BufferedReader br) {
-        while (true) {
-            Menu menu = new Menu();
-            menu.setTitle("Input Match All");
-            menu.add(SIZE, SORT, AFTER);
-            menu.show();
-            int choice = menu.choose(br);
-            switch (choice) {
-                case 1 -> inputSize(br);
-                case 2 -> inputSort(br);
-                case 3 -> inputAfter(br);
-                case 0 -> {
-                    return;
-                }
-            }
-        }
+    public List<String> getNoFields() {
+        return noFields;
     }
 
-    public void inputAfter(BufferedReader br) {
-        String[] inputs = Inputer.inputStringArray(br, "Input strings of after. Enter to end:", 0);
-        if (inputs.length > 0) after = List.of(inputs);
-    }
-
-    public void inputSort(BufferedReader br) {
-        ArrayList<Sort> sortList = Sort.inputSortList(br);
-        if (sortList != null && sortList.size() > 0) sort = sortList;
-
-    }
-
-    public void inputSize(BufferedReader br) {
-        String numStr = Inputer.inputIntegerStr(br, "Input size. Enter to skip:");
-        if ("".equals(numStr)) return;
-        size = numStr;
+    public void setNoFields(List<String> noFields) {
+        this.noFields = noFields;
     }
 
 
-    public void inputIds(BufferedReader br) {
-        List<String> inputs = Inputer.inputStringList(br, "Input the ID. Enter to end:", 0);
-        if (inputs.size() > 0) ids = inputs;
+    public String getVer() {
+        return ver;
     }
 
-    public void inputQuery(BufferedReader br) {
-        query = new FcQuery();
-        query.promoteInput(QUERY, br);
+    public void setVer(String ver) {
+        this.ver = ver;
     }
 
-    public void inputFilter(BufferedReader br) {
-        filter = new Filter();
-        filter.promoteInput(FILTER, br);
+    public String getEntity() {
+        return entity;
     }
 
-    public void inputExcept(BufferedReader br) {
-        except = new Except();
-        except.promoteInput(EXCEPT, br);
+    public void setEntity(String entity) {
+        this.entity = entity;
+    }
+
+    public String getEndpoint() {
+        return endpoint;
+    }
+
+    public void setEndpoint(String endpoint) {
+        this.endpoint = endpoint;
     }
 }

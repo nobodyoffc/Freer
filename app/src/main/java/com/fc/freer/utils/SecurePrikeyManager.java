@@ -9,6 +9,7 @@ import com.fc.fc_ajdk.core.crypto.CryptoDataByte;
 import com.fc.fc_ajdk.core.crypto.Decryptor;
 import com.fc.fc_ajdk.utils.BytesUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.R;
 import com.fc.freer.initiate.ConfigureManager;
 import com.fc.freer.ui.UserConfirmDialog;
 import com.fc.freer.ui.WaitingDialog;
@@ -80,11 +81,11 @@ public class SecurePrikeyManager {
             return;
         }
 
-        UserConfirmDialog dialog = new UserConfirmDialog(activity,"Request Prikey", purpose, choice -> {
+        UserConfirmDialog dialog = new UserConfirmDialog(activity,activity.getString(R.string.request_prikey), purpose, choice -> {
             switch (choice) {
                 case YES:
                     // Show waiting dialog immediately after user confirms
-                    WaitingDialog waitingDialog = new WaitingDialog(activity, "Decrypting private key and processing request...");
+                    WaitingDialog waitingDialog = new WaitingDialog(activity, activity.getString(R.string.preparing_prikey));
                     waitingDialog.show();
                     
                     // User confirmed, proceed to decrypt private key
@@ -209,6 +210,8 @@ public class SecurePrikeyManager {
      * @return Decrypted private key or null if failed/denied
      */
     public static byte[] requestPrikeySync(Context context, String purpose, String prikeyCipher) {
+        if(prikeyCipher==null)return null;
+
         if (Looper.myLooper() == Looper.getMainLooper()) {
             TimberLogger.e(TAG, "requestPrikeySync cannot be called on main thread");
             return null;
@@ -360,6 +363,54 @@ public class SecurePrikeyManager {
 
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error decrypting private key silently: %s", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Fetch private key silently without user confirmation dialog and without automatic erasure
+     * This method should only be used when user has already given permission
+     * and when the caller takes responsibility for manually erasing the private key
+     *
+     * @param prikeyCipher Encrypted private key cipher to decrypt
+     * @return Decrypted private key or null if failed
+     */
+    public static byte[] fetchPrikeySilentAndPersistent(String prikeyCipher) {
+        try {
+            if (prikeyCipher == null || prikeyCipher.trim().isEmpty()) {
+                TimberLogger.e(TAG, "Private key cipher is null or empty");
+                return null;
+            }
+
+            byte[] symkey = ConfigureManager.getInstance().getSymkey();
+            if (symkey == null) {
+                TimberLogger.e(TAG, "Symmetric key is null");
+                return null;
+            }
+
+            // Decrypt the private key
+            Decryptor decryptor = new Decryptor();
+            CryptoDataByte cryptoDataByte = decryptor.decryptJsonBySymkey(prikeyCipher, symkey);
+
+            if (cryptoDataByte.getCode() != 0) {
+                TimberLogger.e(TAG, "Failed to decrypt private key: %s", cryptoDataByte.getMessage());
+                return null;
+            }
+
+            byte[] prikey = cryptoDataByte.getData();
+            if (prikey == null || prikey.length == 0) {
+                TimberLogger.e(TAG, "Decrypted private key is null or empty");
+                return null;
+            }
+
+            TimberLogger.d(TAG, "Private key successfully decrypted without auto-erasure");
+
+            // NOTE: No automatic erasure scheduled - caller is responsible for manual cleanup
+
+            return prikey;
+
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error decrypting persistent private key: %s", e.getMessage(), e);
             return null;
         }
     }

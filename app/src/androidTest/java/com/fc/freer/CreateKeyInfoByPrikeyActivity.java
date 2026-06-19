@@ -13,7 +13,7 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
+import com.fc.freer.utils.ToastUtils;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -130,7 +130,7 @@ public class CreateKeyInfoByPrikeyActivity<T extends FcEntity> extends AppCompat
             }
         } catch (Exception e) {
             e.printStackTrace();
-            Toast.makeText(this, getString(R.string.error_setting_up_input_fields, e.getMessage()), Toast.LENGTH_LONG).show();
+            ToastUtils.makeText(this, getString(R.string.error_setting_up_input_fields, e.getMessage()));
         }
     }
 
@@ -175,28 +175,28 @@ public class CreateKeyInfoByPrikeyActivity<T extends FcEntity> extends AppCompat
             String prikey = fieldInputMap.get(PRI_KEY).getText().toString();
             
             if (label.isEmpty() || prikey.isEmpty()) {
-                Toast.makeText(this, "Please input label and private key", FreerApplication.TOAST_LASTING).show();
+                ToastUtils.makeText(this, "Please input label and private key");
                 return;
             }
 
             // Get private key bytes
             byte[] prikeyBytes = KeyTools.getPrikey32(prikey);
             if (prikeyBytes == null) {
-                Toast.makeText(this, "Invalid private key format", FreerApplication.TOAST_LASTING).show();
+                ToastUtils.makeText(this, "Invalid private key format");
                 return;
             }
 
             // Get symmetric key
             byte[] symkey = ConfigureManager.getInstance().getSymkey();
             if (symkey == null) {
-                Toast.makeText(this, "Failed to get symmetric key", FreerApplication.TOAST_LASTING).show();
+                ToastUtils.makeText(this, "Failed to get symmetric key");
                 return;
             }
 
-            // Create new CidInfo instance
+            // Create new FreerInfo instance
             KeyInfo keyInfo = KeyInfo.newKeyInfo(label, prikeyBytes, symkey);
             if (keyInfo.getId() == null) {
-                Toast.makeText(this, "Failed to create CidInfo", FreerApplication.TOAST_LASTING).show();
+                ToastUtils.makeText(this, "Failed to create FreerInfo");
                 return;
             }
 
@@ -204,7 +204,7 @@ public class CreateKeyInfoByPrikeyActivity<T extends FcEntity> extends AppCompat
             
         } catch (Exception e) {
             e.printStackTrace();
-            Toast.makeText(this, "Error creating CidInfo: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            ToastUtils.makeText(this, "Error creating FreerInfo: " + e.getMessage());
         }
     }
 

@@ -4,8 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.fc.freer.model.Configure;
-import com.fc.freer.model.ApiProvider;
-import com.fc.freer.model.ApiAccount;
+import com.fc.fc_ajdk.fapi.client.ApiProvider;
+import com.fc.fc_ajdk.fapi.client.ApiAccount;
 import com.fc.fc_ajdk.utils.IdNameUtils;
 import com.fc.fc_ajdk.utils.JsonUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
@@ -107,7 +107,7 @@ public class ConfigureManager {
         if (configMap == null) {
             configMap = new HashMap<>();
         }
-        
+
         // Add or update the configure object
         configMap.put(configure.getPasswordName(), configure);
         
@@ -343,5 +343,16 @@ public class ConfigureManager {
             TimberLogger.e("ConfigureManager", "Failed to save apiAccount: %s", e.getMessage(), e);
             return false;
         }
+    }
+
+    public Map<String,Configure> loadConfigMap(Context context){
+        SharedPreferences prefs = context.getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
+        // Get existing config map or create new one
+        String configJson = prefs.getString(CONFIG_KEY, "{}");
+        Map<String, Configure> configMap = JsonUtils.jsonToMap(configJson, String.class, Configure.class);
+        if (configMap == null) {
+            configMap = new HashMap<>();
+        }
+        return configMap;
     }
 } 

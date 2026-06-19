@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/key_card_background">
+
+    <!-- Include common toolbar -->
+    <include layout="@layout/common_toolbar" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+
+        <!-- Input Container -->
+        <LinearLayout
+            android:id="@+id/inputContainer"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginBottom="8dp">
+
+            <!-- Mail Content Label -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/mail_content"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:textColor="@color/text"
+                android:layout_marginBottom="8dp" />
+
+            <include
+                android:id="@+id/contentView"
+                layout="@layout/layout_text_input_with_scan"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginBottom="8dp" />
+
+        </LinearLayout>
+
+        <!-- Recipient Selection Container -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="16dp">
+
+            <!-- Recipient Label -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/to"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:textColor="@color/text"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Recipient Card Container -->
+            <LinearLayout
+                android:id="@+id/recipientCardContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="8dp"
+                android:visibility="gone" />
+
+            <!-- Recipient Selection Field -->
+            <include
+                android:id="@+id/recipientSelectionView"
+                layout="@layout/layout_key_input_with_people_and_scan"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/two_line_height"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Custom Notice Fee Checkbox -->
+            <CheckBox
+                android:id="@+id/customNoticeFeeCheckbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/set_custom_notice_fee"
+                android:textColor="@color/text"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Custom Notice Fee Input (hidden by default) -->
+            <LinearLayout
+                android:id="@+id/customNoticeFeeContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:visibility="gone"
+                android:layout_marginBottom="8dp">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="@string/enter_notice_fee"
+                    >
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/customNoticeFeeInput"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="numberDecimal"
+                        android:maxLines="1" />
+
+                </com.google.android.material.textfield.TextInputLayout>
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+
+        <!-- Button Container -->
+        <LinearLayout
+            android:id="@+id/buttonContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end">
+
+            <ImageButton
+                android:id="@+id/clearButton"
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_clear"
+                android:contentDescription="@string/clear" />
+
+            <ImageButton
+                android:id="@+id/carveButton"
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_send"
+                android:contentDescription="@string/carve" />
+
+            <ImageButton
+                android:id="@+id/saveButton"
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_save"
+                android:contentDescription="@string/save" />
+            <ImageButton
+                android:id="@+id/back_button"
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_back"
+                android:contentDescription="@string/back" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

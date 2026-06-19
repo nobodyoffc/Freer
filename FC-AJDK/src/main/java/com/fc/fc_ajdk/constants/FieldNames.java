@@ -2,7 +2,13 @@ package com.fc.fc_ajdk.constants;
 
 public class FieldNames {
     public static final String OWNER = "owner";
+    public static final String ISSUED_CASHES_OWNER = "issuedCashes.owner";
+    public static final String SPENT_CASHES_OWNER = "spentCashes.owner";
 
+    public static final String DESC = "desc";
+    public static final String ACTIVE = "active";
+    public static final String FREER = "freer";
+    public static final String ENTITY = "entity";
     public static final String LABEL = "label";
     public static final String PUBKEY = "pubKey";
     public static final String IS_NOBODY = "isNobody";
@@ -59,6 +65,7 @@ public class FieldNames {
     public static final String AVATAR = "avatar";
     public static final String USED_CIDS = "usedCids";
     public static final String FID = "fid";
+    public static final String DEPLOYER = "deployer";
     public static final String LISTEN_PATH = "listenPath";
     public static final String LOCAL_DATA_PATH = "localDataPath";
     public static final String MSG_SIZE = "msgSize";
@@ -105,13 +112,15 @@ public class FieldNames {
     public static final String COUNT = "count";
     public static final String SN = "sn";
     public static final String ID = "id";
+    public static final String BORN = "born";
     public static final String SEARCH = "search";
     public static final String T_RATE = "tRate";
     public static final String T_CDD = "tCdd";
     public static final String PID = "pid";
+    public static final String PRE_PID = "prePid";
     public static final String CODE_ID = "codeId";
     public static final String AID = "aid";
-    public static final String GID = "gid";
+    public static final String SQUARE_ID = "squareId";
     public static final String TID = "tid";
     public static final String NID = "nid";
     public static final String ROOM_ID = "roomId";
@@ -148,23 +157,26 @@ public class FieldNames {
     public static final String URLS = "urls";
     public static final String VER = "ver";
     public static final String NAME = "name";
+    public static final String DOER = "doer";
+    public static final String TYPE= "type";
+    public static final String COMPONENTS = "components";
     public static final String LOCAL_NAMES = "localNames";
     public static final String NUMBER = "number";
     public static final String SING_IN_MODE = "signInMode";
     public static final String PUB_KEY = "pubKey";
     public static final String TEAM = "team";
     public static final String ROOM = "room";
-    public static final String GROUP = "group";
+    public static final String SQUARE = "square";
     public static final String BIRTH_INDEX = "birthIndex";
     public static final String BIRTH_TX_INDEX = "birthTxIndex";
     public static final String MEMBER_NUM = "memberNum";
     public static final String TCDD = "tCdd";
-    public static final String TYPE = "type";
     public static final String TRANSFEREE = "transferee";
     public static final String VIA_CONSUME = "viaConsume";
     public static final String CONSUME_VIA = "consumeVia";
     public static final String ORDER_VIA = "orderVia";
     public static final String MIN_PAYMENT = "minPayment";
+    public static final String MIN_CREDIT = "minCredit";
     public static final String SESSION_KEY = "sessionKey";
     public static final String PRICE_PER_K_BYTES = "pricePerKBytes";
     public static final String PRICE_PER_K_BYTES_CARVE = "pricePerKBytesCarve";
@@ -186,8 +198,6 @@ public class FieldNames {
     public static final String NONCE_ID = "nonceId";
     public static final String MEMPOOL_ID = "mempoolId";
     public static final String WEBHOOK_ID = "webhookId";
-    public static final String TALK_ID = "talkId";
-    public static final String TALK_UNIT_ID = "talkUnitId";
     public static final String TEAM_ID = "teamId";
 
     public static final String ALG = "alg";
@@ -205,9 +215,7 @@ public class FieldNames {
 
     public static final String CODE_IDS = "codeIds";
 
-    public static final String GIDS = "gids";
-
-    public static final String HOMEPAGES = "homepages";
+    public static final String SQUARE_IDS = "squareIds";
 
     public static final String MAIL_IDS = "mailIds";
 
@@ -267,6 +275,7 @@ public class FieldNames {
     public static final String DECIMAL = "decimal";
 
     public static final String CLOSABLE = "closable";
+    public static final String CLOSED = "closed";
 
     public static final String OPEN_ISSUE = "openIssue";
 
@@ -323,5 +332,71 @@ public class FieldNames {
     public static final String LATEST_EXPENSE = "latestExpense";
     public static final String EARLIEST_EXPENSE = "earliestExpense";
     public static final String INCOME_LIST = "incomeList";
+    public static final String EXPENSE_LIST = "expenseList";
+    public static final String TX_LIST = "txList";
+
+    public static final String IN_VALUE_T = "inValueT";
+
+    public static final String OUT_VALUE_T = "outValueT";
+    public static final String FEE = "fee";
+    public static final String BLOCK_TIME = "blockTime";
+    public static final String SPENT_CASHES = "spentCashes";
+    public static final String ON_CHAIN = "onChain";
+
+    public static final String COSIGNERS_INVITED = "cosignersInvited";
+    public static final String DESTROYED = "destroyed";
+    public static final String OBJECT_TYPE = "objectType";
+    public static final String OBJECT_NAME = "objectName";
+    public static final String OBJECT_BRIEF = "objectBrief";
+    public static final String BRIEF = "brief";
+    public static final String ACT = "act";
+    // Field name constants for the isNew field (not in FieldNames.java)
+    public static final String IS_NEW = "isNew";
+    public static final String DEALER_PUBKEY = "dealerPubkey";
+    public static final String PRICE_PER_K_B = "pricePerKB";
+    public static final String DOC = "doc";
+
+    // DOCK fields
+    public static final String DOCK_ID = "dockId";
+    public static final String RECIPIENTS = "recipients";
+    public static final String RETRIEVED = "retrieved";
+    public static final String DATA_HASH = "dataHash";
+    public static final String CREATE_HEIGHT = "createHeight";
+    public static final String EXPIRE_HEIGHT = "expireHeight";
+    public static final String CREATE_TIME = "createTime";
+    public static final String MAX_DAYS = "maxDays";
+    public static final String EXTRA_DAYS = "extraDays";
+    public static final String STORAGE_FEE = "storageFee";
+    public static final String INGRESS_FEE = "ingressFee";
+    public static final String EGRESS_FEE = "egressFee";
+    public static final String COMPLETED = "completed";
+    public static final String PENDING_RECIPIENTS = "pendingRecipients";
+    public static final String REMAINING_DAYS = "remainingDays";
+    public static final String REFUND = "refund";
+    public static final String DOCK_DIR = "dockDir";
+    public static final String PRICE_PER_K_B_DAY = "pricePerKBDay";
+    public static final String DEFAULT_MAX_DAYS = "defaultMaxDays";
+    public static final String TARGET_DOCK_URL = "targetDockUrl";
+    public static final String LOCAL_FEE = "localFee";
+    public static final String REMOTE_FEE = "remoteFee";
+    public static final String FORWARDED = "forwarded";
+    public static final String DATA_TYPE = "dataType";
+    public static final String DATA_BASE64 = "dataBase64";
+    public static final String RECIPIENT_IDS = "recipientIds";
+
+    // ROAD fields
+    public static final String TARGET_FID = "targetFid";
+    public static final String TARGET_ROAD = "targetRoad";
+    public static final String MAX_COST = "maxCost";
+    public static final String ORIGIN_SID = "originSid";
+    public static final String CHAIN_RELAYED = "chainRelayed";
+    public static final String RELAYED_VIA = "relayedVia";
+    public static final String CHARGED_IN = "chargedIn";
+    public static final String CHARGED_OUT = "chargedOut";
+    public static final String TOTAL_CHARGED = "totalCharged";
+    public static final String HOME = "home";
+
+    public static final String TARGET_FIDS = "targetFids";
+    public static final String RELAY_RESULTS = "replayResults";
 }
 

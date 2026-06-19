@@ -1,7 +1,5 @@
 package com.fc.fc_ajdk.utils;
 
-import com.fc.fc_ajdk.ui.Inputer;
-import com.fc.fc_ajdk.ui.Menu;
 import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
@@ -420,7 +418,15 @@ public class JsonUtils {
     public static <K, T> Map<K, T> jsonToMap(String json, Class<K> kClass, Class<T> tClass) {
         Type type = TypeToken.getParameterized(Map.class, kClass, tClass).getType();
         try{
-            return new HashMap<>(new Gson().fromJson(json, type));
+            // Use GsonBuilder with proper configuration to handle complex nested objects
+            GsonBuilder gsonBuilder = new GsonBuilder();
+            gsonBuilder.enableComplexMapKeySerialization(); // Enable complex map key serialization
+            gsonBuilder.setLenient(); // Enable lenient parsing for better compatibility
+            gsonBuilder.disableHtmlEscaping(); // Prevent issues with special characters
+            Gson gson = gsonBuilder.create();
+
+            Map<K, T> result = gson.fromJson(json, type);
+            return result != null ? new HashMap<>(result) : null;
         }catch (Exception e){
             e.printStackTrace();
             return null;
@@ -448,33 +454,6 @@ public class JsonUtils {
         return set;
     }
 
-    public static <T> void showListInNiceJson(List<T> items, BufferedReader br) {
-        if (items == null || items.isEmpty()) {
-            System.out.println("No items to display.");
-            return;
-        }
-
-        // Create pretty-printing Gson instance once
-        Gson prettyGson = new GsonBuilder()
-            .setPrettyPrinting()
-            .disableHtmlEscaping()
-            .create();
-
-        boolean oneByOne = br != null && items.size() > 1 && Inputer.askIfYes(br, "Show them one by one with enter?");
-
-        for (int i = 0; i < items.size(); i++) {
-            T item = items.get(i);
-            System.out.println("\n=== Item " + (i + 1) + " of " + items.size() + " ===");
-            try {
-                String jsonOutput = prettyGson.toJson(item);
-                System.out.println(jsonOutput);
-                if(oneByOne) Menu.anyKeyToContinue(br);
-            } catch (Exception e) {
-                System.out.println("Error converting item to JSON: " + e.getMessage());
-                System.out.println("Raw toString(): " + item.toString());
-            }
-        }
-    }
 
     public static <T> T fromJson(String string, Class<T> class1) {
         return new Gson().fromJson(string, class1);
@@ -608,26 +587,33 @@ public class JsonUtils {
     }
     
     /**
-     * Checks if a string is valid JSON.
-     * 
+     * Checks if a string is valid JSON (objects or arrays).
+     *
      * @param json The string to check
-     * @return true if the string is valid JSON, false otherwise
+     * @return true if the string is valid JSON (object or array), false otherwise
      */
     public static boolean isJson(String json) {
-        if (json == null || json.isEmpty()) {
+        if (json == null || json.trim().isEmpty()) {
             return false;
         }
-        
-        // Check if the string contains JSON object markers
-        if (!json.contains("{") || !json.contains("}")) {
+
+        String trimmed = json.trim();
+
+        // Quick pre-check: JSON must start and end with proper delimiters
+        boolean startsWithBrace = trimmed.startsWith("{");
+        boolean startsWithBracket = trimmed.startsWith("[");
+        boolean endsWithBrace = trimmed.endsWith("}");
+        boolean endsWithBracket = trimmed.endsWith("]");
+
+        if (!((startsWithBrace && endsWithBrace) || (startsWithBracket && endsWithBracket))) {
             return false;
         }
-        
+
         try {
-            JsonElement element = JsonParser.parseString(json);
-            // Only consider JSON objects as valid JSON
-            return element.isJsonObject();
-        } catch (JsonSyntaxException e) {
+            JsonElement element = JsonParser.parseString(trimmed);
+            // Accept both JSON objects and JSON arrays as valid JSON
+            return element.isJsonObject() || element.isJsonArray();
+        } catch (JsonSyntaxException | IllegalStateException e) {
             return false;
         }
     }

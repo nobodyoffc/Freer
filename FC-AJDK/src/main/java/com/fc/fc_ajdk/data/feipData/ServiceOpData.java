@@ -1,13 +1,8 @@
 package com.fc.fc_ajdk.data.feipData;
 
-import com.fc.fc_ajdk.ui.Inputer;
-import com.fc.fc_ajdk.clients.ApipClient;
 import com.fc.fc_ajdk.constants.FieldNames;
-import com.fc.fc_ajdk.constants.OpNames;
 import com.fc.fc_ajdk.constants.Values;
 
-import java.io.BufferedReader;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
@@ -17,18 +12,34 @@ public class ServiceOpData {
 	private List<String> sids;
 	private String op;
 	private String stdName;
-	private String[] localNames;
+	private Map<String, String> localNames;
 	private String desc;
 	private String ver;
-	private String[] types;
-	private String[] urls;
-	private String[] waiters;
-	private String[] protocols;
-	private String[] codes;
+	private String type;
+	private List<String> components;
+	private Map<String,String> home;
+	private List<String> waiters;
+	private List<String> protocols;
+	private List<String> codes;
 	private Object params;
 	private Integer rate;
 	private String closeStatement;
-	private String[] services;
+	private List<String> services;
+
+	// Pricing and service configuration fields (moved from Params)
+	protected String pricePerKB;
+	protected String pricePerKBIn;   // Price for incoming data (requests) - FCH per KB
+	protected String pricePerKBOut;  // Price for outgoing data (responses) - FCH per KB
+	protected String pricePerKBDay;  // Price for storage - FCH per KB per day
+	protected String minPayment;
+	protected String pricePerRequest;
+	protected String sessionDays;
+	protected String consumeViaShare;
+	protected String orderViaShare;
+	protected String currency;
+	protected String minCredit;
+	protected String maxDataSize;
+	protected String dataExpiresInDays;
 
 	public enum Op {
 		PUBLISH(FeipOp.PUBLISH),
@@ -65,192 +76,25 @@ public class ServiceOpData {
 	public static final Map<String, String[]> OP_FIELDS = new HashMap<>();
 
 	static {
-		OP_FIELDS.put(Op.PUBLISH.toLowerCase(), new String[]{FieldNames.STD_NAME, FieldNames.LOCAL_NAMES, Values.DESC, FieldNames.VER, FieldNames.URLS, FieldNames.WAITERS, FieldNames.PROTOCOLS, FieldNames.CODES, FieldNames.SERVICES, FieldNames.PARAMS});
-		OP_FIELDS.put(Op.UPDATE.toLowerCase(), new String[]{FieldNames.SID, FieldNames.STD_NAME, FieldNames.LOCAL_NAMES, Values.DESC, FieldNames.VER, FieldNames.URLS, FieldNames.WAITERS, FieldNames.PROTOCOLS, FieldNames.CODES, FieldNames.SERVICES, FieldNames.PARAMS});
+		OP_FIELDS.put(Op.PUBLISH.toLowerCase(), new String[]{
+			FieldNames.STD_NAME, FieldNames.LOCAL_NAMES, Values.DESC, 
+			FieldNames.TYPE, FieldNames.COMPONENTS,
+			FieldNames.VER, FieldNames.HOME, FieldNames.WAITERS, 
+			FieldNames.PROTOCOLS, FieldNames.CODES, FieldNames.SERVICES, FieldNames.PARAMS
+		});
+		OP_FIELDS.put(Op.UPDATE.toLowerCase(), new String[]{
+			FieldNames.SID, FieldNames.STD_NAME, FieldNames.LOCAL_NAMES, Values.DESC, 
+			FieldNames.TYPE, FieldNames.COMPONENTS,
+			FieldNames.VER, FieldNames.HOME, FieldNames.WAITERS, 
+			FieldNames.PROTOCOLS, FieldNames.CODES, FieldNames.SERVICES, FieldNames.PARAMS
+		});
 		OP_FIELDS.put(Op.STOP.toLowerCase(), new String[]{FieldNames.SIDS});
 		OP_FIELDS.put(Op.CLOSE.toLowerCase(), new String[]{FieldNames.SIDS, FieldNames.CLOSE_STATEMENT});
 		OP_FIELDS.put(Op.RECOVER.toLowerCase(), new String[]{FieldNames.SIDS});
 		OP_FIELDS.put(Op.RATE.toLowerCase(), new String[]{FieldNames.SID, FieldNames.RATE});
 	}
 
-	public void inputServiceHead(BufferedReader br,byte[] symKey,ApipClient apipClient)  {
 
-		inputStdName(br);
-
-		inputLocalNames(br);
-
-		inputDesc(br);
-		inputVer(br);
-		inputUrls(br);
-
-		inputWaiters(br,symKey,apipClient);
-
-		inputProtocols(br);
-		inputCodes(br);
-		inputServices(br);
-
-	}
-
-	public void inputServiceHead(BufferedReader br)  {
-
-		inputStdName(br);
-
-		inputLocalNames(br);
-
-		inputDesc(br);
-
-		inputUrls(br);
-		inputVer(br);
-		inputWaiters(br);
-
-		inputProtocols(br);
-		inputCodes(br);
-		inputServices(br);
-
-	}
-	private void inputVer(BufferedReader br){
-		String ask;
-		ask = "Input the version of your service, if you want. Enter to end :";
-		String ver = Inputer.inputString(br,ask);
-		if(!"".equals(ver)) setVer(ver);
-	}
-	private void inputWaiters(BufferedReader br, byte[] symKey, ApipClient apipClient) {
-		if(Inputer.askIfYes(br,"Input the FIDs of the waiters for your service?")) {
-			String[] waiters = com.fc.fc_ajdk.core.fch.Inputer.inputOrCreateFidArray(br,symKey,apipClient);
-			if(waiters.length!=0) setWaiters(waiters);
-		}
-	}
-
-	public void updateServiceHead(BufferedReader br,byte[] symKey, ApipClient apipClient) {
-		updateStdName(br);
-
-		updateLocalNames(br);
-
-		updateDesc(br);
-
-		updateVer(br);
-
-		updateUrls(br);
-
-		updateWaiters(br,symKey,apipClient);
-
-		updateProtocols(br);
-		updateServices(br);
-		updateCodes(br);
-	}
-
-	private void updateWaiters(BufferedReader br, byte[]symKey, ApipClient apipClient) {
-		System.out.println("Waiters are: "+ Arrays.toString(waiters));
-		inputWaiters(br,symKey,apipClient);
-	}
-
-	private void updateLocalNames(BufferedReader br) {
-		System.out.println("LocalNames are: "+ Arrays.toString(localNames));
-		inputLocalNames(br);
-	}
-
-	private void updateDesc(BufferedReader br) {
-		System.out.println("Desc is: "+desc);
-		inputDesc(br);
-	}
-	private void updateVer(BufferedReader br) {
-		System.out.println("The version is: "+ver);
-		inputVer(br);
-	}
-
-	public void inputServicePublish(BufferedReader br)  {
-
-		inputStdName(br);
-
-		inputLocalNames(br);
-
-		inputDesc(br);
-		inputVer(br);
-		inputUrls(br);
-
-		inputWaiters(br);
-
-		inputProtocols(br);
-		inputCodes(br);
-		inputServices(br);
-
-	}
-
-	public void inputOp(BufferedReader br)  {
-		System.out.println("Input the operation you want to do:");
-		while (true) {
-			String input = Inputer.inputString(br);
-			if(OpNames.contains(input)) {
-				setStdName(input);
-				break;
-			}else{
-				System.out.println("It should be one of "+OpNames.showAll());
-			}
-		}
-	}
-
-	public void inputTypes(BufferedReader br)  {
-		String ask = "Input the types of your service if you want. Enter to end :";
-		String[] types = Inputer.inputStringArray(br,ask,0);
-		if(types.length!=0) setTypes(types);
-	}
-
-	public void updateTypes(BufferedReader br)  {
-		System.out.println("Types are: "+ Arrays.toString(types));
-		inputTypes(br);
-	}
-
-	private void inputStdName(BufferedReader br) {
-		System.out.println("Input the English name of your service. Enter to ignore:");
-		String input = Inputer.inputString(br);
-		if(!"".equals(input))setStdName(input);
-	}
-
-	private void inputLocalNames(BufferedReader br)  {
-		String ask = "Input the local names of your service, if you want. Enter to ignore:";
-		String[] localNames = Inputer.inputStringArray(br,ask,0);
-		if(localNames.length!=0) setLocalNames(localNames);
-	}
-
-	private void inputDesc(BufferedReader br)  {
-		System.out.println("Input the description of your service if you want.Enter to ignore:");
-		String str = Inputer.inputString(br);
-		if(!str.equals("")) setDesc(str);
-	}
-
-	private void inputUrls(BufferedReader br){
-		String ask;
-		ask = "Input the URLs of your service, if you want. Enter to end:";
-		String[] urls = Inputer.inputStringArray(br,ask,0);
-		if(urls.length!=0) setUrls(urls);
-	}
-
-	private void inputWaiters(BufferedReader br) {
-		String ask;
-		ask = "Input the FCH address of the waiter for your service if you want. Enter to end:";
-		String[] waiters = Inputer.inputStringArray(br,ask,0);
-		if(waiters.length!=0) setWaiters(waiters);
-	}
-
-	private void inputProtocols(BufferedReader br) {
-		String ask;
-		ask = "Input the PIDs of the protocols your service using if you want. Enter to end :";
-		String[] protocols = Inputer.inputStringArray(br,ask,64);
-		if(protocols.length!=0) setProtocols(protocols);
-	}
-	private void inputCodes(BufferedReader br) {
-		String ask;
-		ask = "Input the codeIDs of the codes your service using if you want. Enter to end:";
-		String[] codes = Inputer.inputStringArray(br,ask,64);
-		if(codes.length!=0) setCodes(codes);
-	}
-
-	private void inputServices(BufferedReader br) {
-		String ask;
-		ask = "Input the SIDs of the services your service using if you want. Enter to end:";
-		String[] services = Inputer.inputStringArray(br,ask,64);
-		if(services.length!=0) setServices(services);
-	}
 	public String getSid() {
 		return sid;
 	}
@@ -275,12 +119,8 @@ public class ServiceOpData {
 		this.stdName = stdName;
 	}
 
-	public String[] getLocalNames() {
+	public Map<String, String> getLocalNames() {
 		return localNames;
-	}
-
-	public void setLocalNames(String[] localNames) {
-		this.localNames = localNames;
 	}
 
 	public String getDesc() {
@@ -291,36 +131,56 @@ public class ServiceOpData {
 		this.desc = desc;
 	}
 
-	public String[] getTypes() {
-		return types;
+	public String getType() {
+		return type;
 	}
 
-	public void setTypes(String[] types) {
-		this.types = types;
+	public void setType(String type) {
+		this.type = type;
 	}
 
-	public String[] getUrls() {
-		return urls;
+	public void setLocalNames(Map<String, String> localNames) {
+		this.localNames = localNames;
 	}
 
-	public void setUrls(String[] urls) {
-		this.urls = urls;
+	public List<String> getComponents() {
+		return components;
 	}
 
-	public String[] getWaiters() {
+	public void setComponents(List<String> components) {
+		this.components = components;
+	}
+
+	public Map<String, String> getHome() {
+		return home;
+	}
+
+	public void setHome(Map<String, String> home) {
+		this.home = home;
+	}
+
+	public List<String> getWaiters() {
 		return waiters;
 	}
 
-	public void setWaiters(String[] waiters) {
+	public void setWaiters(List<String> waiters) {
 		this.waiters = waiters;
 	}
 
-	public String[] getProtocols() {
+	public List<String> getProtocols() {
 		return protocols;
 	}
 
-	public void setProtocols(String[] protocols) {
+	public void setProtocols(List<String> protocols) {
 		this.protocols = protocols;
+	}
+
+	public List<String> getCodes() {
+		return codes;
+	}
+
+	public void setCodes(List<String> codes) {
+		this.codes = codes;
 	}
 
 	public Object getParams() {
@@ -339,14 +199,6 @@ public class ServiceOpData {
 		this.rate = rate;
 	}
 
-	public String[] getCodes() {
-		return codes;
-	}
-
-	public void setCodes(String[] codes) {
-		this.codes = codes;
-	}
-
 	public String getCloseStatement() {
 		return closeStatement;
 	}
@@ -355,57 +207,11 @@ public class ServiceOpData {
 		this.closeStatement = closeStatement;
 	}
 
-
-	public void updateServiceHead(BufferedReader br) {
-		updateStdName(br);
-
-		updateLocalNames(br);
-
-		updateDesc(br);
-
-		updateUrls(br);
-
-		updateWaiters(br);
-
-		updateProtocols(br);
-		updateCodes(br);
-		updateServices(br);
-	}
-
-	private void updateCodes(BufferedReader br) {
-		System.out.println("Codes are: "+ Arrays.toString(codes));
-		inputCodes(br);
-	}
-	private void updateServices(BufferedReader br) {
-		System.out.println("Services are: "+ Arrays.toString(services));
-		inputServices(br);
-	}
-
-	private void updateProtocols(BufferedReader br) {
-		System.out.println("Protocols are: "+ Arrays.toString(protocols));
-		inputProtocols(br);
-	}
-
-	private void updateWaiters(BufferedReader br) {
-		System.out.println("Waiters are: "+ Arrays.toString(waiters));
-		inputWaiters(br);
-	}
-
-	private void updateUrls(BufferedReader br) {
-		System.out.println("Urls are: "+ Arrays.toString(urls));
-		inputUrls(br);
-	}
-
-	private void updateStdName(BufferedReader br) {
-		System.out.println("StdName is: "+stdName);
-		inputStdName(br);
-	}
-
-	public String[] getServices() {
+	public List<String> getServices() {
 		return services;
 	}
 
-	public void setServices(String[] services) {
+	public void setServices(List<String> services) {
 		this.services = services;
 	}
 
@@ -425,16 +231,19 @@ public class ServiceOpData {
 		this.sids = sids;
 	}
 
-	public static ServiceOpData makePublish(String stdName, String[] localNames, String desc,
-                                            String ver, String[] urls, String[] waiters, String[] protocols,
-                                            String[] codes, String[] services, Object params) {
+	public static ServiceOpData makePublish(String stdName, Map<String, String> localNames, String desc,
+                                            String type, List<String> components,
+                                            String ver, Map<String,String> home, List<String> waiters, List<String> protocols,
+											List<String> codes, List<String> services, Object params) {
 		ServiceOpData data = new ServiceOpData();
 		data.setOp(Op.PUBLISH.toLowerCase());
 		data.setStdName(stdName);
 		data.setLocalNames(localNames);
 		data.setDesc(desc);
+		data.setType(type);
+		data.setComponents(components);
 		data.setVer(ver);
-		data.setUrls(urls);
+		data.setHome(home);
 		data.setWaiters(waiters);
 		data.setProtocols(protocols);
 		data.setCodes(codes);
@@ -443,17 +252,20 @@ public class ServiceOpData {
 		return data;
 	}
 
-	public static ServiceOpData makeUpdate(String sid, String stdName, String[] localNames,
-                                           String desc, String ver, String[] urls, String[] waiters, String[] protocols,
-                                           String[] codes, String[] services, Object params) {
+	public static ServiceOpData makeUpdate(String sid, String stdName, Map<String, String> localNames,
+                                           String desc, String type, List<String> components,
+                                           String ver, Map<String,String> home, List<String> waiters, List<String>protocols,
+										   List<String> codes, List<String>services, Object params) {
 		ServiceOpData data = new ServiceOpData();
 		data.setOp(Op.UPDATE.toLowerCase());
 		data.setSid(sid);
 		data.setStdName(stdName);
 		data.setLocalNames(localNames);
 		data.setDesc(desc);
+		data.setType(type);
+		data.setComponents(components);
 		data.setVer(ver);
-		data.setUrls(urls);
+		data.setHome(home);
 		data.setWaiters(waiters);
 		data.setProtocols(protocols);
 		data.setCodes(codes);
@@ -490,5 +302,109 @@ public class ServiceOpData {
 		data.setSid(sid);
 		data.setRate(rate);
 		return data;
+	}
+
+	public String getPricePerKB() {
+		return pricePerKB;
+	}
+
+	public void setPricePerKB(String pricePerKB) {
+		this.pricePerKB = pricePerKB;
+	}
+
+	public String getPricePerKBIn() {
+		return pricePerKBIn;
+	}
+
+	public void setPricePerKBIn(String pricePerKBIn) {
+		this.pricePerKBIn = pricePerKBIn;
+	}
+
+	public String getPricePerKBOut() {
+		return pricePerKBOut;
+	}
+
+	public void setPricePerKBOut(String pricePerKBOut) {
+		this.pricePerKBOut = pricePerKBOut;
+	}
+
+	public String getPricePerKBDay() {
+		return pricePerKBDay;
+	}
+
+	public void setPricePerKBDay(String pricePerKBDay) {
+		this.pricePerKBDay = pricePerKBDay;
+	}
+
+	public String getMinPayment() {
+		return minPayment;
+	}
+
+	public void setMinPayment(String minPayment) {
+		this.minPayment = minPayment;
+	}
+
+	public String getPricePerRequest() {
+		return pricePerRequest;
+	}
+
+	public void setPricePerRequest(String pricePerRequest) {
+		this.pricePerRequest = pricePerRequest;
+	}
+
+	public String getSessionDays() {
+		return sessionDays;
+	}
+
+	public void setSessionDays(String sessionDays) {
+		this.sessionDays = sessionDays;
+	}
+
+	public String getConsumeViaShare() {
+		return consumeViaShare;
+	}
+
+	public void setConsumeViaShare(String consumeViaShare) {
+		this.consumeViaShare = consumeViaShare;
+	}
+
+	public String getOrderViaShare() {
+		return orderViaShare;
+	}
+
+	public void setOrderViaShare(String orderViaShare) {
+		this.orderViaShare = orderViaShare;
+	}
+
+	public String getCurrency() {
+		return currency;
+	}
+
+	public void setCurrency(String currency) {
+		this.currency = currency;
+	}
+
+	public String getMinCredit() {
+		return minCredit;
+	}
+
+	public void setMinCredit(String minCredit) {
+		this.minCredit = minCredit;
+	}
+
+	public String getMaxDataSize() {
+		return maxDataSize;
+	}
+
+	public void setMaxDataSize(String maxDataSize) {
+		this.maxDataSize = maxDataSize;
+	}
+
+	public String getDataExpiresInDays() {
+		return dataExpiresInDays;
+	}
+
+	public void setDataExpiresInDays(String dataExpiresInDays) {
+		this.dataExpiresInDays = dataExpiresInDays;
 	}
 }

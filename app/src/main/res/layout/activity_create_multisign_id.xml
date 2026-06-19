@@ -70,30 +70,33 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:layout_marginTop="8dp"
-        android:layout_marginBottom="8dp">
+        android:layout_marginBottom="8dp"
+        android:gravity="end">
 
-        <Button
+        <ImageButton
             android:id="@+id/clearButton"
-            style="@style/ButtonStyle"
-            android:paddingStart="2dp"
-            android:paddingEnd="2dp"
-            android:text="@string/clear" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_clear"
+            android:contentDescription="@string/clear" />
 
-        <Button
+        <ImageButton
             android:id="@+id/addMemberButton"
-            style="@style/ButtonStyle"
-            android:layout_width="120dp"
-            android:paddingStart="4dp"
-            android:paddingEnd="4dp"
-            android:text="@string/add_member"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_plus"
+            android:contentDescription="@string/add_member"
             />
 
-        <Button
+        <ImageButton
             android:id="@+id/createButton"
-            style="@style/ButtonStyle"
-            android:paddingStart="2dp"
-            android:paddingEnd="2dp"
-            android:text="@string/create" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_tick"
+            android:contentDescription="@string/create" />
+
+        <ImageButton
+            android:id="@+id/back_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_back"
+            android:contentDescription="@string/back" />
     </LinearLayout>
 
 </LinearLayout> 

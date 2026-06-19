@@ -12,14 +12,16 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class RequestBody extends FcEntity {
-    private String sid;
     private Op op;
+
+    private String sid;
     private String url;
     private Long time;
     private Integer nonce;
     private String via;
     private Object data;
     private Fcdsl fcdsl;
+    private String newKey;
 
     public void renew() {
         this.nonce = Math.abs(BytesUtils.bytesToIntBE(BytesUtils.getRandomBytes(4)));
@@ -123,4 +125,13 @@ public class RequestBody extends FcEntity {
     public void setOp(Op op) {
         this.op = op;
     }
+
+    public String getNewKey() {
+        return newKey;
+    }
+
+    public void setNewKey(String newKey) {
+        this.newKey = newKey;
+    }
+
 }

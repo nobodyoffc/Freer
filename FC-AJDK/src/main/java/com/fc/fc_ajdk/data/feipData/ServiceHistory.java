@@ -2,6 +2,7 @@ package com.fc.fc_ajdk.data.feipData;
 
 import com.fc.fc_ajdk.data.fcData.FcObject;
 
+import java.util.Map;
 import java.util.List;
 
 public class ServiceHistory extends FcObject {
@@ -13,14 +14,14 @@ public class ServiceHistory extends FcObject {
 	private String ver;
 	
 	private String stdName;
-	private String[] localNames;
+	private Map<String, String> localNames;
 	private String desc;
-	private String[] types;
-	private String[] urls;
-	private String[] waiters;
-	private String[] protocols;
-	private String[] services;
-	private String[] codes;
+	private String type;
+	private List<String> components;
+	private List<String> waiters;
+	private List<String> protocols;
+	private List<String> services;
+	private List<String> codes;
 	private Object params;
 	private String closeStatement;
 	
@@ -29,6 +30,21 @@ public class ServiceHistory extends FcObject {
 	private String op;
 	private Integer rate;
 	private Long cdd;
+
+	// Pricing and service configuration fields (moved from Params)
+	protected String pricePerKB;
+	protected String pricePerKBIn;   // Price for incoming data (requests) - FCH per KB
+	protected String pricePerKBOut;  // Price for outgoing data (responses) - FCH per KB
+	protected String pricePerKBDay;  // Price for storage - FCH per KB per day
+	protected String minPayment;
+	protected String pricePerRequest;
+	protected String sessionDays;
+	protected String consumeViaShare;
+	protected String orderViaShare;
+	protected String currency;
+	protected String minCredit;
+	protected String maxDataSize;
+	protected String dataExpiresInDays;
 
 	public Long getHeight() {
 		return height;
@@ -78,11 +94,11 @@ public class ServiceHistory extends FcObject {
 		this.stdName = stdName;
 	}
 
-	public String[] getLocalNames() {
+	public Map<String, String> getLocalNames() {
 		return localNames;
 	}
 
-	public void setLocalNames(String[] localNames) {
+	public void setLocalNames(Map<String, String> localNames) {
 		this.localNames = localNames;
 	}
 
@@ -94,51 +110,51 @@ public class ServiceHistory extends FcObject {
 		this.desc = desc;
 	}
 
-	public String[] getTypes() {
-		return types;
+	public String getType() {
+		return type;
 	}
 
-	public void setTypes(String[] types) {
-		this.types = types;
+	public void setType(String type) {
+		this.type = type;
 	}
 
-	public String[] getUrls() {
-		return urls;
+	public List<String> getComponents() {
+		return components;
 	}
 
-	public void setUrls(String[] urls) {
-		this.urls = urls;
+	public void setComponents(List<String> components) {
+		this.components = components;
 	}
 
-	public String[] getWaiters() {
+	public List<String> getWaiters() {
 		return waiters;
 	}
 
-	public void setWaiters(String[] waiters) {
+	public void setWaiters(List<String> waiters) {
 		this.waiters = waiters;
 	}
 
-	public String[] getProtocols() {
+	public List<String> getProtocols() {
 		return protocols;
 	}
 
-	public void setProtocols(String[] protocols) {
+	public void setProtocols(List<String> protocols) {
 		this.protocols = protocols;
 	}
 
-	public String[] getServices() {
+	public List<String> getServices() {
 		return services;
 	}
 
-	public void setServices(String[] services) {
+	public void setServices(List<String> services) {
 		this.services = services;
 	}
 
-	public String[] getCodes() {
+	public List<String> getCodes() {
 		return codes;
 	}
 
-	public void setCodes(String[] codes) {
+	public void setCodes(List<String> codes) {
 		this.codes = codes;
 	}
 
@@ -196,5 +212,109 @@ public class ServiceHistory extends FcObject {
 
 	public void setCdd(Long cdd) {
 		this.cdd = cdd;
+	}
+
+	public String getPricePerKB() {
+		return pricePerKB;
+	}
+
+	public void setPricePerKB(String pricePerKB) {
+		this.pricePerKB = pricePerKB;
+	}
+
+	public String getPricePerKBIn() {
+		return pricePerKBIn;
+	}
+
+	public void setPricePerKBIn(String pricePerKBIn) {
+		this.pricePerKBIn = pricePerKBIn;
+	}
+
+	public String getPricePerKBOut() {
+		return pricePerKBOut;
+	}
+
+	public void setPricePerKBOut(String pricePerKBOut) {
+		this.pricePerKBOut = pricePerKBOut;
+	}
+
+	public String getPricePerKBDay() {
+		return pricePerKBDay;
+	}
+
+	public void setPricePerKBDay(String pricePerKBDay) {
+		this.pricePerKBDay = pricePerKBDay;
+	}
+
+	public String getMinPayment() {
+		return minPayment;
+	}
+
+	public void setMinPayment(String minPayment) {
+		this.minPayment = minPayment;
+	}
+
+	public String getPricePerRequest() {
+		return pricePerRequest;
+	}
+
+	public void setPricePerRequest(String pricePerRequest) {
+		this.pricePerRequest = pricePerRequest;
+	}
+
+	public String getSessionDays() {
+		return sessionDays;
+	}
+
+	public void setSessionDays(String sessionDays) {
+		this.sessionDays = sessionDays;
+	}
+
+	public String getConsumeViaShare() {
+		return consumeViaShare;
+	}
+
+	public void setConsumeViaShare(String consumeViaShare) {
+		this.consumeViaShare = consumeViaShare;
+	}
+
+	public String getOrderViaShare() {
+		return orderViaShare;
+	}
+
+	public void setOrderViaShare(String orderViaShare) {
+		this.orderViaShare = orderViaShare;
+	}
+
+	public String getCurrency() {
+		return currency;
+	}
+
+	public void setCurrency(String currency) {
+		this.currency = currency;
+	}
+
+	public String getMinCredit() {
+		return minCredit;
+	}
+
+	public void setMinCredit(String minCredit) {
+		this.minCredit = minCredit;
+	}
+
+	public String getMaxDataSize() {
+		return maxDataSize;
+	}
+
+	public void setMaxDataSize(String maxDataSize) {
+		this.maxDataSize = maxDataSize;
+	}
+
+	public String getDataExpiresInDays() {
+		return dataExpiresInDays;
+	}
+
+	public void setDataExpiresInDays(String dataExpiresInDays) {
+		this.dataExpiresInDays = dataExpiresInDays;
 	}
 }

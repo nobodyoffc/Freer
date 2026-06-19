@@ -1,21 +1,21 @@
 package com.fc.freer.myKeys;
 
-import android.content.Intent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.app.AlertDialog;
-import android.widget.Toast;
+
+import com.fc.freer.utils.ToastUtils;
 
 import com.fc.fc_ajdk.core.crypto.KeyTools;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
-import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
-import com.fc.freer.home.BaseCryptoActivity;
+import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.initiate.ConfigureManager;
 import com.fc.freer.ui.DetailFragment;
 import com.google.android.material.textfield.TextInputEditText;
 import com.fc.freer.utils.TextIconsUtils;
+import android.widget.ImageButton;
 
 public class CreateKeyByPrikeyActivity extends BaseCryptoActivity {
     private static final String TAG = "CreateKeyByPrikey";
@@ -25,9 +25,9 @@ public class CreateKeyByPrikeyActivity extends BaseCryptoActivity {
     private DetailFragment detailFragment;
     private TextInputEditText prikeyInput;
     private TextInputEditText labelInput;
-    private Button clearButton;
-    private Button previewButton;
-    private Button saveButton;
+    private ImageButton clearButton;
+    private ImageButton previewButton;
+    private ImageButton saveButton;
     private LinearLayout keyInfoContainer;
     private LinearLayout inputContainer;
     private LinearLayout buttonContainer;
@@ -107,12 +107,13 @@ public class CreateKeyByPrikeyActivity extends BaseCryptoActivity {
 
         byte[] prikey32 = KeyTools.getPrikey32(prikey);
         if(prikey32 ==null){
-            Toast.makeText(this, "Invalid private key", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Invalid private key");
             return;
         }
 
         // Create a new KeyInfo object
-        KeyInfo keyInfo = new KeyInfo(label, prikey32, ConfigureManager.getInstance().getSymkey());
+        byte[] symkey = ConfigureManager.getInstance().getSymkey();
+        KeyInfo keyInfo = new KeyInfo(label, prikey32, symkey);
 
         // Note: Avatar generation will be handled by the configure-based system
 
@@ -138,12 +139,12 @@ public class CreateKeyByPrikeyActivity extends BaseCryptoActivity {
             if (keyInfo == null) {
                 return;
             }
-            saveKeyInfoToDatabase(keyInfo);
+            saveAndFinishWithKeyInfo(keyInfo);
         } else {
             // Use the previewed KeyInfo
             KeyInfo keyInfo = (KeyInfo) detailFragment.getCurrentEntity();
             if (keyInfo != null) {
-                saveKeyInfoToDatabase(keyInfo);
+                saveAndFinishWithKeyInfo(keyInfo);
             }
         }
     }
@@ -153,12 +154,12 @@ public class CreateKeyByPrikeyActivity extends BaseCryptoActivity {
         String label = labelInput.getText() != null ? labelInput.getText().toString() : "";
 
         if (prikey.isEmpty()) {
-            Toast.makeText(this, "Private key is empty", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Private key is empty");
             return null;
         }
         byte[] prikey32 = KeyTools.getPrikey32(prikey);
         if(prikey32==null){
-            Toast.makeText(this, "Invalid private key", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, "Invalid private key");
             return null;
         }
 
@@ -166,23 +167,23 @@ public class CreateKeyByPrikeyActivity extends BaseCryptoActivity {
     }
 
 
-    private void saveKeyInfoToDatabase(KeyInfo keyInfo) {
-        // Check if the key already exists
-        // Check if key already exists in configure
-        ConfigureManager configureManager = ConfigureManager.getInstance();
-        com.fc.freer.model.Configure configure = configureManager.getConfigure();
-        if (configure != null && configure.getMainCidInfoMap().containsKey(keyInfo.getId())) {
-            new AlertDialog.Builder(this)
-                .setTitle("Key Already Exists")
-                .setMessage("A key with this ID already exists. Do you want to replace it?")
-                .setPositiveButton("Replace", (dialog, which) -> {
-                    saveAndFinishWithKeyInfo(keyInfo);
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
-        } else {
-            saveAndFinishWithKeyInfo(keyInfo);
-        }
-    }
+//    private void saveKeyInfoToDatabase(KeyInfo keyInfo) {
+//        // Check if the key already exists
+//        // Check if key already exists in configure
+//        ConfigureManager configureManager = ConfigureManager.getInstance();
+//        com.fc.freer.model.Configure configure = configureManager.getConfigure();
+//        if (configure != null && configure.getMainCidInfoMap()!=null && configure.getMainCidInfoMap().containsKey(keyInfo.getId())) {
+//            new AlertDialog.Builder(this)
+//                .setTitle("Key Already Exists")
+//                .setMessage("A key with this ID already exists. Do you want to replace it?")
+//                .setPositiveButton("Replace", (dialog, which) -> {
+//                    saveAndFinishWithKeyInfo(keyInfo);
+//                })
+//                .setNegativeButton("Cancel", null)
+//                .show();
+//        } else {
+//            saveAndFinishWithKeyInfo(keyInfo);
+//        }
+//    }
 
 } 

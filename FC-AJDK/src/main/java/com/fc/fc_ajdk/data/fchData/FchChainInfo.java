@@ -1,20 +1,9 @@
 package com.fc.fc_ajdk.data.fchData;
 
-import com.fc.fc_ajdk.clients.ApipClient;
 import com.fc.fc_ajdk.constants.Constants;
-import com.fc.fc_ajdk.constants.FieldNames;
-import com.fc.fc_ajdk.constants.IndicesNames;
-
-import com.fc.fc_ajdk.data.apipData.BlockInfo;
 import com.fc.fc_ajdk.data.fcData.FcObject;
 import com.fc.fc_ajdk.utils.DateUtils;
-import com.fc.fc_ajdk.utils.FchUtils;
 import com.fc.fc_ajdk.utils.JsonUtils;
-import com.fc.fc_ajdk.utils.NumberUtils;
-import com.fc.fc_ajdk.clients.NaSaClient.NaSaRpcClient;
-import com.fc.fc_ajdk.utils.http.AuthType;
-import com.fc.fc_ajdk.utils.http.RequestMethod;
-import com.google.protobuf.Api;
 
 import java.io.IOException;
 import java.util.*;
@@ -45,7 +34,7 @@ public class FchChainInfo extends FcObject {
     private final String daysPerYear = Constants.DAYS_PER_YEAR_STR;
     private final String blockTimeMinute = Constants.BLOCK_TIME_MINUTE;
     private final String genesisBlockId = Constants.GENESIS_BLOCK_ID;
-    private final String startTime = String.valueOf(Constants.START_TIME);
+    private final String startTime = DateUtils.longToTime((Constants.START_TIME) *1000,DateUtils.LONG_FORMAT);
     private String year;
     private String daysToNextYear;
     private String heightOfNextYear;
@@ -80,96 +69,6 @@ public class FchChainInfo extends FcObject {
 
     public String toNiceJson(){
         return JsonUtils.toNiceJson(this);
-    }
-
-    public static Map<Long,Long> blockTimeHistory(long startTime, long endTime, long count, ApipClient apipClient){
-        if(count>0)count += 1;
-        else count = DEFAULT_COUNT+1;
-        if(count>MAX_REQUEST_COUNT)count=MAX_REQUEST_COUNT;
-
-        return apipClient.blockTimeHistory(startTime,endTime, Math.toIntExact(count), RequestMethod.POST, AuthType.FC_SIGN_BODY);
-    }
-
-
-    public static Map<Long,String> difficultyHistory(long startTime, long endTime, long count, ApipClient apipClient){
-
-        return apipClient.difficultyHistory(startTime,endTime, Math.toIntExact(count), RequestMethod.POST, AuthType.FC_SIGN_BODY);
-    }
-
-    public static Map<Long,String> hashRateHistory(long startTime, long endTime, long count, ApipClient apipClient){
-        return apipClient.hashRateHistory(startTime,endTime, Math.toIntExact(count),RequestMethod.POST,AuthType.FC_SIGN_BODY);
-    }
-
-    private static long estimateHeight(long startTime) {
-        if(startTime< Constants.START_TIME)return -1;
-        return (startTime - Constants.START_TIME) / 60;
-    }
-
-    public void infoBest(NaSaRpcClient naSaRpcClient){
-        NaSaRpcClient.BlockchainInfo blockchainInfo = naSaRpcClient.getBlockchainInfo();
-        this.height= String.valueOf(blockchainInfo.getBlocks());
-        this.blockId=blockchainInfo.getBestblockhash();
-        this.time = DateUtils.longToTime(((long)blockchainInfo.getMediantime())*1000,DateUtils.LONG_FORMAT);
-
-        this.difficulty= NumberUtils.numberToPlainString(String.valueOf(blockchainInfo.getDifficulty()),"0");
-        double hashRate = FchUtils.difficultyToHashRate(blockchainInfo.getDifficulty());
-        this.hashRate= NumberUtils.numberToPlainString(String.valueOf(hashRate),"0");
-        this.chainSize= NumberUtils.numberToPlainString(String.valueOf(blockchainInfo.getSize_on_disk()),null);
-
-        infoByHeight(Long.parseLong(this.height));
-
-    }
-    public void infoByHeight(long height, ApipClient apipClient){
-        String heightStr = String.valueOf(height);
-        this.height= heightStr;
-        BlockInfo block;
-        Map<String, BlockInfo> blockMap = apipClient.blockByHeights(RequestMethod.POST, AuthType.FC_SIGN_BODY, heightStr);
-        block = blockMap.get(heightStr);
-        double difficulty = FchUtils.bitsToDifficulty(block.getBits());
-        double hashRate = FchUtils.difficultyToHashRate(difficulty);
-        this.difficulty= NumberUtils.numberToPlainString(String.valueOf(difficulty),"0");
-        this.hashRate= NumberUtils.numberToPlainString(String.valueOf(hashRate),"0");
-        this.blockId=block.getId();
-        this.time =DateUtils.longToTime(((long)block.getTime()) *1000,DateUtils.LONG_FORMAT);
-
-        infoByHeight(height);
-    }
-    public void infoByHeight(long height){
-
-        double totalSupply = 0;
-        double circulating = 0;
-        double coinbaseMine = 25;
-        double coinbaseFund = 25;
-        long blockPerYear = Long.parseLong(Constants.DAYS_PER_YEAR_STR)*24*60;
-        height = height+1;
-
-        long years = height / blockPerYear;
-
-        for(int i=0;i<years;i++){
-            totalSupply += blockPerYear * (coinbaseMine+coinbaseFund);
-            if(years<40) {
-                coinbaseMine *= 0.8;
-                coinbaseFund *= 0.5;
-            }
-        }
-        totalSupply += height % blockPerYear * (coinbaseMine+coinbaseFund);
-        this.totalSupply = NumberUtils.numberToPlainString(String.valueOf(totalSupply),"0");
-        this.year= String.valueOf(years+1);
-        this.coinbaseMine= NumberUtils.numberToPlainString(String.valueOf(coinbaseMine),"8");//String.valueOf(NumberTools.roundDouble8(coinbaseMine));
-        this.coinbaseFund= NumberUtils.numberToPlainString(String.valueOf(coinbaseFund),"8");
-        long blocksRemainingThisYear = blockPerYear - height % blockPerYear;
-        long daysToNextYear = blocksRemainingThisYear / (24 * 60);
-        this.daysToNextYear=String.valueOf(daysToNextYear);
-        heightOfNextYear=String.valueOf(blocksRemainingThisYear+height);
-
-        long daysImmatureThisYear = 400-daysToNextYear;
-        if(daysImmatureThisYear > 100)daysImmatureThisYear=100;
-        long daysImmatureLastYear = 100-daysImmatureThisYear;
-
-        circulating = totalSupply
-                -(daysImmatureThisYear*1440*(coinbaseMine+coinbaseFund))
-                -(daysImmatureLastYear*1440*(coinbaseMine/0.8+coinbaseFund/0.5));
-        this.circulating = NumberUtils.numberToPlainString(String.valueOf(circulating),"0");
     }
 
     public String getTotalSupply() {

@@ -1,39 +1,64 @@
 package com.fc.freer.utils;
 
+import static com.fc.fc_ajdk.data.fcData.AlgorithmId.FC_AesGcm256_No1_NrC7;
+
 import android.content.Context;
 
+import com.fc.fc_ajdk.constants.Constants;
 import com.fc.fc_ajdk.core.crypto.Decryptor;
+import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.core.crypto.Encryptor;
 import com.fc.fc_ajdk.core.crypto.CryptoDataByte;
+import com.fc.fc_ajdk.fapi.FapiCode;
+import com.fc.fc_ajdk.fapi.client.FapiClient;
+import com.fc.fc_ajdk.fapi.message.FapiResponse;
+import com.fc.fc_ajdk.fudp.node.FudpNode;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.FreerApplication;
+import com.fc.freer.R;
 import com.fc.freer.initiate.ClientGroup;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.initiate.ConfigureManager;
+import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.Configure;
 import com.fc.freer.model.Setting;
-import com.fc.freer.model.ApiAccount;
-import com.fc.freer.model.ApiProvider;
-import com.fc.freer.network.ApipClient;
+import com.fc.fc_ajdk.fapi.client.ApiAccount;
+import com.fc.fc_ajdk.fapi.client.ApiProvider;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ApiCenter {
-    public static final int MIN_REST_REQUEST_KB = 10;
     private static final String TAG = "ApiCenter";
     
+    /**
+     * Distinguishes different FapiClient roles resolved from freer.home.
+     * BASE is the default FAPI client; others are lazy-created from mainFid's home map.
+     */
+    public enum ConnectionRole {
+        BASE(Constants.BASE_NO1_NRC7), DISK(Constants.DISK_NO1_NRC7), MAP(Constants.MAP_NO1_NRC7), DOCK(Constants.DOCK_NO1_NRC7), ROAD(Constants.ROAD_NO1_NRC7);
+        private final String displayName;
+        ConnectionRole(String displayName){
+            this.displayName = displayName;
+        }
+
+        public final String displayName(){
+            return displayName;
+        }
+    }
+
     private static ApiCenter instance;
     private Setting currentSetting;
     private Configure currentConfigure;
     private Map<Service.ServiceType, ClientGroup> clientGroupMap;
-    private ApipClient defaultApipClient; // 新增：默认ApipClient
+    private final Map<ConnectionRole, FapiClient> homeClientMap = new ConcurrentHashMap<>();
+    private Context appContext;
 
     private ApiCenter() {
-        // No context storage - context will be passed as parameters when needed
     }
     
     public static synchronized ApiCenter getInstance() {
@@ -50,11 +75,12 @@ public class ApiCenter {
     public void initiate(Context context) {
         TimberLogger.d(TAG, "Starting API service initialization");
         
-        // 验证基本依赖
         if (context == null) {
             TimberLogger.e(TAG, "Context is null, cannot initialize");
             return;
         }
+        
+        this.appContext = context.getApplicationContext();
         
         // 加载当前配置和设置
         if (!loadCurrentState()) {
@@ -67,23 +93,19 @@ public class ApiCenter {
             clientGroupMap = new HashMap<>();
         }
         
-        // 根据已有状态决定初始化策略
-        InitializationStrategy strategy = determineInitializationStrategy();
-        TimberLogger.d(TAG, "Using initialization strategy: %s", strategy);
-        
-        switch (strategy) {
-            case CREATE_NEW -> {
-                TimberLogger.d(TAG, "Creating new client groups");
-                createAll(context);
-            }
-            case RECONNECT_EXISTING -> {
-                TimberLogger.d(TAG, "Reconnecting to existing client groups");
-                connectAll(context);
-            }
-            case HYBRID -> {
-                TimberLogger.d(TAG, "Using hybrid approach - reconnect existing and create missing");
-                hybridInitialization(context);
-            }
+        // Always bootstrap fresh for FUDP transport (HELLO+PING ~500ms).
+        // Saved ApiAccount/ApiProvider metadata is loaded from Configure but the
+        // connection is always re-established to avoid stale address issues
+        // (e.g. saved 127.0.0.1 URL in emulator causing self-loop).
+        boolean hasSavedAccounts = currentSetting != null
+                && currentSetting.getClientGroupMap() != null
+                && !currentSetting.getClientGroupMap().isEmpty();
+        if (hasSavedAccounts) {
+            TimberLogger.d(TAG, "Using initialization strategy: BOOTSTRAP_WITH_SAVED_ACCOUNTS");
+            connectAll(context);
+        } else {
+            TimberLogger.d(TAG, "Using initialization strategy: CREATE_NEW");
+            createAll(context);
         }
         
         TimberLogger.d(TAG, "API service initialization completed");
@@ -91,15 +113,6 @@ public class ApiCenter {
         currentSetting.setClientGroupMap(clientGroupMap);
         SettingManager.getInstance().saveSettings(context, currentSetting);
         TimberLogger.d(TAG, "Successfully initialized API services with %d client groups", clientGroupMap.size());
-    }
-    
-    /**
-     * 初始化策略枚举
-     */
-    private enum InitializationStrategy {
-        CREATE_NEW,        // 创建全新的客户端组
-        RECONNECT_EXISTING, // 重连已有的客户端组
-        HYBRID            // 混合模式：重连已有的，创建缺失的
     }
     
     /**
@@ -130,118 +143,6 @@ public class ApiCenter {
         return true;
     }
     
-    /**
-     * 确定初始化策略
-     */
-    private InitializationStrategy determineInitializationStrategy() {
-        // 如果没有当前设置或客户端组映射，创建新的
-        if (currentSetting == null || 
-            currentSetting.getClientGroupMap() == null || 
-            currentSetting.getClientGroupMap().isEmpty()) {
-            return InitializationStrategy.CREATE_NEW;
-        }
-        
-        // 获取应用所需的服务类型
-        Map<Service.ServiceType, Integer> requiredServices = FreerApplication.getServiceNumberMap();
-        if (requiredServices == null || requiredServices.isEmpty()) {
-            TimberLogger.w(TAG, "No required services defined, using CREATE_NEW strategy");
-            return InitializationStrategy.CREATE_NEW;
-        }
-        
-        // 检查已有的客户端组是否满足所有需求
-        Map<Service.ServiceType, ClientGroup> existingGroups = currentSetting.getClientGroupMap();
-        boolean hasAllRequiredTypes = requiredServices.keySet().stream()
-            .allMatch(existingGroups::containsKey);
-        
-        if (hasAllRequiredTypes) {
-            return InitializationStrategy.RECONNECT_EXISTING;
-        } else {
-            return InitializationStrategy.HYBRID;
-        }
-    }
-    
-    /**
-     * 混合初始化：重连已有的，创建缺失的
-     */
-    private void hybridInitialization(Context context) {
-        Map<Service.ServiceType, Integer> requiredServices = FreerApplication.getServiceNumberMap();
-        Map<Service.ServiceType, ClientGroup> existingGroups = currentSetting.getClientGroupMap();
-        
-        for (Map.Entry<Service.ServiceType, Integer> entry : requiredServices.entrySet()) {
-            Service.ServiceType serviceType = entry.getKey();
-            
-            if (existingGroups.containsKey(serviceType)) {
-                // 重连已有的客户端组
-                TimberLogger.d(TAG, "Reconnecting existing client group for: %s", serviceType);
-                reconnectClientGroup(context, serviceType, existingGroups.get(serviceType));
-            } else {
-                // 创建新的客户端组
-                TimberLogger.d(TAG, "Creating new client group for: %s", serviceType);
-                createClientGroup(context, serviceType, entry.getValue());
-            }
-        }
-    }
-    
-    /**
-     * 重连单个客户端组
-     */
-    private void reconnectClientGroup(Context context, Service.ServiceType serviceType, ClientGroup savedGroup) {
-        if (currentConfigure == null) {
-            TimberLogger.e(TAG, "Current configure is null, cannot reconnect group for: %s", serviceType);
-            return;
-        }
-        
-        byte[] symkey = currentConfigure.getSymkey();
-        ClientGroup newGroup = new ClientGroup(serviceType);
-        
-        List<String> accountIds = savedGroup.getAccountIds();
-        if (accountIds == null || accountIds.isEmpty()) {
-            TimberLogger.w(TAG, "No account IDs found for service type: %s", serviceType);
-            return;
-        }
-        
-        for (String accountId : accountIds) {
-            if (reconnectSingleClient(context, serviceType, accountId, symkey, newGroup)) {
-                TimberLogger.d(TAG, "Successfully reconnected client: %s", accountId);
-            } else {
-                TimberLogger.w(TAG, "Failed to reconnect client: %s", accountId);
-            }
-        }
-        
-        if (newGroup.getClientCount() > 0) {
-            clientGroupMap.put(serviceType, newGroup);
-        }
-    }
-    
-    /**
-     * 重连单个客户端
-     */
-    private boolean reconnectSingleClient(Context context, Service.ServiceType serviceType, 
-                                        String accountId, byte[] symkey, ClientGroup clientGroup) {
-        ApiAccount apiAccount = currentConfigure.getApiAccountMap().get(accountId);
-        if (apiAccount == null) {
-            TimberLogger.w(TAG, "ApiAccount not found for ID: %s", accountId);
-            return false;
-        }
-        
-        // 解密sessionKey
-        if (apiAccount.getSession() != null && apiAccount.getSession().getKeyCipher() != null) {
-            byte[] sessionKey = decryptSessionKey(apiAccount.getSession().getKeyCipher(), symkey);
-            if (sessionKey != null) {
-                apiAccount.setSessionKey(sessionKey);
-            } else {
-                TimberLogger.w(TAG, "Failed to decrypt session key for account: %s", accountId);
-            }
-        }
-        
-        ApiProvider apiProvider = currentConfigure.getApiProviderMap().get(apiAccount.getProviderId());
-        if (apiProvider == null) {
-            TimberLogger.w(TAG, "ApiProvider not found for ID: %s", apiAccount.getProviderId());
-            return false;
-        }
-        
-        return createAndConnectClient(context, serviceType, apiAccount, apiProvider, symkey, accountId, clientGroup);
-    }
     
     /**
      * 创建单个客户端组
@@ -267,7 +168,7 @@ public class ApiCenter {
                 break;
             }
             
-            if (createAndTestClient(context, serviceType, apiUrl, symkey, clientGroup)) {
+            if (createAndTestClient(context, serviceType, apiUrl, clientGroup)) {
                 connectedCount++;
                 TimberLogger.d(TAG, "Successfully connected client for URL: %s", apiUrl);
             }
@@ -421,13 +322,13 @@ public class ApiCenter {
     /**
      * 尝试连接到单个API端点
      */
-    private boolean attemptClientConnection(Context context, Service.ServiceType serviceType, 
+    private boolean attemptClientConnection(Context context, Service.ServiceType serviceType,
                                           String apiUrl, byte[] symkey, ClientGroup clientGroup, 
                                           CreateGroupResult result) {
         try {
             TimberLogger.d(TAG, "Attempting connection to: %s", apiUrl);
             
-            if (createAndTestClient(context, serviceType, apiUrl, symkey, clientGroup)) {
+            if (createAndTestClient(context, serviceType, apiUrl, clientGroup)) {
                 result.addSuccessfulUrl(apiUrl);
                 return true;
             }
@@ -553,167 +454,129 @@ public class ApiCenter {
      * 连接所有已保存的API服务
      * 对每个类型的clientGroup获取apiAccountIds，重新建立连接
      */
+    /**
+     * Bootstrap fresh for each saved service type, loading saved ApiAccount metadata.
+     * Always uses HELLO+PING (~500ms) instead of reusing saved connection addresses,
+     * which avoids stale address issues (e.g. saved 127.0.0.1 in emulator).
+     */
     public void connectAll(Context context) {
-        TimberLogger.d(TAG, "Connecting to all saved API services");
-        
+        TimberLogger.d(TAG, "Bootstrapping fresh connections for saved API services");
+
         if (currentSetting == null || currentSetting.getClientGroupMap() == null) {
             TimberLogger.w(TAG, "No client groups found in current setting");
             return;
         }
-        
+
         if (currentConfigure == null) {
             TimberLogger.e(TAG, "Current configure is null, cannot connect clients");
             return;
         }
-        
+
         byte[] symkey = currentConfigure.getSymkey();
         if (symkey == null) {
             TimberLogger.e(TAG, "Symkey is null, cannot connect clients");
             return;
         }
-        
-        // 初始化clientGroupMap
+
         if (clientGroupMap == null) {
             clientGroupMap = new HashMap<>();
         }
-        
-        // 对每个类型的clientGroup
+
         for (Map.Entry<Service.ServiceType, ClientGroup> entry : currentSetting.getClientGroupMap().entrySet()) {
             Service.ServiceType serviceType = entry.getKey();
-            ClientGroup clientGroup = entry.getValue();
-            if(clientGroup==null)clientGroup=new ClientGroup(serviceType);
-            
+            ClientGroup savedGroup = entry.getValue();
+            if (savedGroup == null) savedGroup = new ClientGroup(serviceType);
+
             TimberLogger.d(TAG, "Connecting clients for service type: %s", serviceType);
-            
-            // 获取apiAccountIds
-            List<String> accountIds = clientGroup.getAccountIds();
-            if (accountIds == null || accountIds.isEmpty()) {
-                TimberLogger.w(TAG, "No account IDs found for service type: %s", serviceType);
-                continue;
-            }
-            
-            // 对每个apiAccountId
-            for (String accountId : accountIds) {
-                // 从configure中获取apiAccount
-                ApiAccount apiAccount = currentConfigure.getApiAccountMap().get(accountId);
-                if (apiAccount == null) {
-                    TimberLogger.w(TAG, "ApiAccount not found for ID: %s", accountId);
-                    continue;
-                }
-                
-                // 解密sessionKey
-                if (apiAccount.getSession()!= null && apiAccount.getSession().getKeyCipher() != null) {
-                    byte[] sessionKey = decryptSessionKey(apiAccount.getSession().getKeyCipher(), symkey);
-                    if (sessionKey != null) {
-                        apiAccount.setSessionKey(sessionKey);
-                        TimberLogger.d(TAG, "Successfully decrypted session key for account: %s", accountId);
-                    } else {
-                        TimberLogger.w(TAG, "Failed to decrypt session key for account: %s", accountId);
+
+            // Load saved account metadata (session, balance, etc.)
+            List<String> accountIds = savedGroup.getAccountIds();
+            ApiAccount savedApiAccount = null;
+            ApiProvider savedApiProvider = null;
+            if (accountIds != null && !accountIds.isEmpty()) {
+                String firstAccountId = accountIds.get(0);
+                savedApiAccount = currentConfigure.getApiAccountMap().get(firstAccountId);
+                if (savedApiAccount != null) {
+                    // Decrypt session key from saved account
+                    if (savedApiAccount.getSession() != null && savedApiAccount.getSession().getKeyCipher() != null) {
+                        byte[] sessionKey = decryptSessionKey(savedApiAccount.getSession().getKeyCipher(), symkey);
+                        if (sessionKey != null) {
+                            savedApiAccount.setSessionKey(sessionKey);
+                        }
                     }
-                }
-                
-                // 用apiAccount.providerId从configure中获取apiProvider
-                ApiProvider apiProvider = currentConfigure.getApiProviderMap().get(apiAccount.getProviderId());
-                if (apiProvider == null) {
-                    TimberLogger.w(TAG, "ApiProvider not found for ID: %s", apiAccount.getProviderId());
-                    continue;
-                }
-                
-                // 创建并连接client
-                if (createAndConnectClient(context, serviceType, apiAccount, apiProvider, symkey, accountId, clientGroup)) {
-                    TimberLogger.d(TAG, "Successfully reconnected client for account: %s", accountId);
-                } else {
-                    TimberLogger.w(TAG, "Failed to reconnect client for account: %s", accountId);
+                    savedApiProvider = currentConfigure.getApiProviderMap().get(savedApiAccount.getProviderId());
                 }
             }
 
-            // 保存clientGroup
-            if (clientGroup.getClientCount() > 0) {
+            // Bootstrap fresh — use saved preferred URL if available, fall back to DEFAULT_BOOTSTRAP_APIS
+            ClientGroup clientGroup = new ClientGroup(serviceType);
+            String savedUrl = (savedApiProvider != null) ? savedApiProvider.getApiUrl() : null;
+            Object client = createClientForServiceType(context, serviceType, savedUrl);
+            if (client instanceof FapiClient fapiClient) {
+                // Attach saved account metadata to the fresh client
+                if (savedApiAccount != null) {
+                    fapiClient.setApiAccount(savedApiAccount);
+                }
+                String mainFid = currentSetting.getMainFid();
+                if (mainFid != null) {
+                    fapiClient.setAutoRechargeInfo(mainFid, currentSetting::decryptPrikey);
+                }
+                if (savedApiProvider != null) {
+                    fapiClient.cacheServiceForRecharge(savedApiProvider);
+                }
+
+                String accountId = savedApiAccount != null ? savedApiAccount.getId()
+                        : (fapiClient.getApiAccount() != null ? fapiClient.getApiAccount().getId() : "default");
+                clientGroup.addClient(accountId, fapiClient);
+                if (savedApiAccount != null) {
+                    clientGroup.addApiAccount(savedApiAccount);
+                } else if (fapiClient.getApiAccount() != null) {
+                    clientGroup.addApiAccount(fapiClient.getApiAccount());
+                }
+
                 clientGroupMap.put(serviceType, clientGroup);
-                TimberLogger.d(TAG, "Saved client group for service type: %s with %d connected clients", serviceType, clientGroup.getClientCount());
+                TimberLogger.d(TAG, "Successfully bootstrapped client for service type: %s", serviceType);
+            } else {
+                TimberLogger.w(TAG, "Failed to bootstrap client for service type: %s", serviceType);
             }
         }
 
-        TimberLogger.d(TAG, "Completed connecting to all saved API services");
+        TimberLogger.d(TAG, "Completed bootstrapping all saved API services");
     }
 
     /**
-     * 创建并连接client
+     * 创建并连接client — always uses fresh bootstrap
      */
-    private boolean createAndConnectClient(Context context, Service.ServiceType serviceType, ApiAccount apiAccount, ApiProvider apiProvider, 
+    private boolean createAndConnectClient(Context context, Service.ServiceType serviceType, ApiAccount apiAccount, ApiProvider apiProvider,
                                          byte[] symkey, String accountId, ClientGroup clientGroup) {
         try {
-            // 尝试用原始配置创建client
-            Object client = createClientFromAccount(context, serviceType, apiAccount, apiProvider, symkey);
-            if (client ==null) {
-                TimberLogger.w(TAG, "Original connection failed for account: %s, trying default URLs", accountId);
-                return tryDefaultUrls(context, serviceType, symkey, accountId, apiAccount, clientGroup);
+            TimberLogger.d(TAG, "Attempting to create client for account: %s, provider: %s", accountId, apiProvider.getId());
+
+            // Always bootstrap fresh for reliable FUDP connection
+            Object client = createClientForServiceType(context, serviceType, null);
+            if (client == null) {
+                TimberLogger.w(TAG, "Bootstrap failed for account: %s", accountId);
+                return false;
             }
-            clientGroup.addClient(apiAccount.getId(),client);
+
+            if (client instanceof FapiClient fapiClient) {
+                // Attach saved account metadata to the fresh client
+                fapiClient.setApiAccount(apiAccount);
+                String mainFid = currentSetting.getMainFid();
+                if (mainFid != null) {
+                    fapiClient.setAutoRechargeInfo(mainFid, currentSetting::decryptPrikey);
+                }
+                fapiClient.cacheServiceForRecharge(apiProvider);
+            }
+
+            clientGroup.addClient(apiAccount.getId(), client);
+            clientGroup.addApiAccount(apiAccount);
+            TimberLogger.d(TAG, "Successfully created client for account: %s", accountId);
             return true;
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error creating client for account %s: %s", accountId, e.getMessage());
             return false;
         }
-    }
-
-    /**
-     * 测试并添加client到组中
-     */
-    private boolean testAndAddClient(Context context, ApipClient client, String accountId, ApiAccount apiAccount, ClientGroup clientGroup) {
-        boolean pingResult = client.ping(context,com.fc.fc_ajdk.utils.http.RequestMethod.POST);
-        if (pingResult) {
-            client.setConnected(true);
-            clientGroup.addClient(accountId, client);
-            clientGroup.addApiAccount(apiAccount);
-
-            if (defaultApipClient == null) {
-                defaultApipClient = client;
-                TimberLogger.d(TAG, "Set defaultApipClient for account: %s", accountId);
-            }
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * 尝试使用默认URLs重连
-     */
-    private boolean tryDefaultUrls(Context context, Service.ServiceType serviceType, byte[] symkey, String accountId, 
-                                 ApiAccount apiAccount, ClientGroup clientGroup) {
-        String[] defaultAPIs = getDefaultAPIsForServiceType(serviceType);
-        
-        for (String apiUrl : defaultAPIs) {
-            // 跳过已在使用的URL
-            if (isUrlInUse(apiUrl, clientGroup)) continue;
-
-            Object newClient = createClientForServiceType(context, serviceType, apiUrl, symkey);
-            if (newClient instanceof ApipClient newApipClient) {
-                if (testAndAddClient(context, newApipClient, accountId, apiAccount, clientGroup)) {
-                    TimberLogger.d(TAG, "Successfully reconnected account %s using URL: %s", accountId, apiUrl);
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 检查URL是否已被使用
-     */
-    private boolean isUrlInUse(String apiUrl, ClientGroup clientGroup) {
-        if (apiUrl == null || clientGroup == null) {
-            return false;
-        }
-        
-        Map<String, ApiAccount> apiAccountMap = clientGroup.getApiAccountMap();
-        if (apiAccountMap == null || apiAccountMap.isEmpty()) {
-            return false;
-        }
-        
-        // 使用Stream API提高效率和可读性
-        return apiAccountMap.values().stream()
-            .anyMatch(account -> apiUrl.equals(account.getApiUrl()));
     }
 
     /**
@@ -744,6 +607,278 @@ public class ApiCenter {
             TimberLogger.e(TAG, "Error getting client for type %s: %s", type, e.getMessage(), e);
             return null;
         }
+    }
+
+    /**
+     * Get a FapiClient for a specific ConnectionRole.
+     * <p>
+     * For BASE: returns the default FapiClient from clientGroupMap.
+     * For DISK/MAP/DOCK/ROAD: returns the home-appointed client (lazy-created from mainFid's freer.home).
+     * If the home client cannot be resolved or connected, silently falls back to the default BASE client.
+     * Only returns null when the default BASE client itself is unavailable.
+     *
+     * @param role the connection role
+     * @return the FapiClient for that role, or null if BASE is also unavailable
+     */
+    public FapiClient getClient(ConnectionRole role) {
+        if (role == null) return null;
+
+        if (role == ConnectionRole.BASE) {
+            return getDefaultFapiClient();
+        }
+
+        FapiClient cached = homeClientMap.get(role);
+        if (cached != null) return cached;
+
+        return getOrCreateHomeClient(role);
+    }
+
+    /**
+     * Return the cached client for the given role, or null if not yet created.
+     * Unlike {@link #getClient(ConnectionRole)}, this never triggers blocking
+     * network calls (no home resolution, no bootstrap), so it is safe to call
+     * from hot paths that must not block.
+     */
+    public FapiClient getCachedClient(ConnectionRole role) {
+        if (role == null) return null;
+        if (role == ConnectionRole.BASE) {
+            return getDefaultFapiClient();
+        }
+        return homeClientMap.get(role);
+    }
+
+    /**
+     * Lazy-create a home-appointed FapiClient for the given role.
+     * Falls back to the default FapiClient if the home service cannot be resolved or connected.
+     * The result (including fallback) is cached in homeClientMap.
+     */
+    private synchronized FapiClient getOrCreateHomeClient(ConnectionRole role) {
+        FapiClient cached = homeClientMap.get(role);
+        if (cached != null) return cached;
+
+        FapiClient defaultClient = getDefaultFapiClient();
+
+        // BASE readiness gate: until the default (BASE) FapiClient is connected, freer.home
+        // cannot be refreshed and home SIDs cannot be resolved (resolution does serviceById,
+        // which needs BASE). In that window — especially when the default server is also the
+        // DOCK/DISK server — attempting resolution can stall the default client's own startup.
+        // Defer without caching so the next call retries once BASE is ready.
+        if (defaultClient == null || !defaultClient.isConfigured()) {
+            TimberLogger.d(TAG, "BASE not ready; deferring home %s client resolution", role.displayName());
+            return (role == ConnectionRole.DOCK) ? null : defaultClient;
+        }
+
+        Map<String, String> home = getMainFidHome(defaultClient);
+        if (home == null || home.isEmpty()) {
+            if (role == ConnectionRole.DOCK) {
+                // DOCK: no home configured means no dock — return null so callers know
+                TimberLogger.d(TAG, "No home configured, DOCK unavailable");
+                return null;
+            }
+            if (defaultClient != null) {
+                homeClientMap.put(role, defaultClient);
+            }
+            return defaultClient;
+        }
+
+        String theKey = role.displayName();
+        com.fc.fc_ajdk.fapi.client.HomeServiceResolver resolver =
+                defaultClient != null ? defaultClient.getHomeServiceResolver() : new com.fc.fc_ajdk.fapi.client.HomeServiceResolver();
+
+        String url;
+        if (role == ConnectionRole.DOCK) {
+            url = resolver.resolveDockFromHome(home, defaultClient);
+        } else {
+            url = resolver.resolveFromHome(home, theKey, defaultClient);
+        }
+
+        if (url == null || url.isEmpty()) {
+            if (role == ConnectionRole.DOCK) {
+                TimberLogger.d(TAG, "No home.DOCK configured, DOCK unavailable");
+                return null;
+            }
+            // For DISK and others: fall back to default FapiClient
+            TimberLogger.d(TAG, "No home.%s configured, using default FapiClient", theKey);
+            if (defaultClient != null) {
+                homeClientMap.put(role, defaultClient);
+            }
+            return defaultClient;
+        }
+
+        if (defaultClient != null && url.equals(defaultClient.getServerUrl())) {
+            homeClientMap.put(role, defaultClient);
+            return defaultClient;
+        }
+
+        try {
+            FudpNode fudpNode = currentSetting != null ? currentSetting.getFudpNode() : null;
+            FapiClient homeClient = FapiClient.bootstrapFromUrl(fudpNode, url,
+                    currentSetting != null ? currentSetting.getSettingMap() : null);
+            if (homeClient != null && homeClient.isConfigured()) {
+                if (currentSetting != null) {
+                    String mainFid = currentSetting.getMainFid();
+                    if (mainFid != null) {
+                        homeClient.setAutoRechargeInfo(mainFid, currentSetting::decryptPrikey);
+                    }
+                }
+                homeClientMap.put(role, homeClient);
+                persistHomeClient(role, homeClient);
+                TimberLogger.d(TAG, "Created home %s client at %s", theKey, url);
+                return homeClient;
+            }
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "Failed to bootstrap home %s client at %s: %s", theKey, url, e.getMessage());
+        }
+
+        if (role == ConnectionRole.DOCK) {
+            // DOCK: bootstrap failed — return null, don't cache failure.
+            // Next call will retry the bootstrap.
+            TimberLogger.w(TAG, "Home DOCK bootstrap failed for %s, will retry later", url);
+            return null;
+        }
+
+        TimberLogger.d(TAG, "Home %s bootstrap failed, falling back to default FapiClient", theKey);
+        if (defaultClient != null) {
+            homeClientMap.put(role, defaultClient);
+        }
+        return defaultClient;
+    }
+
+    /**
+     * Get the mainFid's freer.home map. Tries FidManager cache first, then fetches via BASE client.
+     */
+    private Map<String, String> getMainFidHome(FapiClient defaultClient) {
+        FidManager fidManager = FidManager.getInstance();
+        if (fidManager == null) return null;
+        
+        String mainFid = fidManager.getMainFid();
+        if (mainFid == null && currentSetting != null) {
+            mainFid = currentSetting.getMainFid();
+        }
+        if (mainFid == null) return null;
+        
+        KeyInfo mainKeyInfo = fidManager.getMainKeyInfo();
+        if (mainKeyInfo != null && mainKeyInfo.getHome() != null && !mainKeyInfo.getHome().isEmpty()) {
+            return mainKeyInfo.getHome();
+        }
+        
+        if (defaultClient != null) {
+            try {
+                com.fc.fc_ajdk.data.fchData.Freer freer = defaultClient.getFreer(mainFid);
+                if (freer != null && freer.getHome() != null) {
+                    return freer.getHome();
+                }
+            } catch (Exception e) {
+                TimberLogger.w(TAG, "Failed to fetch mainFid home: %s", e.getMessage());
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Check if the default FapiClient's service includes a DISK component.
+     * Fetches service info by SID and checks the components list.
+     */
+    private boolean defaultClientHasDisk(FapiClient client) {
+        try {
+            String sid = null;
+            if (client.getApiAccount() != null) {
+                sid = client.getApiAccount().getProviderId();
+            }
+            if (sid == null) sid = client.getServiceSid();
+            if (sid == null) return false;
+
+            Service service = client.serviceById(sid);
+            if (service != null && service.getComponents() != null) {
+                for (String comp : service.getComponents()) {
+                    if (Constants.DISK_NO1_NRC7.equalsIgnoreCase(comp)) return true;
+                }
+            }
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "Failed to check default client DISK capability: %s", e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * Check if DISK service is available and functional.
+     * Returns true if either home.DISK is configured, or the default FapiClient's service has DISK.
+     */
+    public boolean isDiskAvailable() {
+        FapiClient diskClient = getClient(ConnectionRole.DISK);
+        return diskClient != null;
+    }
+
+    /**
+     * @return true if the default BASE FapiClient's service advertises a "disk" component.
+     */
+    public boolean baseHasDiskComponent() {
+        FapiClient client = getDefaultFapiClient();
+        return client != null && defaultClientHasDisk(client);
+    }
+
+    /**
+     * @return the service SID of the default BASE FapiClient, or null if unavailable.
+     */
+    public String getBaseServiceSid() {
+        FapiClient client = getDefaultFapiClient();
+        if (client == null) return null;
+        if (client.getApiAccount() != null && client.getApiAccount().getProviderId() != null) {
+            return client.getApiAccount().getProviderId();
+        }
+        return client.getServiceSid();
+    }
+
+    /**
+     * Explicitly set a DISK FapiClient (e.g., from SetDiskActivity).
+     * Caches the client and persists the ApiAccount.
+     */
+    public void setDiskClient(FapiClient client) {
+        if (client == null) return;
+        homeClientMap.put(ConnectionRole.DISK, client);
+        if (currentSetting != null) {
+            String mainFid = currentSetting.getMainFid();
+            if (mainFid != null) {
+                client.setAutoRechargeInfo(mainFid, currentSetting::decryptPrikey);
+            }
+        }
+        persistHomeClient(ConnectionRole.DISK, client);
+        TimberLogger.d(TAG, "DISK client set explicitly: %s", client.getServerUrl());
+    }
+
+    /**
+     * Get the default BASE FapiClient from clientGroupMap.
+     */
+    private FapiClient getDefaultFapiClient() {
+        Object client = getClient(Service.ServiceType.FAPI_No1_NrC7);
+        return (client instanceof FapiClient) ? (FapiClient) client : null;
+    }
+
+    /**
+     * Persist ApiAccount for a home-appointed client with role-prefixed key.
+     */
+    private void persistHomeClient(ConnectionRole role, FapiClient client) {
+        if (currentConfigure == null || currentSetting == null || client == null) return;
+
+        ApiAccount apiAccount = client.getApiAccount();
+        if (apiAccount == null) return;
+
+        String mainFid = currentSetting.getMainFid();
+        if (mainFid == null) return;
+
+        String roleKey = mainFid + "_" + role.displayName;
+
+        Map<String, ApiAccount> accountMap = currentConfigure.getApiAccountMap();
+        if (accountMap == null) {
+            accountMap = new HashMap<>();
+            currentConfigure.setApiAccountMap(accountMap);
+        }
+        accountMap.put(roleKey, apiAccount);
+
+        // Persist the entire Configure to the correct SharedPreferences ("fc_config_prefs")
+        // Must use storeConfigure since the key is roleKey, not apiAccount.getId()
+        ConfigureManager.getInstance().storeConfigure(appContext, currentConfigure);
+        TimberLogger.d(TAG, "Persisted home %s client (key=%s)", role.displayName, roleKey);
     }
 
     /**
@@ -799,18 +934,18 @@ public class ApiCenter {
     /**
      * 创建并测试client连接
      */
-    private boolean createAndTestClient(Context context, Service.ServiceType serviceType, String apiUrl, byte[] symkey, ClientGroup clientGroup) {
+    private boolean createAndTestClient(Context context, Service.ServiceType serviceType, String apiUrl, ClientGroup clientGroup) {
         try {
             // 创建客户端
-            Object client = createClientForServiceType(context, serviceType, apiUrl, symkey);
+            Object client = createClientForServiceType(context, serviceType, apiUrl);
             if (client == null) {
                 TimberLogger.w(TAG, "Failed to create client for URL: %s", apiUrl);
                 return false;
             }
             
-            // 目前只支持ApipClient
-            if (client instanceof ApipClient apipClient) {
-                return validateAndAddApipClient(apipClient, clientGroup);
+            // TODO 目前只支持FapiClient
+            if (client instanceof FapiClient fapiClient) {
+                return AddFapiClientToGroup(fapiClient, clientGroup);
             } else {
                 TimberLogger.w(TAG, "Unsupported client type for URL: %s", apiUrl);
                 return false;
@@ -825,57 +960,52 @@ public class ApiCenter {
     /**
      * 验证并添加APIP客户端到组中
      */
-    private boolean validateAndAddApipClient(ApipClient apipClient, ClientGroup clientGroup) {
+    private boolean AddFapiClientToGroup(FapiClient fapiClient, ClientGroup clientGroup) {
         try {
             // 获取API账户信息
-            ApiAccount apiAccount = apipClient.getApiAccount();
+            ApiAccount apiAccount = fapiClient.getApiAccount();
             if (apiAccount == null) {
-                TimberLogger.w(TAG, "ApipClient has null ApiAccount");
+                TimberLogger.w(TAG, "FapiClient has null ApiAccount");
                 return false;
             }
-            
-            // 检查客户端是否已连接（创建时可能已经测试过连接）
-            if (apipClient.getConnected()==null || !apipClient.getConnected()) {
-                TimberLogger.w(TAG, "ApipClient for account %s is not connected", apiAccount.getId());
+
+            // Use isConfigured() instead of isConnected() - FUDP connectivity was
+            // verified during bootstrap. isConnected() sends a base.health FAPI request
+            // which fails when credit is exceeded, blocking client creation entirely.
+            if (!fapiClient.isConfigured()) {
+                TimberLogger.w(TAG, "FapiClient for account %s is not configured", apiAccount.getId());
                 return false;
             }
             
             // 添加到客户端组
-            clientGroup.addClient(apiAccount.getId(), apipClient);
+            clientGroup.addClient(apiAccount.getId(), fapiClient);
             clientGroup.addApiAccount(apiAccount);
-            clientGroup.addAccountIds(apiAccount.getId());
-
-            // 设置默认APIP客户端（如果尚未设置）
-            setDefaultApipClientIfNeeded(apipClient, apiAccount);
             
-            TimberLogger.d(TAG, "Successfully added ApipClient for account: %s", apiAccount.getId());
+            TimberLogger.d(TAG, "Successfully added FapiClient for account: %s", apiAccount.getId());
             return true;
             
         } catch (Exception e) {
-            TimberLogger.e(TAG, "Error validating and adding ApipClient: %s", e.getMessage());
+            TimberLogger.e(TAG, "Error validating and adding FapiClient: %s", e.getMessage());
             return false;
-        }
-    }
-    
-    /**
-     * 如果需要，设置默认APIP客户端
-     */
-    private void setDefaultApipClientIfNeeded(ApipClient apipClient, ApiAccount apiAccount) {
-        if (defaultApipClient == null) {
-            defaultApipClient = apipClient;
-            TimberLogger.d(TAG, "Set default ApipClient for account: %s", apiAccount.getId());
         }
     }
 
     /**
      * 根据服务类型获取默认API URL列表
+     * 注：APIP 和 FAPI 现在统一使用 FapiClient
      */
     private String[] getDefaultAPIsForServiceType(Service.ServiceType serviceType) {
         return switch (serviceType) {
-            case APIP -> ApipClient.defaultAPIs;
-            case DISK ->
-                // TODO: 实现DISK客户端的defaultAPIs
-                    new String[0];
+            case FAPI_No1_NrC7 -> {
+
+                if (currentConfigure != null) {
+                    String[] endpoints = currentConfigure.getDefaultFapiEndpoints();
+                    if (endpoints != null && endpoints.length > 0) {
+                        yield endpoints;
+                    }
+                }
+                yield FapiClient.DEFAULT_BOOTSTRAP_APIS;
+            }
             default -> {
                 TimberLogger.w(TAG, "Unsupported service type: %s", serviceType);
                 yield new String[0];
@@ -885,35 +1015,191 @@ public class ApiCenter {
 
     /**
      * 根据服务类型和URL创建client
+     * 注：APIP 和 FAPI 现在统一使用 FapiClient
      */
-    private Object createClientForServiceType(Context context, Service.ServiceType serviceType, String url, byte[] symkey) {
+    private Object createClientForServiceType(Context context, Service.ServiceType serviceType, String url) {
         return switch (serviceType) {
-            case APIP -> ApipClient.createClient(context, url, symkey);
-            case DISK ->
-                // TODO: 实现DISK客户端的创建
-                    null;
+            case FAPI_No1_NrC7 -> createFapiClientForUrl(context, serviceType, url);
+
             default -> {
                 TimberLogger.w(TAG, "Unsupported service type: %s", serviceType);
                 yield null;
             }
         };
+    }
+    
+    /**
+     * 创建FAPI客户端并持久化ApiProvider和ApiAccount（首次启动用）
+     * 使用bootstrapWithResult获取完整的服务发现信息，创建并保存ApiProvider和ApiAccount
+     */
+    private FapiClient createFapiClientForUrl(Context context, Service.ServiceType serviceType, String url) {
+        try {
+            if (currentSetting == null) {
+                TimberLogger.e(TAG, "Current setting is null, cannot create FapiClient");
+                return null;
+            }
+            
+            if (currentConfigure == null) {
+                TimberLogger.e(TAG, "Current configure is null, cannot create FapiClient");
+                return null;
+            }
+            
+            // Ensure symkey is set in setting for decrypting prikey
+            if (currentConfigure.getSymkey() != null) {
+                currentSetting.setSymkey(currentConfigure.getSymkey());
+            }
+            
+            // Initialize FudpNode if needed
+            FudpNode fudpNode = initFudpNode(context);
+            if (fudpNode == null) {
+                return null;
+            }
+            
+            // Bootstrap: try saved preferred URL first, fall back to default APIs
+            FapiClient.BootstrapResult bootstrapResult = null;
+            if (url != null && !url.isEmpty()) {
+                TimberLogger.d(TAG, "Attempting bootstrap from saved preferred URL: %s", url);
+                bootstrapResult = FapiClient.bootstrapFromUrlWithResult(
+                        fudpNode, serviceType, url, currentSetting.getSettingMap());
+            }
+            if (bootstrapResult == null) {
+                TimberLogger.d(TAG, "Falling back to default bootstrap APIs");
+                bootstrapResult = FapiClient.bootstrapWithResult(
+                        fudpNode, serviceType, currentSetting.getSettingMap());
+            }
+            
+            if (bootstrapResult == null) {
+                TimberLogger.w(TAG, "FapiClient bootstrap failed for type: %s", serviceType);
+                return null;
+            }
+            
+            FapiClient client = bootstrapResult.getClient();
+            if(client==null)return null;
+            Service service = bootstrapResult.getService();
+            String endpointUrl = bootstrapResult.getEndpointUrl();
+            
+            // Try to get full service details; fall back to bootstrap info on failure
+            Service fullService = client.serviceById(service.getId());
+            if (fullService != null) {
+                service = fullService;
+            } else {
+                TimberLogger.w(TAG, "serviceById failed (code=%s), using bootstrap service info",
+                        client.getLastResponse() != null ? client.getLastResponse().getCode() : "null");
+            }
+
+            ApiProvider apiProvider = ApiProvider.fromService(service, serviceType);
+            if (apiProvider == null) {
+                TimberLogger.e(TAG, "Failed to create ApiProvider from service");
+                return null;
+            }
+            // Always use the actual bootstrap endpoint, not the on-chain self-reported URL.
+            // The on-chain URL may be 127.0.0.1 which is wrong for emulator/remote clients.
+            apiProvider.setApiUrl(endpointUrl);
+            
+            // Get user info for ApiAccount
+            String mainFid = currentSetting.getMainFid();
+            String pubkey = currentSetting.getPubkey();
+            if (mainFid == null) {
+                TimberLogger.e(TAG, "Main FID is null, cannot create ApiAccount");
+                return null;
+            }
+            
+            // Create ApiAccount
+            String providerId = service.getId();  // serviceSid
+            String accountId = ApiAccount.makeApiAccountId(providerId, mainFid);
+            
+            ApiAccount apiAccount = new ApiAccount();
+            apiAccount.setId(accountId);
+            apiAccount.setProviderId(providerId);
+            apiAccount.setUserId(mainFid);
+            apiAccount.setUserPubkey(pubkey);
+            apiAccount.setApiUrl(apiProvider.getApiUrl());
+            apiAccount.setService(service);
+            
+            // Set ApiAccount on client
+            client.setApiAccount(apiAccount);
+            
+            // Set auto-recharge info
+            client.setAutoRechargeInfo(mainFid, currentSetting::decryptPrikey);
+            
+            // Pre-cache the bootstrap service info in the auto-recharge manager so it
+            // can compute payment amounts even when FAPI requests are blocked by credit limit
+            client.cacheServiceForRecharge(service);
+            
+            // If the serviceById request failed with a balance-related error, the server
+            // included the current balance in the error response. Trigger auto-recharge now.
+            FapiResponse lastResp = client.getLastResponse();
+            if (lastResp != null && lastResp.getCode() != null
+                    && lastResp.getCode() == FapiCode.PAYMENT_REQUIRED) {
+                TimberLogger.w(TAG, "Credit exceeded detected, triggering auto-recharge (balance=%s)",
+                        lastResp.getBalance());
+                client.triggerAutoRecharge();
+            }
+            
+            // Persist ApiProvider and ApiAccount to Configure
+            persistApiProviderAndAccount(apiProvider, apiAccount);
+            
+            TimberLogger.d(TAG, "Created FapiClient with persistence: accountId=%s, providerId=%s, endpoint=%s", 
+                    accountId, providerId, endpointUrl);
+            
+            return client;
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error creating FapiClient: %s", e.getMessage(), e);
+            return null;
+        }
+    }
+    
+    /**
+     * Initialize FudpNode if needed
+     */
+    private FudpNode initFudpNode(Context context) {
+        FudpNode fudpNode = currentSetting.getFudpNode();
+        if (fudpNode == null || !fudpNode.isRunning()) {
+            String dataDir = context.getFilesDir().getAbsolutePath() + "/fudp";
+            fudpNode = currentSetting.initFudpNode(dataDir);
+            if (fudpNode == null) {
+                TimberLogger.e(TAG, "Failed to initialize FudpNode");
+                return null;
+            }
+        }
+        return fudpNode;
+    }
+    
+    /**
+     * Persist ApiProvider and ApiAccount to Configure
+     */
+    private void persistApiProviderAndAccount(ApiProvider apiProvider, ApiAccount apiAccount) {
+        if (currentConfigure == null) {
+            TimberLogger.e(TAG, "Current configure is null, cannot persist");
+            return;
+        }
+
+        // Get or create maps
+        Map<String, ApiProvider> apiProviderMap = currentConfigure.getApiProviderMap();
+        if (apiProviderMap == null) {
+            apiProviderMap = new HashMap<>();
+            currentConfigure.setApiProviderMap(apiProviderMap);
+        }
+
+        Map<String, ApiAccount> apiAccountMap = currentConfigure.getApiAccountMap();
+        if (apiAccountMap == null) {
+            apiAccountMap = new HashMap<>();
+            currentConfigure.setApiAccountMap(apiAccountMap);
+        }
+
+        // Save ApiProvider using service ID as key
+        apiProviderMap.put(apiProvider.getId(), apiProvider);
+
+        // Save ApiAccount using account ID as key
+        apiAccountMap.put(apiAccount.getId(), apiAccount);
+
+        // Persist to the correct SharedPreferences via ConfigureManager
+        ConfigureManager.getInstance().storeConfigure(appContext, currentConfigure);
+
+        TimberLogger.d(TAG, "Persisted ApiProvider (id=%s) and ApiAccount (id=%s)",
+                apiProvider.getId(), apiAccount.getId());
     }
 
-    /**
-     * 根据ApiAccount和ApiProvider创建client
-     */
-    private Object createClientFromAccount(Context context, Service.ServiceType serviceType, ApiAccount apiAccount, ApiProvider apiProvider, byte[] symkey) {
-        return switch (serviceType) {
-            case APIP -> ApipClient.createClient(context, apiAccount, apiProvider, symkey);
-            case DISK ->
-                // TODO: 实现DISK客户端的创建
-                    null;
-            default -> {
-                TimberLogger.w(TAG, "Unsupported service type: %s", serviceType);
-                yield null;
-            }
-        };
-    }
 
 
     /**
@@ -931,7 +1217,7 @@ public class ApiCenter {
             byte[] sessionKey = cryptoDataByte.getData();
             
             // 用symkey重新加密
-            Encryptor encryptor = new Encryptor();
+            Encryptor encryptor = new Encryptor(FC_AesGcm256_No1_NrC7);
             CryptoDataByte newCryptoDataByte = encryptor.encryptBySymkey(sessionKey, symkey);
             if (newCryptoDataByte.getCode() != 0) {
                 return null;
@@ -984,8 +1270,25 @@ public class ApiCenter {
         return currentSetting;
     }
 
-    public void setCurrentSetting(Setting currentSetting) {
-        this.currentSetting = currentSetting;
+    public void setCurrentSetting(Setting newSetting) {
+        // Check if we're switching to a different main FID
+        if (this.currentSetting != null && newSetting != null) {
+            String oldFid = this.currentSetting.getFid();
+            String newFid = newSetting.getFid();
+
+            if (oldFid != null && !oldFid.equals(newFid)) {
+                TimberLogger.d(TAG, "Switching main FID from %s to %s - closing old clients", oldFid, newFid);
+                closeHomeClients();
+                closeAllClients();
+
+                // Note: closeAllClients() already sets clientGroupMap to null,
+                // but we'll set currentSetting and currentConfigure to null to be explicit
+                this.currentSetting = null;
+                this.currentConfigure = null;
+            }
+        }
+
+        this.currentSetting = newSetting;
     }
 
     public Configure getCurrentConfigure() {
@@ -1004,11 +1307,231 @@ public class ApiCenter {
         this.clientGroupMap = clientGroupMap;
     }
 
-    public ApipClient getDefaultApipClient() {
-        return defaultApipClient;
+    /**
+     * Close all clients and clean up resources
+     * This is called when password changes or when cleaning up the session
+     */
+    /**
+     * Close all home-appointed clients and clear the map.
+     */
+    private void closeHomeClients() {
+        for (Map.Entry<ConnectionRole, FapiClient> entry : homeClientMap.entrySet()) {
+            FapiClient client = entry.getValue();
+            FapiClient defaultClient = getDefaultFapiClient();
+            if (client != null && client != defaultClient) {
+                client.close();
+            }
+        }
+        homeClientMap.clear();
+        TimberLogger.d(TAG, "Closed all home-appointed clients");
     }
 
-    public void setDefaultApipClient(ApipClient defaultApipClient) {
-        this.defaultApipClient = defaultApipClient;
+    public void closeAllClients() {
+        TimberLogger.d(TAG, "Closing all API clients");
+
+        closeHomeClients();
+
+        if (clientGroupMap != null) {
+            // Close all client groups
+            for (Map.Entry<Service.ServiceType, ClientGroup> entry : clientGroupMap.entrySet()) {
+                Service.ServiceType serviceType = entry.getKey();
+                ClientGroup clientGroup = entry.getValue();
+
+                if (clientGroup != null) {
+                    // Get all clients and close them if they have a close method
+                    Map<String, Object> clients = clientGroup.getClientMap();
+                    if (clients != null) {
+                        for (Map.Entry<String, Object> clientEntry : clients.entrySet()) {
+                            Object client = clientEntry.getValue();
+                            if(client instanceof FapiClient fapiClient){
+                                fapiClient.close();
+                            }
+                            // FapiClient doesn't need explicit shutdown - FudpNode handles cleanup
+                            TimberLogger.d(TAG, "Closing client: %s for service type: %s",
+                                clientEntry.getKey(), serviceType);
+                        }
+                    }
+                }
+            }
+
+            // Clear the client group map
+            clientGroupMap.clear();
+            clientGroupMap = null;
+            TimberLogger.d(TAG, "All client groups cleared");
+        }
+        
+        // Stop FudpNode if running
+        if (currentSetting != null) {
+            currentSetting.stopFudpNode();
+        }
+
+        // Clear current setting and configure references
+        currentSetting = null;
+        currentConfigure = null;
+
+        TimberLogger.d(TAG, "ApiCenter cleanup completed");
     }
+
+    /**
+     * Full reset of ApiCenter - for password change scenarios
+     * This is more thorough than just closing clients
+     */
+    public void fullReset() {
+        TimberLogger.d(TAG, "Starting full reset of ApiCenter");
+
+        closeAllClients();
+
+        // Reset the singleton instance (nuclear option)
+        // This ensures no stale state remains
+        instance = null;
+
+        TimberLogger.d(TAG, "ApiCenter full reset completed");
+    }
+
+    /**
+     * Replace or add a client in the client group
+     *
+     * @param context Application context
+     * @param serviceType The service type
+     * @param selectedProvider The selected API provider
+     * @param oldProviderId The account ID to replace (null to add new)
+     * @return true if client was added or replaced successfully, false otherwise
+     */
+    public boolean replaceClient(Context context, Service.ServiceType serviceType, ApiProvider selectedProvider, String oldProviderId) {
+
+        String mainFid = FidManager.getInstance().getMainFid();
+
+        if (context == null || serviceType == null || selectedProvider == null) {
+            TimberLogger.e(TAG, "Invalid parameters for replaceClient");
+            showToastOnUiThread(context, "Invalid parameters for replaceClient", "ERROR");
+            return false;
+        }
+
+        // 1. Load or create ApiAccount
+        ApiAccount apiAccount = loadOrCreateApiAccount(selectedProvider);
+        if (apiAccount == null) {
+            TimberLogger.e(TAG, "Failed to create ApiAccount");
+            showToastOnUiThread(context, "Failed to create ApiAccount", "ERROR");
+            return false;
+        }
+
+        // 2. Create client via fresh bootstrap
+        Object client = createClientForServiceType(context, serviceType, selectedProvider.getApiUrl());
+        if (client == null) {
+            TimberLogger.e(TAG, "Failed to create client for service type: %s", serviceType);
+            showToastOnUiThread(context, "Failed to create client for service type: " + serviceType, "ERROR");
+            return false;
+        }
+        if (client instanceof FapiClient fapiClient) {
+            fapiClient.setApiAccount(apiAccount);
+            fapiClient.cacheServiceForRecharge(selectedProvider);
+            String fid = currentSetting != null ? currentSetting.getMainFid() : null;
+            if (fid != null) {
+                fapiClient.setAutoRechargeInfo(fid, currentSetting::decryptPrikey);
+            }
+        }
+
+        // Check if client is connected
+        boolean isConnected = false;
+        if (client instanceof FapiClient fapiClient) {
+            isConnected = fapiClient.isConnected();
+        }
+
+        if (!isConnected) {
+            TimberLogger.w(TAG, "Client is not connected for service type: %s", serviceType);
+            showToastOnUiThread(context, context.getString(R.string.client_is_not_connected_for_service_type_s,serviceType), "WARNING");
+            return false;
+        }
+
+        // Set the client on the apiAccount so it can be added to the client group
+        apiAccount.setClient(client);
+
+        // Get or create client group
+        if (clientGroupMap == null) {
+            clientGroupMap = new HashMap<>();
+        }
+
+        ClientGroup clientGroup = clientGroupMap.get(serviceType);
+        String oldAccountId = null;
+
+        if (oldProviderId != null) {
+            oldAccountId = ApiAccount.makeApiAccountId(oldProviderId, mainFid);
+        }
+
+        if (clientGroup == null) {
+            clientGroup = new ClientGroup(serviceType);
+        }
+        //Remove old account and client
+        if (oldAccountId != null) {
+            clientGroup.removeClient(oldAccountId);
+        }
+
+        //Add new account
+        clientGroup.addClient(apiAccount);
+        clientGroupMap.put(serviceType, clientGroup);
+
+        Integer targetCount = FreerApplication.getServiceNumberMap().get(serviceType);
+
+        String message = context.getString(R.string.added_new_client_for_s_total_d_d,
+                serviceType, clientGroup.getClientCount(), targetCount);
+        TimberLogger.d(TAG, message);
+        showToastOnUiThread(context, message, "INFO");
+
+        // Persist ApiProvider and ApiAccount to Configure so they survive app restart
+        // Must use ConfigureManager which saves to the correct SharedPreferences ("fc_config_prefs")
+        ConfigureManager.saveApiProviderAndAccount(context, selectedProvider, apiAccount);
+
+        currentSetting.setClientGroupMap(clientGroupMap);
+        SettingManager.getInstance().saveSettings(context,currentSetting);
+
+        return true;
+    }
+
+    /**
+     * Helper method to show toast on UI thread
+     */
+    private void showToastOnUiThread(Context context, String message, String level) {
+        if (context instanceof android.app.Activity) {
+            ((android.app.Activity) context).runOnUiThread(() ->
+                ToastUtils.makeText(context, message, android.widget.Toast.LENGTH_SHORT, level)
+            );
+        } else {
+            // For non-Activity contexts, try to show toast directly
+            ToastUtils.makeText(context, message, android.widget.Toast.LENGTH_SHORT, level);
+        }
+    }
+
+    /**
+     * Load or create ApiAccount for the given ApiProvider
+     */
+    private ApiAccount loadOrCreateApiAccount(ApiProvider apiProvider) {
+        if (currentConfigure == null) {
+            TimberLogger.e(TAG, "Current configure is null");
+            return null;
+        }
+
+        KeyInfo mainFidKeyInfo = FidManager.getInstance().getMainKeyInfo();
+        String accountId = ApiAccount.makeApiAccountId(apiProvider.getId(), mainFidKeyInfo.getId());
+        // Check if account already exists in configure
+        if (currentConfigure.getApiAccountMap() != null) {
+            ApiAccount existingAccount = currentConfigure.getApiAccountMap().get(accountId);
+            if (existingAccount != null) {
+                TimberLogger.d(TAG, "Found existing ApiAccount: %s", accountId);
+                return existingAccount;
+            }
+        }
+
+        // Create new ApiAccount
+        ApiAccount newAccount = new ApiAccount();
+        newAccount.setId(accountId);
+        newAccount.setProviderId(apiProvider.getId());
+        newAccount.setUserPubkey(mainFidKeyInfo.getPubkey());
+        newAccount.setUserId(mainFidKeyInfo.getId());
+        newAccount.setUserName(mainFidKeyInfo.getCid()==null?mainFidKeyInfo.getId():mainFidKeyInfo.getCid());
+        newAccount.setApiUrl(apiProvider.getApiUrl());
+
+        TimberLogger.d(TAG, "Created new ApiAccount: %s", accountId);
+        return newAccount;
+    }
+
 }

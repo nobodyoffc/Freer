@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    android:layout_marginStart="8dp"
+    android:layout_marginEnd="8dp"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="4dp"
+    android:background="@drawable/container_outline"
+    android:clickable="true"
+    android:focusable="true"
+    android:gravity="center_vertical">
+
+    <CheckBox
+        android:id="@+id/checkbox_select"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:clickable="false"
+        android:focusable="false"
+        android:visibility="gone" />
+
+    <!-- Avatar with optional short ID -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+
+        <FrameLayout
+            android:layout_width="48dp"
+            android:layout_height="48dp">
+
+            <ImageView
+                android:id="@+id/avatar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/ic_person"
+                android:background="@drawable/avatar_background"
+                android:scaleType="centerCrop"
+                android:clipToOutline="true"
+                android:padding="8dp"
+                app:tint="@color/hint" />
+
+            <View
+                android:id="@+id/online_indicator"
+                android:layout_width="12dp"
+                android:layout_height="12dp"
+                android:layout_gravity="bottom|end"
+                android:background="@drawable/online_indicator"
+                android:visibility="gone" />
+
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/text_short_id"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="10sp"
+            android:textColor="@color/hint"
+            android:maxLines="1"
+            android:layout_marginTop="2dp"
+            android:visibility="gone"
+            tools:text="a1b2...x9z0" />
+
+    </LinearLayout>
+
+    <!-- Content -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="8dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="16sp"
+                android:textColor="@color/text"
+                android:textStyle="bold"
+                android:ellipsize="end"
+                android:maxLines="1"
+                tools:text="Contact Name" />
+
+            <TextView
+                android:id="@+id/time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="@color/hint"
+                tools:text="10:30 AM" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="4dp"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/preview"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="14sp"
+                android:textColor="@color/hint"
+                android:ellipsize="end"
+                android:maxLines="1"
+                tools:text="Last message preview..." />
+
+            <TextView
+                android:id="@+id/unread_badge"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:background="@drawable/unread_badge_background"
+                android:gravity="center"
+                android:textSize="12sp"
+                android:textColor="@color/white"
+                android:visibility="gone"
+                tools:text="3"
+                tools:visibility="visible" />
+
+        </LinearLayout>
+
+        <!-- Group metrics (memberNum, tCdd) -->
+        <LinearLayout
+            android:id="@+id/group_metrics_layout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="4dp"
+            android:layout_gravity="end"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_person"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="2dp"
+                app:tint="@color/accent" />
+
+            <TextView
+                android:id="@+id/text_member_num"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="@color/hint"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="8dp" />
+
+            <ImageView
+                android:id="@+id/icon_good"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_good"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="2dp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/text_trate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="@color/hint"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="8dp"
+                android:visibility="gone" />
+
+            <ImageView
+                android:id="@+id/icon_hot"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_hot"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="2dp"
+                app:tint="@color/red" />
+
+            <TextView
+                android:id="@+id/text_tcdd"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="@color/hint"
+                android:layout_gravity="center_vertical" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Type indicator -->
+    <ImageView
+        android:id="@+id/type_indicator"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="center_vertical"
+        android:visibility="gone"
+        app:tint="@color/hint" />
+
+</LinearLayout>

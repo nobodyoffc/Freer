@@ -3,7 +3,8 @@ package com.fc.fc_ajdk.data.feipData;
 import com.fc.fc_ajdk.utils.JsonUtils;
 
 public class Feip {
-	public static Long REQUIRED_CD = 0L;
+	public static Long CD_REQUIRED = 1L;
+	public static long CDD_CHECK_HEIGHT=4032000;
 
 	private String type;
 	private String sn;
@@ -24,16 +25,16 @@ public class Feip {
 		this.name = name;
 	}
 
-	public static enum ProtocolName {
-		PROTOCOL("1","7", "Protocol"),
+	public enum FeipProtocol {
+		PROTOCOL("1","7", "FeipProtocol"),
 		CODE("2","1", "Code"),
 		CID("3","4", "CID"),
 		NOBODY("4","1", "Nobody"),
-		SERVICE("5","2", "Service"),
-		MASTER("6","6", "Master"),
+		SERVICE("5","3", "Service"),
+		MASTER("6","1", "Master"),
 		MAIL("7","4", "Mail"),
-		STATEMENT("8","5", "Statement"),
-		HOMEPAGE("9","1", "Homepage"),
+		STATEMENT("8","1", "Statement"),
+		HOME("9","1", "Home"),
 		NOTICE_FEE("10","1", "NoticeFee"),
 		NID("11","1", "NID"),
 		CONTACT("12","3", "Contact"),
@@ -43,14 +44,19 @@ public class Feip {
 		REPUTATION("16","1", "Reputation"),
 		SECRET("17","3", "Secret"),
 		TEAM("18","1", "Team"),
-		GROUP("19","3", "Group"),
-		TOKEN("20","1", "Token");
+		SQUARE("19","4", "Square"),  // FEIP protocol name "Square" for API compatibility; UI displays "Square"
+		TOKEN("20","1", "Token"),
+		TEXT("21","1", "Text"),
+		REMARK("22","1", "Remark"),
+		SOUND("23","1", "Sound"),
+		IMAGE("24","1", "Image"),
+		VIDEO("25","1", "Video");
 
 		private final String sn;
 		private final String ver;
 		private final String name;
 
-		ProtocolName(String sn, String ver, String name) {
+		FeipProtocol(String sn, String ver, String name) {
 			this.sn = sn;
 			this.ver = ver;
 			this.name = name;
@@ -71,15 +77,57 @@ public class Feip {
 		public String getName() {
 			return name;
 		}
+
+		public static FeipProtocol fromName(String name) {
+			if (name == null) {
+				throw new IllegalArgumentException("FeipProtocol name cannot be null");
+			}
+			// "Square" maps to SQUARE (protocol name "Square" for API compatibility)
+			if (name.equalsIgnoreCase("Square")) {
+				return SQUARE;
+			}
+			for (FeipProtocol feipProtocol : FeipProtocol.values()) {
+				if (feipProtocol.getName().equalsIgnoreCase(name)) {
+					return feipProtocol;
+				}
+			}
+			return null;
+		}
+
+		public static FeipProtocol fromSn(String sn) {
+			if (sn == null) {
+				return null;
+			}
+			for (FeipProtocol feipProtocol : FeipProtocol.values()) {
+				if (feipProtocol.getSn().equalsIgnoreCase(sn)) {
+					return feipProtocol;
+				}
+			}
+			return null;
+		}
 	}
 
-	public static Feip fromProtocolName(ProtocolName protocolName) {
-		return new Feip(protocolName.getSn(), protocolName.getVer(), protocolName.getName());
+	public static void main(String[] args) {
+		Feip feip = Feip.fromProtocolName(FeipProtocol.APP);
+		System.out.println(feip.toJson());
+
+		Feip feip2 = Feip.fromName("APP");
+		System.out.println(feip2.toJson());
+
+		Feip feip3 = Feip.fromProtocolName(FeipProtocol.TEAM);
+		System.out.println(feip3.toJson());
+
+		Feip feip4 = Feip.fromName("team");
+		System.out.println(feip4.toJson());
+	}
+
+	public static Feip fromProtocolName(FeipProtocol feipProtocol) {
+		return new Feip(feipProtocol.getSn(), feipProtocol.getVer(), feipProtocol.getName());
 	}
 
 	public static Feip fromName(String name) {
-		ProtocolName protocolName = ProtocolName.valueOf(name.toUpperCase());
-		return new Feip(protocolName.getSn(), protocolName.getVer(), protocolName.getName());
+		FeipProtocol feipProtocol = FeipProtocol.valueOf(name.toUpperCase());
+		return new Feip(feipProtocol.getSn(), feipProtocol.getVer(), feipProtocol.getName());
 	}
 
 	public String toJson(){
@@ -135,5 +183,4 @@ public class Feip {
 		this.data = data;
 	}
 
-	
 }

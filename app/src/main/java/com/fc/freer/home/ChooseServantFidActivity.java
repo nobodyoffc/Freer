@@ -3,10 +3,14 @@ package com.fc.freer.home;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
-import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
+
+import com.fc.fc_ajdk.data.fchData.Freer;
+import com.fc.freer.BaseCryptoActivity;
+import com.fc.freer.utils.ChooseMode;
+import com.fc.freer.utils.ToastUtils;
 
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.utils.TimberLogger;
@@ -15,8 +19,7 @@ import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.AvatarManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.Setting;
-import com.fc.freer.utils.KeyCardManager;
-import com.fc.freer.utils.ToolbarUtils;
+import com.fc.freer.utils.KeyCardContainer;
 import com.fc.freer.ui.MenuItem;
 
 import java.util.ArrayList;
@@ -27,22 +30,23 @@ public class ChooseServantFidActivity extends BaseCryptoActivity {
     public static final int REQUEST_CODE_ADD_SERVANT_FID = 3002;
     
     private LinearLayout servantFidListContainer;
-    private Button cancelButton;
-    private Button addButton;
+    private ImageButton addButton;
     private Setting currentSetting;
     private KeyInfo selectedKeyInfo;
     private List<KeyInfo> servantFidList;
-    private KeyCardManager keyCardManager;
+    private KeyCardContainer keyCardContainer;
     private View selectedCardView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Session lost (process death while backgrounded): base is redirecting to re-auth.
+        if (isSessionRedirected()) return;
         
         // Get current setting
         currentSetting = SettingManager.getInstance().getCurrentSetting();
         if (currentSetting == null) {
-            Toast.makeText(this, "Current setting not available", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.current_setting_not_available));
             finish();
             return;
         }
@@ -64,25 +68,19 @@ public class ChooseServantFidActivity extends BaseCryptoActivity {
     @Override
     protected void initializeViews() {
         servantFidListContainer = findViewById(R.id.servant_fid_list_container);
-        cancelButton = findViewById(R.id.cancel_button);
         addButton = findViewById(R.id.add_button);
         
-        // Initialize KeyCardManager with clickToReturn mode and delete menu
+        // Initialize KeyCardContainer with CHOOSE_ONE_RETURN mode and delete menu
         List<MenuItem> menuItems = new ArrayList<>();
         menuItems.add(MenuItem.createDeleteMenuItem(this));
-        keyCardManager = new KeyCardManager(this, servantFidListContainer, null, true, menuItems);
-        keyCardManager.setShowDefaultMenuItems(true); // Show "Add to FID list" and "Clear FID list"
-        keyCardManager.setOnKeyClickedListener(this::onServantFidSelected);
-        keyCardManager.setOnMenuItemClickListener(this::onMenuItemClicked);
+        keyCardContainer = new KeyCardContainer(this, servantFidListContainer, ChooseMode.CHOOSE_ONE_RETURN, menuItems, true);
+        keyCardContainer.setShowDefaultMenuItems(true); // Show "Add to FID list" and "Clear FID list"
+        keyCardContainer.setOnKeyClickedListener(this::onServantFidSelected);
+        keyCardContainer.setOnMenuItemClickListener(this::onMenuItemClicked);
     }
 
     @Override
     protected void setupButtons() {
-        cancelButton.setOnClickListener(v -> {
-            setResult(RESULT_CANCELED);
-            finish();
-        });
-
         addButton.setOnClickListener(v -> {
             // Launch AddServantFidActivity
             Intent intent = new Intent(this, AddServantFidActivity.class);
@@ -98,7 +96,7 @@ public class ChooseServantFidActivity extends BaseCryptoActivity {
     private void loadServantFidList() {
         List<KeyInfo> servantList = currentSetting.getServantKeyInfoList();
         if (servantList == null || servantList.isEmpty()) {
-            // No servant FIDs, show create button only
+            // No servant FIDs, show add button only
             addButton.setEnabled(true);
             servantFidList = new ArrayList<>();
             displayServantFidList();
@@ -130,7 +128,7 @@ public class ChooseServantFidActivity extends BaseCryptoActivity {
     }
 
     private void displayServantFidList() {
-        keyCardManager.clearAll();
+        keyCardContainer.clearAll();
         selectedCardView = null;
         
         if (servantFidList.isEmpty()) {
@@ -145,7 +143,7 @@ public class ChooseServantFidActivity extends BaseCryptoActivity {
         }
         
         for (KeyInfo keyInfo : servantFidList) {
-            keyCardManager.addKeyCard(keyInfo);
+            keyCardContainer.addKeyCard(keyInfo);
         }
     }
 
@@ -169,15 +167,15 @@ public class ChooseServantFidActivity extends BaseCryptoActivity {
                     SettingManager.getInstance().saveSettings(this,currentSetting);
                     
                     // Also update the current setting in SettingManager to ensure it stays in sync
-                    SettingManager.getInstance().setCurrentSetting(this,currentSetting);
+                    SettingManager.getInstance().setCurrentSetting(currentSetting);
                     
                     // Reload the list to reflect the changes
                     loadServantFidList();
-                    
-                    Toast.makeText(this, "Servant FID deleted", Toast.LENGTH_SHORT).show();
+
+                    ToastUtils.makeText(this, getString(R.string.servant_fid_deleted));
                     TimberLogger.d(TAG, "Successfully removed servant FID: %s", keyInfo.getId());
                 } else {
-                    Toast.makeText(this, "Failed to remove servant FID", Toast.LENGTH_SHORT).show();
+                    ToastUtils.makeText(this, getString(R.string.failed_to_remove_servant_fid));
                     TimberLogger.w(TAG, "Failed to remove servant FID: %s", keyInfo.getId());
                 }
             }
@@ -188,13 +186,10 @@ public class ChooseServantFidActivity extends BaseCryptoActivity {
      * Switch to servant FID using proper FidManager.switchLiveFid() method
      */
     private void switchToServantFidAsync(String servantFid, KeyInfo keyInfo) {
-        TimberLogger.d(TAG, "=== SERVANT FID SWITCH START ===");
-        TimberLogger.d(TAG, "Target servant FID: %s", servantFid);
-        TimberLogger.d(TAG, "Target KeyInfo - ID: %s, CID: %s, Label: %s", 
-            keyInfo != null ? keyInfo.getId() : "null",
-            keyInfo != null ? keyInfo.getCid() : "null", 
-            keyInfo != null ? keyInfo.getLabel() : "null");
-        
+        // Show waiting dialog
+        com.fc.freer.ui.WaitingDialog waitingDialog = new com.fc.freer.ui.WaitingDialog(this, getString(R.string.switching_fid));
+        runOnUiThread(() -> waitingDialog.show());
+
         // Execute switching operation on background thread
         new Thread(() -> {
             try {
@@ -202,36 +197,28 @@ public class ChooseServantFidActivity extends BaseCryptoActivity {
                 if (fidManager == null) {
                     TimberLogger.e(TAG, "FidManager is null!");
                     runOnUiThread(() -> {
-                        Toast.makeText(this, "FidManager not available", Toast.LENGTH_SHORT).show();
+                        waitingDialog.dismiss();
+                        ToastUtils.makeText(this, getString(R.string.fid_manager_not_available));
                     });
                     return;
                 }
 
                 String previousLiveFid = fidManager.getLiveFid();
-                TimberLogger.d(TAG, "BEFORE switchLiveFid:");
-                TimberLogger.d(TAG, "  - Previous liveFid: %s", previousLiveFid);
-                TimberLogger.d(TAG, "  - Target servantFid: %s", servantFid);
 
                 // Use the proper FidManager.switchLiveFid() method
                 boolean success = fidManager.switchLiveFid(this, servantFid, keyInfo);
-                
-                String currentLiveFid = fidManager.getLiveFid();
-                KeyInfo currentLiveKeyInfo = fidManager.getLiveKeyInfo();
-                TimberLogger.d(TAG, "AFTER switchLiveFid:");
-                TimberLogger.d(TAG, "  - Switch success: %s", success);
-                TimberLogger.d(TAG, "  - Current liveFid: %s", currentLiveFid);
-                TimberLogger.d(TAG, "  - Current liveKeyInfo ID: %s", currentLiveKeyInfo != null ? currentLiveKeyInfo.getId() : "null");
-                TimberLogger.d(TAG, "  - Current liveKeyInfo CID: %s", currentLiveKeyInfo != null ? currentLiveKeyInfo.getCid() : "null");
 
                 runOnUiThread(() -> {
+                    waitingDialog.dismiss();
+
                     if (success) {
-                        Toast.makeText(this, "Switched to servant FID: " + servantFid, Toast.LENGTH_SHORT).show();
+                        ToastUtils.makeText(this, getString(R.string.fid_switched));
                         TimberLogger.d(TAG, "Switch successful, finishing activity");
                     } else if (servantFid.equals(previousLiveFid)) {
-                        Toast.makeText(this, "Already viewing FID: " + servantFid, Toast.LENGTH_SHORT).show();
+                        ToastUtils.makeText(this, getString(R.string.already_viewing_servant_fid, servantFid));
                         TimberLogger.d(TAG, "Already viewing this FID, treating as success");
                     } else {
-                        Toast.makeText(this, "Failed to switch to servant FID", Toast.LENGTH_SHORT).show();
+                        ToastUtils.makeText(this, getString(R.string.failed_to_switch_to_servant_fid));
                         TimberLogger.w(TAG, "switchLiveFid returned false for unknown reason");
                         return; // Don't finish activity on failure
                     }
@@ -239,15 +226,16 @@ public class ChooseServantFidActivity extends BaseCryptoActivity {
                     // Return success result to HomeActivity to refresh UI
                     setResult(RESULT_OK);
                     finish();
-                    
+
                     // Refresh cidInfo from API in background
                     refreshCidInfoAsync(servantFid, fidManager);
                 });
-                
+
             } catch (Exception e) {
                 TimberLogger.e(TAG, "Error switching to servant FID %s: %s", servantFid, e.getMessage(), e);
                 runOnUiThread(() -> {
-                    Toast.makeText(this, "Failed to switch to servant FID: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    waitingDialog.dismiss();
+                    ToastUtils.makeText(this, getString(R.string.failed_to_switch_to_servant_fid_error, e.getMessage()));
                 });
             }
         }).start();
@@ -260,24 +248,21 @@ public class ChooseServantFidActivity extends BaseCryptoActivity {
         new Thread(() -> {
             try {
                 com.fc.freer.utils.ApiCenter apiCenter = com.fc.freer.utils.ApiCenter.getInstance();
-                com.fc.freer.network.ApipClient apipClient = (com.fc.freer.network.ApipClient) apiCenter.getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.APIP);
-                if (apipClient == null || !apipClient.getConnected()) {
-                    TimberLogger.w(TAG, "APIP client not available for cidInfo refresh");
+                com.fc.fc_ajdk.fapi.client.FapiClient fapiClient = (com.fc.fc_ajdk.fapi.client.FapiClient) apiCenter.getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.FAPI_No1_NrC7);
+                if (fapiClient == null || !fapiClient.isConnected()) {
+                    TimberLogger.w(TAG, "FAPI client not available for freerInfo refresh");
                     return;
                 }
                 
-                // Fetch fresh cidInfo from API
-                com.fc.fc_ajdk.data.fchData.Cid cidInfo = apipClient.cidInfoById(fid, 
-                    com.fc.fc_ajdk.utils.http.RequestMethod.POST, 
-                    com.fc.fc_ajdk.utils.http.AuthType.FC_SIGN_BODY, 
-                    this);
-                    
-                if (cidInfo != null) {
+                // Fetch fresh freerInfo from API
+                Freer freerInfo =  fapiClient.freerById(fid);
+
+                if (freerInfo != null) {
                     // Update KeyInfo with fresh data
                     KeyInfo currentKeyInfo = fidManager.getLiveKeyInfo();
                     if (currentKeyInfo != null) {
                         // Preserve user-specific data while updating API data
-                        KeyInfo updatedKeyInfo = KeyInfo.fromCid(cidInfo);
+                        KeyInfo updatedKeyInfo = KeyInfo.fromCid(freerInfo);
                         updatedKeyInfo.setLabel(currentKeyInfo.getLabel());
                         updatedKeyInfo.setPrikeyCipher(currentKeyInfo.getPrikeyCipher());
                         updatedKeyInfo.setWatchOnly(currentKeyInfo.getWatchOnly());
@@ -285,12 +270,12 @@ public class ChooseServantFidActivity extends BaseCryptoActivity {
                         
                         // Update in FidManager and save
                         if (fidManager.updateKeyInfo(this, fid, updatedKeyInfo)) {
-                            TimberLogger.d(TAG, "Updated cidInfo for servant FID: %s - Cash: %s, Balance: %s, CD: %s", 
-                                fid, cidInfo.getCash(), cidInfo.getBalance(), cidInfo.getCd());
+                            TimberLogger.d(TAG, "Updated freerInfo for servant FID: %s - Cash: %s, Balance: %s, CD: %s",
+                                fid, freerInfo.getCash(), freerInfo.getBalance(), freerInfo.getCd());
                         }
                     }
                 } else {
-                    TimberLogger.w(TAG, "Failed to fetch cidInfo for servant FID: %s", fid);
+                    TimberLogger.w(TAG, "Failed to fetch freerInfo for servant FID: %s", fid);
                 }
             } catch (Exception e) {
                 TimberLogger.e(TAG, "Error refreshing cidInfo for servant FID %s: %s", fid, e.getMessage());
@@ -305,7 +290,7 @@ public class ChooseServantFidActivity extends BaseCryptoActivity {
         if (requestCode == REQUEST_CODE_ADD_SERVANT_FID && resultCode == RESULT_OK) {
             // Reload servant FID list after adding new one
             loadServantFidList();
-            Toast.makeText(this, "Servant FID added successfully", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.servant_fid_added_successfully));
         }
     }
     

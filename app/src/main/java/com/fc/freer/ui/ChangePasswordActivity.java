@@ -2,7 +2,21 @@ package com.fc.freer.ui;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.widget.Toast;
+
+import com.fc.fc_ajdk.core.crypto.CryptoDataByte;
+import com.fc.fc_ajdk.data.fcData.AlgorithmId;
+import com.fc.fc_ajdk.data.fcData.FcEntity;
+import com.fc.fc_ajdk.data.fchData.Cash;
+import com.fc.fc_ajdk.data.feipData.Contact;
+import com.fc.fc_ajdk.data.feipData.Mail;
+import com.fc.fc_ajdk.data.feipData.Proof;
+import com.fc.fc_ajdk.data.feipData.Secret;
+import com.fc.fc_ajdk.utils.BytesUtils;
+import com.fc.freer.initiate.SettingManager;
+import com.fc.freer.manager.FidManager;
+import com.fc.fc_ajdk.fapi.client.ApiAccount;
+import com.fc.freer.model.Setting;
+import com.fc.freer.utils.ToastUtils;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -13,7 +27,6 @@ import com.fc.freer.model.Configure;
 import com.fc.fc_ajdk.core.crypto.Decryptor;
 import com.fc.fc_ajdk.core.crypto.Encryptor;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
-import com.fc.fc_ajdk.data.fcData.SecretDetail;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
 import com.fc.freer.manager.SecretManager;
@@ -22,9 +35,8 @@ import com.fc.freer.initiate.CheckPasswordActivity;
 import com.fc.freer.initiate.CreatePasswordActivity;
 import com.fc.freer.manager.DatabaseManager;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Activity to handle the full change password flow:
@@ -48,8 +60,10 @@ public class ChangePasswordActivity extends AppCompatActivity {
         // Optionally set a blank layout, or none at all
         // setContentView(new View(this));
         registerActivityResultLaunchers();
+        oldConfigure = ConfigureManager.getInstance().getConfigure();
         // Start the flow
         Intent intent = new Intent(this, CheckPasswordActivity.class);
+        intent.putExtra("allow_back_navigation", true); // Allow user to cancel password change
         checkPasswordLauncher.launch(intent);
     }
 
@@ -58,7 +72,6 @@ public class ChangePasswordActivity extends AppCompatActivity {
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == RESULT_OK) {
-                    oldConfigure = ConfigureManager.getInstance().getConfigure();
                     Intent intent = new Intent(this, CreatePasswordActivity.class);
                     createPasswordLauncher.launch(intent);
                 } else {
@@ -70,43 +83,59 @@ public class ChangePasswordActivity extends AppCompatActivity {
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == RESULT_OK) {
-                    showWaitingDialog("Re-encrypting all keys and secrets...");
                     new Thread(() -> {
                         Thread.currentThread().setName("PasswordChangeThread");
                         try {
+                            showWaitingDialog("Preparing password change...");
+
                             // Get new symKey
                             Configure newConfigure = ConfigureManager.getInstance().getConfigure();
+
+                            copyOldConfigure(oldConfigure, newConfigure);
+
+                            ConfigureManager.getInstance().removeConfigure(this,oldConfigure.getPasswordName());
+
+                            immigrateAllSettings(oldConfigure,newConfigure);
+
                             byte[] newSymkey = newConfigure.getSymkey();
                             // Save new configure
                             ConfigureManager.getInstance().storeConfigure(this, newConfigure);
-                            
-                            // Update database's current password name before removing old configure
-                            DatabaseManager.getInstance(this).changePassword(newConfigure.getPasswordName());
+
+                            // Update database's current password name and transfer data
+                            showWaitingDialog("Transferring encrypted data...");
+                            changePassword(oldConfigure, newConfigure);
 
                             // Reinitialize managers to use new password name
-                            SecretManager.getInstance().initialize(this);
+                            showWaitingDialog("Initializing managers...");
+                            SecretManager.getInstance().initialize(this, FidManager.getInstance().getLiveFid());
 
                             // Re-encrypt all KeyInfos
+                            showWaitingDialog("Re-encrypting private keys...");
                             reEncryptPriKeyOfKeyInfos(newSymkey);
 
-                            // Re-encrypt all SecretDetails
-                            reEncryptContentOfSecrets(newSymkey);
-
-
                             // Remove old configure
+                            showWaitingDialog("Finalizing...");
                             if (oldConfigure.getPasswordName() != null) {
                                 ConfigureManager.getInstance().removeConfigure(this,oldConfigure.getPasswordName());
                             }
+
                             runOnUiThread(() -> {
                                 dismissWaitingDialog();
-                                Toast.makeText(this, R.string.password_changed , Toast.LENGTH_LONG).show();
+                                ToastUtils.makeText(this, "Password changed. Restart the APP");
+
+                                // Post exit to avoid IllegalStateException during result delivery
+                                new android.os.Handler().postDelayed(() -> {
+                                    android.os.Process.killProcess(android.os.Process.myPid());
+                                    System.exit(0);
+                                }, 1000);
+
                                 setResult(RESULT_OK);
                                 finish();
                             });
                         } catch (Exception e) {
                             runOnUiThread(() -> {
                                 dismissWaitingDialog();
-                                Toast.makeText(this, getString(R.string.error_during_password_change) + e.getMessage(), Toast.LENGTH_LONG).show();
+                                ToastUtils.makeText(this, getString(R.string.error_during_password_change) + e.getMessage());
                                 setResult(RESULT_CANCELED);
                                 finish();
                             });
@@ -119,26 +148,42 @@ public class ChangePasswordActivity extends AppCompatActivity {
         );
     }
 
-    private void reEncryptContentOfSecrets(byte[] newSymKey) {
-        SecretManager secretManager = SecretManager.getInstance();
-        List<SecretDetail> secretList = secretManager.getAllSecretDetailList();
-        for (SecretDetail secret : secretList) {
-            try {
-                String contentCipher = secret.getContentCipher();
-                if (contentCipher != null) {
-                    byte[] contentBytes = Decryptor.decryptPrikey(contentCipher, oldConfigure.getSymkey());
-                    if (contentBytes != null) {
-                        String newCipher = Encryptor.encryptBySymkeyToJson(contentBytes, newSymKey);
-                        secret.setContentCipher(newCipher);
-                    }
+    private void immigrateAllSettings(Configure oldConfigure, Configure newConfigure) {
+        String oldSettingMapKey = SettingManager.getSettingMapKey(oldConfigure);
+        if(oldSettingMapKey.isEmpty())return;
+
+        Map<String, Setting> settingsMap = SettingManager.loadSettingMap(this, oldSettingMapKey);
+        if(settingsMap.isEmpty())return;
+
+        reencryptSettingKeyInfoMapPrikeys(oldConfigure, newConfigure, settingsMap);
+
+        String newSettingMapKey = SettingManager.getSettingMapKey(newConfigure);
+        SettingManager.saveSettingMap(this, newSettingMapKey,settingsMap);
+
+        SettingManager.eraseSettingMap(this, oldSettingMapKey);
+    }
+
+    private void reencryptSettingKeyInfoMapPrikeys(Configure oldConfigure, Configure newConfigure, Map<String, Setting> settingsMap) {
+        for(String key: settingsMap.keySet()){
+            Setting setting = settingsMap.get(key);
+            if(setting == null ){
+                continue;
+            }
+            Map<String, KeyInfo> keyInfoMap = setting.getKeyInfoMap();
+
+            if(keyInfoMap==null || keyInfoMap.isEmpty())return;
+
+            for(KeyInfo keyInfo : keyInfoMap.values()){
+                String prikeyCipher = keyInfo.getPrikeyCipher();
+                if(prikeyCipher ==null)continue;
+                String newCipher = null;
+                try {
+                    newCipher = reEncryptCipher(prikeyCipher, oldConfigure.getSymkey(), newConfigure.getSymkey());
+                    keyInfo.setPrikeyCipher(newCipher);
+                } catch (Exception ignore) {
                 }
-            } catch (Exception e) {
-                TimberLogger.e("ChangePasswordActivity", "Error re-encrypting secret: " + e.getMessage());
-                throw new RuntimeException("Failed to re-encrypt secret: " + e.getMessage());
             }
         }
-        secretManager.addAllSecretDetail(secretList);
-        secretManager.commit();
     }
 
     private void reEncryptPriKeyOfKeyInfos(byte[] newSymKey) {
@@ -182,5 +227,201 @@ public class ChangePasswordActivity extends AppCompatActivity {
         if (waitingDialog != null && waitingDialog.isShowing()) {
             waitingDialog.dismiss();
         }
+    }
+
+    private String reEncryptCipher(String cipher, byte[] oldSymkey, byte[] newSymkey) throws Exception {
+        if (cipher == null) {
+            return null;
+        }
+
+        CryptoDataByte cryptoDataByte = new Decryptor().decryptJsonBySymkey(cipher, oldSymkey);
+        if (cryptoDataByte.getCode() != 0) {
+            throw new Exception("Failed to decrypt cipher");
+        }
+
+        String newCipher = new Encryptor(AlgorithmId.FC_AesGcm256_No1_NrC7).encryptToJsonBySymkey(cryptoDataByte.getData(), newSymkey);
+        BytesUtils.clearByteArray(cryptoDataByte.getData());
+        return newCipher;
+    }
+
+    private void copyOldConfigure(Configure oldConfigure, Configure newConfigure) throws Exception {
+        byte[] oldSymkey = oldConfigure.getSymkey();
+        byte[] newSymkey = newConfigure.getSymkey();
+
+        // Copy non-password fields
+        newConfigure.setOwnerList(oldConfigure.getOwnerList());
+        newConfigure.setEsAccountId(oldConfigure.getEsAccountId());
+        newConfigure.setMyServiceMaskMap(oldConfigure.getMyServiceMaskMap());
+        newConfigure.setApiProviderMap(oldConfigure.getApiProviderMap());
+        newConfigure.setFreeApiListMap(oldConfigure.getFreeApiListMap());
+
+        // Re-encrypt mainCidInfoMap
+        Map<String, KeyInfo> mainCidInfoMap = oldConfigure.getMainCidInfoMap();
+        if (mainCidInfoMap != null) {
+            for (Map.Entry<String, KeyInfo> entry : mainCidInfoMap.entrySet()) {
+                KeyInfo keyInfo = entry.getValue();
+
+                // Re-encrypt prikeyCipher if exists
+                if (keyInfo.getPrikeyCipher() != null) {
+                    String newCipher = reEncryptCipher(keyInfo.getPrikeyCipher(), oldSymkey, newSymkey);
+                    keyInfo.setPrikeyCipher(newCipher);
+                }
+            }
+            newConfigure.setMainCidInfoMap(mainCidInfoMap);
+        }
+
+        // Re-encrypt apiAccountMap
+        Map<String, ApiAccount> apiAccountMap = oldConfigure.getApiAccountMap();
+        if (apiAccountMap != null) {
+            for (Map.Entry<String, ApiAccount> entry : apiAccountMap.entrySet()) {
+                ApiAccount apiAccount = entry.getValue();
+                // Re-encrypt session keyCipher if exists
+                com.fc.fc_ajdk.data.fcData.FcSession fcSession = apiAccount.getSession();
+                if (fcSession != null) {
+                    fcSession.setKeyCipher(reEncryptCipher(fcSession.getKeyCipher(), oldSymkey, newSymkey));
+                    apiAccount.setSession(fcSession);
+                }
+            }
+            newConfigure.setApiAccountMap(apiAccountMap);
+        }
+    }
+
+    private void changePassword(Configure oldConfigure, Configure newConfigure) {
+        if (newConfigure.getPasswordName().equals(oldConfigure.getPasswordName())) {
+            return;
+        }
+
+        try {
+            TimberLogger.d("ChangePasswordActivity", "Changing password from " + oldConfigure.getPasswordName() + " to " + newConfigure.getPasswordName());
+
+            Map<String, KeyInfo> mainCidInfoMap = oldConfigure.getMainCidInfoMap();
+
+            for (Map.Entry<String, KeyInfo> entry : mainCidInfoMap.entrySet()) {
+                String fid = entry.getKey();
+
+                com.fc.freer.manager.FcManager.ManagerType[] managers = com.fc.freer.FreerApplication.managers;
+                for(com.fc.freer.manager.FcManager.ManagerType manager : managers){
+                    String dbName = manager.name().toLowerCase();
+                    com.fc.fc_ajdk.db.MMKVDB<? extends com.fc.fc_ajdk.data.fcData.FcEntity> oldDB;
+                    com.fc.fc_ajdk.db.MMKVDB<?extends com.fc.fc_ajdk.data.fcData.FcEntity> newDB;
+                    switch (com.fc.freer.manager.FcManager.ManagerType.fromString(dbName)){
+                        case MAIL -> {
+                            oldDB =  new com.fc.fc_ajdk.db.MMKVDB<>(Mail.class);
+                            newDB = new com.fc.fc_ajdk.db.MMKVDB<>(Mail.class);
+
+                        }
+                        case SECRET -> {
+                            oldDB =  new com.fc.fc_ajdk.db.MMKVDB<>( Secret.class);
+                            newDB = new com.fc.fc_ajdk.db.MMKVDB<>(Secret.class);
+
+                        }
+                        case CONTACT -> {
+                            oldDB =  new com.fc.fc_ajdk.db.MMKVDB<>(Contact.class);
+                            newDB = new com.fc.fc_ajdk.db.MMKVDB<>(Contact.class);
+
+                        }
+                        case CASH -> {
+                            oldDB =  new com.fc.fc_ajdk.db.MMKVDB<>(Cash.class);
+                            newDB = new com.fc.fc_ajdk.db.MMKVDB<>(Cash.class);
+
+                        }
+                        case PROOF -> {
+                            oldDB =  new com.fc.fc_ajdk.db.MMKVDB<>(Proof.class);
+                            newDB = new com.fc.fc_ajdk.db.MMKVDB<>(Proof.class);
+
+                        }
+                        default -> {
+                            oldDB =  new com.fc.fc_ajdk.db.MMKVDB<>(FcEntity.class);
+                            newDB = new com.fc.fc_ajdk.db.MMKVDB<>( FcEntity.class);
+
+                        }
+                    }
+                    oldDB.initialize(oldConfigure.getPasswordName(), fid, null, null, dbName);
+
+                    newDB.initialize(newConfigure.getPasswordName(), fid, null, null, dbName);
+
+                    if(transferDBData(oldDB, newDB)){
+                        oldDB.clearDB();
+                        newDB.close();
+                    }
+                }
+            }
+
+            // Close old databases
+            DatabaseManager.getInstance().setCurrentPasswordName(newConfigure.getPasswordName());
+            TimberLogger.d("ChangePasswordActivity", "Password change completed");
+        } catch (Exception e) {
+            TimberLogger.e("ChangePasswordActivity", "Failed to change password: " + e.getMessage()+"\n");
+            throw new RuntimeException("Failed to change password: " + e.getMessage());
+        }
+    }
+
+    private boolean transferDBData(com.fc.fc_ajdk.db.MMKVDB<?> oldDB, com.fc.fc_ajdk.db.MMKVDB<?> newDB) {
+        // Transfer main data
+        Map<String, ?> allData = oldDB.getAll();
+        if (allData != null) {
+            @SuppressWarnings("unchecked")
+            Map<String, com.fc.fc_ajdk.data.fcData.FcEntity> typedData = (Map<String, com.fc.fc_ajdk.data.fcData.FcEntity>) allData;
+            ((com.fc.fc_ajdk.db.MMKVDB<com.fc.fc_ajdk.data.fcData.FcEntity>) newDB).put(typedData);
+        }
+
+        // Transfer settings
+        Map<String, String> allSettings = oldDB.getAllSettings();
+        if (allSettings != null) {
+            for (Map.Entry<String, String> setting : allSettings.entrySet()) {
+                newDB.putSetting(setting.getKey(), setting.getValue());
+            }
+        }
+
+        // Transfer state
+        Map<String, Object> allState = oldDB.getStateMap();
+        if (allState != null) {
+            for (Map.Entry<String, Object> state : allState.entrySet()) {
+                newDB.putState(state.getKey(), state.getValue());
+            }
+        }
+
+        // Transfer meta
+        Map<String, Object> allMeta = oldDB.getMetaMap();
+        if (allMeta != null) {
+            for (Map.Entry<String, Object> meta : allMeta.entrySet()) {
+                newDB.putMeta(meta.getKey(), meta.getValue());
+            }
+        }
+
+        // Transfer maps
+        for (String mapName : oldDB.getMapNames()) {
+            Class<?> mapType = oldDB.getMapType(mapName);
+            if (mapType != null) {
+                newDB.registerMapType(mapName, mapType);
+                Map<String, ?> mapData = oldDB.getAllFromMap(mapName);
+                if (mapData != null && !mapData.isEmpty()) {
+                    if (java.util.Objects.equals(mapType.getName(), byte[].class.getName())) {
+                        for (Map.Entry<String, ?> mapEntry : mapData.entrySet()) {
+                            if (mapEntry.getValue() instanceof byte[]) {
+                                newDB.putInMap(mapName, mapEntry.getKey(), mapEntry.getValue());
+                            }
+                        }
+                    } else {
+                        newDB.putAllInMap(mapName, mapData);
+                    }
+                }
+            }
+        }
+
+        // Transfer lists
+        Set<String> listNames = oldDB.getListNames();
+        for (String listName : listNames) {
+            Class<?> listType = oldDB.getListType(listName);
+            if (listType != null) {
+                newDB.registerListType(listName, listType);
+                java.util.List<?> list = oldDB.getAllFromList(listName);
+                if (list != null && !list.isEmpty()) {
+                    newDB.addAllToList(listName, list);
+                }
+            }
+        }
+
+        return true;
     }
 } 

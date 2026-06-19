@@ -1,11 +1,11 @@
 package com.fc.fc_ajdk.data.fcData;
 
-import com.fc.fc_ajdk.data.apipData.TxInfo;
 import com.fc.fc_ajdk.constants.Constants;
-import com.fc.fc_ajdk.data.fchData.CashMark;
+import com.fc.fc_ajdk.data.fchData.CashMask;
 import org.jetbrains.annotations.NotNull;
+
+import com.fc.fc_ajdk.data.fchData.Tx;
 import com.fc.fc_ajdk.utils.DateUtils;
-import com.fc.fc_ajdk.ui.Shower;
 import com.fc.fc_ajdk.utils.FchUtils;
 
 import java.util.List;
@@ -13,58 +13,68 @@ import java.util.ArrayList;
 
 import static com.fc.fc_ajdk.constants.IndicesNames.OPRETURN;
 
-public class FidTxMask {
+public class FidTxMask extends FcEntity{
     private String fid;
-    private String txId;
     private Long time;
     private Long height;
+    private Integer index;
     private Double balance;
     private Double fee;
     private String to;
     private String from;
+    private Integer in;
+    private Integer out;
+    private Boolean isNew;
 
     @NotNull
-    public static FidTxMask fromTxInfo(String fid, TxInfo txInfo) {
+    public static FidTxMask fromTxInfo(String fid, Tx tx) {
         FidTxMask fidTxMask = new FidTxMask();
         long sum = 0;
-        for(CashMark issuedCash : txInfo.getIssuedCashes()){
+        for(CashMask issuedCash : tx.getIssuedCashes()){
             if(issuedCash.getOwner().equals(fid))
                 sum += issuedCash.getValue();
         }
-        for(CashMark spentCash : txInfo.getSpentCashes()){
+        for(CashMask spentCash : tx.getSpentCashes()){
             if(spentCash.getOwner().equals(fid))
                 sum -= spentCash.getValue();
         }
 
         fidTxMask.setBalance(FchUtils.satoshiToCoin(sum));
-        if(txInfo.getFee()!=null)fidTxMask.setFee(FchUtils.satoshiToCoin(txInfo.getFee()));
-        fidTxMask.setHeight(txInfo.getHeight());
-        fidTxMask.setTime(txInfo.getBlockTime());
-        fidTxMask.setTxId(txInfo.getId());
+        if(tx.getFee()!=null)fidTxMask.setFee(FchUtils.satoshiToCoin(tx.getFee()));
+        fidTxMask.setHeight(tx.getHeight());
+        fidTxMask.setTime(tx.getBlockTime());
+        fidTxMask.setId(tx.getId());
+        fidTxMask.setIn(tx.getInCount());
+        fidTxMask.setOut(tx.getOutCount());
+        fidTxMask.setIndex(tx.getTxIndex());
         fidTxMask.setFid(fid);
         if(sum>0){
             fidTxMask.setTo(fid);
-            if(txInfo.getSpentCashes().size()>0) {
-                CashMark cashMark = txInfo.getSpentCashes().get(0);
-                if (cashMark != null) fidTxMask.setFrom(cashMark.getOwner());
+            if(tx.getSpentCashes().size()>0) {
+                CashMask cashMask = tx.getSpentCashes().get(0);
+                if (cashMask != null) fidTxMask.setFrom(cashMask.getOwner());
                 else fidTxMask.setFrom(Constants.COINBASE);
             }else fidTxMask.setFrom(Constants.COINBASE);
         }else{
             fidTxMask.setFrom(fid);
-            CashMark cashMark = txInfo.getIssuedCashes().get(0);
-            if(cashMark!=null && cashMark.getOwner().equals(OPRETURN))cashMark = txInfo.getIssuedCashes().get(1);
-            if(cashMark!=null)fidTxMask.setTo(cashMark.getOwner());
+            CashMask cashMask = tx.getIssuedCashes().get(0);
+            if(cashMask !=null && cashMask.getOwner().equals(OPRETURN)) cashMask = tx.getIssuedCashes().get(1);
+            if(cashMask !=null)fidTxMask.setTo(cashMask.getOwner());
             else fidTxMask.setTo(Constants.MINER);
         }
         return fidTxMask;
     }
 
-    public String getTxId() {
-        return txId;
-    }
-
-    public void setTxId(String txId) {
-        this.txId = txId;
+    @NotNull
+    public static List<FidTxMask> fromTxInfo(String fid, List<Tx> txList) {
+        List<FidTxMask> fidTxMaskList = new ArrayList<>();
+        if (txList == null || txList.isEmpty()) {
+            return fidTxMaskList;
+        }
+        for (Tx tx : txList) {
+            fidTxMaskList.add(fromTxInfo(fid, tx));
+        }
+        return fidTxMaskList;
     }
 
     public Long getTime() {
@@ -123,20 +133,35 @@ public class FidTxMask {
         this.fid = fid;
     }
 
-    public static void showFidTxMaskList(List<FidTxMask> fidTxMaskList, String title, int totalDisplayed) {
-        String[] fields = new String[]{"Time", "From", "To", "Balance(FCH)", "Fee(cash)"};
-        int[] widths = new int[]{10, 15, 15, 12, 6};
-        List<List<Object>> valueListList = new ArrayList<>();
+    public Integer getIn() {
+        return in;
+    }
 
-        for (FidTxMask mask : fidTxMaskList) {
-            List<Object> showList = new ArrayList<>();
-            showList.add(DateUtils.longToTime(mask.getTime()*1000, "yyyy-MM-dd"));
-            showList.add(mask.getFrom());
-            showList.add(mask.getTo());
-            showList.add(String.format("%.8f", mask.getBalance()));
-            showList.add(String.format("%.2f", mask.getFee()*1000000));
-            valueListList.add(showList);
-        }
-        Shower.showOrChooseList(title, fields, widths, valueListList, null);
+    public void setIn(Integer in) {
+        this.in = in;
+    }
+
+    public Integer getOut() {
+        return out;
+    }
+
+    public void setOut(Integer out) {
+        this.out = out;
+    }
+
+    public Integer getIndex() {
+        return index;
+    }
+
+    public void setIndex(Integer index) {
+        this.index = index;
+    }
+
+    public Boolean getNew() {
+        return isNew;
+    }
+
+    public void setNew(Boolean aNew) {
+        isNew = aNew;
     }
 }

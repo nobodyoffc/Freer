@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="4dp">
+
+    <!-- System message (centered, no bubble) -->
+    <TextView
+        android:id="@+id/system_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:textSize="12sp"
+        android:textColor="@color/hint"
+        android:fontFamily="sans-serif-light"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:visibility="gone"
+        tools:text="System message" />
+
+    <!-- Incoming message (left aligned) -->
+    <LinearLayout
+        android:id="@+id/incoming_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="start"
+        android:orientation="horizontal"
+        android:maxWidth="280dp">
+
+        <ImageView
+            android:id="@+id/sender_avatar"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/ic_person"
+            android:background="@drawable/avatar_background"
+            android:padding="4dp"
+            app:tint="@color/hint" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="8dp">
+
+            <TextView
+                android:id="@+id/sender_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="@color/accent"
+                android:visibility="gone"
+                tools:text="Sender"
+                tools:visibility="visible" />
+
+            <TextView
+                android:id="@+id/incoming_content"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/message_bubble_incoming"
+                android:padding="10dp"
+                android:textSize="14sp"
+                android:textColor="@color/text"
+                tools:text="This is an incoming message" />
+
+            <FrameLayout
+                android:id="@+id/incoming_hat_container"
+                android:layout_width="240dp"
+                android:layout_height="wrap_content"
+                android:background="@drawable/message_bubble_incoming"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/incoming_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:textSize="10sp"
+                android:textColor="@color/hint"
+                android:layout_marginTop="2dp"
+                android:layout_marginEnd="4dp"
+                tools:text="10:30 AM" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Outgoing message (right aligned) -->
+    <LinearLayout
+        android:id="@+id/outgoing_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:orientation="vertical"
+        android:maxWidth="280dp"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <TextView
+            android:id="@+id/outgoing_content"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/message_bubble_outgoing"
+            android:padding="10dp"
+            android:textSize="14sp"
+            android:textColor="@color/white"
+            tools:text="This is an outgoing message" />
+
+        <FrameLayout
+            android:id="@+id/outgoing_hat_container"
+            android:layout_width="240dp"
+            android:layout_height="wrap_content"
+            android:background="@drawable/message_bubble_outgoing"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:orientation="horizontal"
+            android:layout_marginTop="2dp"
+            android:layout_marginEnd="4dp"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/outgoing_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="10sp"
+                android:textColor="@color/hint"
+                tools:text="10:30 AM" />
+
+            <ImageView
+                android:id="@+id/status_icon"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_marginStart="4dp"
+                android:src="@drawable/ic_check"
+                app:tint="@color/hint" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</FrameLayout>

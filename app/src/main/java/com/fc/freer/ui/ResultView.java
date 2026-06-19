@@ -134,7 +134,7 @@ public class ResultView extends LinearLayout {
         
         nameTextView.setText(result.testName);
         statusTextView.setText(result.success ? "✓" : "✗");
-        int accentColor = ContextCompat.getColor(getContext(), R.color.colorAccent);
+        int accentColor = ContextCompat.getColor(getContext(), R.color.accent);
         int errorColor = ContextCompat.getColor(getContext(), R.color.error);
         statusTextView.setTextColor(result.success ? accentColor : errorColor);
         messageTextView.setText(result.message);

@@ -2,21 +2,24 @@ package com.fc.freer.home;
 
 import android.content.Intent;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
+import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.FreerApplication;
-import com.fc.freer.utils.KeyCardManager;
+import com.fc.freer.utils.ChooseMode;
+import com.fc.freer.utils.KeyCardContainer;
 
 import java.util.List;
 
 public class FidListActivity extends BaseCryptoActivity {
-    private KeyCardManager keyCardManager;
+    private KeyCardContainer keyCardManager;
     private LinearLayout keyCardContainer;
-    private Button clearButton;
-    private Button deleteButton;
-    private Button addButton;
+    private ImageButton clearButton;
+    private ImageButton deleteButton;
+    private ImageButton addButton;
     private static final int REQUEST_ADD_FID = 1001;
 
     @Override
@@ -36,8 +39,8 @@ public class FidListActivity extends BaseCryptoActivity {
         deleteButton = findViewById(R.id.deleteButton);
         addButton = findViewById(R.id.addButton);
 
-        // Initialize KeyCardManager
-        keyCardManager = new KeyCardManager(this, keyCardContainer, false);
+        // Initialize KeyCardContainer with CHOOSE_MULTI mode
+        keyCardManager = new KeyCardContainer(this, keyCardContainer, ChooseMode.CHOOSE_MULTI);
         keyCardManager.setOnKeyListChangedListener(this::onKeyListChanged);
 
         // Load initial FIDs
@@ -84,7 +87,7 @@ public class FidListActivity extends BaseCryptoActivity {
     private void updateButtonStates() {
         boolean hasItems = !keyCardManager.getKeyInfoList().isEmpty();
         boolean hasSelection = !keyCardManager.getSelectedKeys().isEmpty();
-        
+
         clearButton.setEnabled(hasItems);
         deleteButton.setEnabled(hasSelection);
     }

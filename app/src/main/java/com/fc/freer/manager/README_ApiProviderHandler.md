@@ -210,18 +210,18 @@ private void handleUpdateResult(Intent data) {
 
 ApiProvider包含以下字段：
 
-| 字段名 | 类型 | 必填 | 说明 |
-|--------|------|------|------|
-| id | String | 是 | 提供商ID |
-| name | String | 是 | 提供商名称 |
-| type | ServiceType | 是 | 服务类型 |
+| 字段名 | 类型 | 必填 | 说明      |
+|--------|------|------|---------|
+| id | String | 是 | 提供商ID   |
+| name | String | 是 | 提供商名称   |
+| type | ServiceType | 是 | 服务类型    |
 | apiUrl | String | 是 | API URL |
-| orgUrl | String | 否 | 组织网址 |
-| docUrl | String | 否 | 文档网址 |
-| owner | String | 否 | 所有者 |
-| protocols | String[] | 否 | 协议列表 |
-| ticks | String[] | 否 | 代币列表 |
-| dealerPubkey | String | 否 | 经销商公钥 |
+| orgUrl | String | 否 | 组织网址    |
+| docUrl | String | 否 | 文档网址    |
+| owner | String | 否 | 所有者     |
+| feipProtocol | String[] | 否 | 协议列表    |
+| ticks | String[] | 否 | 代币列表    |
+| dealerPubkey | String | 否 | 掌柜公钥    |
 
 ## 注意事项
 

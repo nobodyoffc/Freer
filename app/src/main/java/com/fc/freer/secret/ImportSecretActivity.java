@@ -1,6 +1,9 @@
 package com.fc.freer.secret;
 
 import android.Manifest;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -8,21 +11,23 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.DocumentsContract;
-import android.widget.Button;
 import android.widget.LinearLayout;
-import android.widget.Toast;
+
+import com.fc.fc_ajdk.data.feipData.Secret;
+import com.fc.freer.utils.FcEntityImporter;
+import com.fc.freer.utils.ToastUtils;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-import com.fc.fc_ajdk.data.fcData.SecretDetail;
 import com.fc.freer.R;
-import com.fc.freer.home.BaseCryptoActivity;
+import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.manager.SecretManager;
 import com.fc.freer.utils.FileUtils;
 import com.google.android.material.textfield.TextInputEditText;
+import android.widget.ImageButton;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -36,19 +41,21 @@ public class ImportSecretActivity extends BaseCryptoActivity {
     private LinearLayout secretJsonInputContainer;
     private LinearLayout secretButtonContainer;
     private TextInputEditText secretJsonInput;
-    private Button secretClearButton;
-    private Button secretImportButton;
+    private ImageButton secretClearButton;
+    private ImageButton secretImportButton;
     private String type;
-    private FcEntityImporter<SecretDetail> fcEntityImporter;
+    private FcEntityImporter<Secret> fcEntityImporter;
     private ActivityResultLauncher<Intent> filePickerLauncher;
     private ActivityResultLauncher<Intent> inputLauncher;
-    private List<SecretDetail> importedSecretList;
+    private List<Secret> importedSecretList;
     private String currentFilePath;
     private boolean isFileMode;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Session lost (process death while backgrounded): base is redirecting to re-auth.
+        if (isSessionRedirected()) return;
         type = getIntent().getStringExtra("type");
         initSecretImporter();
         checkStoragePermission();
@@ -72,16 +79,16 @@ public class ImportSecretActivity extends BaseCryptoActivity {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 // Permission granted
             } else {
-                Toast.makeText(this, getString(R.string.storage_permission_is_required_to_read_backup_files), Toast.LENGTH_LONG).show();
+                ToastUtils.makeText(this, getString(R.string.storage_permission_is_required_to_read_backup_files));
             }
         }
     }
 
     private void initSecretImporter() {
-        fcEntityImporter = new FcEntityImporter<>(this, SecretDetail.class, new FcEntityImporter.OnImportListener<>() {
+        fcEntityImporter = new FcEntityImporter<>(this, Secret.class, new FcEntityImporter.OnImportListener<>() {
             @Override
-            public void onImportSuccess(List<SecretDetail> result) {
-                SecretManager.saveAndFinish(ImportSecretActivity.this, result);
+            public void onImportSuccess(List<Secret> result) {
+                SecretManager.getInstance().saveAndFinish(ImportSecretActivity.this, result);
             }
 
             @Override
@@ -94,10 +101,6 @@ public class ImportSecretActivity extends BaseCryptoActivity {
                 inputLauncher.launch(intent);
             }
 
-            @Override
-            public void onSymkeyRequired(Intent intent) {
-                inputLauncher.launch(intent);
-            }
         });
         fcEntityImporter.setType(type);
     }
@@ -133,7 +136,7 @@ public class ImportSecretActivity extends BaseCryptoActivity {
                 });
 
         setupIoIconsView(R.id.secretJsonInput, R.id.scanIcon, false, false, true, true,
-                null, null, () -> startQrScan(QR_SCAN_JSON_REQUEST_CODE), this::openFilePicker);
+                true, null, null, () -> pasteFromClipboard(secretJsonInput), this::openFilePicker, () -> startQrScan(QR_SCAN_JSON_REQUEST_CODE));
     }
 
     private void handleFileSelection(Uri uri) {
@@ -163,6 +166,7 @@ public class ImportSecretActivity extends BaseCryptoActivity {
     }
 
     private void setupListeners() {
+
         secretClearButton.setOnClickListener(v -> {
             FcEntityImporter.hideKeyboard(getCurrentFocus());
             secretJsonInput.setText("");
@@ -189,6 +193,25 @@ public class ImportSecretActivity extends BaseCryptoActivity {
                 showToast(getString(R.string.no_secret_found));
             }
         });
+    }
+
+    private void paste() {
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard != null && clipboard.hasPrimaryClip()) {
+            ClipData.Item item = clipboard.getPrimaryClip().getItemAt(0);
+            CharSequence pasteData = item.getText();
+            if (pasteData != null) {
+                secretJsonInput.setText(pasteData.toString());
+                secretJsonInput.setEnabled(true);
+                secretJsonInput.setTextColor(getColor(R.color.text));
+                isFileMode = false;
+                currentFilePath = null;
+            } else {
+                showToast(getString(R.string.clipboard_is_empty));
+            }
+        } else {
+            showToast(getString(R.string.clipboard_is_empty));
+        }
     }
 
     @Override

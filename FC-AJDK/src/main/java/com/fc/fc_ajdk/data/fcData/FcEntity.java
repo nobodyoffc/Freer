@@ -32,9 +32,7 @@ public abstract class FcEntity implements Serializable {
     public static int BOOLEAN_DEFAULT_SHOW_SIZE = 8;
 
     protected String id;
-    protected String eVer;
-    protected String eClass;
-    protected String ePid;
+    protected Meta meta;
 
     /**
      * Copies all fields from another entity of the same type.
@@ -245,27 +243,11 @@ public abstract class FcEntity implements Serializable {
     public record ShowingRules(LinkedHashMap<String, Integer> fieldWidthMap, List<String> timestampFieldList, List<String> satoshiField, Map<String, String> heightToTimeFieldMap, Map<String, String> showFieldNameAsMap,List<String> replaceWithMeFieldList) {
     }
 
-    public String geteVer() {
-        return eVer;
+    public Meta getMeta() {
+        return meta;
     }
 
-    public void seteVer(String eVer) {
-        this.eVer = eVer;
-    }
-
-    public String geteClass() {
-        return eClass;
-    }
-
-    public void seteClass(String eClass) {
-        this.eClass = eClass;
-    }
-
-    public String getePid() {
-        return ePid;
-    }
-
-    public void setePid(String ePid) {
-        this.ePid = ePid;
+    public void setMeta(Meta meta) {
+        this.meta = meta;
     }
 }

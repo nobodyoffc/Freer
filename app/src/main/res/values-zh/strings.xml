@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">密库</string>
+    <string name="app_name">飞人</string>
+    <string name="app_slogan">享受安全、高效、自由的信息生活</string>
     <string name="scan_notification">点击扫描按钮开始扫描二维码。</string>
     <string name="make">生成</string>
     <string name="clear">清除</string>
@@ -9,71 +10,81 @@
     <string name="text_hint">二维码内容</string>
     <string name="from_gallery">从相册</string>
     <string name="permission_camera_rationale">扫描二维码需要相机权限</string>
-    <string name="permission_storage_rationale">加载图片需要存储权限</string>
     <string name="ok">确定</string>
     <string name="cancel">取消</string>
-    <string name="qr_saved">二维码已保存</string>
     <string name="qr_saved_count">已保存 %d 个二维码</string>
     <string name="error_saving_qr">保存二维码时出错</string>
     <string name="error_creating_qr">内容为空</string>
-    <string name="error_scanning_qr">扫描二维码时出错</string>
-    <string name="no_qr_detected">未检测到二维码</string>
     <string name="qr_code">二维码</string>
+    <string name="show_qr_code">显示二维码</string>
     <string name="save">保存</string>
+    <string name="do_affair">执行事务</string>
+
+    <string name="error_invalid_affair_data">无效的事务数据</string>
+    <string name="error_loading_affair">加载事务时出错</string>
+    <string name="error_processing_affair">处理事务时出错</string>
+    <string name="affair_by">主体:</string>
+    <string name="affair_do">操作:</string>
+    <string name="affair_on">对象:</string>
+    <string name="affair_to">对方:</string>
 
     <!-- CheckPassword Activity -->
-    <string name="enter_password">输入密码</string>
     <string name="password_hint">密码</string>
     <string name="confirm">验证</string>
     <string name="please_enter_password">请输入密码</string>
     <string name="incorrect_password">密码错误</string>
+    <string name="verifying_password">正在验证密码...</string>
+    <string name="error_verifying_password">验证密码时出错</string>
 
     <!-- CreatePassword Activity -->
     <string name="create_password">创建密码</string>
     <string name="confirm_password_hint">确认密码</string>
     <string name="create">创建</string>
 
-    <!-- CreateSettings Activity -->
-    <string name="create_settings_title">创建新设置</string>
-    <string name="settings_name_hint">设置名称提示</string>
-    <string name="create_settings">创建设置</string>
-    <string name="please_enter_settings_name">请输入设置名称</string>
 
     <!-- Home Menu Items -->
-    <string name="menu_my_keys">密钥</string>
-    <string name="menu_secrets">秘密</string>
+    <string name="menu_code">代码</string>
+    <string name="menu_secret">秘密</string>
     <string name="menu_convert">转换</string>
     <string name="menu_tools">工具</string>
-    <string name="menu_sign_tx">交易</string>
-    <string name="menu_multi_sign">多签</string>
-    <string name="menu_sign">签名</string>
+    <string name="menu_news">新闻</string>
+    <string name="menu_data">数据</string>
+    <string name="menu_square">广场</string>
+    <string name="menu_team">组</string>
+    <string name="menu_room">房间</string>
+    <string name="menu_app">应用</string>
+    <string name="menu_service">服务</string>
+    <string name="menu_protocol">协议</string>
+    <string name="menu_token">通证</string>
+    <string name="menu_proof">凭据</string>
+    <string name="menu_talk">对话</string>
+    <string name="menu_tx">交易</string>
+    <string name="menu_pay">支付</string>
+    <string name="menu_receive">收款</string>
     <string name="menu_verify">验签</string>
     <string name="menu_encrypt">加密</string>
     <string name="menu_decrypt">解密</string>
     <string name="menu_hash">哈希</string>
-    <string name="menu_decode">解码</string>
     <string name="menu_string_convert">字符串转换</string>
     <string name="menu_qr_code">二维码</string>
     <string name="menu_settings">设置</string>
+    <string name="menu_wallet">现金</string>
+    <string name="income">收入</string>
+    <string name="expense">支出</string>
+    <string name="tx">交易</string>
     <string name="random_in_base32">Base32随机数</string>
     <string name="menu_totp">验证码</string>
 
-    <string name="failed_to_switch_fid">切换身份失败</string>
-    <string name="menu_test">测试</string>
-    <string name="home_slogan">用密码技术保护您的密钥、密码、秘密和隐私。</string>
+    <string name="failed_to_switch_fid">切换身份失败。%s</string>
     <string name="failed_decode">无法解码，请检查文本。</string>
-    <string name="hash_input_hint">输入需要哈希的文本</string>
-    <string name="failed_hash">哈希失败</string>
     <string name="hash">哈希</string>
     <string name="decode">解码</string>
-    <string name="decode_input_hint">请输入要解码的文本</string>
 
     <string name="find_nice_fid">搜索靓名</string>
     <string name="input_fid">输入FID</string>
     <string name="Input_prikey">输入私钥</string>
     <string name="Input_prikey_cipher">解密私钥</string>
     <string name="input_pubkey">输入公钥</string>
-    <string name="return_string">返回内容</string>
 
 
     <!-- Encrypt Activity -->
@@ -82,54 +93,39 @@
     <string name="pubkey">公钥</string>
     <string name="encrypt">加密</string>
     <string name="decrypt">解密</string>
-    <string name="encrypted_result">加密结果</string>
-    <string name="input_text_to_be_encrypted">输入需要加密的文本</string>
-    <string name="input_key">输入密钥</string>
-    <string name="input_text_to_be_decrypted">输入需要解密的文本</string>
-    <string name="input_cipher">输入密文</string>
+
     <string name="input_text_to_be_hashed">输入需要哈希的文本</string>
-    <string name="input_text_to_be_decoded">输入需要解码的文本</string>
-    <string name="input_text_to_be_verified">输入需要验证的文本</string>
+
     <string name="input_text_to_be_signed">输入需要签名的文本</string>
-    <string name="input_text_to_be_multi_signed">输入需要多签的文本</string>
-    <string name="result">结果</string>
-    <string name="input_text_to_be_operated">输入要操作的文本</string>
+
 
     <!-- SignMsg Activity -->
     <string name="sign">签名</string>
-    <string name="sign_msg">签署消息</string>
-    <string name="confirm_tx">确认交易</string>
-    <string name="input_the_symmetric_key">对称密钥</string>
-    <string name="input_the_private_key">私钥</string>
+
+    <string name="input_the_symkey">对称密钥</string>
     <string name="please_input_message">请输入要签名的消息</string>
     <string name="please_input_key">请输入密钥</string>
-    <string name="copied">已复制到剪贴板</string>
 
-    <string name="sym_key_has_to_be_a_hex_of_32_bytes">对称密码必须是32字节的HEX</string>
     <string name="verify">验证</string>
     <string name="random_keys">随机创建</string>
 
     <string name="scan_qr_code">扫描二维码</string>
     <string name="more">更多</string>
     <string name="input_phrase">密语生成</string>
+    <string name="from_master">来自主密钥</string>
     <string name="menu_random">随机数</string>
-    <string name="menu_private_key_convert">私钥转换</string>
-    <string name="menu_public_key_convert">公钥转换</string>
+    <string name="menu_prikey_convert">私钥转换</string>
+    <string name="menu_pubkey_convert">公钥转换</string>
     <string name="menu_address_convert">地址转换</string>
     <string name="number_of_bytes">字节数</string>
-    <string name="new_str">新建</string>
     <string name="format_hex">Hex</string>
     <string name="format_integer">整数</string>
     <string name="format_base58">Base58</string>
-    <string name="format_base64">Base64</string>
-    <string name="too_large_for_integer">超出整数范围</string>
 
     <string name="create_multisign_fid">新建多签地址</string>
-    <string name="create_multisign_tx">新建多签交易</string>
     <string name="sign_multisign_tx">签署多签交易</string>
     <string name="build_multisign_tx">完成多签交易</string>
 
-    <string name="required_signer_number">所需签名人数</string>
     <string name="ending_with">尾部字符</string>
     <string name="input_the_pubkey">输入公钥</string>
     <string name="input_the_prikey">输入私钥</string>
@@ -137,12 +133,11 @@
     <string name="input_the_cipher">输入密文</string>
     <string name="input_the_text_to_be_encrypted">输入要加密的文本</string>
     <string name="input_the_signature">输入签名</string>
-    <string name="input_the_fid">输入FID</string>
     <string name="input_the_label">输入标签</string>
     <string name="input_the_phrase">输入密语</string>
-    <string name="input_the_prikeycipher">输入私钥密文</string>
+    <string name="input_the_prikey_cipher">输入私钥密文</string>
     <string name="input_the_password">输入密码</string>
-    <string name="input_private_key_hint">输入您的私钥（WIF、hex或其他格式）</string>
+    <string name="input_prikey_hint">输入您的私钥（WIF、hex或其他格式）</string>
     <string name="input_prikey_cipher_hint">输入加密的私钥密文JSON</string>
     <string name="input_phrase_hint">输入您的密语</string>
     <string name="cipher">密文</string>
@@ -157,21 +152,24 @@
     <string name="done">完成</string>
     <string name="import_tx">导入</string>
     <string name="add">添加</string>
+    <string name="lock_mode_enabled">锁定模式已启用 - 输出将被时间锁定</string>
+    <string name="lock_mode_disabled">锁定模式已关闭</string>
+    <string name="invalid_lock_days">锁定天数无效</string>
+    <string name="input_days_to_lock">锁定天数</string>
+    <string name="lock_time">锁定时间</string>
+    <string name="blocks">区块</string>
+    <string name="days">天</string>
     <string name="input_the_text_carved_on_chain">输入要刻在链上的文本</string>
-    <string name="sender_from_script_or_multisign">多签地址的Script或P2SH</string>
     <string name="add_cash_to_spend">添加现钞</string>
     <string name="please_input_required_signer_number">请输入必需的签名数量</string>
-    <string name="invalid_signer_number">输入签名者总人数</string>
     <string name="no_enough_members">没有足够的成员</string>
     <string name="the_members_can_t_more_than_16">成员不能超过16人</string>
     <string name="please_input_a_public_key">请输入公钥</string>
-    <string name="invalid_public_key">非法公钥</string>
     <string name="txid">交易ID</string>
     <string name="index">索引</string>
     <string name="amount">金额</string>
     <string name="fid">FID</string>
     <string name="avatar">头像</string>
-    <string name="no_multisign_found">没有发现多签</string>
     <string name="signed">已签</string>
     <string name="sender">发送者</string>
     <string name="spending">总额</string>
@@ -181,21 +179,27 @@
     <string name="people">身份</string>
     <string name="import_the_tx_json">导入交易JSON</string>
     <string name="show_tx_json">显示交易JSON</string>
+    <string name="import_send_to_array">导入付款数组</string>
+    <string name="import_send_to_array_hint">输入付款数组: 地址1,金额1,地址2,金额2,...</string>
+
+    <string name="invalid_array_format_must_be_pairs">数组格式无效：必须是偶数个元素（地址、金额配对）</string>
+    <string name="invalid_fid_at_position">位置 %d 的地址无效: %s</string>
+    <string name="amount_too_small_at_position">位置 %d 的金额过小，最小值为 %f</string>
+    <string name="invalid_amount_at_position">位置 %d 的金额无效: %s</string>
+    <string name="imported_send_to_count">已导入 %d 笔付款</string>
     <string name="copy_tx">复制交易</string>
     <string name="create_tx">创建交易</string>
     <string name="make_qr">转二维码</string>
-    <string name="carving">刻字</string>
+    <string name="carving">上链中</string>
     <string name="m_n">m/n</string>
     <string name="need_signs">还需签名</string>
     <string name="pay_to">付给</string>
-    <string name="choose_multisign_id">选择多签身份</string>
     <string name="as_hex">先转为字节</string>
-    <string name="import_multisign_tx">导入多签交易</string>
-    <string name="copy_result">复制交易</string>
-    <string name="built_you_can_broadcast_it">成功！可以广播交易了</string>
+
+    <string name="built_you_can_send_it">成功！可以发送交易了</string>
     <string name="failed_to_build_multisign_tx">构建多签交易失败</string>
     <string name="build">组装</string>
-    <string name="add_to_fid_list">加入名单</string>
+    <string name="add_to_fid_list">加名单</string>
     <string name="clear_fid_list">清空名单</string>
     <string name="added_to_fid_list">已加入名单</string>
     <string name="fid_list_cleared">以创建名单</string>
@@ -203,90 +207,75 @@
     <string name="this_field_is_required">此字段为必填项</string>
     <string name="please_fill_in_all_required_fields">请填写所有必填字段</string>
     <string name="invalid_configuration">配置无效</string>
-    <string name="sign_tx">签署交易</string>
     <string name="cdd">币天销毁</string>
-    <string name="cd">币天</string>
     <string name="cash">钞票</string>
-    <string name="owner">所有者</string>
     <string name="no_tx_to_copy">无交易可用</string>
     <string name="tx_json_copied_to_clipboard">交易已拷贝</string>
     <string name="no_tx_to_sign">无交易可签署</string>
-    <string name="activity_create_secret">创建秘密</string>
-    <string name="error_title_required">Title 是必需的</string>
-    <string name="error_content_required">Content 是必需的</string>
+
     <string name="secret_existed_title">该秘密已存在</string>
     <string name="replace">替换</string>
     <string name="secret_already_exists_message">该秘密已存在，替换吗？</string>
-    <string name="secret_saved_successfully">秘密已保存</string>
+    <string name="entity_saved_successfully">%s已保存</string>
     <string name="secrets_saved_successfully">%d 秘密已保存</string>
     <string name="input_the_title">输入标题</string>
     <string name="input_the_content">输入内容</string>
     <string name="input_the_memo">输入备忘</string>
     <string name="select_the_type">选择类型</string>
     <string name="please_fill_required_fields">请填写必填项</string>
-    <string name="input_or_choose_the_type">输入或选择类型</string>
     <string name="invalid_type_selected">选择的类型无效</string>
-    <string name="time_based_one_time_password">动态口令</string>
     <string name="export_tx">导出</string>
     <string name="export_secrets">导出秘密</string>
-    <string name="key_tools_create_new_key">创建新密钥</string>
     <string name="input_the_secret_json">输入秘密的JSON</string>
     <string name="input_the_cash_json">输入钞票的JSON</string>
-    <string name="cash_saved_successfully">钞票保存成功</string>
     <string name="added_new_cash">%d个钞票保存成功</string>
     <string name="cash_refreshed_and_saved">钞票已刷新. %d 张钞票被保存.</string>
     <string name="no_cash_found">未找到钞票</string>
     <string name="no_secret_found">没有秘密</string>
     <string name="import_keys">导入密钥</string>
+    <string name="import_a">导入</string>
+
     <string name="input_the_key_info_json">输入密钥的JSON</string>
     <string name="no_key_info_found">没发现密钥</string>
-    <string name="security_guidelines">安全提示</string>
+    <string name="instruction">使用说明</string>
     <string name="security_guidelines_text">
-        1. 请保持设备离线，即不以线缆、移动网络、wifi、蓝牙、NFC等任何方式与其他设备相连。\n\n
-2. 务必保证私钥、密语绝不泄露或丢失。密语可随时产生私钥，但私钥不能反推密语。\n\n
-3. 在屏幕显示私钥、密语时，应确保周边安全，没有他人视野、摄像头等。\n\n
-4. 建议使用无网的扫描二维码设备，物理备份私钥、密语，至少2个备份并分别放置，定期检查。\n\n
-5. 一旦本设备遗失或可能被刺探破解，请立即使用备份私钥将资产转移到安全的地址上。\n\n
-6. 采用密语生成私钥时，密语应尽量长、复杂、包含多种类型字符，切勿使用名言诗句等。记住，您面对的是全世界拥有巨大算力和高超技能的黑客。\n\n
-7. 本设备密语产生私钥的算法为SHA256哈希计算得到，您可以用第三方工具上测试，但且勿使用测试私钥保存资产，切勿用存资产的密语做在线测试。\n\n
-8. 您可以在安全可信的外部设备中产生私钥，通过扫描或手工输入的方式导入密库。这个环节的安全性将取决于私钥的来源和您的操作。\n\n
-9. 助记词使私钥安全策略更加复杂，因此，密库不支持助记词，可将第三方设备上导出的私钥导入密库使用。\n\n
-10. 再次强调：私钥、密语绝不可泄露或丢失，设备必须离线，这是密库存在的意义。\n\n
-11. 本应用不联网，不收集任何用户和应用数据，因而不对任何数据泄漏负责，用户务必保证设备安全。\n\n
+        欢迎飞人，请注意以下安全事项\n\n
+        1. 第一原则：绝不泄露或丢失私钥。\n\n
+        2. 私钥要用两种以上方式备份在不同地方。\n\n
+        3. 用密语生成私钥千万小心，一定要在60字符以上，并加入6个以上随机字符。您面对的是全世界的巨大算力攻击者\n\n
+        4. 密语可随时产生私钥，但私钥不能反推密语。\n\n
+        5. 在屏幕显示私钥、密语时，应确保周边安全，没有他人视野、摄像头等。\n\n
+        6. 一旦本设备遗失或可能被刺探破解，请立即使用备份私钥将资产转移到安全的地址上。\n\n
+        7. 所有上链信息可在任何网络和设备上同步。未上链信息请自行备份。
     </string>
     <string name="base32">Base32</string>
     <string name="return_text">返回</string>
     <string name="pay_to_each">付给每人：</string>
-    <string name="spending_cash_ids">花费钞票ID</string>
     <string name="sum">总值</string>
     <string name="fee">交易费</string>
+    <string name="fee_calculation_failed">交易费计算失败</string>
     <string name="field_name_format">"%1$s: "</string>
-    <string name="action_settings">设置</string>
     <string name="select_encryption_method">请选择加密方法</string>
     <string name="input_dialog_prompt_default">输入文本：</string>
     <string name="show_input_dialog">显示输入对话框</string>
     <string name="stop">中止</string>
     <string name="no">否</string>
     <string name="yes">是</string>
-    <string name="to_list">加入名单</string>
+    <string name="to_list">加名单</string>
     <string name="show_detail">显示详情</string>
     <string name="shown_in">显示为：</string>
-    <string name="freer">密库</string>
-    <string name="error_initializing_camera">初始化相机错误：</string>
+    <string name="freer">飞人</string>
+    <string name="retry_after_authorization">失败。请授权后重试</string>
     <string name="cannot_open_image">无法打开图片</string>
     <string name="cannot_decode_image">无法从图片解析二维码</string>
 
     <string name="file_loaded_import_it">文件已加载，请导入。</string>
     <string name="you_are_clear_all_the_data_of_safe_do_you_sure_to_do_it">你确认要清除所有数据吗？</string>
     <string name="cleared_data_cannot_be_recovered_are_you_sure_to_clear_all_data">数据一旦清除无法恢复，确定要清除吗？</string>
-    <string name="backup_all_keys">备份所有密钥</string>
-    <string name="backup_all_secrets">备份所有秘密</string>
-    <string name="import_secrets">导入秘密</string>
-    <string name="clear_all_data">清除所有数据</string>
+    <string name="backup_off_chain_secrets">备份链下秘密</string>
     <string name="change_password">修改密码</string>
     <string name="menu_list">名单</string>
     <string name="add_fid">添加FID</string>
-    <string name="import_the_fid">输入FID或以逗号分隔的FID列表</string>
     <string name="invalid_fid">无效的FID</string>
     <string name="input_fid_or_fid_list_separated_by_comma_or_space">输入FID或以逗号空格等分割的FID列表</string>
     <string name="fid_list">名单</string>
@@ -296,11 +285,10 @@
     <string name="amount_must_be_between">金额必须在 %1$f 与 %2$f 之间</string>
     <string name="please_input_all_fields">请输入必填项</string>
     <string name="invalid_qr_code_content">无效的二维码</string>
-    <string name="failed">失败</string>
     <string name="failed_to_scan_qr_code">扫描二维码失败</string>
     <string name="no_items_selected">请选择</string>
+    <string name="too_many_cash_selected">钞票不能超过200张!</string>
     <string name="deleted">已删除</string>
-    <string name="some_fids_added_to_list">%d 个FID已加入名单</string>
     <string name="input_value_must_be_greater_than_0">输入金额必须大于0</string>
     <string name="invalid_txid">无效的交易ID</string>
     <string name="invalid_index">无效的索引</string>
@@ -309,12 +297,10 @@
     <string name="paying">支付</string>
     <string name="convert">转换</string>
     <string name="start">开始</string>
-    <string name="multisign">多签</string>
     <string name="multisign_detail">多签详情</string>
-    <string name="my_keys">我的密钥</string>
     <string name="my_secrets">我的秘密</string>
+    <string name="search_secrets">搜索标题或备忘</string>
     <string name="verify_signature">验证签名</string>
-    <string name="choose_key">选择密钥</string>
     <string name="create_key_by_fid">仅添加FID</string>
     <string name="create_key_by_phrase">密语创建</string>
     <string name="create_key_by_prikey">输入私钥</string>
@@ -322,22 +308,17 @@
     <string name="create_key_by_pubkey">输入公钥</string>
     <string name="create_secret">新建秘密</string>
     <string name="address_convert">地址转换</string>
-    <string name="private_key_convert">私钥转换</string>
+    <string name="prikey_convert">私钥转换</string>
     <string name="public_key_convert">公钥转换</string>
     <string name="random">生成随机数</string>
     <string name="input">输入</string>
     <string name="unknown">未知</string>
     <string name="please_verify_your_password">请输入您的密码</string>
-    <string name="exported">已备份.</string>
     <string name="failed_to_load_avatar">加载头像失败</string>
-    <string name="keys_saved_successfully">密钥已保存</string>
-    <string name="failed_to_save_key">保存密钥失败！</string>
-    <string name="remember_backup_keys">请记住：所有密钥和秘密都必须备份。</string>
+
     <string name="remove_me">删除本号</string>
     <string name="all_data_cleared_successfully">所有数据已被清除</string>
-    <string name="password_changed">密码已更新.</string>
     <string name="no_more_secrets">没有更多了</string>
-    <string name="secrets_loaded">%d 个秘密已加载.</string>
     <string name="check_password">验证密码</string>
 
     <string name="please_enter_matching_characters">请输入匹配字符</string>
@@ -346,24 +327,43 @@
     <string name="no_multisigns_found">没有找到多签</string>
     <string name="please_input_text">请输入文本</string>
     <string name="no_content_to_generate_qr_code">没有内容可生成二维码</string>
+    <string name="no_content_to_copy">没有内容可复制</string>
     <string name="no_key_available">没有可用的密钥</string>
-    <string name="offline_notation">只有离线的数据才是安全的数据。请保持设备离线。关闭WIFI，移动数据，蓝牙等。</string>
     <string name="detail">详情</string>
     <string name="menu_json_convert">JSON转换</string>
     <string name="input_json">输入JSON字符串</string>
-    <string name="safe_v_by_no1_nrc7">密库 v0.10 By No1_NrC7</string>
-    <string name="failed_to_parse_multisign">解析多签失败</string>
-    <string name="input_the_script_or_multisign_or_select_a_multisign_fid">输入脚本或多签JSON，或选择多签FID</string>
-    <string name="failed_to_create_multisign_tx">创建多签交易失败</string>
+    <string name="script_convert">脚本转换器</string>
+    <string name="menu_script_convert">脚本转换</string>
+    <string name="input_script">输入脚本十六进制或ASM</string>
+    <string name="invalid_script_hex">无效的脚本十六进制格式</string>
+    <string name="invalid_script_asm">无效的脚本ASM格式</string>
+    <string name="invalid_script_format">无效的脚本格式</string>
+    <string name="please_input_script">请输入脚本十六进制或ASM</string>
+    <string name="time_convert">时间转换器</string>
+    <string name="menu_time_convert">时间转换</string>
+    <string name="timestamp_10_label">时间戳</string>
+    <string name="timestamp_10_description">10位 - 秒</string>
+    <string name="timestamp_10_hint">例如：1609459200</string>
+    <string name="timestamp_13_label">时间戳</string>
+    <string name="timestamp_13_description">13位 - 毫秒</string>
+    <string name="timestamp_13_hint">例如：1609459200000</string>
+    <string name="height_label">高度</string>
+    <string name="height_description">1区块 = 1分钟</string>
+    <string name="height_hint">例如：3653280</string>
+    <string name="fc_date_label">FcDate</string>
+    <string name="fc_date_description">年.天.小时.分钟</string>
+    <string name="fc_date_hint">例如：3.150.12.30</string>
+    <string name="standard_time_label">标准时间</string>
+    <string name="standard_time_description">年-月-日 时:分:秒</string>
+    <string name="standard_time_hint">例如：21-01-01 00:00:02</string>
+    <string name="freer_v_by_no1_nrc7">飞人 %s By No1_NrC7\n\n享受安全、高效、自由的信息生活</string>
+
     <string name="no_active_fid_available">没有活动的FID可用</string>
-    <string name="multisign_tx_requires_multisign_fid">多签交易需要多签FID</string>
     <string name="failed_to_get_multisign_info_for_fid">获取FID的多签信息失败</string>
     <string name="failed_to_create_transaction_info">创建交易信息失败</string>
-    <string name="no_transaction_to_copy">没有可复制的交易</string>
     <string name="json_convert">JSON转换器</string>
     <string name="error_initializing_home">初始化主页错误：%1$s</string>
     <string name="error_setting_up_menu">设置菜单错误：%1$s</string>
-    <string name="no_keys_available">没有可用的密钥</string>
     <string name="please_enter_cipher">请输入密文</string>
     <string name="please_enter_key">请输入密钥</string>
     <string name="no_avatar_to_save">没有头像可保存</string>
@@ -376,45 +376,37 @@
     <string name="decrypt_error">解密错误：%1$s</string>
     <string name="the_tx_is_empty">交易为空</string>
     <string name="invalid_transaction_data">无效的交易数据</string>
-    <string name="signed_you_can_broadcast_it">已签名！可以广播交易了</string>
-    <string name="failed_to_sign_transaction">签名交易失败</string>
-    <string name="failed_to_get_private_key">获取私钥失败</string>
+
+    <string name="failed_to_get_prikey">获取私钥失败</string>
     <string name="password_verification_cancelled">密码验证已取消</string>
     <string name="stop_finding_progress_first">请先停止搜索进度</string>
     <string name="secret_list_is_null">秘密列表为空</string>
     <string name="secret_list_is_empty">秘密列表为空</string>
-    <string name="symkey_is_null">对称密钥为空</string>
     <string name="no_data_to_make_qr_code">没有数据可生成二维码</string>
     <string name="nothing_to_copy">没有可复制的内容</string>
+    <string name="nothing_to_export">没有可导出的内容</string>
     <string name="error_encrypting_secret">加密秘密失败：%1$s</string>
-    <string name="error_encrypting_key">加密密钥失败：%1$s</string>
-    <string name="storage_permission_required">需要存储权限</string>
+
     <string name="failed_to_save_file">保存文件失败</string>
-    <string name="exported_to">已导出到：%1$s</string>
     <string name="failed_to_parse_json">解析JSON失败</string>
     <string name="keyname_is_inconsistent">密钥名称不一致</string>
-    <string name="multisign_cant_be_null">多签不能为空</string>
-    <string name="fid_of_multisign_cant_be_null">多签的FID不能为空</string>
     <string name="invalid_number_format">无效的数字格式</string>
     <string name="invalid_date_format">无效的日期格式</string>
-    <string name="welcome_to_freeverse">欢迎来到自由世界，%1$s</string>
-    <string name="builder_shares_didnt_sum_up">构建者份额总和不是100%。请重置。</string>
     <string name="encrypt_by">加密自：</string>
     <string name="random_password">随机密码</string>
     <string name="don_t_encrypt">不加密</string>
     <string name="current_password">当前密码</string>
     <string name="to_hex">转Hex</string>
+    <string name="hex_as_bytes">Hex转为字节</string>
     <string name="base58_new">Base58新格式</string>
     <string name="promote">提示词</string>
     <string name="time">时间</string>
     <string name="next">下一个</string>
     <string name="enter_label">输入标签</string>
     <string name="please_wait">稍等…</string>
-    <string name="set_as_default">设为默认</string>
-    <string name="_default">默认</string>
     <string name="export">导出</string>
     <string name="failed_to_load_file">加载文件失败</string>
-    <string name="selected_key_has_no_private_key_cipher">该密钥没有私钥</string>
+    <string name="selected_key_has_no_prikey_cipher">该密钥没有私钥</string>
 
     <!-- Additional strings for showToast messages -->
     <string name="selected_keys_have_no_public_keys">选中的密钥没有公钥</string>
@@ -423,34 +415,26 @@
     <string name="number_of_bytes_length_must_be_positive">字节长度必须为正数</string>
     <string name="please_enter_a_public_key_or_address">请输入公钥或地址</string>
     <string name="error_converting">转换错误：%1$s</string>
-    <string name="selected_key_has_no_public_key">选中的密钥没有公钥</string>
     <string name="please_input_both_text_and_key">请输入文本和密钥</string>
     <string name="wrong_key">密钥错误</string>
     <string name="failed_to_sign_words">签名失败</string>
-    <string name="loaded_multisigns">已加载 %1$d 个多签</string>
-    <string name="no_more_multisigns_to_load">没有更多多签可加载</string>
-    <string name="selected_key_has_no_id">选中的密钥没有ID</string>
+
     <string name="please_input_signature">请输入签名</string>
     <string name="symkey_required_for_sha256_signature">SHA256签名需要对称密钥</string>
     <string name="key_is_not_required">不需要密钥</string>
     <string name="please_enter_text_to_decode">请输入要解码的文本</string>
     <string name="error_with_message">错误：%1$s</string>
     <string name="please_enter_a_public_key">请输入公钥</string>
-    <string name="please_enter_a_private_key">请输入私钥</string>
-    <string name="invalid_private_key_format">无效的私钥格式</string>
+    <string name="please_enter_a_prikey">请输入私钥</string>
+    <string name="invalid_prikey_format">无效的私钥格式</string>
     <string name="please_select_a_conversion_format">请选择转换格式</string>
     <string name="not_a_valid_cipher">不是有效的密文</string>
     <string name="not_a_valid_key">不是有效的密钥</string>
     <string name="failed_to_decrypt_with_message">解密失败：%1$s</string>
     <string name="got_nothing_from_cipher">从密文中未获得任何内容：%1$s</string>
     <string name="error_decrypting">解密错误：%1$s</string>
-    <string name="error_loading_keys">加载密钥错误：%1$s</string>
     <string name="error_setting_up_input_fields">设置输入字段出错：%1$s</string>
-    <string name="please_input_label_and_private_key">请输入标签和私钥</string>
-    <string name="failed_to_get_symmetric_key">获取对称密钥失败</string>
-    <string name="failed_to_create_cidinfo">创建CidInfo失败</string>
-    <string name="keyinfo_added_successfully">KeyInfo添加成功</string>
-    <string name="error_creating_cidinfo">创建CidInfo出错：%1$s</string>
+
     <string name="failed_to_get_pubkey_of">获取公钥失败：%1$s</string>
     <string name="failed_to_merge_signatures">合并签名失败：%1$s</string>
     <string name="please_input_json">请输入JSON</string>
@@ -467,147 +451,78 @@
     <string name="please_generate_a_random_number_first">请先生成一个随机数</string>
     <string name="please_enter_text_to_hash">请输入要哈希的文本</string>
     <string name="error_during_password_change">更改密码错误</string>
-    <string name="no_more_keys">没有更多密钥了</string>
-    <string name="error_loading_more_keys">加载更多密钥失败</string>
+
     <string name="storage_permission_is_required_to_read_backup_files">需要获取存储权限</string>
-    <string name="keys_loaded">公钥已加载</string>
     <string name="failed_to_decrypt">解密失败</string>
-    <string name="copied_to_clipboard">已复制</string>
+    <string name="copied">已复制</string>
     <string name="failed_to_initiate">初始化失败</string>
     <string name="error_launching_homeactivity">加载主页失败</string>
     <string name="no_id_found_for_avatar">没有制作头像所需的ID</string>
     <string name="add_payee">添加收款人</string>
     <!-- Cash Activity strings -->
     <string name="error_loading_cash">加载钞票失败：%1$s</string>
-    <string name="cash_loaded">%d 张钞票已加载</string>
     <string name="no_more_cash">没有更多钞票</string>
-    <string name="error_loading_more_cash">加载更多钞票失败：%1$s</string>
-    <string name="send_functionality_not_implemented">发送功能尚未实现</string>
+
     <string name="send">发送</string>
-    <string name="cash_creation_guidance">钞票通常从外部源导入。使用导入功能将钞票添加到您的钱包中。</string>
-    <string name="export_functionality_not_implemented">导出功能尚未实现</string>
+    <string name="export_cash">导出Cash</string>
+    <string name="no_data_to_export">没有数据导出</string>
     
     <!-- Create Cash Dialog strings -->
     <string name="create_cash">创建钞票</string>
-    <string name="birth_time">出生时间</string>
     <string name="birth_time_hint">输入日期和时间 (YYYY-MM-DD HH:MM:SS)</string>
     <string name="invalid_date_format_please_use_yyyy_mm_dd">无效的日期格式。请使用 YYYY-MM-DD HH:MM:SS</string>
-    <string name="cash_created_successfully">钞票创建成功</string>
     <string name="all_cash_must_have_same_owner">所有选中的钞票必须属于同一个所有者FID</string>
 
     <string name="my_cash">我的钞票</string>
 
-    <string name="update_cash_database">更新我的钞票</string>
-    <string name="update_cash_database_message">是否要更新"我的钞票"？</string>
     <string name="update">更新</string>
     <string name="reset">重置</string>
     <string name="please_input_phrase">请输入密语</string>
     
     <!-- CreateKeyByPhraseActivity strings -->
     <string name="failed_to_get_keyinfo_from_preview">无法从预览获取密钥信息</string>
-    <string name="warning_failed_to_generate_avatar">警告：生成头像失败，但密钥仍会保存</string>
-    <string name="error_keyinfo_is_null">错误：密钥信息为空</string>
     <string name="key_saved_successfully">密钥保存成功</string>
-    <string name="error_saving_key_with_message">保存密钥失败：%1$s</string>
     <string name="key_already_exists_title">密钥已存在</string>
     <string name="key_already_exists_message">该ID的密钥已存在，是否要替换它？</string>
+    <string name="keys_generated">生成了%d个密钥</string>
 
     <!-- Network Module Strings -->
     <string name="network_environment_detection">网络环境检测</string>
     <string name="network_type">网络类型</string>
     <string name="dns_resolve_time">DNS解析时间</string>
-    <string name="apip_server_ip">APIP服务器IP</string>
+    <string name="apip_server_ip">FAPI服务器IP</string>
     <string name="network_latency">网络延迟</string>
     <string name="reachability">可达性</string>
     <string name="network_quality">网络环境质量</string>
     <string name="network_suggestions">网络环境建议</string>
-    <string name="network_environment_suggestions">网络环境建议</string>
-    <string name="network_environment_quality">网络环境质量</string>
+
     <string name="network_environment_good">良好</string>
     <string name="network_environment_fair">一般</string>
     <string name="network_environment_poor">较差</string>
     <string name="network_environment_restricted">受限</string>
-    <string name="network_environment_detection_failed">检测失败</string>
-    <string name="network_warning_message">⚠️ 当前网络环境可能影响APIP访问\n建议:\n1. 尝试使用VPN\n2. 切换到移动网络\n3. 更换WiFi网络\n4. 稍后重试</string>
-    <string name="network_environment_good_message">✅ 网络环境良好，可以正常访问APIP</string>
-    <string name="network_detection_failed_suggestion">检测失败: %1$s\n建议: 检查网络连接或尝试使用VPN</string>
-    
-    <string name="request_information">请求信息</string>
-    <string name="full_url">完整URL</string>
-    <string name="request_method">请求方法</string>
-    <string name="request_headers">请求头</string>
-    <string name="timeout_setting">超时设置</string>
-    <string name="total_time">总耗时</string>
-    <string name="actual_request_time">实际请求耗时</string>
-    <string name="warmup_time">预热时间</string>
-    <string name="attempt_count">尝试次数</string>
-    <string name="response_information">响应信息</string>
-    <string name="http_status_code">HTTP状态码</string>
-    <string name="response_body_length">响应体长度</string>
-    <string name="json_parse_result">JSON解析结果</string>
-    <string name="parse_successful">解析成功</string>
-    <string name="error_information">错误信息</string>
-    <string name="json_parsing_error">JSON解析错误: %1$s</string>
-    <string name="http_error">HTTP错误: %1$d - %2$s</string>
-    
-    <string name="server_test_result">服务器测试结果</string>
+    <string name="network_warning_message">⚠️ 当前网络环境可能影响FAPI访问\n建议:\n1. 尝试使用VPN\n2. 切换到移动网络\n3. 更换WiFi网络\n4. 稍后重试</string>
+    <string name="network_environment_good_message">✅ 网络环境良好，可以正常访问FAPI</string>
+
     <string name="server">服务器</string>
     <string name="status_code">状态码</string>
     <string name="duration">耗时</string>
     <string name="response_length">响应长度</string>
     <string name="success">成功</string>
     <string name="error">错误</string>
-    <string name="all_server_tests_complete">所有服务器测试完成</string>
-    
-    <string name="network_manager_tag">NetworkManager</string>
+
     <string name="get_request_failed">GET请求失败: %1$s</string>
     <string name="post_request_failed">POST请求失败</string>
     <string name="connection_failed">连接失败: %1$s</string>
     <string name="connection_closed">连接已关闭</string>
-    
-    <string name="network_example_tag">NetworkExample</string>
-    <string name="executing_simple_get_request">执行简单GET请求</string>
-    <string name="get_request_successful">GET请求成功</string>
-    <string name="get_request_failed_status">GET请求失败，状态码: %1$d</string>
-    <string name="get_request_error">GET请求错误: %1$s</string>
-    <string name="executing_get_request_with_params">执行带参数的GET请求</string>
-    <string name="get_request_with_params_successful">带参数GET请求成功</string>
-    <string name="get_request_with_params_failed">带参数GET请求失败</string>
-    <string name="get_request_with_params_error">带参数GET请求错误: %1$s</string>
-    <string name="executing_post_request">执行POST请求</string>
-    <string name="post_request_successful">POST请求成功</string>
-    <string name="post_request_failed_status">POST请求失败，状态码: %1$d</string>
-    <string name="post_request_error">POST请求错误: %1$s</string>
-    <string name="executing_authenticated_request">执行带认证的请求</string>
-    <string name="authenticated_request_successful">认证请求成功</string>
-    <string name="authenticated_request_failed">认证请求失败</string>
-    <string name="authenticated_request_error">认证请求错误: %1$s</string>
-    <string name="checking_network_status">检查网络状态</string>
-    <string name="network_available">网络可用</string>
-    <string name="wifi_connected">WiFi连接</string>
-    <string name="mobile_connected">移动网络</string>
-    <string name="testing_network_connection">测试网络连接</string>
-    <string name="network_connection_test_successful">网络连接测试成功: %1$s</string>
-    <string name="network_connection_test_failed">网络连接测试失败: %1$s</string>
-    <string name="using_api_service">使用ApiService</string>
-    <string name="api_service_test_successful">ApiService测试成功</string>
-    <string name="api_service_test_failed">ApiService测试失败: %1$s</string>
-    <string name="demonstrating_error_handling">演示错误处理</string>
-    <string name="unexpected_success">意外成功</string>
-    <string name="expected_error">预期错误: %1$s</string>
-    
-    <string name="network_utils_tag">NetworkUtils</string>
+
     <string name="network_connection_normal">网络连接正常</string>
     <string name="network_connection_abnormal">网络连接异常，状态码: %1$d</string>
     <string name="network_connection_failed">网络连接失败</string>
 
     <string name="network_unavailable_continuing_offline">网络不可用，启用离线模式</string>
-    <string name="api_service_tag">ApiService</string>
-    <string name="failed_to_get_user_info">获取用户信息失败: %1$d</string>
-    <string name="failed_to_create_user">创建用户失败: %1$d</string>
-    <string name="failed_to_get_transaction_history">获取交易历史失败: %1$d</string>
-    <string name="failed_to_send_transaction">发送交易失败: %1$d</string>
-    <string name="failed_to_get_market_data">获取市场数据失败: %1$d</string>
+
+    <string name="failed_to_send_tx">发送交易失败: %s</string>
+    <string name="sending_transaction">发送交易...</string>
     
     <string name="network_error_type_connection">连接错误</string>
     <string name="network_error_type_timeout">超时错误</string>
@@ -617,64 +532,25 @@
     <string name="network_error_type_unavailable">网络不可用</string>
     <string name="network_error_type_invalid_url">无效URL</string>
     <string name="network_error_type_unknown">未知错误</string>
-    
-    <string name="apip_client_tag">ApipClient</string>
-    <string name="apip_service_example_tag">ApipServiceExample</string>
-    <string name="starting_simple_apip_request">开始执行简单APIP请求</string>
-    <string name="apip_request_successful">APIP请求成功</string>
-    <string name="retry_attempt">第%1$d次重试: %2$s</string>
-    <string name="apip_request_finally_failed">APIP请求最终失败: %1$s</string>
-    <string name="starting_apip_request_with_environment_check">开始执行带环境检测的APIP请求</string>
-    <string name="network_environment_detection_complete">网络环境检测完成: %1$s</string>
-    <string name="network_environment_detection_failed_log">网络环境检测失败: %1$s</string>
-    <string name="starting_alternative_server_test">开始测试备用服务器</string>
-    <string name="server_test_result_log">服务器%1$d测试结果: %2$s</string>
-    <string name="all_alternative_server_tests_complete">所有备用服务器测试完成</string>
-    <string name="starting_complete_apip_workflow">开始完整APIP服务流程</string>
-    <string name="network_environment_log">网络环境: %1$s</string>
-    <string name="environment_detection_failed_trying_direct_request">环境检测失败，尝试直接请求</string>
-    <string name="apip_request_successful_log">APIP请求成功</string>
-    <string name="response_code">响应码: %1$d</string>
-    <string name="time_taken">耗时: %1$dms</string>
-    <string name="parse_successful_data">解析成功，数据: %1$s</string>
-    <string name="apip_request_failed_log">APIP请求失败: %1$s</string>
-    <string name="error_details">错误详情: %1$s</string>
-    <string name="retrying_attempt">正在重试第%1$d次...</string>
-    <string name="network_environment_poor_may_affect_service">网络环境较差，可能影响服务访问</string>
-    <string name="server_test_complete">服务器测试完成</string>
-    <string name="apip_service_request_successful_time">APIP服务请求成功，耗时%1$dms</string>
-    <string name="apip_service_request_failed">APIP服务请求失败: %1$s</string>
-    <string name="server_test_log">服务器测试 - URL: %1$s, 成功: %2$s, 耗时: %3$dms</string>
-    <string name="found_available_server">发现可用服务器: %1$s</string>
-    
-    <string name="network_config_tag">NetworkConfig</string>
-    <string name="network_config_not_initialized">NetworkConfig未初始化。请先调用getInstance(Context)。</string>
-    
+
     <!-- Download related strings -->
     <string name="download_failed">下载失败: %1$s</string>
-    <string name="binary_request_failed">二进制请求失败: %1$s</string>
-    <string name="file_download_successful">文件下载成功</string>
-    <string name="binary_data_received">收到二进制数据: %1$d 字节</string>
     <string name="choose_cid">选择身份</string>
     <string name="no_id_please_create">尚无身份，请创建</string>
-    <string name="no_valid_cash_found_for_payment">没有可用钞票</string>
-    <string name="confirm_api_payment">确认购买API支付</string>
-    <string name="confirm_api_payment_message">支付 %.8f FCH 给 %s 购买API服务?</string>
+    <string name="no_valid_cash_found">没有可用钞票</string>
+
     <string name="error_opening_detail">打开详情页错误</string>
     <string name="person_menu">身份菜单</string>
     <string name="person_avatar">头像</string>
     <string name="balance">余额</string>
     <string name="main_fid">主身份</string>
     <string name="my_master">我的主人</string>
-    <string name="my_watched_fids">观察名单</string>
-    <string name="my_multisign_fids">我的多签</string>
+    <string name="my_watched">观察名单</string>
+    <string name="my_multisig">我的多签</string>
     <string name="quit_main_fid">退出主身份</string>
     <string name="current_live_fid">当前活跃身份</string>
-    <string name="switch_to_main_fid">切换主身份</string>
-    <string name="no_master_available">未设定主人</string>
-    <string name="no_watched_fids">无观察名单</string>
-    <string name="no_multisign_fids">无多签</string>
-    <string name="fid_switched_successfully">切换身份成功</string>
+
+    <string name="fid_switched">切换身份成功</string>
     <string name="living_not_set">无活跃身份</string>
     
     <!-- SetMasterActivity strings -->
@@ -685,9 +561,8 @@
     <string name="enter_master_fid_or_name">输入主人FID或姓名</string>
     <string name="search">搜索</string>
     <string name="search_results">搜索结果</string>
-    <string name="selected_master_label">选择的主人: %s</string>
     <string name="please_enter_search_term">请输入搜索词</string>
-    <string name="apip_client_not_available">APIP客户端不可用</string>
+    <string name="apip_client_not_available">FAPI客户端不可用</string>
     <string name="fid_not_found">未找到FID</string>
     <string name="search_failed">搜索失败</string>
     <string name="no_matching_cids_found">未找到匹配的CID</string>
@@ -695,49 +570,40 @@
     <string name="error_showing_detail">显示详情时出错</string>
     <string name="no_master_selected">未选择主人</string>
     <string name="loading">加载中...</string>
-    <string name="select">选择</string>
     <!-- Master setting transaction -->
-    <string name="tx_handler_not_available">交易处理器不可用</string>
     <string name="feip_handler_not_available">FEIP处理器不可用</string>
     <string name="fid_manager_not_available">FID管理器不可用</string>
-    <string name="setting_master">设置主人中...</string>
     <string name="confirm_set_master">确认设置主人</string>
     <string name="confirm_set_master_message">将%s设置为%s的主人？\n\n这将把私钥加密上链。主人可以解密该私钥。</string>
-    <string name="set_master_button">设置主人</string>
     <string name="master_set_successfully">主人设置成功！\n交易ID: %s</string>
     <string name="failed_to_set_master">设置主人失败: %s</string>
-    <string name="no_valid_cash_found_for_transaction">没有可用于交易的有效钞票</string>
-    <string name="cash_manager_not_available">钞票管理器不可用</string>
-    <string name="transaction_broadcast_failed">交易广播失败</string>
-    <string name="master_pubkey_not_found">主人FID未注册公钥</string>
-    <string name="invalid_master_input">无效的主人输入：不是有效的FID或公钥</string>
+
     <string name="no_main_fid_available">无可用主身份</string>
     <string name="searching">搜索中...</string>
     <string name="cleared">已清除</string>
     <string name="failed_to_update_cash_db">更新钞票数据库失败</string>
-    <string name="failed_to_get_private_key_cipher">获取私钥密文失败</string>
+    <string name="failed_to_get_prikey_cipher">获取私钥密文失败</string>
     
     <!-- Watched FID related strings -->
     <string name="choose_watched_fid">选择观察FID</string>
     <string name="add_watched_fid">添加观察FID</string>
-    <string name="search_fid_to_watch">搜索要观察的FID</string>
     <string name="enter_fid_or_cid_to_watch">输入要观察的FID或CID</string>
     <string name="no_watched_fids_available">没有可用的观察FID</string>
     <string name="watched_fid_added_successfully">观察FID添加成功</string>
     <string name="failed_to_add_watched_fid">添加观察FID失败</string>
     <string name="fid_already_watched">该FID已在观察列表中</string>
     <string name="my_servants">我的仆人</string>
-    <string name="no_servants">没有仆人</string>
     <string name="input_new_label">输入新标签</string>
-    <string name="visibility_indicator">不同身份活跃</string>
-    
-    <!-- Multisign FID related strings -->
+
+    <!-- Multisig FID related strings -->
     <string name="add_multisign_fid">添加多签FID</string>
     <string name="choose_multisign_fid">选择多签FID</string>
     <string name="loading_multisigns">加载多签中...</string>
     <string name="fetch_multisigns_failed">获取多签失败</string>
     <string name="all_multisigns_already_added">所有多签已添加</string>
     <string name="multisign_fid_added_successfully">多签FID添加成功</string>
+    <string name="fetching_multisign_info">获取多签信息中...</string>
+    <string name="failed_to_get_apip_client">获取FAPI客户端失败</string>
     <string name="multisign_fids_added_successfully">%d个多签FID添加成功</string>
     <string name="failed_to_add_multisign_fids">添加多签FID失败</string>
     <string name="no_multisign_fids_available">没有可用的多签地址</string>
@@ -758,7 +624,1425 @@
     <string name="refresh">刷新</string>
     <string name="edit">编辑</string>
     <string name="share">分享</string>
-    <string name="reorganize">重组</string>
+    <string name="reorg">重组</string>
+    <string name="reorg_cash">重组钞票</string>
+    <string name="consuming">使用</string>
+    <string name="count">数量</string>
+    <string name="amount_fch">金额 (FCH)</string>
+    <string name="cash_count">钞票数量</string>
+    <string name="amount_each_cash">每个钞票金额</string>
+    <string name="total_amount">总金额：</string>
+    <string name="no_selected_cash">未收到选择的钞票</string>
+    <string name="tx_sent">交易已发送，需1–5分钟确认</string>
+    <string name="reorg_failed">重组失败</string>
+    <string name="reorg_completed_successfully">重组成功完成</string>
+    <string name="sender_key_not_found">未找到发送者密钥</string>
     <string name="invalid_amount">无效金额</string>
     <string name="pay_to_list">按名单发</string>
+    <string name="not_enough_cash_for_payment_and_fee">不足以用于支付和手续费.</string>
+    
+    <!-- Income Activity strings -->
+    <string name="no_income_found">未找到收入</string>
+    <string name="error_loading_income">加载收入失败：%1$s</string>
+    <string name="error_loading_more_income">加载更多收入失败：%1$s</string>
+    <string name="failed_to_update_income">更新收入失败</string>
+    <string name="added_new_income">添加了%d个新收入.</string>
+    <string name="no_new_income_found">未找到新收入</string>
+    <string name="error_loading_newer_income">加载新收入失败：%1$s</string>
+    <string name="loaded_more_income">加载了 %d 项收入</string>
+    <string name="loading_more_cash_from_network">从网络加载更多钞票...</string>
+
+    <string name="no_more_income_available">没有更多收入项了</string>
+
+    <!-- OpReturn Activity strings -->
+    <string name="op_return">OpReturn</string>
+    <string name="op_return_history">OpReturn 历史</string>
+    <string name="no_op_return_found">未找到 OpReturn</string>
+    <string name="error_loading_op_return">加载 OpReturn 出错: %1$s</string>
+    <string name="loaded_op_returns">已加载 %d 条 OpReturn</string>
+    <string name="added_new_op_returns">新增 %d 条 OpReturn</string>
+    <string name="no_new_op_return_found">未找到新的 OpReturn</string>
+    <string name="no_more_op_return_available">没有更多 OpReturn 了</string>
+    <string name="op_return_statistics_above">链下: %1$d</string>
+    <string name="op_return_statistics_onchain">  链上: %1$d</string>
+
+    <string name="no_expense_found">未找到支出</string>
+    <string name="error_loading_expense">加载支出出错: %1$s</string>
+    <string name="error_loading_more_expense">加载更多支出出错: %1$s</string>
+    <string name="failed_to_update_expense">更新支出失败</string>
+    <string name="added_new_expense">已添加%d项新支出。</string>
+    <string name="no_new_expense_found">未找到新支出</string>
+    <string name="error_loading_newer_expense">加载更新支出出错: %1$s</string>
+    <string name="loaded_more_expense">已加载%d项更多支出</string>
+
+    <string name="no_more_expense_available">没有更多支出项了</string>
+    <string name="fid_copied_to_clipboard">FID已复制</string>
+    <string name="fid_added_to_list">FID已添加到名单</string>
+    <string name="send_tx">发送交易</string>
+    <string name="prikey_cipher">私钥密文</string>
+    <string name="decrypt_servant_prikey">Decrypt servant prikey</string>
+    
+    <!-- TxActivity strings -->
+    <string name="tx_transactions">交易</string>
+    <string name="no_tx_found">未找到交易</string>
+    <string name="error_loading_tx">加载交易失败：%1$s</string>
+
+    <string name="error_loading_more_tx">加载更多交易失败：%1$s</string>
+    <string name="failed_to_update_tx">更新交易失败</string>
+    <string name="added_new_tx">添加了%d个新交易.</string>
+    <string name="no_new_tx_found">未找到新交易</string>
+    <string name="error_loading_newer_tx">加载新交易失败：%1$s</string>
+    <string name="loaded_more_tx">加载了 %d 项交易</string>
+
+    <string name="no_more_tx_available">没有更多交易项了</string>
+    <string name="payer">付款人</string>
+    <string name="payee">收款人</string>
+
+    <!-- Toast Activity strings -->
+    <string name="app_messages">应用消息</string>
+    <string name="no_toast_messages">无消息</string>
+    <string name="clear_all">清空</string>
+    <string name="save_time">保存时间</string>
+    <string name="type">类型</string>
+    <string name="on_chain_status">是否上链</string>
+    <string name="no_secrets_found">没找到秘密</string>
+    <string name="failed_to_update_secrets_db">更新秘密数据库失败</string>
+    <string name="added_new_entities">"已添加%d 条%s "</string>
+    <string name="decrypted">已解密</string>
+    <string name="refresh_all">重置</string>
+    <string name="decrypt_content">解密内容</string>
+    <string name="deleted_mails">已删除邮件</string>
+    <string name="broadcast">广播</string>
+    <string name="broadcast_tx">广播交易</string>
+    <string name="input_raw_tx">输入原始交易</string>
+    <string name="please_input_raw_tx">请输入原始交易</string>
+    <string name="invalid_raw_tx_format">无效的原始交易格式</string>
+    <string name="error_decoding_tx">解码交易错误：%s</string>
+    <string name="broadcasting_tx">正在广播交易...</string>
+    <string name="tx_broadcasted">交易已广播</string>
+    <string name="broadcast_result">广播结果：%s</string>
+    <string name="tx_broadcast_failed">交易广播失败</string>
+    <string name="error_broadcasting_tx">广播交易错误：%s</string>
+    <string name="check">检查</string>
+    <string name="carve">上链</string>
+    <string name="recover">恢复</string>
+    <string name="on_chain">链上</string>
+    <string name="off_chain">链下</string>
+    <string name="conflicted">冲突（内存池中已花费）</string>
+    <string name="deleted_secrets">已删除秘密</string>
+    <string name="delete_secrets">删除秘密</string>
+    <string name="contacts_saved_successfully">%d个联系人已保存！</string>
+    <string name="menu_contact">联系人</string>
+    <string name="menu_mail">邮件</string>
+    <string name="my_contacts">我的联系人</string>
+    <string name="choose_contacts">选择联系人</string>
+    <string name="add_from_list">从列表添加</string>
+    <string name="add_contact_from_list">从列表添加联系人</string>
+    <string name="search_contacts">按姓名、FID或备忘搜索</string>
+    <string name="no_contacts_found">未找到联系人</string>
+    <string name="contact_not_ready_try_later">联系人管理器未就绪，请稍后重试</string>
+    <string name="im_not_ready_try_later">即时消息管理器未就绪，请稍后重试</string>
+    <string name="no_more_contacts">没有更多联系人了</string>
+    <string name="failed_to_update_contacts_db">更新联系人数据库失败</string>
+    <string name="update_secret">更新秘密</string>
+    <string name="removed_immature_cash">移除了%d张未成熟的钞票。</string>
+    <string name="no_valid_secret_ids">没有有效的秘密ID</string>
+    <string name="rollback_success">回滚成功。处理了%d项。</string>
+    <string name="system_is_busy_wait_and_try_again">系统繁忙。请等待并重试。</string>
+    <string name="failed_to_generate_qr">生成二维码失败</string>
+    <string name="failed_to_show_json_dialog">显示JSON对话框失败</string>
+    <string name="title">标题</string>
+    <string name="name">姓名</string>
+    <string name="height">高度</string>
+    <string name="update_height">更新高度</string>
+    <string name="secret_not_ready_try_later">秘密未就绪。请稍后重试。</string>
+    <string name="failed_to_get_live_key_prikey_cipher">获取活跃FID私钥密文失败。</string>
+    <string name="no_prikey_copy_tx_sign_it_and_broadcast_it">没有私钥。复制去签名并广播。</string>
+    <string name="undecrypted">未解密</string>
+
+    <!-- Proof related strings -->
+    <string name="proof_issuer_avatar">凭据发行人头像</string>
+    <string name="proof_owner_avatar">凭据拥有人头像</string>
+
+
+    <string name="my_proofs">我的凭据</string>
+    <string name="loading_proofs">加载凭据中...</string>
+    <string name="no_proofs_found">没发现凭据</string>
+    <string name="proof_not_ready_try_later">凭据管理器没准备好，请稍后再试</string>
+    <string name="failed_to_update_proofs_db">更新本地凭据失败</string>
+    <string name="destroy_proofs">销毁凭据</string>
+    <string name="no_valid_proof_ids">没有找到有效的凭据ID</string>
+    <string name="no_new_proofs_found">没有发现新的凭据</string>
+    <string name="no_more_earlier_proofs_found">没有更早的凭据了</string>
+    <string name="issue">发行</string>
+    <string name="destroy">销毁</string>
+    <string name="records">记录</string>
+    <string name="hide">隐藏</string>
+    <string name="issuer">发行者</string>
+    <string name="cosigners">联合签名者</string>
+    <string name="add_doer_to_list">将操作者加入名单</string>
+    <string name="back">返回</string>
+    <string name="issue_proof">发行凭据</string>
+    <string name="input_proof_title">输入凭据标题</string>
+    <string name="input_proof_content">输入凭据内容</string>
+    <string name="input_cosigners_comma_separated">输入共签人（FID），用逗号分隔（可选）</string>
+    <string name="transferable">可转让</string>
+    <string name="all_signs_required">需要全部签名</string>
+    <string name="please_input_proof_title">请输入凭据标题</string>
+    <string name="please_input_proof_content">请输入凭据内容</string>
+    <string name="proof_existed_title">凭据已存在</string>
+    <string name="proof_already_exists_message">该ID的凭据已存在。要替换吗？</string>
+    <string name="carving_proof_on_chain">正在将凭据上链...</string>
+    <string name="destroyed">已销毁</string>
+    <string name="hided">已隐藏</string>
+    <string name="destroyed_proofs">已销毁的凭据</string>
+    <string name="loading_destroyed_proofs">正在加载已销毁的凭据...</string>
+    <string name="loading_hided_proofs">正在加载已隐藏的凭据...</string>
+    <string name="proofs_recovered_successfully">凭据恢复成功</string>
+    <string name="failed_to_recover_proofs">恢复凭据失败：%1$s</string>
+    <string name="recover_only_available_in_hided_mode">仅在隐藏模式下可恢复</string>
+    <string name="no_proofs_selected_for_recovery">未选择要恢复的凭据</string>
+    <string name="recovering_proofs_locally">正在本地恢复凭据...</string>
+    <string name="no_destroyed_proofs_found">未找到已销毁的凭据</string>
+    <string name="loaded_newer_destroyed_proofs">已加载 %d 个较新的已销毁凭据</string>
+    <string name="error_loading_newer_destroyed_proofs">加载较新的已销毁凭据出错：%s</string>
+    <string name="loaded_earlier_destroyed_proofs">已加载 %d 个更早的已销毁凭据</string>
+    <string name="error_loading_earlier_destroyed_proofs">加载更早的已销毁凭据出错：%s</string>
+    <string name="error_loading_destroyed_proofs">加载已销毁凭据出错：%s</string>
+    <string name="removed_the_proofs_which_you_don_t_own">剔除了 %d 个不属于你的凭据</string>
+
+
+    <string name="create_contact">创建联系人</string>
+    <string name="update_contact">更新联系人</string>
+    <string name="contact_fid">联系人FID</string>
+    <string name="contact_avatar">联系人头像</string>
+    <string name="contact_will_be_updated">此联系人将使用新信息更新。</string>
+
+    <string name="read_mail">阅读邮件</string>
+    <string name="reply">回复</string>
+    <string name="content_not_available">内容不可用</string>
+    <string name="input_titles_comma_separated">输入标签，以逗号分隔</string>
+    <string name="see_statement">查看其声明</string>
+    <string name="see_writings">查看其文章</string>
+    <string name="contact_existed_title">联系人已存在</string>
+    <string name="contact_already_exists_message">此ID的联系人已存在。是否要替换它？</string>
+    <string name="enter_fid_or_cidt">输入CID或FID</string>
+    <string name="failed_to_send_contact_on_chain">发送联系人上链失败：</string>
+    <string name="tx_signed_but_not_broadcast">交易已签名但未广播。</string>
+    <string name="delete_contacts">删除联系人</string>
+    <string name="no_valid_contact_ids">未找到有效的联系人ID</string>
+    <string name="deleted_contacts">已删除联系人</string>
+
+    <string name="delete_mails">删除邮件</string>
+    <string name="no_valid_mail_ids">未找到有效的邮件ID</string>
+    <string name="mail_not_ready_try_later">邮件管理器未就绪，请稍后重试</string>
+    <string name="no_live_fid_available">没有可用的活跃FID</string>
+    <string name="password_or_symkey">密码或对称密钥</string>
+    <string name="your_prikey_or_input_password_or_symkey">默认是您的私钥。您可以输入密码或对称密钥。</string>
+    <string name="contact_has_no_fid">联系人没有FID</string>
+    <string name="failed_error_msg">失败 %s</string>
+    <string name="mails_saved">%d封邮件已保存</string>
+    <string name="my_mails">我的邮件</string>
+    <string name="no_mails_found">未找到邮件</string>
+    <string name="search_mails">搜索邮件</string>
+    <string name="failed_to_update_mails_db">更新邮件数据库失败。</string>
+    <string name="no_more_mails">没有更多邮件</string>
+    <string name="create_mail">创建邮件</string>
+    <string name="input_mail_content">输入邮件内容</string>
+    <string name="choose_from_contact_or_input_fid_or_pubkey">从联系人选择或输入FID或公钥</string>
+    <string name="mail_content">邮件内容</string>
+    <string name="remove">移除</string>
+    <string name="mail_existed_title">邮件已存在</string>
+    <string name="mail_already_exists_message">此ID的邮件已存在。是否要替换它？</string>
+    <string name="failed_to_encrypt">加密失败。%s</string>
+    <string name="failed_to_get_pubkey">获取公钥失败。%s</string>
+    <string name="invalid_input">无效的输入格式</string>
+    <string name="fid_not_found_on_blockchain">在区块链上未找到FID</string>
+    <string name="fetching_cid_from_chain">从区块链获取CID...</string>
+    <string name="no_live_key_info">没有活跃密钥信息</string>
+    <string name="above_in_statistics">以上：</string>
+    <string name="local_in_statistics">"      本地："</string>
+    <string name="onchain_in_statistics"> "     链上："</string>
+    <string name="to">发给</string>
+    <string name="from">来自</string>
+    <string name="content">内容</string>
+    <string name="me">我</string>
+    <string name="pay">付款</string>
+    <string name="receive">收款</string>
+    <string name="no_new_contacts_found">未找到新联系人</string>
+    <string name="no_more_earlier_contacts_found">没有更早的联系人了</string>
+    <string name="no_new_mails_found">未找到新邮件</string>
+    <string name="no_more_earlier_mails_found">没有更早的邮件了</string>
+    <string name="no_new_secrets_found">未找到新秘密</string>
+    <string name="no_more_earlier_secrets_found">没有更早的秘密了</string>
+    <string name="loading_fid_info">加载FID信息...</string>
+    <string name="failed_to_load_fid_info">加载FID信息失败</string>
+    <string name="request_prikey">请求私钥</string>
+    <string name="preparing_prikey">准备私钥...</string>
+    <string name="loading_mails">加载邮件...</string>
+    <string name="loading_earlier_mails">加载更早的邮件...</string>
+    <string name="sending_mail_on_chain">正在上链邮件...</string>
+    <string name="carving_secret_on_chain">正在上链秘密...</string>
+    <string name="loading_contacts">加载联系人...</string>
+    <string name="loading_secrets">加载秘密...</string>
+    <string name="loading_earlier_secrets">加载更早的秘密...</string>
+    <string name="loading_earlier_cash">加载更早的钞票...</string>
+    <string name="set_cid">设置CID</string>
+    <string name="current_cid">当前CID</string>
+    <string name="used_cids">已使用的CID</string>
+    <string name="name_hint">输入您想要的名称</string>
+    <string name="your_cid_will_be">您的CID将是:</string>
+    <string name="invalid_name">无效的名称格式</string>
+    <string name="please_enter_valid_name">请输入有效名称</string>
+    <string name="error_no_live_fid">错误：没有活跃的FID可用</string>
+    <string name="error_no_api_client">错误：没有可用的API客户端</string>
+    <string name="error_checking_cid_availability">检查CID可用性时出错</string>
+    <string name="error_creating_transaction">创建交易时出错。%s</string>
+    <string name="input_the_name_of_any_used_cid">输入任何已使用的CID名称。</string>
+    <string name="no_more_than_4_used_cids_allowed">最多允许4个已使用的CID</string>
+    <string name="cid_carved">CID已上链</string>
+    <string name="failed_to_parse_contact">解析联系人失败</string>
+    <string name="show_the_payer">显示给付款人</string>
+    <string name="loading_more_from_apip">从服务器加载中...</string>
+    <string name="switching_fid">切换FID中</string>
+    <string name="no_active_fid">无活跃FID</string>
+    <string name="please_enter_recipient_address">请输入收款地址</string>
+    <string name="please_enter_amount">请输入金额</string>
+    <string name="amount_must_be_greater_than_zero">金额必须大于零</string>
+    <string name="invalid_amount_format">无效的金额格式</string>
+    <string name="no_prikey_available">无可用私钥</string>
+    <string name="no_more_earlier_cash_found">没找到更早钞票</string>
+    <string name="no_current_setting_available">当前设置不可用</string>
+    <string name="no_live_fid_info_available">无活跃FID信息</string>
+    <string name="no_master_yet">尚未设置主人。</string>
+    <string name="error_switching_to_master_fid">切换到主人FID失败</string>
+    <string name="failed_to_fetch_master_fid_info_from_network">从网络获取主人FID信息失败</string>
+    <string name="error_fetching_master_fid_info">获取主人FID信息错误</string>
+    <string name="got_master_info_and_switched">已获取主人信息并切换</string>
+    <string name="got_master_info">已获取主人信息。</string>
+    <string name="failed_to_switch">切换失败</string>
+    <string name="failed_to_fetch_master_fid_info">获取主人FID信息失败</string>
+    <string name="error_fetching_master_fid_info_with_message">获取主人FID信息错误：%s</string>
+    <string name="error_logging_out">退出登录错误</string>
+
+    <!-- SecretDeletedActivity strings -->
+    <string name="loading_deleted_secrets">加载已删除秘密...</string>
+    <string name="failed_to_load_deleted_secrets">加载已删除秘密失败</string>
+    <string name="error_loading_deleted_secrets">加载已删除秘密错误：%s</string>
+    <string name="failed_to_load_newer_deleted_secrets">加载更新已删除秘密失败</string>
+    <string name="loaded_newer_deleted_secrets">已加载%d个更新已删除秘密</string>
+    <string name="no_newer_deleted_secrets_found">未找到更新已删除秘密</string>
+    <string name="error_loading_newer_deleted_secrets">加载更新已删除秘密错误：%s</string>
+    <string name="failed_to_load_earlier_deleted_secrets">加载更早已删除秘密失败</string>
+    <string name="loaded_earlier_deleted_secrets">已加载%d个更早已删除秘密</string>
+    <string name="no_more_earlier_deleted_secrets_found">没有更早的已删除秘密了</string>
+    <string name="error_loading_earlier_deleted_secrets">加载更早已删除秘密错误：%s</string>
+    <string name="no_secrets_selected_for_recovery">未选择要恢复的秘密</string>
+    <string name="no_valid_secret_ids_for_recovery">没有有效的秘密ID可恢复</string>
+    <string name="secrets_recovered_successfully_on_chain">秘密已成功上链恢复</string>
+    <string name="failed_to_recover_secrets_on_chain">上链恢复秘密失败：%s</string>
+    <string name="cannot_sign_transaction_showing_unsigned_tx">无法签名交易 - 显示未签名交易</string>
+    <string name="secrets_recovered_locally">秘密已本地恢复</string>
+    <string name="recovering_secrets_locally">本地恢复秘密中...</string>
+    <string name="secrets_recovered_successfully_off_chain">秘密已成功恢复（链下）</string>
+    <string name="failed_to_recover_secrets">恢复秘密失败：%s</string>
+    <string name="loading_local_deleted_secrets">加载本地已删除秘密...</string>
+    <string name="error_loading_local_deleted_secrets">加载本地已删除秘密错误：%s</string>
+
+    <!-- Mail-related strings -->
+    <string name="error_no_mail_data_provided">错误：未提供邮件数据</string>
+    <string name="error_invalid_mail_data">错误：无效的邮件数据</string>
+    <string name="invalid_mail">无效的邮件</string>
+    <string name="cannot_determine_reply_recipient">无法确定回复收件人</string>
+    <string name="no_mails_provided_for_deletion">未提供要删除的邮件</string>
+    <string name="no_valid_mails_found">未找到有效的邮件</string>
+    <string name="no_deletable_mails_found">未找到可删除的邮件</string>
+    <string name="error_loading_mail_data">加载邮件数据错误</string>
+    <string name="no_mails_to_delete">没有要删除的邮件</string>
+    <string name="deleted_off_chain_mails_locally">已本地删除%d封链下邮件</string>
+    <string name="deleted_on_chain_mails_locally">已本地删除%d封链上邮件</string>
+    <string name="no_valid_cash_available_for_transaction">没有可用于交易的有效钞票</string>
+    <string name="failed_to_create_transaction">创建交易失败</string>
+    <string name="mails_deleted_successfully_on_chain">邮件已成功上链删除</string>
+    <string name="error_preparing_mail_data_for_deletion">准备邮件删除数据时出错</string>
+    <string name="added_mail_participants_to_list">已添加%d个邮件参与者到名单</string>
+    <string name="error_opening_mail_details">打开邮件详情错误</string>
+    <string name="mail_is_already_on_chain">邮件已在链上</string>
+    <string name="recipient_contact_not_found">未找到收件人联系人</string>
+    <string name="error_selecting_contact">选择联系人错误</string>
+    <string name="created_contact_with_pubkey_for_sending">已创建带公钥的联系人用于发送</string>
+    <string name="recipient_selected">收件人已选择</string>
+    <string name="please_select_recipient_first">请先选择收件人</string>
+    <string name="please_enter_mail_content">请输入邮件内容</string>
+    <string name="mail_saved_successfully">邮件保存成功</string>
+    <string name="mail_sent_successfully">邮件发送成功</string>
+    <string name="failed_to_send_mail">发送邮件失败：%s</string>
+    <string name="failed_to_load_newer_deleted_mails">加载更新已删除邮件失败</string>
+    <string name="loaded_newer_deleted_mails">已加载%d封更新已删除邮件</string>
+    <string name="no_newer_deleted_mails_found">未找到更新已删除邮件</string>
+    <string name="error_loading_newer_deleted_mails">加载更新已删除邮件错误：%s</string>
+    <string name="failed_to_load_earlier_deleted_mails">加载更早已删除邮件失败</string>
+    <string name="loaded_earlier_deleted_mails">已加载%d封更早已删除邮件</string>
+    <string name="no_more_earlier_deleted_mails_found">没有更早的已删除邮件了</string>
+    <string name="error_loading_earlier_deleted_mails">加载更早已删除邮件错误：%s</string>
+    <string name="no_mails_selected_for_recovery">未选择要恢复的邮件</string>
+    <string name="no_valid_mail_ids_for_recovery">没有有效的邮件ID可恢复</string>
+    <string name="mails_recovered_successfully_on_chain">邮件已成功上链恢复</string>
+    <string name="failed_to_recover_mails_on_chain">上链恢复邮件失败：%s</string>
+    <string name="mails_recovered_locally">邮件已本地恢复</string>
+    <string name="mails_recovered_successfully_off_chain">邮件已成功恢复（链下）</string>
+    <string name="failed_to_recover_mails">恢复邮件失败：%s</string>
+
+    <!-- ApiServicesActivity -->
+    <string name="api_services">API服务</string>
+    <string name="change_api">更换API</string>
+    <string name="dealer">掌柜</string>
+    <string name="dealer_avatar">掌柜头像</string>
+    <string name="owner_avatar">所有者头像</string>
+    <string name="api_url">API地址</string>
+    <string name="set_apis">设置API</string>
+    <string name="backup_prikey">备份私钥</string>
+
+    <string name="loaded_newer_cash_from_local_db">从数据库加载了 %d 个新钞票</string>
+    <string name="refreshed_cash">重新加载了 %d 个钞票</string>
+    <string name="error_refreshing_database">从数据库重新加载错误: %s</string>
+    <string name="error_loading_newer_cash">加载新钞票错误: %s</string>
+    <string name="error_creating_export_data">创建导出数据错误: %s</string>
+    <string name="no_fid_switch_needed">不需要切换</string>
+    <string name="error_showing_menu">显示菜单错误</string>
+    <string name="change_api_service">更换API服务</string>
+    <string name="Input_url_or_search_api_services">搜索API服务</string>
+    <string name="no_api_services_found">未找到API服务</string>
+    <string name="no_api_service_selected">未选择API服务</string>
+    <string name="please_restart_app">请重启应用</string>
+    <string name="api_service_changed_restarting">API服务已更换，正在重启…</string>
+
+    <!-- Backup Prikey Dialog strings -->
+    <string name="make_qr_code">制作二维码</string>
+
+    <!-- Topup prompt dialog -->
+    <string name="get_some_fch">获取FCH</string>
+    <string name="topUp_prompt_message">请找个飞人发些FCH到你的FID:</string>
+    <string name="ignore">忽略</string>
+
+    <!-- Mail related strings -->
+    <string name="loaded_mails">已加载 %d 条邮件</string>
+    <string name="loaded_newer_mails">已加载 %d 条新邮件</string>
+    <string name="no_valid_participants_found_in_selected_mails">在选中的邮件中未找到有效参与者</string>
+    <string name="api_state">API状态</string>
+    <string name="got_api_services">获取到 %d 个API服务</string>
+    <string name="error_searching_api_services">搜索API服务时出错。%s</string>
+    <string name="error_no_setting">设置不可用</string>
+    <string name="error_init_fudp_node">初始化FUDP节点失败</string>
+    <string name="error_discover_service">从URL发现服务失败</string>
+    <string name="rate">评分</string>
+    <string name="loaded_more_services">加载了 %d 个更多服务</string>
+    <string name="max_api_services_reached">已达到API服务最大限制(20)</string>
+    <string name="searching_api_services">查找服务中...</string>
+    <string name="added_new_client_for_s_total_d_d">为 %s 添加了新客户端(总计: %d/%d)</string>
+    <string name="client_is_not_connected_for_service_type_s">服务类型 %s 的客户端未连接</string>
+    <string name="please_select_keys">请选择密钥</string>
+    <string name="click_plus_to_add">点击 + 添加</string>
+
+    <!-- Backup Prikey Dialog strings -->
+    <string name="please_backup_your_prikey">请备份您的私钥</string>
+    <string name="prikey_qr_code">私钥二维码</string>
+    <string name="toggle_prikey_visibility">切换私钥可见性</string>
+    <string name="encrypted_with_password">已使用密码加密</string>
+    <string name="show_in_base58">Base58Check</string>
+    <string name="copy_cipher">复制密文</string>
+    <string name="later">稍后</string>
+    <string name="no_key_info_available">无可用密钥信息</string>
+    <string name="prikey_not_available">私钥不可用</string>
+    <string name="symkey_not_available">对称密钥不可用</string>
+    <string name="failed_to_encrypt_prikey">加密私钥失败</string>
+    <string name="cipher_copied">密文已复制到剪贴板</string>
+    <string name="no_cipher_to_copy">没有可复制的密文</string>
+    <string name="prikey_backup_completed">私钥已备份。</string>
+    <string name="this_password_existed">该密码已存在</string>
+    <string name="prikey_leaked_tooltip">私钥已泄露，我谁都不是，谁都可以是我.</string>
+    <string name="weight_tooltip">基于币天、币天销毁和声誉的重量</string>
+    <string name="reputation_tooltip">他人给予的声誉</string>
+    <string name="hot_tooltip">声誉消耗的币天总和</string>
+    <string name="cash_tooltip">现钞数量</string>
+    <string name="balance_tooltip">FCH数额</string>
+    <string name="cd_tooltip">CD (币天)</string>
+    <string name="fc_time_tooltip">自由宇宙时间，始于2020-01-01 00:00，格式：年.天.时.分</string>
+    <string name="height_info_format">高度: %d\n大致时间: %s</string>
+    <string name="nobody">明人</string>
+    <string name="invalid_sender">无效的接受者</string>
+    <string name="copy_fid">复制FID</string>
+
+    <!-- SetNoticeFeeActivity -->
+    <string name="set_notice_fee">设置通知费</string>
+    <string name="my_notice_fee">我的通知费</string>
+    <string name="max_notice_fee_to_pay">付给他人的最大通知费</string>
+    <string name="pay_back_notice_fee">返还通知费</string>
+    <string name="enter_notice_fee">输入通知费</string>
+    <string name="enter_max_notice_fee">输入最大通知费</string>
+    <string name="set_custom_notice_fee">设置自定义通知费</string>
+    <string name="unfinished_editing">有未完成的编辑</string>
+    <string name="changes_cleared">更改已清除</string>
+    <string name="max_paying_notice_fee_updated">最大通知费已更新</string>
+    <string name="please_enter_notice_fee">请输入通知费</string>
+    <string name="please_enter_max_notice_fee">请输入最大通知费</string>
+    <string name="invalid_fee_value">无效的费用值</string>
+    <string name="no_changes_to_carve">没有更改需要上链</string>
+    <string name="notice_fee_carved_successfully">通知费已成功上链! TxID: %s</string>
+    <string name="failed_to_carve_notice_fee">通知费上链失败: %s</string>
+    <string name="failed_to_get_private_key">获取私钥失败</string>
+
+    <string name="error_creating_setting">创建设置错误</string>
+    <string name="error_parsing_key_info">解析密钥信息失败</string>
+    <string name="please_select_a_cid">请选择一个CID</string>
+    <string name="the_notice_fee_of_s_is_more_than_your_limit_d">将要支付的通知费 %s 超过了你设置的最大值 %s.</string>
+    <string name="result">结果</string>
+    <string name="app_password_can_not_be_shown_please_keep_it_carefully">APP密码不可显示，请妥善保存</string>
+    <string name="opreturn_size_can_not_be_larger_than_4kb">刻字长度不能大于4KB</string>
+
+    <!-- ContactActivity -->
+    <string name="not_enough_fch">FCH不足</string>
+    <string name="not_enough_cd">CD不足</string>
+    <string name="error_parsing_key">解析密钥错误</string>
+
+    <!-- FID Management Activities -->
+    <string name="current_setting_not_available">当前设置不可用</string>
+    <string name="im_manager_init_failed">消息服务初始化失败</string>
+
+    <!-- Multisig FID -->
+    <string name="multisign_fid_deleted">多签FID已删除</string>
+    <string name="failed_to_remove_multisign_fid">删除多签FID失败</string>
+    <string name="already_viewing_multisign_fid">已在查看FID: %s</string>
+    <string name="failed_to_switch_to_multisign_fid">切换到多签FID失败</string>
+    <string name="failed_to_switch_to_multisign_fid_error">切换到多签FID失败: %s</string>
+    <string name="no_multisign_fids_selected">未选择多签FID</string>
+    <string name="all_selected_multisign_fids_already_added">所有选择的FID都已添加</string>
+
+    <!-- Watched FID -->
+    <string name="already_viewing_watched_fid">已在查看FID: %s</string>
+    <string name="failed_to_switch_to_watched_fid">切换到关注的FID失败</string>
+    <string name="failed_to_switch_to_watched_fid_error">切换到关注的FID失败: %s</string>
+    <string name="no_fid_selected">未选择FID</string>
+    <string name="selected_fids_count">已选 (%d)</string>
+    <string name="add_checked_to_selected">添加勾选项到已选列表</string>
+    <string name="failed_to_create_keyinfo_from_fid">从选择的FID创建密钥信息失败</string>
+
+    <!-- Servant FID -->
+    <string name="servant_fid_deleted">仆人FID已删除</string>
+    <string name="failed_to_remove_servant_fid">删除仆人FID失败</string>
+    <string name="already_viewing_servant_fid">已在查看FID: %s</string>
+    <string name="failed_to_switch_to_servant_fid">切换到仆人FID失败</string>
+    <string name="failed_to_switch_to_servant_fid_error">切换到仆人FID失败: %s</string>
+    <string name="no_servant_fids_selected">未选择仆人FID</string>
+    <string name="all_selected_servant_fids_already_added">所有选择的FID都已添加</string>
+    <string name="error_opening_label_editor">编辑标签错误</string>
+    <string name="label_updated">标签已更新</string>
+    <string name="failed_to_save_label">保存标签失败</string>
+    <string name="no_fid_available">没有可用的FID</string>
+    <string name="multisign_data_not_found_for_fid">没找到多签数据: %s</string>
+    <string name="please_select_a_fid_first">请先选择一个FID</string>
+    <string name="cash_not_ready_try_later">钞票还没准备好，请稍后再试</string>
+    <string name="rest">剩余</string>
+    <string name="kb">KB</string>
+    <string name="please_set_a_name_for_yourself">给自己起个名字</string>
+    <string name="never">不需要</string>
+    <string name="setting_saved">设置已保存</string>
+    <string name="error_no_current_setting">当前设置不可用</string>
+    <string name="error_saving_settings">保存设置失败</string>
+    <string name="error_creating_password">创建密码失败</string>
+    <string name="passwords_do_not_match">密码不匹配</string>
+
+    <string name="password_must_be_at_least_d_characters_long">密码长度至少为 %d</string>
+    <string name="failed_to_get_best_height_when_making_lock_time">生成锁定时间时无法获取最佳高度。</string>
+
+    <!-- Remove FID strings -->
+    <string name="confirm_remove_non_main_fid">您确定要移除这个FID吗？与此FID相关的所有数据将被清除。</string>
+    <string name="fid_removed_successfully">FID移除成功</string>
+    <string name="error_switching_to_main_fid">切换到主FID时出错</string>
+    <string name="error_fid_not_found_in_lists">错误：在任何列表中都找不到此FID</string>
+    <string name="error_removing_fid">移除FID时出错：%s</string>
+    <string name="tx_is_time_locked_until_block_d_current_d_d_blocks_to_wait_transaction_signed_but_not_broadcast">TX is time-locked until block %d (current: %d, %d blocks to wait). Transaction signed but not broadcast.</string>
+    <string name="paste">粘贴</string>
+    <string name="pasted">已粘贴</string>
+    <string name="clipboard_is_empty">剪贴板为空</string>
+
+    <string name="there_is_unlocked_cash">有钞票还未解锁</string>
+    <string name="enter_a_valid_lock_days">输入有效的锁定天数</string>
+    <string name="enter_a_valid_fid">输入有效的FID</string>
+    <string name="network_not_available">网络不可用</string>
+    <string name="it_is_not_your_tx">这不是你的交易</string>
+    <string name="import_data">导入数据</string>
+    <string name="input_is_empty">输入为空</string>
+    <string name="invalid_totp_format">无效的TOTP格式</string>
+    <string name="invalid_secret_format">无效的秘密格式</string>
+    <string name="rest_s_f">Rest: %s F</string>
+    <string name="paid">已付</string>
+    <string name="d_saved">%d 已保存</string>
+
+    <!-- News strings -->
+    <string name="news">新闻</string>
+    <string name="doer">操作者</string>
+    <string name="sort">排序</string>
+    <string name="field">字段</string>
+    <string name="order">顺序</string>
+    <string name="search_in">搜索范围</string>
+    <string name="sort_by">排序字段</string>
+    <string name="no_news_found">未找到新闻</string>
+    <string name="error_loading_news">加载新闻时出错：%1$s</string>
+    <string name="loaded_news_count">已加载 %d 条新闻</string>
+    <string name="loaded_newer_news">添加了 %d 条新新闻</string>
+    <string name="no_new_news_found">未找到新新闻</string>
+    <string name="error_loading_newer_news">加载新新闻时出错：%1$s</string>
+    <string name="loaded_more_news">已加载 %d 条更多新闻</string>
+    <string name="no_more_news">没有更多新闻</string>
+    <string name="error_loading_more_news">加载更多新闻时出错：%1$s</string>
+    <string name="please_enter_search_query">请输入搜索关键词</string>
+    <string name="found_news_count">找到 %d 条新闻</string>
+    <string name="error_searching_news">搜索新闻时出错：%1$s</string>
+    <string name="clearing_and_reloading">清除并重新加载中…</string>
+    <string name="database_cleared_and_reloaded">数据库已清除并重新加载</string>
+    <string name="proof_loaded_for_editing">证据已加载以进行编辑</string>
+
+    <!-- Affair input dialogs -->
+    <string name="enter_symkey_prompt">请输入对称密钥用于加密/解密：</string>
+    <string name="symkey_cannot_be_empty">对称密钥不能为空</string>
+    <string name="enter_password_prompt">请输入密码用于加密/解密：</string>
+    <string name="password_cannot_be_empty">密码不能为空</string>
+
+    <string name="found_proofs_count">找到 %d 个凭据</string>
+    <string name="error_invalid_symkey">无效的对称密钥</string>
+    <string name="error_decryption_failed">解密失败</string>
+    <string name="no_private_key">没有私钥</string>
+    <string name="invalid_cipher">无效的密文</string>
+
+    <!-- App Activity -->
+    <string name="apps">应用</string>
+    <string name="my_apps">我的应用</string>
+    <string name="app_not_ready_try_later">应用管理器未就绪，请稍后重试</string>
+    <string name="loading_apps">加载应用中...</string>
+    <string name="no_apps_found">未找到应用</string>
+    <string name="found_apps_count">找到 %d 个应用</string>
+    <string name="failed_to_update_apps_db">更新应用数据库失败</string>
+    <string name="no_new_apps_found">未找到新应用</string>
+    <string name="no_more_earlier_apps_found">没有更早的应用了</string>
+    <string name="no_more_data">没有更多数据</string>
+    <string name="no_active_apps_selected">未选择活跃的应用</string>
+    <string name="no_closable_apps_selected">未选择可关闭的应用</string>
+    <string name="only_owner_can_update">只有所有者可以更新此应用</string>
+
+    <!-- App Card -->
+    <string name="total_cdd">总币天销毁</string>
+    <string name="total_rate">总评分</string>
+
+    <!-- Create App Activity -->
+    <string name="create_app">创建应用</string>
+    <string name="publish">发布</string>
+    <string name="standard_name_required">标准名称（必填）</string>
+    <string name="local_names_comma_separated">本地名称：语言代码与名称成对，逗号分隔（如 en:我的应用, zh:应用）。</string>
+    <string name="types_comma_separated">类型（逗号分隔）</string>
+    <string name="description">描述</string>
+    <string name="version">版本</string>
+    <string name="urls_comma_separated">网址（逗号分隔）</string>
+    <string name="waiters_comma_separated">服务员（逗号分隔）</string>
+    <string name="protocols_comma_separated">协议（逗号分隔）</string>
+    <string name="codes_comma_separated">代码（逗号分隔）</string>
+    <string name="services_comma_separated">服务（逗号分隔）</string>
+    <string name="please_enter_standard_name">请输入标准名称</string>
+    <string name="app_published_successfully">应用发布成功！交易：%s</string>
+    <string name="failed_to_publish_app">发布应用失败</string>
+    <string name="cannot_sign_transaction">无法签署交易</string>
+
+    <!-- Update App Activity -->
+    <string name="update_app">更新应用</string>
+    <string name="app_id">应用ID</string>
+    <string name="app_data_not_found">未找到应用数据</string>
+    <string name="app_updated_successfully">应用更新成功！交易：%s</string>
+    <string name="failed_to_update_app">更新应用失败</string>
+    <string name="app_saved_successfully">应用保存成功</string>
+    <string name="carving_app_on_chain">在链上雕刻应用...</string>
+    <string name="app_carved_on_chain">应用在链上雕刻成功！交易：%s</string>
+    <string name="failed_to_carve_app">在链上雕刻应用失败</string>
+    <string name="app_is_already_on_chain">应用已在链上</string>
+
+    <!-- Stop App Activity -->
+    <string name="stop_apps">停止应用</string>
+    <string name="apps_stopped_successfully">应用停止成功！交易：%s</string>
+    <string name="failed_to_stop_apps">停止应用失败</string>
+
+    <!-- Close App Activity -->
+    <string name="close_apps">关闭应用</string>
+    <string name="close">关闭</string>
+    <string name="apps_closed_successfully">应用关闭成功！交易：%s</string>
+    <string name="failed_to_close_apps">关闭应用失败</string>
+
+    <!-- Recover App Activity -->
+    <string name="recover_apps">恢复应用</string>
+    <string name="apps_recovered_successfully">应用恢复成功！交易：%s</string>
+    <string name="failed_to_recover_apps">恢复应用失败</string>
+
+    <!-- Rate App Activity -->
+    <string name="rate_app">评价应用</string>
+    <string name="rate_this_app">评价此应用</string>
+    <string name="no_apps_selected">请选择APP</string>
+
+    <!-- Rating strings -->
+    <string name="rate_code">评价代码</string>
+    <string name="rate_protocol">评价协议</string>
+    <string name="rate_service">评价服务</string>
+    <string name="rate_item">评价项目</string>
+    <string name="rate_this_code">评价此代码</string>
+    <string name="rate_this_protocol">评价此协议</string>
+    <string name="rate_this_service">评价此服务</string>
+    <string name="select_cash">选择钞票</string>
+    <string name="total_cd_weight">总币天: %d</string>
+    <string name="select_rating">选择评分</string>
+    <string name="please_select_cash">请选择用作评分权重的钞票</string>
+    <string name="please_select_rating">请选择评分 (0–5)</string>
+    <string name="no_item_to_rate">没有可评价的项目</string>
+    <string name="rating_submitted">评分提交成功！交易: %s</string>
+    <string name="failed_to_submit_rating">提交评分失败: %s</string>
+    <string name="rate_0_very_bad">0 - 很差</string>
+    <string name="rate_1_bad">1 - 差</string>
+    <string name="rate_2_not_good">2 - 不好</string>
+    <string name="rate_3_good">3 - 好</string>
+    <string name="rate_4_very_good">4 - 很好</string>
+    <string name="rate_5_excellent">5 - 优秀</string>
+    <string name="cash_for_rating">评分用钞票</string>
+    <string name="higher_cd_more_weight">币天越高 = 权重越大</string>
+    <string name="total_cd_must_be_greater_than_zero">总币天必须大于0</string>
+
+    <!-- Hidden App Activity -->
+    <string name="hidden_apps">隐藏应用</string>
+    <string name="hidden">隐藏</string>
+    <string name="reveal">显示</string>
+    <string name="no_hidden_apps_found">未找到隐藏应用</string>
+    <string name="apps_revealed_successfully">已成功显示 %d 个应用</string>
+
+    <!-- Stopped App Activity -->
+    <string name="stopped_apps">已停止应用</string>
+    <string name="stopped">已停止</string>
+    <string name="loading_stopped_apps">加载已停止应用中...</string>
+    <string name="failed_to_load_stopped_apps">加载已停止应用失败</string>
+    <string name="error_loading_stopped_apps">加载已停止应用错误: %s</string>
+    <string name="no_recoverable_apps_selected">未选择可恢复的应用</string>
+    <string name="loaded_newer_apps">已加载 %d 个较新的应用</string>
+    <string name="loaded_earlier_apps">已加载 %d 个较早的应用</string>
+
+    <!-- App Operation Strings -->
+    <string name="no_apps_provided">未提供应用</string>
+    <string name="no_active_apps_found">未找到活跃应用</string>
+    <string name="no_closable_apps_found">未找到可关闭应用</string>
+    <string name="no_recoverable_apps_found">未找到可恢复应用</string>
+    <string name="no_apps_to_stop">没有要停止的应用</string>
+    <string name="no_apps_to_close">没有要关闭的应用</string>
+    <string name="no_apps_to_recover">没有要恢复的应用</string>
+    <string name="no_valid_app_ids">没有有效的应用ID</string>
+    <string name="total_count">总计: %d</string>
+    <string name="close_statement">关闭声明</string>
+    <string name="app_pending_confirmation">应用正在等待链上确认</string>
+    <string name="total_in_statistics">\ \ 总计: </string>
+
+    <!-- Protocol Activity Strings -->
+    <string name="protocols">协议</string>
+    <string name="my_protocols">我的协议</string>
+    <string name="create_protocol">创建协议</string>
+    <string name="update_protocol">更新协议</string>
+    <string name="hidden_protocols">隐藏协议</string>
+    <string name="stopped_protocols">已停止协议</string>
+    <string name="no_protocols_provided">未提供协议</string>
+    <string name="no_active_protocols_found">未找到活跃协议</string>
+    <string name="no_closable_protocols_found">未找到可关闭协议</string>
+    <string name="no_recoverable_protocols_found">未找到可恢复协议</string>
+    <string name="no_protocols_to_stop">没有要停止的协议</string>
+    <string name="no_protocols_to_close">没有要关闭的协议</string>
+    <string name="no_protocols_to_recover">没有要恢复的协议</string>
+    <string name="no_valid_protocol_ids">没有有效的协议ID</string>
+    <string name="protocol_pending_confirmation">协议正在等待链上确认</string>
+    <string name="loaded_newer_protocols">已加载 %d 个较新的协议</string>
+    <string name="loaded_earlier_protocols">已加载 %d 个较早的协议</string>
+
+    <string name="stop_protocols">停止协议</string>
+    <string name="close_protocols">关闭协议</string>
+    <string name="recover_protocols">恢复协议</string>
+    <string name="protocol_saved_successfully">协议保存成功</string>
+    <string name="protocol_published_successfully">协议发布成功。交易ID: %s</string>
+    <string name="protocol_updated_successfully">协议更新成功。交易ID: %s</string>
+    <string name="protocol_not_ready_try_later">协议管理器未就绪，请稍后重试</string>
+    <string name="protocol_data_not_found">未找到协议数据</string>
+    <string name="protocols_stopped_successfully">协议停止成功。交易ID: %s</string>
+    <string name="protocols_closed_successfully">协议关闭成功。交易ID: %s</string>
+    <string name="protocols_recovered_successfully">协议恢复成功。交易ID: %s</string>
+    <string name="protocols_revealed_successfully">已成功显示 %d 个协议</string>
+    <string name="failed_to_publish_protocol">发布协议失败</string>
+    <string name="failed_to_update_protocol">更新协议失败</string>
+    <string name="failed_to_stop_protocols">停止协议失败</string>
+    <string name="failed_to_close_protocols">关闭协议失败</string>
+    <string name="failed_to_recover_protocols">恢复协议失败</string>
+    <string name="no_hidden_protocols_found">未找到隐藏协议</string>
+    <string name="no_protocols_selected">未选择协议</string>
+    <string name="loading_stopped_protocols">加载已停止协议中…</string>
+    <string name="failed_to_load_stopped_protocols">加载已停止协议失败</string>
+    <string name="error_loading_stopped_protocols">加载已停止协议错误: %s</string>
+    <string name="no_recoverable_protocols_selected">未选择可恢复的协议</string>
+    <string name="protocol_id">协议ID</string>
+    <string name="file_urls_comma_separated">文件URL（逗号分隔）</string>
+
+    <!-- Code Activity Strings -->
+    <string name="codes">代码</string>
+    <string name="my_codes">我的代码</string>
+    <string name="create_code">创建代码</string>
+    <string name="update_code">更新代码</string>
+    <string name="hidden_codes">隐藏代码</string>
+    <string name="stopped_codes">已停止代码</string>
+    <string name="no_codes_provided">未提供代码</string>
+    <string name="no_active_codes_found">未找到活跃代码</string>
+    <string name="no_closable_codes_found">未找到可关闭代码</string>
+    <string name="no_recoverable_codes_found">未找到可恢复代码</string>
+    <string name="no_codes_to_stop">没有要停止的代码</string>
+    <string name="no_codes_to_close">没有要关闭的代码</string>
+    <string name="no_codes_to_recover">没有要恢复的代码</string>
+    <string name="no_valid_code_ids">没有有效的代码ID</string>
+    <string name="loaded_newer_codes">已加载 %d 个较新的代码</string>
+    <string name="loaded_earlier_codes">已加载 %d 个较早的代码</string>
+
+    <string name="stop_codes">停止代码</string>
+    <string name="close_codes">关闭代码</string>
+    <string name="recover_codes">恢复代码</string>
+    <string name="code_saved_successfully">代码保存成功</string>
+    <string name="code_published_successfully">代码发布成功。交易ID: %s</string>
+    <string name="code_updated_successfully">代码更新成功。交易ID: %s</string>
+    <string name="code_not_ready_try_later">代码管理器未就绪，请稍后重试</string>
+    <string name="code_data_not_found">未找到代码数据</string>
+    <string name="codes_stopped_successfully">代码停止成功。交易ID: %s</string>
+    <string name="codes_closed_successfully">代码关闭成功。交易ID: %s</string>
+    <string name="codes_recovered_successfully">代码恢复成功。交易ID: %s</string>
+    <string name="codes_revealed_successfully">已成功显示 %d 个代码</string>
+    <string name="failed_to_publish_code">发布代码失败</string>
+    <string name="failed_to_update_code">更新代码失败</string>
+    <string name="failed_to_stop_codes">停止代码失败</string>
+    <string name="failed_to_close_codes">关闭代码失败</string>
+    <string name="failed_to_recover_codes">恢复代码失败</string>
+    <string name="no_hidden_codes_found">未找到隐藏代码</string>
+    <string name="no_codes_selected">未选择代码</string>
+    <string name="loading_stopped_codes">加载已停止代码中…</string>
+    <string name="failed_to_load_stopped_codes">加载已停止代码失败</string>
+    <string name="error_loading_stopped_codes">加载已停止代码错误: %s</string>
+    <string name="no_recoverable_codes_selected">未选择可恢复的代码</string>
+    <string name="code_id">代码ID</string>
+
+    <!-- Service Activity Strings -->
+    <string name="services">服务</string>
+    <string name="my_services">我的服务</string>
+    <string name="create_service">创建服务</string>
+    <string name="update_service">更新服务</string>
+    <string name="hidden_services">隐藏服务</string>
+    <string name="stopped_services">已停止服务</string>
+    <string name="no_services_provided">未提供服务</string>
+    <string name="no_active_services_found">未找到活跃服务</string>
+    <string name="no_closable_services_found">未找到可关闭服务</string>
+    <string name="no_recoverable_services_found">未找到可恢复服务</string>
+    <string name="no_services_to_stop">没有要停止的服务</string>
+    <string name="no_services_to_close">没有要关闭的服务</string>
+    <string name="no_services_to_recover">没有要恢复的服务</string>
+    <string name="no_valid_service_ids">没有有效的服务ID</string>
+    <string name="loaded_newer_services">已加载 %d 个较新的服务</string>
+    <string name="loaded_earlier_services">已加载 %d 个较早的服务</string>
+
+    <string name="stop_services">停止服务</string>
+    <string name="close_services">关闭服务</string>
+    <string name="recover_services">恢复服务</string>
+    <string name="service_saved_successfully">服务保存成功</string>
+    <string name="service_published_successfully">服务发布成功。交易ID: %s</string>
+    <string name="service_updated_successfully">服务更新成功。交易ID: %s</string>
+    <string name="service_not_ready_try_later">服务管理器未就绪，请稍后重试</string>
+    <string name="service_data_not_found">未找到服务数据</string>
+    <string name="services_stopped_successfully">服务停止成功。交易ID: %s</string>
+    <string name="services_closed_successfully">服务关闭成功。交易ID: %s</string>
+    <string name="services_recovered_successfully">服务恢复成功。交易ID: %s</string>
+    <string name="services_revealed_successfully">已成功显示 %d 个服务</string>
+    <string name="failed_to_publish_service">发布服务失败</string>
+    <string name="failed_to_update_service">更新服务失败</string>
+    <string name="failed_to_stop_services">停止服务失败</string>
+    <string name="failed_to_close_services">关闭服务失败</string>
+    <string name="failed_to_recover_services">恢复服务失败</string>
+    <string name="no_hidden_services_found">未找到隐藏服务</string>
+    <string name="no_services_selected">未选择服务</string>
+    <string name="loading_stopped_services">加载已停止服务中…</string>
+    <string name="failed_to_load_stopped_services">加载已停止服务失败</string>
+    <string name="error_loading_stopped_services">加载已停止服务错误: %s</string>
+    <string name="no_recoverable_services_selected">未选择可恢复的服务</string>
+    <string name="api_groups_comma_separated">API组（逗号分隔）</string>
+    <string name="service_id">服务ID</string>
+    <string name="name_required">名称必填\n</string>
+    <string name="did">DID</string>
+    <string name="languages_comma_separated">语言（逗号分隔）</string>
+    <string name="please_enter_name">请输入名称</string>
+    <string name="serial_number">序列号</string>
+    <string name="language">语言</string>
+    <string name="pre_did">前一DID</string>
+    <string name="protocol_already_on_chain">协议已在链上</string>
+
+    <!-- Token related strings -->
+    <string name="my_tokens">我的通证</string>
+    <string name="tokens">通证</string>
+    <string name="token_history">通证历史</string>
+    <string name="my_token_history">我的通证历史</string>
+    <string name="create_token">创建通证</string>
+    <string name="close_tokens">关闭通证</string>
+    <string name="send_token">发送通证</string>
+    <string name="token_name">通证名称</string>
+    <string name="deployer">部署者</string>
+    <string name="circulating">流通量</string>
+    <string name="capacity">容量</string>
+    <string name="decimal">小数位</string>
+    <string name="closable">可关闭</string>
+    <string name="open_issue">开放发行</string>
+    <string name="max_amt_per_issue">每次发行最大数量</string>
+    <string name="min_cdd_per_issue">每次发行最小币天销毁</string>
+    <string name="max_issues_per_addr">每个地址最大发行次数</string>
+    <string name="token_not_transferable">此通证不可转账</string>
+    <string name="token_transferred_successfully">通证转账成功: %s</string>
+    <string name="token_closed_successfully">通证关闭成功: %s</string>
+    <string name="token_created_successfully">通证创建成功: %s</string>
+    <string name="no_token_holders_found">未找到通证持有者</string>
+    <string name="no_tokens_found">未找到通证</string>
+    <string name="no_token_history_found">未找到通证历史</string>
+    <string name="enter_token_id">输入通证ID</string>
+    <string name="enter_token_name">输入通证名称</string>
+    <string name="home_tokens_mode">主页通证</string>
+    <string name="hidden_tokens">隐藏通证</string>
+    <string name="hidden_token_holders">隐藏通证持有者</string>
+    <string name="loading_tokens">加载通证中…</string>
+    <string name="loading_token_holders">加载通证持有者中…</string>
+    <string name="loading_token_history">加载通证历史中…</string>
+    <string name="token_not_ready_try_later">通证管理器未就绪，请稍后重试</string>
+    <string name="no_tokens_to_close">没有要关闭的通证</string>
+    <string name="no_closable_tokens_found">未找到可关闭通证</string>
+    <string name="no_closable_tokens_selected">未选择可关闭通证</string>
+    <string name="token_data_not_found">未找到通证数据</string>
+    <string name="failed_to_transfer_token">转账通证失败</string>
+    <string name="failed_to_close_tokens">关闭通证失败</string>
+    <string name="failed_to_create_token">创建通证失败</string>
+    <string name="amount_to_transfer">转账数量</string>
+    <string name="recipient">接收者</string>
+    <string name="signer">签名者</string>
+    <string name="no_valid_token_ids">没有有效的通证ID</string>
+    <string name="insufficient_balance">余额不足</string>
+    <string name="price_per_kb">每KB价格 (FCH)</string>
+    <string name="price_per_kb_in">每KB输入价格 (FCH)</string>
+    <string name="price_per_kb_out">每KB输出价格 (FCH)</string>
+    <string name="price_per_day_kb">每日KB价格 (FCH)</string>
+    <string name="min_payment">最小支付 (FCH)</string>
+    <string name="price_per_request">每次请求价格 (FCH)</string>
+    <string name="session_days">会话天数</string>
+    <string name="consume_via_share">通过分享消费</string>
+    <string name="order_via_share">通过分享订购</string>
+    <string name="currency">货币</string>
+    <string name="max_data_size">最大数据量</string>
+    <string name="data_expires_in_days">数据保存天数</string>
+    <!-- DataActivity -->
+    <string name="size">大小</string>
+    <string name="search_hint">搜索…</string>
+    <string name="data">数据</string>
+    <string name="hat_detail">HAT详情</string>
+    <string name="text_editor">文本编辑器</string>
+    <string name="import_hats">导入HAT</string>
+    <string name="export_hats">导出HAT</string>
+    <string name="file_type">文件类型</string>
+    <string name="encrypted">已加密</string>
+    <string name="not_encrypted">未加密</string>
+    <string name="upload">上传</string>
+    <string name="download">下载</string>
+    <string name="open">打开</string>
+    <string name="unnamed">未命名</string>
+    <string name="showing_of_total">显示 %1$d / %2$d</string>
+    <string name="confirm_delete">确认删除</string>
+    <string name="confirm_delete_items">删除 %1$d 个选中项？</string>
+    <string name="items_deleted">已删除 %1$d 项</string>
+    <string name="file_added_successfully">文件添加成功</string>
+    <string name="error_adding_file">添加文件时出错</string>
+    <string name="initialization_failed">初始化失败</string>
+
+    <string name="error_no_hat_id">未提供HAT ID</string>
+    <string name="hat_not_found">未找到HAT</string>
+    <string name="created">创建时间</string>
+    <string name="last_accessed">最后访问</string>
+    <string name="locations">位置</string>
+    <string name="no_locations">无位置</string>
+    <string name="file_not_available_locally">文件在本地不可用</string>
+    <string name="no_app_to_open_file">没有可打开此文件的应用</string>
+    <string name="error_opening_file">打开文件时出错</string>
+    <string name="private_key_not_available">私钥不可用</string>
+    <string name="upload_successful">上传成功</string>
+    <string name="upload_failed">上传失败</string>
+    <string name="download_successful">下载成功</string>
+    <string name="disk_service_not_available">DISK服务不可用，请先配置FAPI服务。</string>
+    <string name="error_saving_file">保存文件时出错</string>
+    <string name="changes_saved">更改已保存</string>
+    <string name="save_and_upload">保存并上传</string>
+    <string name="upload_in_background">后台上传中</string>
+    <string name="download_in_background">后台下载中</string>
+    <string name="discard_changes">放弃更改</string>
+    <string name="discard_changes_message">您有未保存的更改。要放弃吗？</string>
+    <string name="discard">放弃</string>
+    <string name="file_saved">文件已保存</string>
+
+
+    <!-- Messaging -->
+    <string name="talk">对话</string>
+    <string name="home">主页</string>
+    <string name="setup_home">设置主页</string>
+    <string name="home_fudp_label">FUDP</string>
+    <string name="home_map_label">MAP</string>
+    <string name="home_road_label">ROAD</string>
+    <string name="home_dock_label">DOCK</string>
+    <string name="home_fudp_hint">FUDP 地址 (如 fudp://host:port)</string>
+    <string name="home_map_hint">MAP 服务地址或SID</string>
+    <string name="home_road_hint">ROAD 服务地址或SID</string>
+    <string name="home_dock_hint">DOCK 服务地址或SID</string>
+    <string name="home_registered_successfully">主页注册成功！TX: %s</string>
+    <string name="failed_to_register_home">注册主页失败</string>
+    <string name="home_requires_at_least_one_field">请至少填写一个字段</string>
+    <string name="advanced">高级</string>
+    <string name="square">广场</string>
+    <string name="team">团队</string>
+    <string name="room">房间</string>
+    <string name="type_message">输入消息…</string>
+    <string name="attach">附件</string>
+    <string name="new_chat">新建聊天</string>
+    <string name="enter_fid_or_cid_to_chat">输入FID、CID或URL开始聊天</string>
+    <string name="choose_from_contacts">从联系人中选择</string>
+    <string name="please_select_a_fid">请先选择一个FID</string>
+
+    <string name="failed">失败</string>
+    <string name="no_conversations">还没有会话</string>
+
+    <string name="request_symkey">请求密钥</string>
+    <string name="ask_symkey">请求密钥</string>
+    <string name="select_members_to_ask_symkey">选择成员请求对称密钥</string>
+    <string name="symkey_requests_sent">已向 %d 位成员发送密钥请求</string>
+    <string name="owner_no_reachable_channels">所有者没有可达的通信通道 (FUDP/ROAD/DOCK)</string>
+    <string name="members_no_reachable_channels">%d 位成员没有可达的通信通道</string>
+    <string name="share_symkey">分享密钥</string>
+    <string name="create_room">创建房间</string>
+    <string name="room_name">房间名称</string>
+    <string name="room_description">房间描述</string>
+    <string name="remove_member">移除成员</string>
+    <string name="leave_room">离开房间</string>
+    <string name="close_room">关闭房间</string>
+    <string name="confirm_close_room">确定要关闭此房间吗？所有成员将无法访问。</string>
+    <string name="confirm_close_rooms">确定要关闭所选房间吗？所有成员将无法访问。</string>
+    <string name="room_closed">房间已关闭</string>
+    <string name="rooms_closed">房间已全部关闭</string>
+    <string name="members">成员</string>
+    <string name="owner">所有者</string>
+
+    <string name="fudp_node_not_running">FUDP 节点未运行</string>
+    <string name="invalid_fudp_url">无效的 FUDP 地址</string>
+    <string name="connecting_fudp">正在通过 FUDP 连接…</string>
+    <string name="fudp_hello_failed">FUDP HELLO 失败：未收到公钥</string>
+    <string name="fudp_connected_successfully">通过 FUDP 连接成功</string>
+    <string name="fudp_connect_failed">FUDP 连接失败：%s</string>
+
+    <string name="upload_data">上传数据</string>
+    <string name="download_data">下载数据</string>
+    <string name="delete_data">删除数据</string>
+    <string name="remove_local_data">移除本地数据</string>
+    <string name="confirm_remove_local_data">移除 %1$d 个已选HAT的本地数据？</string>
+    <string name="confirm_remove_local_data_warning">本地文件将被永久删除。HAT记录将保留并更新其位置信息。</string>
+    <string name="local_data_removed_successfully">已移除 %1$d 个HAT的本地数据</string>
+    <string name="no_hats_with_local_data">所选HAT没有本地数据</string>
+    <string name="no_local_only_hats_checked">未找到已勾选的仅本地存储的HAT</string>
+    <string name="no_downloadable_hats_checked">未找到已勾选的可下载的HAT</string>
+    <string name="local_files_not_found">已跳过 %1$d 个HAT：未找到本地文件</string>
+    <string name="no_disk_only_hats_found">未找到仅存储在DISK上的数据</string>
+    <string name="confirm_delete_data">删除 %1$d 个已选HAT及其本地数据？</string>
+    <string name="confirm_delete_data_warning">此操作无法撤消。本地文件和HAT记录将被永久删除。</string>
+    <string name="data_deleted_successfully">已成功删除 %1$d 个HAT</string>
+    <string name="no_checked_hats">没有勾选任何HAT</string>
+    <string name="hat_list_is_null">HAT列表为空</string>
+    <string name="hat_list_is_empty">HAT列表为空</string>
+    <string name="input_hat_json">在此输入HAT JSON</string>
+    <string name="no_hat_found">未找到HAT</string>
+    <string name="removed_from_list">已从列表中移除</string>
+    <string name="sync_result_title">同步结果</string>
+    <string name="sync_result_total">总计：%1$d 个文件</string>
+    <string name="sync_result_uploaded">已上传：%1$d</string>
+    <string name="sync_result_downloaded">已下载：%1$d</string>
+    <string name="sync_result_skipped">已跳过：%1$d</string>
+    <string name="sync_result_failed">失败：%1$d</string>
+    <string name="sync_result_fee">总费用：%1$d 聪</string>
+
+    <!-- Pending Issues / Stranger Peer -->
+    <string name="menu_todo">待办</string>
+    <string name="pending_issues">待处理事项</string>
+    <string name="no_pending_issues">暂无待处理事项</string>
+    <string name="stranger_peer_title">检测到陌生对等方</string>
+    <string name="stranger_peer_message">未知对等方（%s）正在尝试连接。是否接受或拒绝？</string>
+    <string name="stranger_peer_request">陌生对等方请求</string>
+    <string name="accept">接受</string>
+    <string name="reject">拒绝</string>
+    <string name="auto_dismiss_countdown">%d 秒后自动关闭</string>
+    <string name="peer_accepted">已接受对等方</string>
+    <string name="peer_rejected">已拒绝对等方</string>
+    <string name="peer_blacklisted">已将对等方加入黑名单</string>
+    <string name="add_stranger_to_blacklist">加入黑名单</string>
+    <string name="block_all_strangers">拒绝所有陌生人</string>
+    <string name="all_strangers_blocked">所有陌生人将被拒绝</string>
+    <string name="strangers_accepted">陌生人将被接受</string>
+    <string name="contact_auto_accepted">已自动接受联系人: %s</string>
+
+    <string name="p2p_chat_settings">P2P 聊天设置</string>
+    <string name="stranger_policy">陌生人策略</string>
+    <string name="reject_all_strangers">拒绝所有陌生人</string>
+    <string name="auto_accept_contact_strangers">自动接受通讯录中的陌生人</string>
+    <string name="manage_blacklist">管理黑名单</string>
+    <string name="blacklist_empty">黑名单为空</string>
+    <string name="confirm_remove_from_blacklist">将 %s 从黑名单中移除？</string>
+    <string name="removed_from_blacklist">已从黑名单中移除</string>
+
+    <!-- Group Operations -->
+    <string name="join_group">加入群组</string>
+    <string name="create_group">创建群组</string>
+    <string name="quit_group">退出群组</string>
+    <string name="quit_squares">退出广场</string>
+    <string name="squares_quit_successfully">已退出广场</string>
+    <string name="group_joined_successfully">已加入群组</string>
+    <string name="group_name">群组名称</string>
+    <string name="group_description">群组描述</string>
+    <string name="enter_group_name_or_id">输入群组名称或ID</string>
+    <string name="group_name_required">群组名称不能为空</string>
+
+    <string name="already_a_member">已经是成员</string>
+    <string name="group_published_successfully">群组已发布: %s</string>
+    <string name="failed_to_publish_group">发布群组失败</string>
+
+
+    <string name="no_conversations_selected">未选择任何会话</string>
+    <string name="confirm_delete_conversations">删除已选的 %1$d 个会话？</string>
+    <string name="conversations_deleted">已删除 %1$d 个会话</string>
+    <!-- Group Chat -->
+    <string name="update_group">更新群组</string>
+    <string name="leave_group">退出群组</string>
+    <string name="group_members">群成员</string>
+    <string name="sid_copied_to_clipboard">SID 已复制到剪贴板</string>
+    <string name="cdd_requirement_note">您的总 CD 必须大于 %d 才能更新此群组。</string>
+    <string name="group_updated_successfully">群组已更新: %s</string>
+    <string name="failed_to_update_group">更新群组失败</string>
+
+    <!-- Dock Items -->
+    <string name="dock_items">DOCK 项目</string>
+    <string name="no_dock_items">无 DOCK 项目</string>
+    <string name="dock_item_type">类型: %s</string>
+    <string name="dock_item_sender">来自: %s</string>
+    <string name="dock_item_size">大小: %s</string>
+    <string name="dock_item_created">创建于: %s</string>
+    <string name="dock_item_delete">删除</string>
+    <string name="dock_item_deleted">DOCK 项目已删除</string>
+    <string name="dock_item_unknown_type">未知</string>
+    <string name="confirm_delete_dock_item">删除此 DOCK 项目？</string>
+
+    <!-- File Sharing in IM -->
+    <string name="share_file">分享文件</string>
+    <string name="uploading_file">正在上传文件…</string>
+    <string name="file_share_failed">文件分享失败</string>
+
+    <!-- Team Operations -->
+    <string name="join_team">加入团队</string>
+    <string name="create_team">创建团队</string>
+    <string name="leave_team">退出团队</string>
+    <string name="leave_teams">退出团队</string>
+    <string name="update_team">更新团队</string>
+    <string name="manage_team">管理团队</string>
+    <string name="owner_menu">所有者菜单</string>
+    <string name="manager_menu">管理者菜单</string>
+    <string name="invite_members">邀请成员</string>
+    <string name="dismiss_members">移除成员</string>
+    <string name="transfer_team">转让团队</string>
+    <string name="disband_team">解散团队</string>
+    <string name="appoint_manager">任命管理员</string>
+    <string name="cancel_appointment">取消任命</string>
+    <string name="rate_team">评价团队</string>
+    <string name="rate_this_team">评价此团队</string>
+    <string name="rate_freer">评价Freer</string>
+    <string name="rate_this_freer">评价此Freer</string>
+    <string name="rate_good">好评</string>
+    <string name="rate_bad">差评</string>
+    <string name="cannot_rate_own_item">不能评价自己的项目</string>
+    <string name="reputation">声誉：</string>
+    <string name="hot">热度：</string>
+    <string name="cause">原因</string>
+    <string name="cause_hint">评价原因（可选）</string>
+    <string name="cdd_at_least_one">币天销毁 ≥ 1</string>
+    <string name="total_cdd_must_be_at_least_one">所选钞票的总币天销毁必须至少为1</string>
+    <string name="reset_symkey">重置对称密钥</string>
+    <string name="team_name">团队名称（stdName）</string>
+    <string name="team_description">团队描述</string>
+    <string name="consensus_id">共识 ID</string>
+    <string name="consensus_id_hint">输入共识 ID（如交易 ID）</string>
+    <string name="team_name_required">团队名称不能为空</string>
+    <string name="consensus_id_required">共识 ID 不能为空</string>
+    <string name="team_published_successfully">团队已发布: %s</string>
+    <string name="failed_to_publish_team">发布团队失败</string>
+    <string name="team_joined_successfully">已加入团队</string>
+    <string name="teams_left_successfully">已成功退出团队</string>
+    <string name="team_updated_successfully">团队已更新: %s</string>
+    <string name="failed_to_update_team">更新团队失败</string>
+    <string name="no_teams_selected">未选择团队</string>
+    <string name="enter_team_name_or_id">输入团队名称或 ID</string>
+    <string name="team_members">团队成员</string>
+    <string name="loading_team_info">正在加载团队信息…</string>
+    <string name="team_no_dock_hint">此团队未分配 DOCK</string>
+    <string name="not_invited">未邀请</string>
+    <string name="invited">已邀请</string>
+
+    <string name="enter_fids_to_invite">输入要邀请的 FID（每行一个）</string>
+    <string name="fids_required">请至少输入一个 FID</string>
+    <string name="invitation_sent_successfully">邀请已发送: %s</string>
+    <string name="failed_to_send_invitation">发送邀请失败</string>
+    <string name="members_dismissed_successfully">已移除成员: %s</string>
+    <string name="failed_to_dismiss_members">移除成员失败</string>
+    <string name="no_members_selected">未选择成员</string>
+    <string name="no_members_found">未找到成员</string>
+    <string name="role_owner">所有者</string>
+    <string name="role_manager">管理员</string>
+    <string name="role_member">成员</string>
+    <string name="role_invited">已邀请</string>
+    <string name="transferee_fid">受让方 FID</string>
+    <string name="transferee_fid_required">受让方 FID 不能为空</string>
+    <string name="team_transferred_successfully">团队转让已发起: %s</string>
+    <string name="failed_to_transfer_team">转让团队失败</string>
+    <string name="team_disbanded_successfully">团队已解散: %s</string>
+    <string name="failed_to_disband_team">解散团队失败</string>
+    <string name="confirm_disband_team">确定要解散此团队吗？此操作无法撤消。</string>
+    <string name="confirm_disband_teams">确定要解散所选团队吗？此操作无法撤消。</string>
+    <string name="symkey_created_successfully">对称密钥已创建并将与成员共享</string>
+    <string name="failed_to_create_symkey">创建对称密钥失败</string>
+    <string name="auto_creating_symkey">正在创建对称密钥并分享给成员…</string>
+    <string name="auto_symkey_created">对称密钥已创建并分享，可以开始聊天了。</string>
+    <string name="auto_symkey_failed">自动创建对称密钥失败，请通过管理菜单手动创建。</string>
+    <string name="owner_no_symkey_title">缺少加密密钥</string>
+    <string name="owner_no_symkey_message">您没有此聊天的加密密钥。您可以生成新密钥（所有成员需要更新），或向成员请求现有密钥。</string>
+    <string name="generate_new_symkey">生成新密钥</string>
+    <string name="request_from_members">向成员请求</string>
+    <string name="managers_appointed_successfully">已任命管理员: %s</string>
+    <string name="failed_to_appoint_managers">任命管理员失败</string>
+    <string name="appointment_cancelled_successfully">已取消任命: %s</string>
+    <string name="failed_to_cancel_appointment">取消任命失败</string>
+
+    <string name="enter_fids_one_per_line">输入 FID（每行一个）</string>
+    <string name="add_from_fid_list">从 FID 列表添加</string>
+    <string name="clear_list">清空列表</string>
+    <string name="fid_list_empty">FID 列表为空</string>
+    <string name="added_n_fids">已添加 %d 个 FID</string>
+    <string name="no_symkey_available">此团队暂无对称密钥</string>
+    <string name="requesting_symkey_from_owner">正在向团队所有者请求对称密钥…</string>
+    <string name="symkey_received_can_chat">已收到对称密钥，现在可以发送消息。</string>
+
+    <string name="channel_fudp">FUDP: %s</string>
+    <string name="channel_road">ROAD: %s</string>
+    <string name="channel_dock">DOCK: %s</string>
+
+    <string name="message_requests">消息请求</string>
+    <string name="no_message_requests">暂无消息请求</string>
+    <string name="messages_promoted">消息已移至会话</string>
+    <string name="messages_purged">消息已删除</string>
+    <string name="view_all_requests">查看全部</string>
+    <string name="stranger_messages_count">%d 条消息</string>
+    <string name="stranger_peer_message_with_preview">未知对等方（%1$s）发送: \"%2$s\"。接受或拒绝？</string>
+    <string name="emoji">表情</string>
+    <string name="smileys_people">表情与人物</string>
+    <string name="animals_nature">动物与自然</string>
+    <string name="food_drink">食物与饮料</string>
+    <string name="activities">活动</string>
+    <string name="travel_places">旅行与地点</string>
+    <string name="objects">物品</string>
+    <string name="symbols">符号</string>
+    <string name="downloading_data">正在下载数据…</string>
+
+    <string name="open_with">用…打开</string>
+    <string name="uploading_data">正在上传数据…</string>
+
+    <string name="update_hat">更新 HAT</string>
+    <string name="hat_data_not_found">未找到 HAT 数据</string>
+    <string name="hat_saved_successfully">HAT 已保存</string>
+    <string name="storage_location">存储位置</string>
+    <string name="stored_locally">本地存储</string>
+    <string name="stored_on_disk">存储在 DISK</string>
+    <string name="stored_on_disk_and_locally">存储在 DISK 与本地</string>
+    <string name="aids_comma_separated">应用 ID（逗号分隔）</string>
+    <string name="pids_comma_separated">协议 ID（逗号分隔）</string>
+
+    <string name="team_invite_notification_title">团队邀请</string>
+    <string name="team_transfer_notification_title">团队转让</string>
+    <string name="team_invite_notification_message">%1$s 邀请你加入团队: %2$s</string>
+    <string name="team_transfer_notification_message">%1$s 想将团队所有权转让给你: %2$s</string>
+    <string name="team_notification_detail">团队 ID: %1$s</string>
+    <string name="team_invite_request">团队邀请</string>
+    <string name="team_transfer_request">团队转让</string>
+    <string name="team_notification_accepted">已接受团队通知</string>
+    <string name="team_notification_rejected">已拒绝团队通知</string>
+    <string name="view_pending_issues">查看待处理事项</string>
+    <string name="choose_fid">选择FID</string>
+    <string name="search_fids_on_chain">链上搜索FID</string>
+    <string name="enter_fid_or_cid">输入FID或CID</string>
+    <string name="confirm_leave_team">确定要离开此团队吗？</string>
+    <string name="confirm_leave_teams">确定要离开所选团队吗？</string>
+    <string name="confirm_quit_group">确定要退出所选群组吗？</string>
+    <string name="confirm_quit_square">确定要退出所选广场吗？</string>
+    <string name="cannot_leave_own_teams_or_rooms">您不能离开自己的团队或房间，但可以解散它们。</string>
+    <string name="leaving_team">正在离开团队…</string>
+    <string name="left_team_successfully">已成功离开团队</string>
+    <string name="failed_to_leave_team">离开团队失败</string>
+    <string name="no_candidates">无可用候选人</string>
+
+    <!-- Archive Activities -->
+    <string name="left_groups">已退出的群组</string>
+    <string name="left_squares">已退出的广场</string>
+    <string name="disbanded_teams">已退出/解散的团队</string>
+    <string name="closed_rooms">已退出/关闭的房间</string>
+    <string name="no_left_squares">没有已退出的广场</string>
+    <string name="no_disbanded_teams">没有已退出/解散的团队</string>
+    <string name="no_closed_rooms">没有已退出/关闭的房间</string>
+
+    <!-- Room Invite & Pending Issues -->
+    <string name="room_invite_request">房间邀请</string>
+    <string name="room_invite_accepted">已接受房间邀请</string>
+    <string name="room_invite_rejected">已拒绝房间邀请</string>
+    <string name="room_invite_notification_title">房间邀请</string>
+    <string name="room_invite_notification_message">%1$s 邀请你加入房间: %2$s</string>
+    <string name="room_invite_notification_detail">房间 ID: %1$s</string>
+    <string name="new_pending_issue">新待处理事项: %1$s</string>
+    <string name="view_details">查看详情</string>
+    <string name="pending_issue_detail">待处理事项详情</string>
+    <string name="created_at">创建时间</string>
+    <string name="resolved_at">解决时间</string>
+    <string name="note">备注</string>
+    <string name="team_id">团队 ID</string>
+    <string name="room_id">房间 ID</string>
+    <string name="tx_id">交易 ID</string>
+    <string name="message_count">消息数量</string>
+    <string name="first_message">第一条消息</string>
+    <string name="last_message">最后一条消息</string>
+    <string name="peer_host">对等节点主机</string>
+    <string name="peer_port">对等节点端口</string>
+    <string name="update_room">更新房间</string>
+    <string name="share_room_info">分享房间信息</string>
+    <string name="room_info_shared">已向 %d 位成员分享房间信息</string>
+    <string name="room_info_share_failed">分享房间信息失败</string>
+    <string name="ask_room_info">请求房间信息</string>
+    <string name="select_members_to_ask_room_info">选择要请求房间信息的成员</string>
+    <string name="room_info_requests_sent">已向 %d 位成员发送房间信息请求</string>
+    <string name="symkey_shared">已向 %d 位成员分享对称密钥</string>
+    <string name="symkey_share_failed">分享对称密钥失败</string>
+    <string name="confirm_leave_room">确定要离开此房间吗？</string>
+    <string name="left_room">已成功离开房间</string>
+    <string name="member_left_room">%s 退出房间.</string>
+    <string name="member_joined_room">%s 加入了房间。</string>
+    <string name="room_disbanded_system">房主已关闭此房间。</string>
+    <string name="removed_from_room_system">你已被移出此房间。</string>
+
+    <string name="room_updated">房间已更新</string>
+    <string name="room_created">房间已创建</string>
+    <string name="room_name_required">房间名称不能为空</string>
+    <string name="select_room_members">选择房间成员</string>
+    <string name="members_added_count">已添加 %d 位成员</string>
+    <string name="member_removed">已移除成员</string>
+    <string name="failed_to_add_member">添加成员失败</string>
+    <string name="failed_to_remove_member">移除成员失败</string>
+    <string name="room_owner_menu">房主菜单</string>
+    <string name="no_rooms_selected">未选择房间</string>
+    <string name="room_no_dock_hint">房间没有 DOCK 服务，请先设置主页。</string>
+    <string name="chat_info_group">广场: 链上成员，公开消息</string>
+    <string name="chat_info_team">团队: 链上成员，加密消息</string>
+    <string name="chat_info_room">房间: 链下成员，加密消息</string>
+    <string name="chat_info_p2p">P2P: 加密消息</string>
+
+    <!-- 历史消息分享 -->
+    <string name="request_history">请求聊天记录</string>
+    <string name="select_member_for_history">选择要请求的成员</string>
+    <string name="select_history_range">选择日期范围</string>
+    <string name="since">起始日期</string>
+    <string name="before">截止日期</string>
+    <string name="request">请求</string>
+    <string name="approve">批准</string>
+    <string name="deny">拒绝</string>
+    <string name="history_request_sent">已向 %s 发送历史消息请求</string>
+    <string name="history_request_received">%s 请求了聊天记录</string>
+    <string name="history_shared">已向 %2$s 分享 %1$d 条消息</string>
+    <string name="history_imported">已从 %2$s 导入 %1$d 条消息</string>
+    <!-- Rate History -->
+    <string name="rate_history">评价记录</string>
+    <string name="no_rate_history_found">没有评价记录</string>
+    <string name="loaded_items_count">加载了 %d 项</string>
+    <!-- Dock setup dialog -->
+    <string name="dock_not_configured_title">设置 DOCK</string>
+    <string name="dock_not_configured_message">您的 DOCK 服务尚未配置，其他人无法通过 DOCK 向您发送消息。是否现在设置？</string>
+    <string name="dock_registered_successfully">DOCK 注册成功！TX: %s</string>
+    <string name="failed_to_register_dock">注册 DOCK 失败</string>
+    <string name="dock_url_empty">请输入 DOCK 地址</string>
+
+    <string name="square_name_required">广场名称必填</string>
+    <string name="no_squares_selected">未选择广场</string>
+    <string name="square_no_dock_hint">该广场未分配 DOCK</string>
+    <string name="loading_square_info">正在加载广场信息…</string>
+    <string name="selected_service_is_current">所选服务已是当前服务</string>
+    <string name="mark_all_read">全部标为已读</string>
+    <string name="confirm_mark_all_read">将所有邮件标为已读？</string>
+    <string name="marked_mails_read">已将 %d 封邮件标为已读</string>
+    <string name="no_unread_mails">没有未读邮件</string>
+    <string name="square_description">广场描述</string>
+    <string name="square_name">广场名称</string>
+
+    <string name="mobile_connected">移动数据已连接</string>
+    <string name="fid_selected">已选择FID</string>
+    <string name="invalid_public_key">无效公钥</string>
+    <string name="select">选择</string>
+    <string name="remove_from_blacklist">从黑名单移出</string>
+    <string name="no_active_key_available">没有可用密钥</string>
+    <string name="choose_derivation_method">选择派生方式</string>
+    <string name="choose_derivation_method_message">请选择如何根据助记词派生私钥。</string>
+    <string name="derivation_kdf_argon2id">Argon2id（推荐）</string>
+    <string name="derivation_sha256">SHA-256</string>
+    <string name="derivation_sha256_warning_title">警告：SHA-256 不安全</string>
+    <string name="derivation_sha256_warning_message">SHA256 速度很快，几乎不具备抗暴力破解能力。弱密语可能在几秒内被破解。除非你需要兼容现有的 SHA256 派生密钥，否则强烈建议使用 Argon2id。\n\n仍要继续使用 SHA256 吗？</string>
+    <string name="proceed">继续</string>
+    <string name="deriving_key">正在派生密钥…</string>
+
+    <string name="set_disk">设置 DISK</string>
+    <string name="searching_disk_services">正在搜索 DISK 服务…</string>
+    <string name="no_disk_services_found">未找到 DISK 服务</string>
+    <string name="service_has_no_disk">该服务不包含 DISK 组件</string>
+    <string name="disk_not_configured_prompt">尚未配置 DISK 服务。请选择一个 DISK 服务用于数据存储。</string>
+    <string name="data_requires_main_fid">数据仅对主 FID 可用，主 FID 持有用于加密的私钥。</string>
+    <string name="use_default_server_as_disk">将默认服务器用作您的 DISK 服务？选择"选择其他"以挑选其他服务。</string>
+    <string name="choose_another">选择其他</string>
+    <string name="publishing_disk_setting">正在将 DISK 设置上链发布…</string>
+    <string name="current_disk_info">当前 DISK\nSID: %1$s\nURL: %2$s</string>
+    <string name="current_disk_none">当前未配置 DISK 服务</string>
+    <string name="disk_service_set_successfully">DISK 服务配置成功</string>
+    <string name="failed_to_connect_disk">连接 DISK 服务失败</string>
+    <string name="transfer_uploading">上传中 %1$d/%2$d</string>
+    <string name="transfer_downloading">下载中 %1$d/%2$d</string>
+    <string name="transfer_starting">正在开始…</string>
+    <string name="transfer_cancelled">传输已取消</string>
+    <string name="transfer_complete_upload">上传完成：已上传 %1$d，已跳过 %2$d，失败 %3$d</string>
+    <string name="transfer_complete_download">下载完成：已下载 %1$d，失败 %2$d</string>
+    <string name="transfer_complete_fee">费用：%1$d sats</string>
+    <string name="record_voice">录制语音消息</string>
+    <string name="slide_to_cancel">滑动取消</string>
+    <string name="voice_message">语音消息</string>
+    <string name="voice_too_short">录音时间太短</string>
+    <string name="recording_permission_required">语音消息需要麦克风权限</string>
+    <string name="dock_service_unavailable">DOCK 服务当前不可用。连接恢复后将发送消息。</string>
+    <string name="dock_disconnected">服务已断开连接</string>
+    <string name="role_namer">命名者</string>
+
+    <string name="im_disabled_subfid">无私钥用于聊天</string>
+    <string name="im_disabled_no_channel">聊天需要先设置DOCK或FUDP.</string>
+    <string name="im_setup_channel_title">设置聊天的网络通道</string>
+    <string name="im_setup_channel_message">聊天需要链上设置DOCK服务以便缓存消息，或设置FUDP的固定网络位置，你想设置哪个？</string>
+    <string name="im_setup_dock">设置DOCK</string>
+    <string name="im_setup_fudp">设置FUDP</string>
+    <string name="im_setup_cancel">暂不</string>
 </resources>

@@ -5,54 +5,23 @@ import java.util.*;
 /**
  * Interface for local database operations that provides storage and retrieval of entities.
  * This interface defines methods for:
- * 
+ *
  * 1. Main entity map operations (CRUD for String key to FcEntity value mappings)
  * 2. System maps for metadata, settings, and state
  * 3. User-defined maps with customizable value types
- * 4. Various sort order and pagination capabilities
- * 
+ * 4. Ordered list of entity IDs for maintaining sequence
+ *
  * @param <T> The type of entity to store, must extend FcEntity
  */
 public interface LocalDB<T> {
     String DOT_DB = ".db";
     String MAP_NAMES_META_KEY = "map_names";
-    String LOCAL_REMOVED_MAP = "local_removed";
-    String ON_CHAIN_DELETED_MAP = "on_chain_deleted";
+    String LIST_NAMES_META_KEY = "list_names";
     String MAP_TYPES_META_KEY = "map_types";
     String LIST_TYPES_META_KEY = "list_types";
-    String SORT_TYPE_META_KEY = "sort_type";
     String LIST_COUNT_PREFIX = "count:";
     String LIST_ITEM_PREFIX = "item:";
-
-    /**
-     * Defines the sort order used for entities in the database.
-     */
-    enum SortType {
-        /**
-         * No sorting, entities will be stored and retrieved in implementation-defined order.
-         */
-        NO_SORT,
-        
-        /**
-         * Entities are sorted by key in natural order.
-         */
-        KEY_ORDER,
-        
-        /**
-         * Most recently accessed entities appear at the end.
-         */
-        ACCESS_ORDER,
-        
-        /**
-         * Most recently updated entities appear at the end.
-         */
-        UPDATE_ORDER,
-        
-        /**
-         * Entities are ordered by creation time.
-         */
-        BIRTH_ORDER
-    }
+    String LOCAL_DELETED_LIST_NAME = "localDeletedList";
 
     /**
      * Initializes the database with the specified parameters.
@@ -67,21 +36,9 @@ public interface LocalDB<T> {
     String initialize(String passwordName, String fid, String sid, String dbPath, String dbName);
 
     /**
-     * Gets the sort type used by this database instance.
-     *
-     * @return The sort type
-     */
-    SortType getSortType();
-
-    /**
-     * Gets the field name used for sorting.
-     *
-     * @return The field name used for sorting, or null if not applicable
-     */
-    String getSortField();
-
-    /**
      * Stores an entity in the database with the specified key.
+     * If the key already exists, updates the entity and maintains its position.
+     * If new, appends to the end of the ID list.
      *
      * @param key The key to store the entity under
      * @param value The entity to store
@@ -106,6 +63,7 @@ public interface LocalDB<T> {
 
     /**
      * Removes an entity from the database by key.
+     * Also removes the key from the ID list.
      *
      * @param key The key of the entity to remove
      */
@@ -119,10 +77,14 @@ public interface LocalDB<T> {
      */
     void remove(List<T> list);
 
-    void saveIdIndexMap();
+    /**
+     * Saves the ID list to persistent storage.
+     */
+    void saveIdList();
 
-    void saveIndexIdMap();
-
+    /**
+     * Saves the state map to persistent storage.
+     */
     void saveStateMap();
 
     /**
@@ -165,18 +127,12 @@ public interface LocalDB<T> {
     Map<String, T> getItemMap();
 
     /**
-     * Gets the index to ID mapping used for sorted access.
+     * Gets the ordered list of entity IDs.
+     * The order represents the sequence in which entities should be retrieved.
      *
-     * @return Navigable map of index to ID
+     * @return List of entity IDs in order
      */
-    NavigableMap<Long, String> getIndexIdMap();
-
-    /**
-     * Gets the ID to index mapping used for sorted access.
-     *
-     * @return Navigable map of ID to index
-     */
-    NavigableMap<String, Long> getIdIndexMap();
+    List<String> getIdList();
 
     /**
      * Gets a map of all metadata in the database.
@@ -270,21 +226,28 @@ public interface LocalDB<T> {
     Object getState(String key);
 
     /**
-     * Gets the index for an entity ID.
+     * Gets the position/index for an entity ID in the ID list.
      *
      * @param id The entity ID
-     * @return The index, or null if not found
+     * @return The position in the list, or -1 if not found
      */
-    Long getIndexById(String id);
+    int getIndexById(String id);
 
     /**
-     * Gets the entity ID for an index.
+     * Gets the entity ID at a specific position in the ID list.
      *
-     * @param index The index
+     * @param index The position in the list
      * @return The entity ID, or null if not found
      */
-    String getIdByIndex(long index);
-    T getByIndex(long index);
+    String getIdByIndex(int index);
+
+    /**
+     * Gets an entity by its position in the ID list.
+     *
+     * @param index The position in the list
+     * @return The entity, or null if not found
+     */
+    T getByIndex(int index);
 
     /**
      * Gets the number of entities in the database.
@@ -309,37 +272,37 @@ public interface LocalDB<T> {
     Object getMeta(String key);
     
     /**
-     * Gets a map of entities with pagination and sorting support.
+     * Gets a map of entities with pagination support.
      *
      * @param size Maximum number of entities to return, or null for all
      * @param fromId Starting entity ID for pagination, or null
-     * @param fromIndex Starting index for pagination, or null
-     * @param isFromInclude Whether to include the starting entity/index
+     * @param fromIndex Starting position in ID list for pagination, or null
+     * @param isFromInclude Whether to include the starting entity/position
      * @param toId Ending entity ID for pagination, or null
-     * @param toIndex Ending index for pagination, or null
-     * @param isToInclude Whether to include the ending entity/index
+     * @param toIndex Ending position in ID list for pagination, or null
+     * @param isToInclude Whether to include the ending entity/position
      * @param isFromEnd Whether to paginate from the end (reverse order)
      * @return LinkedHashMap of entities in the requested order
      */
-    LinkedHashMap<String, T> getMap(Integer size, String fromId, Long fromIndex,
-                                    boolean isFromInclude, String toId, Long toIndex, 
+    LinkedHashMap<String, T> getMap(Integer size, String fromId, Integer fromIndex,
+                                    boolean isFromInclude, String toId, Integer toIndex,
                                     boolean isToInclude, boolean isFromEnd);
 
     /**
-     * Gets a list of entities with pagination and sorting support.
+     * Gets a list of entities with pagination support.
      *
      * @param size Maximum number of entities to return, or null for all
      * @param fromId Starting entity ID for pagination, or null
-     * @param fromIndex Starting index for pagination, or null
-     * @param isFromInclude Whether to include the starting entity/index
+     * @param fromIndex Starting position in ID list for pagination, or null
+     * @param isFromInclude Whether to include the starting entity/position
      * @param toId Ending entity ID for pagination, or null
-     * @param toIndex Ending index for pagination, or null
-     * @param isToInclude Whether to include the ending entity/index
+     * @param toIndex Ending position in ID list for pagination, or null
+     * @param isToInclude Whether to include the ending entity/position
      * @param isFromEnd Whether to paginate from the end (reverse order)
      * @return List of entities in the requested order
      */
-    List<T> getList(Integer size, String fromId, Long fromIndex,
-                    boolean isFromInclude, String toId, Long toIndex, 
+    List<T> getList(Integer size, String fromId, Integer fromIndex,
+                    boolean isFromInclude, String toId, Integer toIndex,
                     boolean isToInclude, boolean isFromEnd);
 
     /**
@@ -347,7 +310,7 @@ public interface LocalDB<T> {
      *
      * @param items Map of key to entity
      */
-    void putAll(Map<String, T> items);
+    void put(Map<String, T> items);
 
     /**
      * Gets all entities in the database.
@@ -413,7 +376,16 @@ public interface LocalDB<T> {
     void clearDB();
 
     /**
+     * Updates only the entities and keeps their original position in the ID list.
+     * If the entity doesn't exist, it will be added at the end of the ID list.
+     *
+     * @param items List of entities to update
+     */
+    void updateItemsOnly(List<T> items);
+
+    /**
      * Stores multiple entities in the database using a specified ID field.
+     * New entities are appended to the end of the ID list.
      *
      * @param items List of entities to store
      * @param idField Name of the field to use as the key
@@ -421,12 +393,12 @@ public interface LocalDB<T> {
     void addAll(List<T> items, String idField);
 
     /**
-     * Inserts all entities from the list at the beginning of the database.
-     * The entities are inserted in reverse order, so the first element in the list
+     * Inserts all entities from the list at the beginning of the ID list.
+     * The entities are inserted in order, so the first element in the list
      * becomes the first element in the database.
-     * 
+     *
      * For example, if DB contains [A, B, C] and list contains [D, E, F],
-     * the final DB will contain [F, E, D, A, B, C]
+     * the final DB will contain [D, E, F, A, B, C]
      *
      * @param items List of entities to insert at the beginning
      * @return Number of entities successfully inserted
@@ -514,27 +486,6 @@ public interface LocalDB<T> {
     int getMapSize(String mapName);
 
     /**
-     * Enum defining the type of database implementation.
-     */
-    enum DbType {
-        /**
-         * LevelDB implementation.
-         */
-        LEVEL_DB,
-        
-        /**
-         * EasyDB implementation.
-         */
-        EASY_DB,
-
-        /**
-         * DataStore implementation.
-         */
-        SHARED_PREFS_DB
-        // Add other DB types as needed
-    }
-
-    /**
      * Registers the type of a named map.
      *
      * @param mapName The name of the map
@@ -542,8 +493,22 @@ public interface LocalDB<T> {
      */
     void registerMapType(String mapName, Class<?> typeClass);
 
+    /**
+     * Registers the type of a named list.
+     *
+     * @param listName The name of the list
+     * @param typeClass The class representing the type of values in the list
+     */
     void registerListType(String listName, Class<?> typeClass);
-    
+
+    /**
+     * Gets the registered type of a named list.
+     *
+     * @param listName The name of the list
+     * @return The class representing the type of values in the list, or null if not registered
+     */
+    Class<?> getListType(String listName);
+
     /**
      * Gets the registered type of a named map.
      *
@@ -569,7 +534,9 @@ public interface LocalDB<T> {
      * @param listName The name of the list
      * @param vClass The class of values to be stored in the list
      */
-    <V> void createOrderedList(String listName, Class<V> vClass);
+    <V> void createList(String listName, Class<V> vClass);
+
+    Set<String> getListNames();
 
     /**
      * Adds an element to the end of an ordered list.
@@ -692,4 +659,11 @@ public interface LocalDB<T> {
      */
     void clearList(String listName);
 
+    /**
+     * Gets a state value as a Long.
+     *
+     * @param key The state key
+     * @return The state value as Long, or null if not found
+     */
+    Long getStateLong(String key);
 }

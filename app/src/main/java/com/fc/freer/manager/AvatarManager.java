@@ -11,13 +11,14 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
+
+import com.fc.freer.utils.ToastUtils;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 
 import com.fc.fc_ajdk.data.fcData.FcEntity;
-import com.fc.fc_ajdk.db.HawkDB;
+import com.fc.fc_ajdk.db.MMKVDB;
 import com.fc.fc_ajdk.db.LocalDB;
 import com.fc.fc_ajdk.feature.avatar.AvatarMaker;
 import com.fc.fc_ajdk.utils.TimberLogger;
@@ -32,30 +33,30 @@ import java.util.Map;
 /**
  * AvatarManager - Manages avatar caching with LRU eviction policy and persistent storage
  * Caches recently used avatars to avoid regenerating them repeatedly
- * Uses HawkDB for persistent storage that survives app restarts
+ * Uses MMKVDB for persistent storage that survives app restarts (~100x faster than HawkDB)
  */
 public class AvatarManager {
     private static final String TAG = "AvatarManager";
-    
+
     // Maximum number of cached avatars
     public static final int MAX_CACHED_AVATARS = 200;
-    
-    // Map name for storing avatars in HawkDB
+
+    // Map name for storing avatars in MMKVDB
     private static final String AVATAR_CACHE_MAP = "avatar_cache";
-    
+
     private static AvatarManager instance;
     private final Context context;
     private final LinkedHashMap<String, byte[]> avatarCache;
     private final LocalDB<FcEntity> avatarDB;
-    
+
     /**
      * Private constructor for singleton pattern
      */
     private AvatarManager(Context context) {
         this.context = context.getApplicationContext();
-        
-        // Initialize persistent storage using HawkDB
-        this.avatarDB = new HawkDB<FcEntity>(LocalDB.SortType.ACCESS_ORDER, null);
+
+        // Initialize persistent storage using MMKVDB for better performance
+        this.avatarDB = new MMKVDB<>(FcEntity.class);
         this.avatarDB.initialize(null, null, null,
             context.getFilesDir().getAbsolutePath(), "avatar_cache");
         this.avatarDB.createMap(AVATAR_CACHE_MAP, byte[].class);
@@ -109,7 +110,7 @@ public class AvatarManager {
             avatarBytes = avatarManager.getAvatar(id);
         } catch (Exception e) {
             TimberLogger.e(TAG, "Failed to create avatar: %s", e.getMessage());
-            Toast.makeText(context, R.string.failed_to_create_avatar, Toast.LENGTH_LONG).show();
+            ToastUtils.makeText(context, R.string.failed_to_create_avatar);
         }
         setAvatarImage(avatarView, avatarBytes);
 
@@ -125,7 +126,7 @@ public class AvatarManager {
 
     private static void saveAvatarToGallery(Context context, String id, byte[] avatarBytes) {
         if (avatarBytes == null) {
-            Toast.makeText(context, context.getString(R.string.no_avatar_to_save), Toast.LENGTH_LONG).show();
+            ToastUtils.makeText(context, context.getString(R.string.no_avatar_to_save));
             return;
         }
 
@@ -147,10 +148,10 @@ public class AvatarManager {
             mediaScanIntent.setData(contentUri);
             context.sendBroadcast(mediaScanIntent);
 
-            Toast.makeText(context, context.getString(R.string.avatar_saved_to_gallery), Toast.LENGTH_LONG).show();
+            ToastUtils.makeText(context, context.getString(R.string.avatar_saved_to_gallery));
         } catch (Exception e) {
             TimberLogger.e(TAG, "Failed to save avatar: %s", e.getMessage());
-            Toast.makeText(context, context.getString(R.string.failed_to_save_avatar), Toast.LENGTH_LONG).show();
+            ToastUtils.makeText(context, context.getString(R.string.failed_to_save_avatar));
         }
     }
 

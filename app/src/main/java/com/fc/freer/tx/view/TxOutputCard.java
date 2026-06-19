@@ -12,33 +12,39 @@ import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.Toast;
+import android.widget.TextView;
+
+import com.fc.fc_ajdk.data.fchData.Cash;
+import com.fc.freer.utils.ToastUtils;
 
 import androidx.cardview.widget.CardView;
 
-import com.fc.fc_ajdk.data.fchData.SendTo;
 import com.fc.fc_ajdk.feature.avatar.AvatarMaker;
 import com.fc.fc_ajdk.utils.NumberUtils;
-import com.fc.fc_ajdk.utils.StringUtils;
 import com.fc.freer.FreerApplication;
 import com.fc.freer.R;
 import com.fc.freer.manager.AvatarManager;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class TxOutputCard extends CardView {
     private ImageView avatarImage;
-    private EditText fidText;
-    private EditText amountText;
+    private TextView fidText;
+    private TextView amountText;
     private ImageButton deleteButton;
-    private SendTo sendTo;
+    private ImageView deadIcon;
+    private android.widget.LinearLayout lockTimeContainer;
+    private ImageView lockTimeIcon;
+    private android.widget.TextView lockTimeDaysText;
+    private Cash cash;
     private OnDeleteListener onDeleteListener;
     private OnValueChangeListener onValueChangeListener;
     private boolean withDelete;
     private boolean editable;
+    private Map<String, Boolean> fidNobodyMap;
 
     public interface OnDeleteListener {
         void onDelete(TxOutputCard card);
@@ -70,18 +76,22 @@ public class TxOutputCard extends CardView {
         fidText = findViewById(R.id.fidText);
         amountText = findViewById(R.id.amountText);
         deleteButton = findViewById(R.id.deleteButton);
+        deadIcon = findViewById(R.id.deadIcon);
+        lockTimeContainer = findViewById(R.id.lockTimeContainer);
+        lockTimeIcon = findViewById(R.id.lockTimeIcon);
+        lockTimeDaysText = findViewById(R.id.lockTimeDaysText);
 
         // Setup copy functionality for FID
         fidText.setOnClickListener(v -> {
-            if (sendTo != null) {
-                copyToClipboard(context, getContext().getString(R.string.fid), sendTo.getFid());
+            if (cash != null) {
+                copyToClipboard(context, getContext().getString(R.string.fid), cash.getOwner());
             }
         });
 
         // Setup copy functionality for Amount
         amountText.setOnClickListener(v -> {
-            if (sendTo != null) {
-                String amount = NumberUtils.formatAmount(sendTo.getAmount()) + " F";
+            if (cash != null) {
+                String amount = NumberUtils.formatAmount(cash.getAmount()) + " F";
                 copyToClipboard(context, getContext().getString(R.string.amount), amount);
             }
         });
@@ -96,7 +106,7 @@ public class TxOutputCard extends CardView {
 
             @Override
             public void afterTextChanged(Editable s) {
-                if (onValueChangeListener != null && sendTo != null) {
+                if (onValueChangeListener != null && cash != null) {
                     onValueChangeListener.onFidChanged(s.toString());
                 }
             }
@@ -111,7 +121,7 @@ public class TxOutputCard extends CardView {
 
             @Override
             public void afterTextChanged(Editable s) {
-                if (onValueChangeListener != null && sendTo != null) {
+                if (onValueChangeListener != null && cash != null) {
                     try {
                         double amount = Double.parseDouble(s.toString());
                         onValueChangeListener.onAmountChanged(amount);
@@ -141,27 +151,35 @@ public class TxOutputCard extends CardView {
             }
         });
 
+        // Setup tooltip for dead icon
+        deadIcon.setTooltipText(context.getString(R.string.prikey_leaked_tooltip));
+
+        // Also show tooltip on click
+        deadIcon.setOnClickListener(v -> {
+            v.performLongClick();
+        });
+
         // Setup click listener for avatar to show big image
         avatarImage.setOnClickListener(v -> {
-            if (sendTo != null) {
-                AvatarManager.showAvatarDialog(context, sendTo.getFid());
+            if (cash != null) {
+                AvatarManager.showAvatarDialog(context, cash.getOwner());
             }
         });
 
         // Add long press listener for FID list operations
         View.OnLongClickListener longPressListener = v -> {
-            if (sendTo != null) {
+            if (cash != null) {
                 android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(context);
                 String[] options = {context.getString(R.string.add_to_fid_list), context.getString(R.string.clear_fid_list)};
                 builder.setItems(options, (dialog, which) -> {
                     switch (which) {
                         case 0: // Add to FID list
-                            FreerApplication.addFid(sendTo.getFid());
-                            Toast.makeText(context, context.getString(R.string.add_to_fid_list), Toast.LENGTH_SHORT).show();
+                            FreerApplication.addFid(cash.getOwner());
+                            ToastUtils.makeText(context, context.getString(R.string.add_to_fid_list));
                             break;
                         case 1: // Clear FID list
                             FreerApplication.clearFidList();
-                            Toast.makeText(context, context.getString(R.string.fid_list_cleared), Toast.LENGTH_SHORT).show();
+                            ToastUtils.makeText(context, context.getString(R.string.fid_list_cleared));
                             break;
                     }
                 });
@@ -231,44 +249,45 @@ public class TxOutputCard extends CardView {
         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         ClipData clip = ClipData.newPlainText(label, text);
         clipboard.setPrimaryClip(clip);
-        Toast.makeText(context, R.string.copied, Toast.LENGTH_SHORT).show();
+        ToastUtils.makeText(context, R.string.copied);
     }
 
-    public void setSendTo(SendTo sendTo, Context context, boolean withDelete) {
-        setSendTo(sendTo, context, withDelete, true);
+    public void setSendTo(Cash cash, Context context, boolean withDelete, boolean nobody) {
+        setSendTo(cash, context, withDelete, true, nobody);
     }
 
-    public void setSendTo(SendTo sendTo, Context context, boolean withDelete, boolean editable) {
-        this.sendTo = sendTo;
+    public void setSendTo(Cash cash, Context context, boolean withDelete, boolean editable, boolean nobody) {
+        this.cash = cash;
         this.withDelete = withDelete;
         this.editable = editable;
 
-        int width;
-        if(withDelete) width= 21;
-        else width = 27;
-        fidText.setText(StringUtils.omitMiddle(sendTo.getFid(), width));
-        amountText.setText(NumberUtils.formatAmount(sendTo.getAmount()) + " F");
+        fidText.setText(cash.getOwner());
+        fidText.setMaxLines(2);
+        amountText.setText(NumberUtils.formatAmount(cash.getAmount()) + " F");
         deleteButton.setVisibility(withDelete ? View.VISIBLE : View.GONE);
-        
+
+        // Show dead icon if fid has leaked prikey (nobody is true)
+        deadIcon.setVisibility(nobody ? View.VISIBLE : View.GONE);
+
         fidText.setEnabled(editable);
         amountText.setEnabled(editable);
-        
+
         // Load avatar
         try {
-            byte[] avatarBytes = AvatarMaker.makeAvatar(sendTo.getFid(),context);
+            byte[] avatarBytes = AvatarMaker.makeAvatar(cash.getOwner(),context);
             Bitmap avatar = BitmapFactory.decodeByteArray(avatarBytes, 0, avatarBytes.length);
             avatarImage.setImageBitmap(avatar);
         } catch (IOException e) {
-            Toast.makeText(context, R.string.failed_to_load_avatar , FreerApplication.TOAST_LASTING).show();
+            ToastUtils.makeText(context, R.string.failed_to_load_avatar);
         }
     }
 
-    public void setSendTo(SendTo sendTo, Context context) {
-        setSendTo(sendTo, context, false);
+    public void setSendTo(Cash cash, Context context) {
+        setSendTo(cash, context, false, false);
     }
 
-    public SendTo getSendTo() {
-        return sendTo;
+    public Cash getSendTo() {
+        return cash;
     }
 
     public void setOnDeleteListener(OnDeleteListener listener) {
@@ -277,5 +296,53 @@ public class TxOutputCard extends CardView {
 
     public void setOnValueChangeListener(OnValueChangeListener listener) {
         this.onValueChangeListener = listener;
+    }
+
+    /**
+     * Sets locktime information for CLTV outputs
+     * @param lockTime The block height at which the output becomes spendable
+     * @param bestHeight The current best block height
+     */
+    public void setLockTime(Long lockTime, long bestHeight) {
+        if (lockTime == null || lockTime <= 0) {
+            lockTimeContainer.setVisibility(View.GONE);
+            return;
+        }
+
+        lockTimeContainer.setVisibility(View.VISIBLE);
+
+        // Calculate blocks and days until unlock
+        long blocksToLock = lockTime - bestHeight;
+        boolean isUnlocked = blocksToLock <= 0;
+        if(blocksToLock < 0) blocksToLock = 0;
+        long daysToLock = (long) ((blocksToLock+1) / (24.0 * 60)); // 1 block ≈ 1 minute
+
+        // Set the days text (primary info)
+        String daysInfo = String.format(java.util.Locale.US, "%d %s (%d %s to %d)",
+            daysToLock,
+            getContext().getString(R.string.days),
+            blocksToLock,
+            getContext().getString(R.string.blocks),lockTime);
+        lockTimeDaysText.setText(daysInfo);
+        lockTimeIcon.setVisibility(VISIBLE);
+
+        // Set green color and unlock icon for unlocked outputs
+        if (isUnlocked) {
+            lockTimeIcon.setImageResource(R.drawable.ic_unlock);
+            lockTimeIcon.setColorFilter(getContext().getColor(android.R.color.holo_green_dark));
+            lockTimeDaysText.setTextColor(getContext().getColor(android.R.color.holo_green_dark));
+        } else {
+            lockTimeIcon.setImageResource(R.drawable.ic_lock);
+            lockTimeIcon.clearColorFilter();
+            lockTimeDaysText.setTextColor(getContext().getColor(R.color.warning));
+        }
+        // Make the locktime container clickable to copy locktime value
+        lockTimeContainer.setClickable(true);
+        lockTimeContainer.setFocusable(true);
+        lockTimeContainer.setOnClickListener(v -> {
+            ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipData clip = ClipData.newPlainText("lockTime", String.valueOf(lockTime));
+            clipboard.setPrimaryClip(clip);
+        });
     }
 } 

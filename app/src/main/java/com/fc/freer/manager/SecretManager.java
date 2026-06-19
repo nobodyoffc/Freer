@@ -1,50 +1,69 @@
 package com.fc.freer.manager;
 
-import static com.fc.fc_ajdk.constants.FieldNames.SAVE_TIME;
+import static com.fc.fc_ajdk.constants.FieldNames.ACTIVE;
+import static com.fc.fc_ajdk.constants.FieldNames.LAST_HEIGHT;
+import static com.fc.fc_ajdk.constants.FieldNames.ID;
+import static com.fc.fc_ajdk.constants.FieldNames.OWNER;
+import static com.fc.fc_ajdk.constants.IndicesNames.SECRET;
+import static com.fc.fc_ajdk.constants.Values.ASC;
+import static com.fc.fc_ajdk.constants.Values.DESC;
+import static com.fc.fc_ajdk.constants.Values.FALSE;
+import static com.fc.fc_ajdk.constants.Values.TRUE;
+import static com.fc.fc_ajdk.data.feipData.Secret.Type.TOTP;
 
 import android.content.Context;
 import android.app.Activity;
-import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+
+import com.fc.fc_ajdk.constants.Constants;
+import com.fc.fc_ajdk.constants.FieldNames;
+import com.fc.fc_ajdk.core.crypto.CryptoDataByte;
 import com.fc.fc_ajdk.core.crypto.Encryptor;
-import com.fc.fc_ajdk.data.fcData.SecretDetail;
-import com.fc.fc_ajdk.db.LocalDB;
+import com.fc.fc_ajdk.core.crypto.KeyTools;
+import com.fc.fc_ajdk.data.fcData.AlgorithmId;
+import com.fc.fc_ajdk.data.fcData.KeyInfo;
+import com.fc.fc_ajdk.data.feipData.Secret;
+import com.fc.fc_ajdk.utils.Base32;
+import com.fc.fc_ajdk.utils.BytesUtils;
+import com.fc.fc_ajdk.utils.DateUtils;
+import com.fc.fc_ajdk.utils.Hex;
+import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.FreerApplication;
+import com.fc.freer.utils.SecurePrikeyManager;
+import com.fc.freer.utils.ToastUtils;
+import com.fc.fc_ajdk.data.apipData.Fcdsl;
 import com.fc.freer.R;
-import com.fc.freer.initiate.ConfigureManager;
 import com.fc.freer.ui.UserConfirmDialog;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Arrays;
 
 /**
- * A singleton class to manage and share the SecretDetail database across activities.
- * This provides a centralized way to access the SecretDetail database from any activity.
+ * A singleton class to manage and share the Secret database across activities.
+ * This provides a centralized way to access the Secret database from any activity.
  */
-public class SecretManager extends FcManager{
-    private static final String TAG = "SecretManager"; // Updated TAG
+public class SecretManager extends FcManager<Secret>{
+    private static final String TAG = "SecretManager";
 
     private static SecretManager instance;
-    private LocalDB<SecretDetail> secretDetailDB; // Renamed and type updated
-    private String mainFid;
 
     private SecretManager() {
-        // Private constructor to prevent direct instantiation
+        super(Secret.class,SECRET);
     }
 
     /**
      * Gets the singleton instance of SecretManager.
      *
      * @param context The context to use for getting the DatabaseManager
-     * @param fid
+     * @param fid The live FID for this instance
      * @return The SecretManager instance
      */
     public static synchronized SecretManager getInstance(Context context, String fid) {
-        if (instance == null || !fid.equals(instance.mainFid)) {
+        if (instance == null || !fid.equals(instance.liveFid)) {
             instance = new SecretManager();
-            instance.mainFid = fid;
-            instance.initialize(context.getApplicationContext());
+            instance.initialize(context.getApplicationContext(), fid);
         }
         return instance;
     }
@@ -54,194 +73,491 @@ public class SecretManager extends FcManager{
     }
 
     /**
-     * Initializes the SecretManager with the given context.
-     * 
-     * @param context The context to use for getting the DatabaseManager
+     * Gets a Secret object by its ID.
+     *
+     * @param id The ID of the Secret object to get
+     * @return The Secret object, or null if not found
      */
-    public void initialize(Context context) {
-        DatabaseManager dbManager = DatabaseManager.getInstance(context);
-        if (secretDetailDB != null) {
-            secretDetailDB.close();
-        }
-        secretDetailDB = dbManager.getEntityDatabase(mainFid, SecretDetail.class, LocalDB.SortType.BIRTH_ORDER, SAVE_TIME);
-
+    public Secret getSecretDetailById(String id) {
+        return getEntityById(id);
     }
 
     /**
-     * Gets the SecretDetail database.
-     * 
-     * @return The SecretDetail database
+     * Adds a Secret object to the database.
+     *
+     * @param secret The Secret object to add
      */
-    public LocalDB<SecretDetail> getSecretDetailDB() { // Renamed method
-        return secretDetailDB;
+    public void addSecretDetail(Secret secret) {
+        addEntity(secret);
     }
 
     /**
-     * Gets all SecretDetail objects from the database.
-     * 
-     * @return A map of SecretDetail objects with their IDs as keys
+     * Removes a Secret object from the database.
+     *
+     * @param secret The Secret object to remove
      */
-    public Map<String, SecretDetail> getAllSecretDetails() { // Renamed method and updated type
-        if(secretDetailDB==null)return new HashMap<>();
-        return secretDetailDB.getAll();
+    public void removeSecretDetail(Secret secret) {
+        removeEntity(secret);
     }
 
     /**
-     * Gets a list of all SecretDetail objects from the database.
-     * 
-     * @return A list of all SecretDetail objects
+     * Removes multiple Secret objects from the database.
+     *
+     * @param secrets The list of Secret objects to remove
      */
-    public List<SecretDetail> getAllSecretDetailList() { // Renamed method and updated type
-        if(secretDetailDB==null)return new ArrayList<>();
-        Map<String, SecretDetail> all = secretDetailDB.getAll();
-        if(all==null || all.isEmpty())return new ArrayList<>();
-        return new ArrayList<>(all.values());
+    public void removeSecretDetails(List<Secret> secrets) {
+        removeEntities(secrets);
     }
 
     /**
-     * Gets a SecretDetail object by its ID.
-     * 
-     * @param id The ID of the SecretDetail object to get
-     * @return The SecretDetail object, or null if not found
+     * Updates an existing Secret in the database.
+     * @param secret The Secret object to update
      */
-    public SecretDetail getSecretDetailById(String id) { // Renamed method and updated type
-        return secretDetailDB.get(id);
+    public void updateSecret(Secret secret) {
+        updateEntity(secret);
     }
 
     /**
-     * Adds a SecretDetail object to the database.
-     * 
-     * @param secretDetail The SecretDetail object to add
-     */
-    public void addSecretDetail(SecretDetail secretDetail) {
-        secretDetail.setSaveTime(System.currentTimeMillis());
-        secretDetail.checkIdWithCreate(); 
-        secretDetailDB.put(secretDetail.getId(), secretDetail);
-    }
-
-    public void addAllSecretDetail(List<SecretDetail> secretDetailList) {
-        Map<String,SecretDetail> map = new HashMap<>();
-        for(SecretDetail secretDetail: secretDetailList) {
-            if(secretDetail.getSaveTime()==null)
-                secretDetail.setSaveTime(System.currentTimeMillis());
-            secretDetail.checkIdWithCreate();
-            map.put(secretDetail.getId(),secretDetail);
-        }
-        secretDetailDB.putAll(map);
-    }
-
-    /**
-     * Removes a SecretDetail object from the database.
-     * 
-     * @param secretDetail The SecretDetail object to remove
-     */
-    public void removeSecretDetail(SecretDetail secretDetail) { // Renamed method and updated type
-        secretDetailDB.remove(secretDetail.getId());
-    }
-
-    /**
-     * Removes multiple SecretDetail objects from the database.
-     * 
-     * @param secretDetails The list of SecretDetail objects to remove
-     */
-    public void removeSecretDetails(List<SecretDetail> secretDetails) { // Renamed method and updated type
-        secretDetailDB.remove(secretDetails);
-    }
-
-    /**
-     * Commits changes to the database.
-     */
-    public void commit() {
-        secretDetailDB.commit();
-    }
-
-    /**
-     * Gets a paginated list of SecretDetail objects.
-     * 
+     * Gets a paginated list of Secret objects.
+     *
      * @param pageSize The number of items per page
-     * @param lastIndex The index of the last item from the previous page, or null for the first page
-     * @param descending Whether to sort in descending order
-     * @return A list of SecretDetail objects for the requested page
+     * @param lastID The ID of the last item from the previous page, or null for the first page
+     * @param fromEnd Whether to sort in fromEnd order
+     * @return A list of Secret objects for the requested page
      */
-    public List<SecretDetail> getPaginatedSecretDetails(int pageSize, Long lastIndex, boolean descending) { // Renamed method and updated type
-        return secretDetailDB.getList(pageSize, null, lastIndex, true, null, null, false, descending);
+    public List<Secret> getPaginatedSecrets(int pageSize, String lastID, boolean fromEnd) {
+        List<Secret> pageSecretList = getPaginatedEntities(pageSize, lastID, fromEnd);
+
+        List<Secret> handledSecretList = new ArrayList<>();
+
+        for(Secret secret: pageSecretList){
+            if(secret.getContentCipher()==null && secret.getContent()==null && secret.getCipher()!=null)
+                handledSecretList.add(secret);
+        }
+
+        if(handledSecretList.isEmpty())return pageSecretList;
+
+        String prikeyCipher = FidManager.getInstance().getLiveKeyInfo().getPrikeyCipher();
+        byte[] prikey=null;
+        byte[] pubkey = null;
+        if(prikeyCipher==null)
+            return pageSecretList;
+
+        prikey = SecurePrikeyManager.fetchPrikeySilentAndPersistent(prikeyCipher);
+        if(prikey!=null)
+            pubkey = KeyTools.prikeyToPubkey(prikey);
+
+        for(Secret secret:handledSecretList)
+            secret.parseDetail(prikey, pubkey);
+
+        if(!handledSecretList.isEmpty()){
+            entityDB.updateItemsOnly(handledSecretList);
+        }
+
+        SecurePrikeyManager.erasePrikey(prikey);
+        return pageSecretList;
     }
 
-    /**
-     * Gets the index of a SecretDetail object by its ID.
-     * 
-     * @param id The ID of the SecretDetail object
-     * @return The index of the SecretDetail object
-     */
-    public Long getIndexById(String id) {
-        return secretDetailDB.getIndexById(id);
+    @Override
+    protected void preprocessDB() {
+        String defaultSecretId = "defaultSecret";
+        if(checkIfExisted(defaultSecretId))return;
+
+        Secret initialSecret = new Secret();
+        initialSecret.setOnChain(false);
+        byte[] randomBytes = BytesUtils.getRandomBytes(16);
+        String base32 = Base32.toBase32(randomBytes);
+        initialSecret.setContent(base32);
+        initialSecret.setTitle("Sample: My TOTP");
+        initialSecret.setType(TOTP.displayName);
+        initialSecret.setLastHeight(Constants.MaX_HEIGHT);
+        initialSecret.setSaveTime(DateUtils.longToTime(System.currentTimeMillis(),DateUtils.TO_MINUTE));
+        KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
+        if(liveKeyInfo!=null && liveKeyInfo.getPrikeyCipher()!=null){
+            String pubkeyHex = liveKeyInfo.getPubkey();
+
+            if(pubkeyHex!=null){
+                CryptoDataByte result = new Encryptor(AlgorithmId.FC_EccK1AesGcm256_No1_NrC7).encryptByAsyOneWay(initialSecret.getContent().getBytes(), Hex.fromHex(pubkeyHex));
+                if(result!=null && result.getCode()==0 && result.getCipher()!=null){
+                    initialSecret.setContentCipher(result.toJson());
+                    initialSecret.setContent(null);
+                }
+            }
+        }
+        initialSecret.setId(defaultSecretId);
+
+        entityDB.put(initialSecret.getId(),initialSecret);
     }
 
-    /**
-     * Checks if a SecretDetail with the given ID already exists in the database.
-     * 
-     * @param id The ID to check
-     * @return true if the key exists, false otherwise
-     */
-    public boolean checkIfExisted(String id) {
-        return secretDetailDB.get(id) != null;
+    @Override
+    protected void markEntityAsNew(Secret entity) {}
+
+    @Override
+    protected void processEntitiesSequentially(Activity activity, List<Secret> entityList, int index, int savedCount) {
+        String pubkey = FidManager.getInstance().getLiveKeyInfo().getPubkey();
+        byte[] pubkeyBytes = Hex.fromHex(pubkey);
+        processSecretSequentially(activity, entityList, pubkeyBytes, index, savedCount);
     }
 
-    /**
-     * Utility method to save a SecretDetail, commit, show a toast, set result, and finish the activity.
-     */
-    public static void saveAndFinish(Activity activity, SecretDetail secretDetail) {
-        SecretManager secretManager = SecretManager.getInstance();
-        secretManager.addSecretDetail(secretDetail);
-        secretManager.commit();
-        Toast.makeText(activity, com.fc.freer.R.string.secret_saved_successfully, Toast.LENGTH_SHORT).show();
-        activity.setResult(Activity.RESULT_OK);
-        activity.finish();
-    }
-
-    public static void saveAndFinish(Activity activity, List<SecretDetail> secretDetails) {
-        SecretManager secretManager = SecretManager.getInstance();
-        byte[] symkey = ConfigureManager.getInstance().getSymkey();
-
-        processSecretSequentially(activity, secretManager, secretDetails, symkey, 0,0);
-    }
-
-
-    private static void processSecretSequentially(Activity activity, SecretManager secretManager, List<SecretDetail> secretList, byte[] symkey, int index, int savedCount) {
+    private void processSecretSequentially(Activity activity, List<Secret> secretList, byte[] pubkey, int index, int savedCount) {
         if (index >= secretList.size()) {
-            secretManager.commit();
-            Toast.makeText(activity, activity.getString(R.string.secrets_saved_successfully, savedCount), Toast.LENGTH_SHORT).show();
+            commit();
+            ToastUtils.makeText(activity, activity.getString(R.string.secrets_saved_successfully, savedCount));
             activity.setResult(Activity.RESULT_OK);
             activity.finish();
             return;
         }
-        SecretDetail secretDetail = secretList.get(index);
+        Secret secret = secretList.get(index);
 
-        if(secretDetail.getContent()!=null){
-            String cipher = Encryptor.encryptBySymkeyToJson(secretDetail.getContent().getBytes(), symkey);
-            secretDetail.setContentCipher(cipher);
-            secretDetail.setContent(null);
+        if(secret.getContent()!=null){
+            secret.setContentCipher(new Encryptor(AlgorithmId.FC_EccK1AesGcm256_No1_NrC7).encryptByAsyOneWay(secret.getContent().getBytes(),pubkey).toJson());
+            secret.setContent(null);
         }
-        if(secretDetail.getId()==null)secretDetail.makeId();
-        if (secretManager.checkIfExisted(secretDetail.getId())) {
-            String prompt = secretDetail.getTitle() + " existed. Replace it?";
+        if(secret.getId()==null) secret.makeId();
+        if (checkIfExisted(secret.getId())) {
+            String prompt = secret.getTitle() + " existed. Replace it?";
             UserConfirmDialog dialog = new UserConfirmDialog(activity, "Replace Item",prompt, choice -> {
                 if (choice == UserConfirmDialog.Choice.YES) {
-                    secretManager.addSecretDetail(secretDetail);
-                    processSecretSequentially(activity, secretManager, secretList, symkey, index + 1,savedCount+1);
+                    addEntity(secret);
+                    processSecretSequentially(activity, secretList, pubkey, index + 1,savedCount+1);
                 } else if (choice == UserConfirmDialog.Choice.NO) {
-                    processSecretSequentially(activity, secretManager, secretList, symkey, index +1,savedCount);
+                    processSecretSequentially(activity, secretList, pubkey, index +1,savedCount);
                 } else if (choice == UserConfirmDialog.Choice.STOP) {
-                    secretManager.commit();
-                    Toast.makeText(activity, activity.getString(R.string.secrets_saved_successfully, savedCount), Toast.LENGTH_SHORT).show();
+                    commit();
+                    ToastUtils.makeText(activity, activity.getString(R.string.secrets_saved_successfully, savedCount));
                     activity.setResult(Activity.RESULT_OK);
                     activity.finish();
                 }
             });
             dialog.show();
         } else {
-            secretManager.addSecretDetail(secretDetail);
-            processSecretSequentially(activity, secretManager, secretList, symkey, index + 1,savedCount+1);
+            addEntity(secret);
+            processSecretSequentially(activity, secretList, pubkey, index + 1,savedCount+1);
         }
     }
-} 
+
+    public long getSecretDBSize() {
+        return getEntityDBSize();
+    }
+
+    /**
+     * Creates FCDSL query for secret search
+     */
+    public static Fcdsl secretSearchFcdsl(String fid, String order, int size, List<String> last, Boolean active) {
+        Fcdsl fcdsl = new Fcdsl();
+        fcdsl.setEntity(SECRET);
+        fcdsl.addNewQuery()
+                .addNewTerms()
+                .addNewFields(FieldNames.OWNER)
+                .addNewValues(fid);
+        
+        if(active!=null)
+            fcdsl.getQuery()
+                    .addNewEquals()
+                    .addNewFields(ACTIVE)
+                    .addNewValues(String.valueOf(active));
+        
+        if(order!=null){
+            if(order.equals(ASC)){
+                fcdsl.addSort(LAST_HEIGHT, ASC);
+                fcdsl.addSort(ID, ASC);
+            }else if(order.equals(DESC)){
+                fcdsl.addSort(LAST_HEIGHT, DESC);
+                fcdsl.addSort(ID, DESC);
+            }
+        }
+        
+        if (last != null) {
+            fcdsl.addAfter(last);
+        }
+        
+        if (size != 0)
+            fcdsl.addSize(size);
+        return fcdsl;
+    }
+
+    /**
+     * Fetches all secrets for the liveFid from the API using pagination.
+     * Delegates to the base class fetchEntities method.
+     *
+     * @param context Activity context for dialog operations
+     * @param last    Starting point for pagination, null to fetch from beginning
+     * @param active  Only fetch active secrets
+     * @param timeAsc Sort in time ascending order
+     * @return List of all Secret objects, or null if failed
+     */
+    private List<Secret> fetchSecrets(Context context, List<String> last, Boolean active, boolean timeAsc) {
+        List<?> result = fetchEntities(context, last, active, timeAsc, FreerApplication.DEFAULT_REQUEST_PAGE_COUNT);
+        if (result == null) {
+            return null;
+        }
+
+        List<Secret> secretList = new ArrayList<>();
+        for (Object obj : result) {
+            if (obj instanceof Secret) {
+                secretList.add((Secret) obj);
+            }
+        }
+        return secretList;
+    }
+
+    public List<Secret> fetchPageSecrets(Fcdsl fcdsl) {
+        List<?> result = fetchPageEntities(fcdsl);
+        if (result == null) {
+            return null;
+        }
+
+        List<Secret> secretList = new ArrayList<>();
+
+        for (Object obj : result) {
+            if (obj instanceof Secret secret) {
+                secretList.add(secret);
+            }
+        }
+
+        return secretList;
+    }
+
+    /**
+     * Converts Secret objects to Secret objects
+     */
+    @Override
+    public List<Secret> makeEntityDetails(List<?> secretList, boolean decryptDeleted, Context context) {
+        if (secretList == null || secretList.isEmpty()) {
+            TimberLogger.w(TAG, "Cannot convert secrets: secret list is null or empty");
+            return new ArrayList<>();
+        }
+
+        try {
+            List<Secret> secretDetailList = new ArrayList<>();
+
+            // Get private key for decryption
+            FidManager fidManager = FidManager.getInstance();
+            byte[] priKey = null;
+            if (fidManager != null) {
+                priKey = SecurePrikeyManager.fetchPrikeySilentAndPersistent(fidManager.getLiveKeyInfo().getPrikeyCipher());
+            }
+
+            if (priKey == null) {
+                TimberLogger.w(TAG, "Cannot decrypt secrets: private key not available");
+                for(Object obj : secretList){
+                    if(! (obj instanceof Secret secret))continue;
+                    Secret secretDetail = createUndecryptedEntity(context, secret);
+                    secretDetailList.add(secretDetail);
+                }
+                return secretDetailList;
+            }
+
+            byte[] pubkey = KeyTools.prikeyToPubkey(priKey);
+
+            for (Object obj : secretList) {
+                Secret secret = (Secret) obj;
+                secret.setOnChain(true);
+                if(!decryptDeleted && Boolean.FALSE.equals(secret.getActive())){
+                    secretDetailList.add(secret);
+                    continue;
+                }
+
+                try {
+                    if (secret.parseDetail(priKey, pubkey)) {
+                        secret.setSaveTime(DateUtils.longShortToTime(secret.getBirthTime(),DateUtils.TO_MINUTE));
+                    } else {
+                        // Create a Secret without encrypted fields for failed decryption
+                        createFailedDecryptionEntity(secret, context);
+                    }
+                    secretDetailList.add(secret);
+
+                } catch (Exception decryptionException) {
+                    TimberLogger.w(TAG, "Failed to decrypt secret %s: %s", secret.getId(), decryptionException.getMessage());
+                    // Create a Secret without encrypted fields for failed decryption
+                    Secret failedSecret = createFailedDecryptionEntity(secret, context);
+                    secretDetailList.add(failedSecret);
+                }
+            }
+
+            SecurePrikeyManager.erasePrikey(priKey);
+
+            TimberLogger.i(TAG, "Successfully converted %d secrets to Secret objects",
+                secretDetailList.size());
+            return secretDetailList;
+
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error converting secrets to Secret objects: %s", e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    @Override
+    protected Secret createFailedDecryptionEntity(Object apiObject, Context context) {
+        Secret secret = (Secret) apiObject;
+        Secret secretDetail = new Secret();
+        secretDetail.setId(secret.getId());
+        secretDetail.setLastHeight(secret.getLastHeight());
+        secretDetail.setSaveTime(DateUtils.longShortToTime(secret.getBirthTime(),DateUtils.TO_MINUTE));
+        secretDetail.setTitle(context.getString(R.string.undecrypted));
+        return secretDetail;
+    }
+
+    @Override
+    protected Secret createUndecryptedEntity(Context context, Object apiObject) {
+        Secret secret = (Secret) apiObject;
+        secret.setSaveTime(DateUtils.longShortToTime(secret.getBirthTime(),DateUtils.TO_MINUTE));
+        secret.setTitle(secret.getId());
+        secret.setOwner(secret.getOwner());
+
+        return secret;
+    }
+
+    @Override
+    protected Class<?> getDeleteActivityClass() {
+        return com.fc.freer.secret.DeleteSecretActivity.class;
+    }
+
+    /**
+     * Refreshes secrets by loading newer changes including inactive secrets for cleanup.
+     * Used when there is existing lastUpdated state.
+     *
+     * @param context       Activity context for dialog operations
+     */
+    public void refreshSecretsFromAPI(Context context) {
+        refreshEntitiesFromAPI(context);
+    }
+
+    /**
+     * Loads newer secrets changes from API for explicit newer data loading.
+     *
+     * @param context Activity context for dialog operations
+     * @return Number of secret changes processed, or -1 if failed
+     */
+    public int loadNewerSecretsFromAPI(Context context) {
+        return loadNewerEntitiesFromAPI(context);
+    }
+
+    /**
+     * Loads earlier (older) valid secrets from API.
+     * Used for both initial access and explicit earlier data loading.
+     *
+     * @param context Activity context for dialog operations
+     * @return Number of valid secret items fetched, or -1 if failed
+     */
+    public int loadEarlierSecretsFromAPI(Context context) {
+        return loadEarlierEntitiesFromAPI(context);
+    }
+
+
+    /**
+     * Searches for Secret objects by title, type, and memo fields using database-level search
+     *
+     * @param searchQuery The search query string
+     * @return A list of Secret objects that match the search criteria
+     */
+    public List<Secret> searchSecrets(String searchQuery) {
+        return searchEntities(searchQuery);
+    }
+
+    // Abstract method implementations for SecretManager
+
+    @Override
+    protected String getEntityIndexName() {
+        return SECRET;
+    }
+
+    @Override
+    protected Class<?> getApiObjectClass() {
+        return Secret.class;
+    }
+
+    @Override
+    protected List<String> makeSortList(Object apiObject) {
+        Secret secret = (Secret) apiObject;
+        return Arrays.asList(String.valueOf(secret.getLastHeight()), secret.getId());
+    }
+
+    @Override
+    protected void preprocessEntity(Secret entity) {
+        if(entity.getSaveTime()==null)
+            entity.setSaveTime(DateUtils.longToTime(System.currentTimeMillis(),DateUtils.TO_MINUTE));
+        entity.checkIdWithCreate();
+        // Clear content field for security - only store contentCipher
+        entity.setContent(null);
+    }
+
+    @Override
+    protected boolean isEntityDeleted(Secret entity) {
+        return Boolean.FALSE.equals(entity.getActive());
+    }
+
+    @Override
+    protected Long getEntityUpdateHeight(Secret entity) {
+        return entity.getLastHeight();
+    }
+
+    @Override
+    protected Boolean isEntityOnChain(Secret entity) {
+        return entity.getOnChain();
+    }
+
+    @Override
+    protected List<Secret> searchFromList(String query, List<Secret> results) {
+        List<Secret> matchingSecrets = new ArrayList<>();
+
+        for (Secret secret : results) {
+            boolean matches = false;
+
+            // Search in title
+            if (secret.getTitle() != null && secret.getTitle().contains(query)) {
+                matches = true;
+            }
+
+            // Search in type
+            if (!matches && secret.getType() != null && secret.getType().contains(query)) {
+                matches = true;
+            }
+
+            // Search in memo
+            if (!matches && secret.getMemo() != null && secret.getMemo().contains(query)) {
+                matches = true;
+            }
+
+            if (matches) {
+                matchingSecrets.add(secret);
+            }
+        }
+        return matchingSecrets;
+    }
+
+    @Override
+    protected List<?> fetchEntitiesFromAPI(Context context,
+                                           List<String> after, Boolean active, boolean timeAsc, String index) {
+        return fetchSecrets(context, after, active, timeAsc);
+    }
+
+    @NonNull
+    @Override
+    public Fcdsl makeFcdsl(int pageSize, List<String> after, Boolean active, boolean timeAsc) {
+        Fcdsl fcdsl = new Fcdsl();
+        fcdsl.setEntity(SECRET);
+        fcdsl.addNewQuery();
+        if(active != null) {
+            if (active)
+                fcdsl.getQuery().addNewTerms().addNewFields(ACTIVE).addNewValues(TRUE);
+            else
+                fcdsl.getQuery().addNewTerms().addNewFields(ACTIVE).addNewValues(FALSE);
+        }
+
+        if(timeAsc){
+            fcdsl.addSort(LAST_HEIGHT,ASC).addSort(ID,ASC);
+        }else {
+            fcdsl.addSort(LAST_HEIGHT,DESC).addSort(ID,DESC);
+        }
+        fcdsl.getQuery().addNewEquals().addNewFields(OWNER).addNewValues(liveFid);
+
+        fcdsl.addSize(pageSize);
+
+        if (after != null && !after.isEmpty()) {
+            fcdsl.addAfter(after);
+        }
+        return fcdsl;
+    }
+
+}

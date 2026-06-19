@@ -17,6 +17,10 @@ public class Ecc256K1 {
         agreement.init(prikey);
         return agreement.calculateAgreement(pubkey).toByteArray();
     }
+
+
+
+
     @NotNull
     public static byte[] sharedSecretToSymkey(byte[] sharedSecret, byte[] nonce) {
         byte[] symkey;

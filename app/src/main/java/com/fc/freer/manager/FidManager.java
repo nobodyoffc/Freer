@@ -1,12 +1,19 @@
 package com.fc.freer.manager;
 
+import android.app.Activity;
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
+import com.fc.fc_ajdk.data.feipData.Service;
+import com.fc.fc_ajdk.data.fchData.Freer;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.R;
+import com.fc.freer.im.ImManager;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.model.Setting;
-import com.fc.freer.network.ApipClient;
+import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.freer.utils.ApiCenter;
 
 import java.util.ArrayList;
@@ -33,8 +40,15 @@ public class FidManager {
     private KeyInfo liveKeyInfo;      // KeyInfo for liveFid
     
     // Manager instances for current liveFid
+    private ToastManager toastManager;
+    private AppManager appManager;
     private CashManager cashManager;
     private SecretManager secretManager;
+    private ContactManager contactManager;
+    private MailManager mailManager;
+    private FcObjectManager fcObjectManager;
+    private ProofManager proofManager;
+    private ImManager imManager;
 
     private FidManager() {
         // Private constructor for singleton
@@ -103,7 +117,7 @@ public class FidManager {
         if (newLiveFid == null || newLiveFid.equals(liveFid)) {
             TimberLogger.d(TAG, "No FID switch needed, current liveFid: %s", liveFid);
             if (callback != null) {
-                callback.onSwitchComplete(false, "No FID switch needed");
+                callback.onSwitchComplete(false, context.getString(R.string.no_fid_switch_needed));
             }
             return;
         }
@@ -127,14 +141,14 @@ public class FidManager {
                 
                 // Notify success on main thread
                 if (callback != null) {
-                    if (context instanceof android.app.Activity) {
-                        ((android.app.Activity) context).runOnUiThread(() -> {
-                            callback.onSwitchComplete(true, "FID switched successfully");
+                    if (context instanceof Activity) {
+                        ((Activity) context).runOnUiThread(() -> {
+                            callback.onSwitchComplete(true, context.getString(R.string.fid_switched));
                         });
                     } else {
-                        android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+                        Handler mainHandler = new Handler(Looper.getMainLooper());
                         mainHandler.post(() -> {
-                            callback.onSwitchComplete(true, "FID switched successfully");
+                            callback.onSwitchComplete(true, context.getString(R.string.fid_switched));
                         });
                     }
                 }
@@ -148,14 +162,14 @@ public class FidManager {
                 
                 // Notify error on main thread
                 if (callback != null) {
-                    if (context instanceof android.app.Activity) {
-                        ((android.app.Activity) context).runOnUiThread(() -> {
-                            callback.onSwitchComplete(false, "Failed to switch FID: " + e.getMessage());
+                    if (context instanceof Activity) {
+                        ((Activity) context).runOnUiThread(() -> {
+                            callback.onSwitchComplete(false, context.getString(R.string.failed_to_switch_fid,e.getMessage()));
                         });
                     } else {
-                        android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+                        Handler mainHandler = new Handler(Looper.getMainLooper());
                         mainHandler.post(() -> {
-                            callback.onSwitchComplete(false, "Failed to switch FID: " + e.getMessage());
+                            callback.onSwitchComplete(false, context.getString(R.string.failed_to_switch_fid,e.getMessage()));
                         });
                     }
                 }
@@ -193,10 +207,17 @@ public class FidManager {
         
         // Close existing managers if they exist
         closeExistingManagers();
+
+        toastManager = ToastManager.getInstance(context,liveFid );
         
         // Reload managers for the new liveFid
         for (FcManager.ManagerType managerType : currentSetting.getManagers()) {
             switch (managerType) {
+                case APP:
+                    appManager = AppManager.getInstance(context, liveFid);
+                    TimberLogger.d(TAG, "Reloaded AppManager for liveFid: %s", liveFid);
+                    break;
+
                 case CASH:
                     cashManager = CashManager.getInstance(context, liveFid);
                     TimberLogger.d(TAG, "Reloaded CashManager for liveFid: %s", liveFid);
@@ -206,11 +227,42 @@ public class FidManager {
                     secretManager = SecretManager.getInstance(context, liveFid);
                     TimberLogger.d(TAG, "Reloaded SecretManager for liveFid: %s", liveFid);
                     break;
-                    
+
+                case CONTACT:
+                    contactManager = ContactManager.getInstance(context, liveFid);
+                    TimberLogger.d(TAG, "Reloaded ContactManager for liveFid: %s", liveFid);
+                    break;
+
+                case MAIL:
+                    mailManager = MailManager.getInstance(context, liveFid);
+                    TimberLogger.d(TAG, "Reloaded MailManager for liveFid: %s", liveFid);
+                    break;
+
+                case FC_OBJECT:
+                    fcObjectManager = FcObjectManager.getInstance(context, liveFid);
+                    TimberLogger.d(TAG, "Reloaded FcObjectManager for liveFid: %s", liveFid);
+                    break;
+
+                case PROOF:
+                    proofManager = ProofManager.getInstance(context, liveFid);
+                    TimberLogger.d(TAG, "Reloaded ProofManager for liveFid: %s", liveFid);
+                    break;
+
                 default:
                     TimberLogger.w(TAG, "Unknown manager type: %s", managerType);
                     break;
             }
+        }
+
+        // Re-create ImManager for the current mainFid
+        FapiClient fapiClient = null;
+        ApiCenter apiCenter = ApiCenter.getInstance();
+        if (apiCenter != null) {
+            fapiClient = (FapiClient) apiCenter.getClient(Service.ServiceType.FAPI_No1_NrC7);
+        }
+        imManager = currentSetting.getOrCreateImManager(context, fapiClient);
+        if (imManager != null) {
+            TimberLogger.d(TAG, "Reloaded ImManager for mainFid: %s", mainFid);
         }
     }
     
@@ -218,11 +270,26 @@ public class FidManager {
      * Close existing managers to free resources
      */
     private void closeExistingManagers() {
-        // CashManager and SecretManager instances are managed by their singleton patterns
+        // CashManager, SecretManager, ContactManager, MailManager, and ProofManager instances are managed by their singleton patterns
         // We don't need to explicitly close them as they handle their own lifecycle
+        appManager = null;
         cashManager = null;
         secretManager = null;
-        
+        contactManager = null;
+        mailManager = null;
+        toastManager = null;
+        fcObjectManager = null;
+        proofManager = null;
+
+        if (imManager != null) {
+            imManager.stop();
+            imManager = null;
+            Setting currentSetting = SettingManager.getInstance().getCurrentSetting();
+            if (currentSetting != null) {
+                currentSetting.setImManager(null);
+            }
+        }
+
         TimberLogger.d(TAG, "Closed existing managers");
     }
     
@@ -254,11 +321,11 @@ public class FidManager {
             }
         }
         
-        // 4. Multisign FIDs
-        List<KeyInfo> multisignList = currentSetting.getMultisignKeyInfoList();
+        // 4. Multisig FIDs
+        List<KeyInfo> multisignList = currentSetting.getMultisigKeyInfoList();
         if (multisignList != null) {
             for (KeyInfo keyInfo : multisignList) {
-                options.add(new FidOption(keyInfo.getId(), keyInfo, FidType.MULTISIGN, "Multisign"));
+                options.add(new FidOption(keyInfo.getId(), keyInfo, FidType.MULTISIG, "Multisig"));
             }
         }
         
@@ -281,6 +348,19 @@ public class FidManager {
     
     public CashManager getCashManager() { return cashManager; }
     public SecretManager getSecretManager() { return secretManager; }
+    public ContactManager getContactManager() { return contactManager; }
+    public MailManager getMailManager() { return mailManager; }
+    public FcObjectManager getFcObjectManager() { return fcObjectManager; }
+    public ProofManager getProofManager() { return proofManager; }
+    public ImManager getImManager() { return imManager; }
+
+    public ToastManager getToastManager() {
+        return toastManager;
+    }
+
+    public void setToastManager(ToastManager toastManager) {
+        this.toastManager = toastManager;
+    }
 
     /**
      * Check if current liveFid is the mainFid
@@ -356,8 +436,27 @@ public class FidManager {
         liveFid = null;
         mainKeyInfo = null;
         liveKeyInfo = null;
-        
+
         TimberLogger.d(TAG, "FidManager reset completed");
+    }
+
+    /**
+     * Full cleanup for password change - closes all managers and resets all state
+     * This is more thorough than reset() as it's specifically for password change scenarios
+     */
+    public void fullCleanup() {
+        TimberLogger.d(TAG, "Starting full cleanup for password change");
+
+        // Close all managers
+        closeExistingManagers();
+
+        // Reset all FID state
+        mainFid = null;
+        liveFid = null;
+        mainKeyInfo = null;
+        liveKeyInfo = null;
+
+        TimberLogger.d(TAG, "FidManager full cleanup completed");
     }
     
     /**
@@ -367,7 +466,7 @@ public class FidManager {
         MAIN,       // mainFid itself
         MASTER,     // Master of mainFid
         WATCHED,    // Watched FID
-        MULTISIGN,  // Multisign FID
+        MULTISIG,  // Multisig FID
         SERVANT     // Servant FID
     }
     
@@ -393,12 +492,36 @@ public class FidManager {
         }
     }
 
+    public void setAppManager(AppManager appManager) {
+        this.appManager = appManager;
+    }
+
     public void setCashManager(CashManager cashManager) {
         this.cashManager = cashManager;
     }
 
     public void setSecretManager(SecretManager secretManager) {
         this.secretManager = secretManager;
+    }
+
+    public void setContactManager(ContactManager contactManager) {
+        this.contactManager = contactManager;
+    }
+
+    public void setMailManager(MailManager mailManager) {
+        this.mailManager = mailManager;
+    }
+
+    public void setFcObjectManager(FcObjectManager fcObjectManager) {
+        this.fcObjectManager = fcObjectManager;
+    }
+
+    public void setProofManager(ProofManager proofManager) {
+        this.proofManager = proofManager;
+    }
+
+    public void setImManager(ImManager imManager) {
+        this.imManager = imManager;
     }
 
     public void setLiveKeyInfo(KeyInfo liveKeyInfo) {
@@ -413,53 +536,66 @@ public class FidManager {
             TimberLogger.w(TAG, "No live FID available for cidInfo refresh");
             return;
         }
-        
+
         new Thread(() -> {
             try {
                 ApiCenter apiCenter = ApiCenter.getInstance();
                 if (apiCenter == null) {
-                    TimberLogger.w(TAG, "ApiCenter not available for cidInfo refresh");
+                    TimberLogger.w(TAG, "ApiCenter not available for freerInfo refresh");
+                    // Do not show topUp dialog: we don't know if liveFid has zero balance without API
                     return;
                 }
-                
-                ApipClient apipClient = (ApipClient) apiCenter.getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.APIP);
-                if (apipClient == null || !apipClient.getConnected()) {
-                    TimberLogger.w(TAG, "APIP client not available for cidInfo refresh");
+
+                FapiClient fapiClient = (FapiClient) apiCenter.getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.FAPI_No1_NrC7);
+                if (fapiClient == null || !fapiClient.isConnected()) {
+                    TimberLogger.w(TAG, "FAPI client not available for freerInfo refresh (client=%s, connected=%s)",
+                            fapiClient != null ? "exists" : "null",
+                            fapiClient != null ? fapiClient.isConnected() : "N/A");
+                    // Do not show topUp dialog: network/default fapiClient not ready, we don't know balance
                     return;
                 }
-                
-                // Fetch fresh cidInfo from API
-                com.fc.fc_ajdk.data.fchData.Cid cidInfo = apipClient.cidInfoById(liveFid, 
-                    com.fc.fc_ajdk.utils.http.RequestMethod.POST, 
-                    com.fc.fc_ajdk.utils.http.AuthType.FC_SIGN_BODY, 
-                    context);
-                    
-                if (cidInfo != null) {
-                    TimberLogger.d(TAG, "API returned cidInfo for FID %s - Cash: %s, Balance: %s, CD: %s", 
-                        liveFid, cidInfo.getCash(), cidInfo.getBalance(), cidInfo.getCd());
-                    
+
+                // Fetch fresh freerInfo from API
+                Freer freerInfo = fapiClient.getFreer(liveFid);
+
+                if (freerInfo != null) {
+                    TimberLogger.d(TAG, "API returned freerInfo for FID %s - Cash: %s, Balance: %s, CD: %s",
+                        liveFid, freerInfo.getCash(), freerInfo.getBalance(), freerInfo.getCd());
+
+                    // Check if balance is zero or null - show topup prompt if needed
+                    Long balance = freerInfo.getBalance();
+                    if (balance == null || balance == 0) {
+                        checkTopUpIfNeeded(context);
+                    }
+
                     // Update KeyInfo with fresh data while preserving user-specific data
                     KeyInfo currentKeyInfo = getLiveKeyInfo();
                     if (currentKeyInfo != null) {
-                        TimberLogger.d(TAG, "Current KeyInfo before update - Cash: %s, Balance: %s, CD: %s", 
+                        TimberLogger.d(TAG, "Current KeyInfo before update - Cash: %s, Balance: %s, CD: %s",
                             currentKeyInfo.getCash(), currentKeyInfo.getBalance(), currentKeyInfo.getCd());
-                            
-                        KeyInfo updatedKeyInfo = KeyInfo.updateFromCid(cidInfo,currentKeyInfo);
-                        
-                        TimberLogger.d(TAG, "Updated KeyInfo after fromCid - Cash: %s, Balance: %s, CD: %s", 
+
+                        KeyInfo updatedKeyInfo = KeyInfo.updateFromCid(freerInfo,currentKeyInfo);
+
+                        if(updatedKeyInfo.getPrikey()!=null)
+                            updatedKeyInfo.setNobody(Boolean.TRUE);
+
+                        TimberLogger.d(TAG, "Updated KeyInfo after fromCid - Cash: %s, Balance: %s, CD: %s",
                             updatedKeyInfo.getCash(), updatedKeyInfo.getBalance(), updatedKeyInfo.getCd());
-                        
+
                         // Update in FidManager and save
                         if (updateKeyInfo(context, liveFid, updatedKeyInfo)) {
                             TimberLogger.d(TAG, "Successfully updated KeyInfo for FID: %s", liveFid);
-                            
+
                             // Verify the updated KeyInfo is correct
                             KeyInfo verifyKeyInfo = getLiveKeyInfo();
-                            TimberLogger.d(TAG, "Verification - KeyInfo after save - Cash: %s, Balance: %s, CD: %s", 
-                                verifyKeyInfo != null ? verifyKeyInfo.getCash() : "null KeyInfo", 
-                                verifyKeyInfo != null ? verifyKeyInfo.getBalance() : "null KeyInfo", 
+                            TimberLogger.d(TAG, "Verification - KeyInfo after save - Cash: %s, Balance: %s, CD: %s",
+                                verifyKeyInfo != null ? verifyKeyInfo.getCash() : "null KeyInfo",
+                                verifyKeyInfo != null ? verifyKeyInfo.getBalance() : "null KeyInfo",
                                 verifyKeyInfo != null ? verifyKeyInfo.getCd() : "null KeyInfo");
-                            
+
+                            // Check if CID needs to be set (after we have fresh API data)
+                            checkSetCidIfNeeded(context, freerInfo);
+
                             // Call completion callback on main thread if provided
                             if (onComplete != null) {
                                 if (context instanceof android.app.Activity) {
@@ -477,11 +613,194 @@ public class FidManager {
                         TimberLogger.w(TAG, "Current KeyInfo is null, cannot update");
                     }
                 } else {
-                    TimberLogger.w(TAG, "Failed to fetch cidInfo for live FID: %s", liveFid);
+                    TimberLogger.w(TAG, "Failed to fetch freerInfo for live FID: %s", liveFid);
+                    checkTopUpIfNeeded(context);
                 }
             } catch (Exception e) {
                 TimberLogger.e(TAG, "Error refreshing cidInfo for live FID %s: %s", liveFid, e.getMessage());
             }
         }).start();
+    }
+
+    /**
+     * Check if top-up prompt should be shown based on balance
+     * Shows TopupPromptDialog if:
+     * 1. User has not already been prompted for top-up
+     * 2. Main KeyInfo balance is null or 0
+     */
+    private void checkTopUpIfNeeded(Context context) {
+        try {
+            TimberLogger.i(TAG, "checkTopUpIfNeeded called. cashManager field=%s, CashManager.getInstance()=%s",
+                    cashManager != null ? "set(dbSize=" + cashManager.getCashDBSize() + ")" : "null",
+                    CashManager.getInstance() != null ? "set(dbSize=" + CashManager.getInstance().getCashDBSize() + ")" : "null");
+            
+            Setting currentSetting = SettingManager.getInstance().getCurrentSetting();
+            if (currentSetting == null) {
+                TimberLogger.w(TAG, "No current setting available, skipping topUp check");
+                return;
+            }
+
+            // Check if user has already been prompted for topUp
+            Boolean promotedTopUp = (Boolean) currentSetting.getStateMap().get(com.fc.freer.model.Setting.KEY_PROMOTED_TOP_UP);
+            if (promotedTopUp != null && promotedTopUp) {
+                TimberLogger.d(TAG, "User has already been prompted for topUp, skipping");
+                return;
+            }
+
+            // Get main KeyInfo
+            KeyInfo mainKeyInfo = getMainKeyInfo();
+            if (mainKeyInfo == null) {
+                TimberLogger.w(TAG, "Main KeyInfo not available, skipping topUp check");
+                return;
+            }
+
+            // Check if balance is null or 0
+            Long balance = mainKeyInfo.getBalance();
+            if (balance == null || balance == 0) {
+                // Before showing "ask FCH from others" dialog, check local CashManager
+                // Try instance field first, then static singleton (it may be initialized before reloadManagers)
+                CashManager cm = cashManager;
+                if (cm == null) {
+                    cm = CashManager.getInstance();
+                    TimberLogger.d(TAG, "checkTopUpIfNeeded: cashManager field is null, static CashManager.getInstance()=%s",
+                            cm != null ? "available" : "null");
+                }
+                if (cm != null) {
+                    long dbSize = cm.getCashDBSize();
+                    boolean hasValid = cm.hasValidCashes();
+                    TimberLogger.i(TAG, "checkTopUpIfNeeded: CashManager dbSize=%d, hasValidCashes=%b", dbSize, hasValid);
+                    if (hasValid) {
+                        TimberLogger.i(TAG, "On-chain balance is zero but local CashManager has valid cashes (%d). Skipping topUp dialog.", dbSize);
+                        return;
+                    }
+                } else {
+                    TimberLogger.w(TAG, "checkTopUpIfNeeded: CashManager not available at all (both field and singleton are null)");
+                }
+
+                TimberLogger.d(TAG, "Balance is zero and no local cashes, showing topUp prompt dialog");
+
+                String mainFid = getMainFid();
+                if (mainFid == null) {
+                    TimberLogger.w(TAG, "Main FID not available, skipping topUp prompt");
+                    return;
+                }
+
+                // Show top up prompt dialog on main thread
+                if (context instanceof android.app.Activity activity) {
+                    if (activity.isFinishing() || activity.isDestroyed()) {
+                        TimberLogger.w(TAG, "Activity is finishing/destroyed, skipping topUp prompt");
+                        return;
+                    }
+                    activity.runOnUiThread(() -> {
+                        if (!activity.isFinishing() && !activity.isDestroyed()) {
+                            showTopupPromptDialog(context, currentSetting, mainFid);
+                        }
+                    });
+                } else {
+                    TimberLogger.w(TAG, "Context is not an Activity, skipping topUp prompt dialog");
+                }
+            } else {
+                TimberLogger.d(TAG, "Balance is not zero (%d), skipping topUp prompt", balance);
+            }
+        } catch (Exception ex) {
+            TimberLogger.e(TAG, "Error checking topUp: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Show the topup prompt dialog
+     */
+    private void showTopupPromptDialog(Context context, Setting currentSetting, String mainFid) {
+        try {
+            if (context instanceof android.app.Activity activity
+                    && (activity.isFinishing() || activity.isDestroyed())) {
+                TimberLogger.w(TAG, "Activity no longer valid, skipping topUp dialog");
+                return;
+            }
+            com.fc.freer.ui.TopupPromptDialog topUpDialog = new com.fc.freer.ui.TopupPromptDialog(context, mainFid, () -> {
+                TimberLogger.d(TAG, "User chose to ignore topUp prompt");
+                // Update the state to indicate user has been prompted
+                currentSetting.getStateMap().put(com.fc.freer.model.Setting.KEY_PROMOTED_TOP_UP, true);
+
+                // Save the updated setting
+                SettingManager.getInstance().saveSettings(context, currentSetting);
+            });
+
+            topUpDialog.show();
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error showing topup prompt dialog: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Check if SetCidActivity should be shown based on fresh API data
+     * Shows SetCidActivity if:
+     * 1. User has not already been prompted to set CID
+     * 2. CID is not set (null or empty from API)
+     * 3. Balance is greater than 0
+     */
+    private void checkSetCidIfNeeded(Context context, Freer freerInfo) {
+        try {
+            Setting currentSetting = SettingManager.getInstance().getCurrentSetting();
+            if (currentSetting == null) {
+                TimberLogger.w(TAG, "No current setting available, skipping CID check");
+                return;
+            }
+
+            // Check if user has already been prompted to set CID
+            Boolean promotedSetCid = (Boolean) currentSetting.getStateMap().get(com.fc.freer.model.Setting.KEY_PROMOTED_SET_CID);
+            if (promotedSetCid != null && promotedSetCid) {
+                TimberLogger.d(TAG, "User has already been prompted to set CID, skipping");
+                return;
+            }
+
+            // Check if CID is null or empty from API data
+            String cid = freerInfo.getCid();
+            if (cid != null && !cid.trim().isEmpty()) {
+                TimberLogger.d(TAG, "CID already set: %s, skipping CID prompt", cid);
+                return;
+            }
+
+            // Check if balance is greater than 0
+            Long balance = freerInfo.getBalance();
+            if (balance == null || balance <= 0) {
+                TimberLogger.d(TAG, "Balance is zero or null (%s), skipping CID prompt", balance);
+                return;
+            }
+
+            // All conditions met - show SetCidActivity on main thread
+            TimberLogger.d(TAG, "CID is not set and balance is positive (%d), showing SetCidActivity", balance);
+
+            if (context instanceof android.app.Activity) {
+                ((android.app.Activity) context).runOnUiThread(() -> {
+                    showSetCidActivity(context);
+                });
+            } else {
+                Handler mainHandler = new Handler(Looper.getMainLooper());
+                mainHandler.post(() -> {
+                    showSetCidActivity(context);
+                });
+            }
+
+        } catch (Exception ex) {
+            TimberLogger.e(TAG, "Error checking CID: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Show SetCidActivity
+     */
+    private void showSetCidActivity(Context context) {
+        try {
+            if (!(context instanceof android.app.Activity)) {
+                TimberLogger.w(TAG, "Context is not an Activity, cannot show SetCidActivity");
+                return;
+            }
+
+            android.content.Intent intent = new android.content.Intent(context, com.fc.freer.home.SetCidActivity.class);
+            ((android.app.Activity) context).startActivityForResult(intent, 9997); // Using 9997 as request code for SetCidActivity
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error showing SetCidActivity: " + e.getMessage(), e);
+        }
     }
 }

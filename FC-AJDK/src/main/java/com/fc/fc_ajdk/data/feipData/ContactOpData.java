@@ -104,6 +104,16 @@ public class ContactOpData {
 		return data;
 	}
 
+	// Factory method for UPDATE operation
+	public static ContactOpData makeUpdate(String contactId, String alg, String cipher) {
+		ContactOpData data = new ContactOpData();
+		data.setOp(Op.UPDATE.toLowerCase());
+		data.setContactId(contactId);
+		data.setAlg(alg);
+		data.setCipher(cipher);
+		return data;
+	}
+
 	// Factory method for RECOVER operation
 	public static ContactOpData makeRecover(List<String> contactIds) {
 		ContactOpData data = new ContactOpData();

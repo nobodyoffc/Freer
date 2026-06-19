@@ -52,6 +52,8 @@ import static com.fc.fc_ajdk.data.fcData.AlgorithmId.FC_EccK1AesCbc256_No1_NrC7;
  * * By No1_NrC7 with the help of chatGPT
  */
 
+/** @deprecated Use newer algorithm implementations in core.crypto.Algorithm package instead. */
+@Deprecated
 public class EccAes256K1P7 {
     static {
         Security.addProvider(new BouncyCastleProvider());
@@ -716,7 +718,7 @@ public class EccAes256K1P7 {
     private String encrypt(File originalFile, CryptoDataByte cryptoDataByte) {
         byte[] msgBytes;
         try (FileInputStream fis = new FileInputStream(originalFile)) {
-            msgBytes = BytesUtils.readAllBytes(fis);//fis.readAllBytes();
+            msgBytes = BytesUtils.getAllBytes(fis);//fis.readAllBytes();
         } catch (IOException e) {
             return "FileInputStream wrong.";
         }
@@ -890,7 +892,7 @@ public class EccAes256K1P7 {
         CryptoDataByte cryptoDataByte;
         try (FileInputStream fis = new FileInputStream(encryptedFile)) {
             affair = JsonUtils.readObjectFromJsonFile(fis, Affair.class);
-            cipherBytes = BytesUtils.readAllBytes(fis);
+            cipherBytes = BytesUtils.getAllBytes(fis);
             if (affair == null) return "Affair is null.";
             if (affair.getData() == null) return "Affair.data is null.";
             cryptoDataStr = gson.fromJson(gson.toJson(affair.getData()), CryptoDataStr.class);
@@ -912,7 +914,7 @@ public class EccAes256K1P7 {
         CryptoDataByte cryptoDataByte;
         try (FileInputStream fis = new FileInputStream(encryptedFile)) {
             affair = JsonUtils.readObjectFromJsonFile(fis, Affair.class);
-            cipherBytes = BytesUtils.readAllBytes(fis);
+            cipherBytes = BytesUtils.getAllBytes(fis);
             if (affair == null) return "Error:affair is null.";
             if (affair.getData() == null) return "Error:affair.data is null.";
             cryptoDataStr = gson.fromJson(gson.toJson(affair.getData()), CryptoDataStr.class);

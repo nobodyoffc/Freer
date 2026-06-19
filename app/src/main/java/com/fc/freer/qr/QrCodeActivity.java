@@ -1,8 +1,6 @@
 package com.fc.freer.qr;
 
 import android.Manifest;
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
@@ -21,7 +19,10 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
+
+import com.fc.freer.BaseCryptoActivity;
+import com.fc.freer.home.DoAffairActivity;
+import com.fc.freer.utils.ToastUtils;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
@@ -29,8 +30,6 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
 import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ExperimentalGetImage;
 import androidx.camera.core.ImageAnalysis;
@@ -61,7 +60,7 @@ import java.util.Locale;
 import timber.log.Timber;
 
 @OptIn(markerClass = ExperimentalGetImage.class)
-public class QrCodeActivity extends AppCompatActivity {
+public class QrCodeActivity extends BaseCryptoActivity {
     private static final int PERMISSION_REQUEST_CODE = 100;
     private static final String[] REQUIRED_PERMISSIONS = Build.VERSION.SDK_INT <= Build.VERSION_CODES.P ?
             new String[] { Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE } :
@@ -77,12 +76,14 @@ public class QrCodeActivity extends AppCompatActivity {
     private View copyButton;
     private View galleryButton;
     private View scanNotification;
+    private ImageView doButton;
     private boolean isReturnString;
 
     private ProcessCameraProvider cameraProvider;
     private ExecutorService cameraExecutor;
     private boolean isScanningEnabled = false;
     private boolean isCameraInitialized = false;
+    private boolean isProcessingQRCode = false;
 
     private final ActivityResultLauncher<Intent> galleryLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -96,79 +97,64 @@ public class QrCodeActivity extends AppCompatActivity {
             });
 
     @Override
+    protected int getLayoutId() {
+        return R.layout.activity_qr_code;
+    }
+
+    @Override
+    protected String getActivityTitle() {
+        return getString(R.string.menu_qr_code);
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         try {
             super.onCreate(savedInstanceState);
-            
+
             // Get the isReturnString parameter
             isReturnString = getIntent().getBooleanExtra(EXTRA_IS_RETURN_STRING, false);
-            
-            // Force status bar color
-            getWindow().setStatusBarColor(getResources().getColor(R.color.black, getTheme()));
-            getWindow().getDecorView().setSystemUiVisibility(
-                getWindow().getDecorView().getSystemUiVisibility() & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-            );
-            
-            setContentView(R.layout.activity_qr_code);
 
-            // Setup toolbar
-            Toolbar toolbar = findViewById(R.id.toolbar);
-            if (toolbar == null) {
-                Timber.e("Toolbar not found in layout");
-                showError("Failed to initialize: Toolbar not found");
-                finish();
-                return;
+            // Force status bar color with null check
+            try {
+                getWindow().setStatusBarColor(getResources().getColor(R.color.black, getTheme()));
+                getWindow().getDecorView().setSystemUiVisibility(
+                    getWindow().getDecorView().getSystemUiVisibility() & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                );
+            } catch (Exception e) {
+                Timber.w("Failed to set status bar color: %s", e.getMessage());
             }
-            setSupportActionBar(toolbar);
+
+            // Remove toolbar back navigation button
             if (getSupportActionBar() != null) {
-                getSupportActionBar().setTitle(getString(R.string.menu_qr_code));
-                getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+                getSupportActionBar().setDisplayHomeAsUpEnabled(false);
             }
-            toolbar.setNavigationOnClickListener(v -> {
-                if (isReturnString && qrContentEditText != null && !qrContentEditText.getText().toString().isEmpty()) {
-                    returnResult();
-                } else {
-                    finish();
-                }
-            });
 
-            // Add back press callback
+            // Add back press callback for custom behavior
             getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
                 @Override
                 public void handleOnBackPressed() {
-                    if (isReturnString && qrContentEditText != null && !qrContentEditText.getText().toString().isEmpty()) {
-                        returnResult();
-                    } else {
-                        finish();
-                    }
+                    handleBackAction();
                 }
             });
 
-            // Initialize views
-            previewView = findViewById(R.id.previewView);
-            scanAreaOverlay = findViewById(R.id.scanAreaOverlay);
-            scanNotification = findViewById(R.id.scanNotification);
-            
-            if (previewView == null || scanAreaOverlay == null || scanNotification == null) {
-                Timber.e("Required views not found in layout");
-                showError("Failed to initialize: Required views not found");
-                finish();
-                return;
+            // Initialize camera executor
+            try {
+                cameraExecutor = Executors.newSingleThreadExecutor();
+            } catch (Exception e) {
+                Timber.e(e, "Failed to create camera executor: %s", e.getMessage());
+                showError("Failed to initialize camera executor");
             }
 
-            cameraExecutor = Executors.newSingleThreadExecutor();
-
-            // Check and request camera permissions
+            // Check and request camera permissions with delay for first launch
             if (allPermissionsGranted()) {
-                initializeCamera();
+                // Add small delay to ensure resources are ready
+                if (previewView != null) {
+                    previewView.postDelayed(this::initializeCamera, 100);
+                }
             } else {
                 ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, PERMISSION_REQUEST_CODE);
             }
 
-            // Set up UI elements
-            initializeViews();
-            setupListeners();
-            
             Timber.i("QrCodeActivity initialized successfully");
         } catch (Exception e) {
             Timber.e(e, "Failed to initialize QrCodeActivity: %s", e.getMessage());
@@ -177,13 +163,28 @@ public class QrCodeActivity extends AppCompatActivity {
         }
     }
 
-    private void initializeViews() {
+    @Override
+    protected void initializeViews() {
+        // Initialize camera-related views
+        previewView = findViewById(R.id.previewView);
+        scanAreaOverlay = findViewById(R.id.scanAreaOverlay);
+        scanNotification = findViewById(R.id.scanNotification);
+
+        if (previewView == null || scanAreaOverlay == null || scanNotification == null) {
+            Timber.e("Required views not found in layout");
+            showError("Failed to initialize: Required views not found");
+            finish();
+            return;
+        }
+
+        // Initialize button and input views
         qrContentEditText = findViewById(R.id.qrContentEditText);
         scanButton = findViewById(R.id.scanButtonContainer);
         makeButton = findViewById(R.id.makeButtonContainer);
         clearButton = findViewById(R.id.clearButtonContainer);
         copyButton = findViewById(R.id.copyButtonContainer);
         galleryButton = findViewById(R.id.galleryButton);
+        doButton = findViewById(R.id.doButton);
 
         // Update copy button icon and text if in return mode
         if (isReturnString) {
@@ -216,7 +217,8 @@ public class QrCodeActivity extends AppCompatActivity {
         }
     }
 
-    private void setupListeners() {
+    @Override
+    protected void setupButtons() {
         if (scanButton != null) {
             scanButton.setOnClickListener(v -> toggleScanning());
         }
@@ -242,6 +244,9 @@ public class QrCodeActivity extends AppCompatActivity {
         if (galleryButton != null) {
             galleryButton.setOnClickListener(v -> openGallery());
         }
+        if (doButton != null) {
+            doButton.setOnClickListener(v -> launchDoAffairActivity());
+        }
 
         if (qrContentEditText != null) {
             qrContentEditText.addTextChangedListener(new TextWatcher() {
@@ -256,30 +261,67 @@ public class QrCodeActivity extends AppCompatActivity {
                     if (qrContentEditText.hasFocus()) {
                         stopScanning();
                     }
+                    updateDoButtonVisibility();
                 }
             });
         }
     }
 
+    @Override
+    protected void setupBackButton() {
+        // Override to provide custom back button behavior
+        backButton = findViewById(R.id.back_button);
+        if (backButton != null) {
+            backButton.setOnClickListener(v -> handleBackAction());
+            TimberLogger.d("QrCodeActivity", "Back button set up with custom behavior");
+        }
+    }
+
+    @Override
+    protected void handleQrScanResult(int requestCode, String qrContent) {
+        // This activity is the QR scanner itself, so this method is not used
+    }
+
+    /**
+     * Handle back action - either return result or finish activity
+     */
+    private void handleBackAction() {
+        if (isReturnString && qrContentEditText != null && !qrContentEditText.getText().toString().isEmpty()) {
+            returnResult();
+        } else {
+            hideKeyboard();
+            finish();
+        }
+    }
+
     private void initializeCamera() {
-        ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(this);
-        cameraProviderFuture.addListener(() -> {
-            try {
-                cameraProvider = cameraProviderFuture.get();
-                isCameraInitialized = true;
-                Timber.i("Camera initialized successfully");
-            } catch (ExecutionException | InterruptedException e) {
-                Timber.e(e, "Error initializing camera: %s", e.getMessage());
-                showError(getString(R.string.error_initializing_camera) + e.getMessage());
-                isCameraInitialized = false;
-            }
-        }, ContextCompat.getMainExecutor(this));
+        try {
+            ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(this);
+            cameraProviderFuture.addListener(() -> {
+                try {
+                    cameraProvider = cameraProviderFuture.get();
+                    isCameraInitialized = true;
+                    Timber.i("Camera initialized successfully");
+                } catch (ExecutionException | InterruptedException e) {
+                    Timber.e(e, "Error initializing camera: %s", e.getMessage());
+                    showError(getString(R.string.retry_after_authorization) + e.getMessage());
+                    isCameraInitialized = false;
+                } catch (Exception e) {
+                    Timber.e(e, "Unexpected error in camera initialization: %s", e.getMessage());
+                    isCameraInitialized = false;
+                }
+            }, ContextCompat.getMainExecutor(this));
+        } catch (Exception e) {
+            Timber.e(e, "Failed to get camera provider instance: %s", e.getMessage());
+            isCameraInitialized = false;
+            runOnUiThread(() -> showError("Camera initialization failed"));
+        }
     }
 
     private void toggleScanning() {
         if (!isScanningEnabled) {
             if (!isCameraInitialized) {
-                showError(getString(R.string.error_initializing_camera));
+                showError(getString(R.string.retry_after_authorization));
                 return;
             }
             if (allPermissionsGranted()) {
@@ -331,9 +373,11 @@ public class QrCodeActivity extends AppCompatActivity {
 
     private void startScanning() {
         if (cameraProvider == null || !isCameraInitialized) {
-            showError(getString(R.string.error_initializing_camera));
+            showError(getString(R.string.retry_after_authorization));
             return;
         }
+
+        isProcessingQRCode = false;
 
         try {
             Preview preview = new Preview.Builder()
@@ -365,12 +409,12 @@ public class QrCodeActivity extends AppCompatActivity {
                 
             } catch (Exception e) {
                 TimberLogger.e("QR-SCAN", "Error starting camera: %s", e.getMessage());
-                showError(getString(R.string.error_initializing_camera) + e.getMessage());
+                showError(getString(R.string.retry_after_authorization) + e.getMessage());
                 isScanningEnabled = false;
             }
         } catch (Exception e) {
             TimberLogger.e("QR-SCAN", "Error configuring camera: %s", e.getMessage());
-            showError(getString(R.string.error_initializing_camera) + e.getMessage());
+            showError(getString(R.string.retry_after_authorization) + e.getMessage());
             isScanningEnabled = false;
         }
     }
@@ -388,6 +432,11 @@ public class QrCodeActivity extends AppCompatActivity {
     @OptIn(markerClass = ExperimentalGetImage.class)
     private void analyzeImage(ImageProxy imageProxy) {
         try {
+            if (isProcessingQRCode) {
+                imageProxy.close();
+                return;
+            }
+
             if (imageProxy.getImage() == null) {
                 TimberLogger.e("QR-SCAN", "ImageProxy image is null");
                 imageProxy.close();
@@ -474,13 +523,14 @@ public class QrCodeActivity extends AppCompatActivity {
                 }
 
                 if (result != null && result.getText() != null) {
+                    isProcessingQRCode = true;
                     com.google.zxing.Result finalResult = result;
                     runOnUiThread(() -> {
                         String currentText = qrContentEditText.getText().toString();
                         String newText = currentText + finalResult.getText();
                         qrContentEditText.setText(newText);
                         stopScanning();
-                        Toast.makeText(QrCodeActivity.this, getText(R.string.done), Toast.LENGTH_SHORT).show();
+                        ToastUtils.makeText(QrCodeActivity.this, getText(R.string.done));
                     });
                 }
             } catch (com.google.zxing.NotFoundException e) {
@@ -620,7 +670,7 @@ public class QrCodeActivity extends AppCompatActivity {
         viewPager.setAdapter(adapter);
         
         // Get the text color based on the current theme
-        int textColor = getResources().getColor(R.color.text_color, getTheme());
+        int textColor = getResources().getColor(R.color.text, getTheme());
         
         if (qrBitmaps.size() > 1) {
             pageIndicator.setVisibility(View.VISIBLE);
@@ -677,18 +727,17 @@ public class QrCodeActivity extends AppCompatActivity {
         }
 
         if (savedCount > 0) {
-            Toast.makeText(this, getString(R.string.qr_saved_count, savedCount), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.qr_saved_count, savedCount));
         } else {
-            Toast.makeText(this, getString(R.string.error_saving_qr)+"[3]", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.error_saving_qr)+"[3]");
         }
     }
 
     private void copyToClipboard() {
         String content = qrContentEditText.getText().toString();
         if (!content.isEmpty()) {
-            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            ClipData clip = ClipData.newPlainText("QR Content", content);
-            clipboard.setPrimaryClip(clip);
+            copyToClipboard(content, "QR Content");
+            showToast(getString(R.string.copied));
         }
     }
 
@@ -701,13 +750,13 @@ public class QrCodeActivity extends AppCompatActivity {
         try {
             InputStream inputStream = getContentResolver().openInputStream(imageUri);
             if (inputStream == null) {
-                Toast.makeText(this, getString(R.string.cannot_open_image), Toast.LENGTH_SHORT).show();
+                ToastUtils.makeText(this, getString(R.string.cannot_open_image));
                 return;
             }
 
             Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
             if (bitmap == null) {
-                Toast.makeText(this, getString(R.string.cannot_decode_image), Toast.LENGTH_SHORT).show();
+                ToastUtils.makeText(this, getString(R.string.cannot_decode_image));
                 return;
             }
 
@@ -777,12 +826,12 @@ public class QrCodeActivity extends AppCompatActivity {
                     String newText = currentText + result.getText();
                     qrContentEditText.setText(newText);
                 } else {
-                    Toast.makeText(this, getString(R.string.cannot_open_image), Toast.LENGTH_SHORT).show();
+                    ToastUtils.makeText(this, getString(R.string.cannot_open_image));
                 }
             } catch (com.google.zxing.NotFoundException e) {
-                Toast.makeText(this, getString(R.string.cannot_decode_image) ,Toast.LENGTH_SHORT).show();
+                ToastUtils.makeText(this, getString(R.string.cannot_decode_image));
             } catch (Exception e) {
-                Toast.makeText(this, "Error scanning QR: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                ToastUtils.makeText(this, "Error scanning QR: " + e.getMessage());
             } finally {
                 if (!rgbBitmap.isRecycled()) {
                     rgbBitmap.recycle();
@@ -790,33 +839,10 @@ public class QrCodeActivity extends AppCompatActivity {
             }
 
         } catch (IOException e) {
-            Toast.makeText(this, "Error reading image: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            ToastUtils.makeText(this, "Error reading image: " + e.getMessage());
         } catch (Exception e) {
-            Toast.makeText(this, "Unexpected error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            ToastUtils.makeText(this, "Unexpected error: " + e.getMessage());
         }
-    }
-
-    private void handleQRCodeResult(String qrContent) {
-
-        runOnUiThread(() -> {
-            if (isReturnString) {
-                // If we're in return mode, set the result and finish
-                Intent resultIntent = new Intent();
-                resultIntent.putExtra("qr_content", qrContent);
-                int requestCode = getIntent().getIntExtra("request_code", 0);
-                Timber.i("Setting result with request_code: %s", requestCode);
-                resultIntent.putExtra("request_code", requestCode);
-                setResult(RESULT_OK, resultIntent);
-                Timber.i("Setting result OK and finishing activity");
-                finish();
-            } else {
-                // Otherwise, append to the current text
-                String currentText = qrContentEditText.getText().toString();
-                String newText = currentText + qrContent;
-                Timber.i("Appending QR content to current text. New text: %s", newText);
-                qrContentEditText.setText(newText);
-            }
-        });
     }
 
     private void returnResult() {
@@ -847,6 +873,72 @@ public class QrCodeActivity extends AppCompatActivity {
         return true;
     }
 
+    /**
+     * Update the visibility of the do button based on whether the content is a valid affair JSON
+     */
+    private void updateDoButtonVisibility() {
+        if (doButton == null || qrContentEditText == null) {
+            return;
+        }
+
+        String content = qrContentEditText.getText().toString();
+        if (isValidAffairJson(content)) {
+            doButton.setVisibility(View.VISIBLE);
+        } else {
+            doButton.setVisibility(View.GONE);
+        }
+    }
+
+    /**
+     * Check if the content is a valid affair JSON
+     * @param content The content to check
+     * @return true if the content is a valid affair JSON containing "n":"affair"
+     */
+    private boolean isValidAffairJson(String content) {
+        if (content == null || content.trim().isEmpty()) {
+            return false;
+        }
+
+        // Quick check for "n":"affair" pattern
+        if (!content.toLowerCase().trim().contains("\"n\":\"affair\"")) {
+            return false;
+        }
+
+        // Try to parse as Affair
+        try {
+            com.fc.fc_ajdk.data.fcData.Affair affair =
+                com.fc.fc_ajdk.data.fcData.FcEntity.fromJson(content, com.fc.fc_ajdk.data.fcData.Affair.class);
+
+            // Check if parsing was successful and meta.n is "affair"
+            if (affair != null && affair.getMeta() != null && "affair".equals(affair.getMeta().getN())) {
+                return true;
+            }
+        } catch (Exception e) {
+            TimberLogger.d("QR-AFFAIR", "Failed to parse as affair: %s", e.getMessage());
+        }
+
+        return false;
+    }
+
+    /**
+     * Launch DoAffairActivity with the affair JSON
+     */
+    private void launchDoAffairActivity() {
+        try {
+            String content = qrContentEditText != null ? qrContentEditText.getText().toString() : "";
+            if (content.isEmpty()) {
+                return;
+            }
+
+            Intent intent = new Intent(this, com.fc.freer.home.DoAffairActivity.class);
+            intent.putExtra(DoAffairActivity.EXTRA_AFFAIR_JSON, content);
+            startActivity(intent);
+        } catch (Exception e) {
+            Timber.e("Error launching DoAffairActivity: %s", e.getMessage());
+            showError("Error launching affair activity: " + e.getMessage());
+        }
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -861,7 +953,7 @@ public class QrCodeActivity extends AppCompatActivity {
     // Add a helper method for showing error messages
     private void showError(String message) {
         try {
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+            showToast(message);
             Timber.e(message);
         } catch (Exception e) {
             Timber.e(e, "Error showing error message: %s", e.getMessage());

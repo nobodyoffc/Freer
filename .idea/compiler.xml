@@ -2,7 +2,7 @@
 <project version="4">
   <component name="CompilerConfiguration">
     <bytecodeTargetLevel target="17">
-      <module name="Freer.FC-AJDK" target="21" />
+      <module name="Safe.FC-AJDK" target="21" />
     </bytecodeTargetLevel>
   </component>
 </project>

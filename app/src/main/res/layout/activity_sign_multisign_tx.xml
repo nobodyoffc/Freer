@@ -37,22 +37,31 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center">
+        android:gravity="end">
 
-        <Button
+        <ImageButton
             android:id="@+id/clearButton"
-            style="@style/ButtonStyle"
-            android:text="@string/clear" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_clear"
+            android:contentDescription="@string/clear" />
 
-        <Button
+        <ImageButton
             android:id="@+id/addButton"
-            style="@style/ButtonStyle"
-            android:text="@string/add" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_plus"
+            android:contentDescription="@string/add" />
 
-        <Button
+        <ImageButton
             android:id="@+id/buildButton"
-            style="@style/ButtonStyle"
-            android:text="@string/build" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_build"
+            android:contentDescription="@string/build" />
+
+        <ImageButton
+            android:id="@+id/back_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_back"
+            android:contentDescription="@string/back" />
 
     </LinearLayout>
 

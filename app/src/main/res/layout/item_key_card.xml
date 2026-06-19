@@ -6,6 +6,25 @@
     android:padding="8dp"
     android:background="@color/background_light">
 
+    <CheckBox
+        android:id="@+id/key_checkbox"
+        android:layout_width="30dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:layout_marginStart="0dp"
+        android:textColor="@color/text"
+        android:visibility="gone"/>
+
+    <RadioButton
+        android:id="@+id/key_radio"
+        android:layout_width="30dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:buttonTint="@color/text"
+        android:layout_marginStart="0dp"
+        android:textColor="@color/text"
+        android:visibility="gone"/>
+
     <ImageView
         android:id="@+id/key_avatar"
         android:layout_width="54dp"
@@ -14,11 +33,13 @@
         android:layout_gravity="center_vertical"
         android:layout_marginEnd="8dp"/>
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_weight="1"
         android:orientation="vertical">
 
         <LinearLayout
+            android:id="@+id/cid_label_layout"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -31,7 +52,9 @@
                 android:layout_gravity="center_vertical"
                 android:layout_marginEnd="8dp"
                 android:textSize="14sp"
-                android:textColor="@color/colorAccent"
+                android:textColor="@color/accent"
+                android:maxLines="1"
+                android:ellipsize="middle"
                 android:textStyle="bold"/>
             <TextView
                 android:id="@+id/key_label"
@@ -40,8 +63,9 @@
                 android:layout_gravity="center_vertical"
                 android:layout_marginEnd="8dp"
                 android:textSize="14sp"
-                android:textStyle="bold"
-                android:textColor="@color/hint"/>
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="@color/field_name"/>
         </LinearLayout>
 
         <TextView
@@ -49,8 +73,77 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
-            android:textSize="16sp"/>
+            android:textSize="14sp"/>
+
+        <LinearLayout
+            android:id="@+id/cid_metrics_layout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="4dp"
+            android:layout_gravity="end"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/icon_weight"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_weight"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="2dp"/>
+
+            <TextView
+                android:id="@+id/text_weight"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="8dp"/>
+
+            <ImageView
+                android:id="@+id/icon_reputation"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_good"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="2dp"/>
+
+            <TextView
+                android:id="@+id/text_reputation"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="8dp"/>
+
+            <ImageView
+                android:id="@+id/icon_hot"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_hot"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="2dp"/>
+
+            <TextView
+                android:id="@+id/text_hot"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:layout_gravity="center_vertical"/>
+
+        </LinearLayout>
+
+
 
     </LinearLayout>
 
+    <ImageView
+        android:id="@+id/key_clear"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/ic_clear"
+        android:layout_gravity="end|bottom"
+
+        android:visibility="gone"
+        android:contentDescription="@string/delete"/>
 </LinearLayout> 

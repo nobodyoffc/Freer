@@ -14,7 +14,6 @@ import android.provider.MediaStore;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.viewpager2.widget.ViewPager2;
 
@@ -67,7 +66,7 @@ public class QRCodeGenerator {
         if (!qrBitmaps.isEmpty()) {
             showQRDialog(context, qrBitmaps, content, title);
         } else {
-            Toast.makeText(context, context.getString(R.string.error_creating_qr), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(context, context.getString(R.string.error_creating_qr));
         }
     }
     
@@ -126,8 +125,8 @@ public class QRCodeGenerator {
      */
     private static List<String> splitContent(String content) {
         List<String> chunks = new ArrayList<>();
-        int maxBytes = 400;  // Maximum bytes per QR code
-        
+        // Maximum bytes per QR code
+
         int startIndex = 0;
         while (startIndex < content.length()) {
             int endIndex = startIndex;
@@ -139,7 +138,7 @@ public class QRCodeGenerator {
                 int nextCharBytes = nextChar.getBytes(StandardCharsets.UTF_8).length;
                 
                 // If adding next character would exceed the limit, break
-                if (currentChunkBytes + nextCharBytes > maxBytes) {
+                if (currentChunkBytes + nextCharBytes > DEFAULT_CAPACITY) {
                     break;
                 }
                 
@@ -277,7 +276,7 @@ public class QRCodeGenerator {
                 ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
                 ClipData clip = ClipData.newPlainText("QR Content", content);
                 clipboard.setPrimaryClip(clip);
-                Toast.makeText(context, context.getString(R.string.copied_to_clipboard), Toast.LENGTH_SHORT).show();
+                ToastUtils.makeText(context, context.getString(R.string.copied));
             }
         });
         
@@ -320,9 +319,47 @@ public class QRCodeGenerator {
         }
 
         if (savedCount > 0) {
-            Toast.makeText(context, context.getString(R.string.qr_saved_count, savedCount), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(context, context.getString(R.string.qr_saved_count, savedCount));
         } else {
-            Toast.makeText(context, context.getString(R.string.error_saving_qr), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(context, context.getString(R.string.error_saving_qr));
+        }
+    }
+
+    /**
+     * Generates QR codes from a string containing JSON objects separated by newlines
+     * and displays them one by one in a dialog. The copy button copies the entire original string.
+     * 
+     * @param context The context to use for creating the dialog
+     * @param jsonListString The string containing JSON objects separated by newlines
+     * @param title The title to display in the dialog
+     */
+    public static void generateAndShowQRCodeFromJsonList(Context context, String jsonListString, String title) {
+        if (jsonListString == null || jsonListString.trim().isEmpty()) {
+            ToastUtils.makeText(context, context.getString(R.string.no_data_to_export));
+            return;
+        }
+        
+        // Split the string into individual JSON objects by newlines
+        String[] jsonObjects = jsonListString.split("\n");
+        List<Bitmap> allQrBitmaps = new ArrayList<>();
+        
+        try {
+            // Generate QR code for each JSON object
+            for (String jsonObject : jsonObjects) {
+                if (jsonObject.trim().isEmpty()) continue;
+                
+                List<Bitmap> qrBitmaps = generateQRBitmaps(jsonObject.trim());
+                allQrBitmaps.addAll(qrBitmaps);
+            }
+            
+            if (!allQrBitmaps.isEmpty()) {
+                // Show all QR codes in the dialog, but pass the original string for copying
+                showQRDialog(context, allQrBitmaps, jsonListString, title);
+            } else {
+                ToastUtils.makeText(context, context.getString(R.string.error_creating_qr));
+            }
+        } catch (Exception e) {
+            ToastUtils.makeText(context, context.getString(R.string.error_creating_qr));
         }
     }
 

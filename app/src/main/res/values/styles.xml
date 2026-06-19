@@ -5,7 +5,7 @@
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_weight">1</item>
-        <item name="android:textColor">@color/text_color</item>
+        <item name="android:textColor">@color/text</item>
         <item name="android:buttonTint">@drawable/radio_button_tint</item>
     </style>
 
@@ -17,7 +17,7 @@
 
     <style name="ButtonStyle" >
         <item name="android:textColor">@color/main_background</item>
-        <item name="android:backgroundTint">@color/colorAccent</item>
+        <item name="android:backgroundTint">@color/accent</item>
         <item name="android:paddingStart">8dp</item>
         <item name="android:paddingEnd">8dp</item>
         <item name="android:paddingTop">8dp</item>
@@ -31,5 +31,25 @@
         <item name="android:layout_marginEnd">4dp</item>
         <item name="android:layout_margin">8dp</item>
         <item name="android:layout_gravity">center</item>
+    </style>
+
+    <style name="ImageButtonStyle">
+        <item name="android:layout_width">46dp</item>
+        <item name="android:layout_height">46dp</item>
+        <item name="android:layout_margin">8dp</item>
+        <item name="android:background">@drawable/bg_round_accent</item>
+        <item name="android:tint">@color/main_background</item>
+        <item name="android:scaleType">centerInside</item>
+        <item name="android:padding">8dp</item>
+    </style>
+
+    <style name="SmallImageButton" parent="ImageButtonStyle">
+        <item name="android:layout_width">32dp</item>
+        <item name="android:layout_height">32dp</item>
+        <item name="android:scaleType">fitCenter</item>
+        <item name="android:layout_margin">8dp</item>
+        <item name="android:background">@drawable/bg_round_accent</item>
+        <item name="android:tint">@color/main_background</item>
+        <item name="android:padding">8dp</item>
     </style>
 </resources> 

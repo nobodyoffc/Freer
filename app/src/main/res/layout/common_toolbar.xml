@@ -4,7 +4,7 @@
     android:id="@+id/toolbar"
     android:layout_width="match_parent"
     android:layout_height="?attr/actionBarSize"
-    android:background="@color/colorAccent"
+    android:background="@color/accent"
     android:theme="@style/ThemeOverlay.Freer.Toolbar">
 
     <LinearLayout
@@ -13,30 +13,31 @@
         android:layout_height="match_parent"
         android:layout_gravity="end"
         android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingEnd="4dp"
-        android:paddingStart="16dp"
+        android:gravity="end|center_vertical"
         android:visibility="gone"
         android:clickable="true"
         android:focusable="true"
+        android:paddingStart="8dp"
+        android:paddingEnd="16dp"
         android:background="?android:attr/selectableItemBackground">
 
         <TextView
             android:id="@+id/toolbar_fid_text"
-            android:layout_width="wrap_content"
+            android:layout_width="130dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:text="FID123456789..."
-            android:textColor="@android:color/white"
+            android:textColor="@color/main_background"
+            android:paddingStart="8dp"
+            android:paddingEnd="4dp"
             android:textSize="14sp"
             android:maxLines="1"
-            android:ellipsize="none" />
+            android:gravity="end"
+            android:ellipsize="middle" />
 
         <ImageView
             android:id="@+id/toolbar_avatar"
             android:layout_width="42dp"
             android:layout_height="42dp"
-            android:background="@color/colorAccent"
+            android:background="@color/accent"
             android:scaleType="centerCrop"
             android:contentDescription="@string/avatar" />
 

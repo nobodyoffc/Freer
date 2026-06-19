@@ -2,6 +2,7 @@ package com.fc.fc_ajdk.constants;
 
 public class Constants {
     public static final String HOME = "Home";
+
     public static final String HASH160_F_FCH = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFCgHbzz";
     public static final String HASH160_1_BTC = "1111111111111111111114oLvT2";
     public static final int EMPTY_BLOCK_SIZE = 273;
@@ -15,8 +16,6 @@ public class Constants {
     public static final double MIN_AMOUNT = 0.000001;
     public static final int MAX_AMOUNT = 99999999;
 
-    public static long CDD_CHECK_HEIGHT =3000000;
-    public static long CD_REQUIRED =0;
     public static final Long COIN_TO_SATOSHI = 100000000L;
     public static final Long CASH_TO_SATOSHI = 100L;
     public static final Long OneDayInterval = 1440L;
@@ -65,6 +64,7 @@ public class Constants {
     public static final int MAX_FILE_SIZE_M = 200;
     public static final String DOT_FV = ".fv";
     public static final int MaxOpFileSize = 200 * 1024 * 1024;//251658240;
+    public static final int MaxOpReturnSize = 4 * 1024 - 4;
     public static final String FBBP = "FBBP";
     public static final String SESSION_NAME = "SessionName";
     public static final String WEBHOOK_FILE = "webhook.json";
@@ -84,6 +84,19 @@ public class Constants {
     public static final long DAY_TO_MIL_SEC = 24*60*60*1000;
     public static final int SEC_PER_DAY = 24*60*60;
     public static final String DOT_DECRYPTED = ".decrypted";
+    // The fee cost of a change output (34 satoshis)
+    // When rest == -CHANGE_OUTPUT_FEE, we can skip the change output
+    public static final long CHANGE_P2SH_OUTPUT_FEE = 32;
+    public static final long CHANGE_OUTPUT_FEE = 34;
+    public static final long MaX_HEIGHT = 999999999L;
+    public static final Long DEFAULT_MIN_PAYMENT = 1000L;
+    public static final String FUDP_NO1_NRC7 = "FUDP@No1_NrC7";
+    public static final String FAPI_NO1_NRC7 = "FAPI@No1_NrC7";
+    public static final String MAP_NO1_NRC7 = "MAP@No1_NrC7";
+    public static final String BASE_NO1_NRC7 = "BASE@No1_NrC7";
+    public static final String ROAD_NO1_NRC7 = "ROAD@No1_NrC7";
+    public static final String DOCK_NO1_NRC7 = "DOCK@No1_NrC7";
+    public static final String DISK_NO1_NRC7 = "DISK@No1_NrC7";
     public static int RedisDb4Webhook = 4;
     public static int RedisDb3Mempool = 3;
     public static int RedisDb0Common = 0;

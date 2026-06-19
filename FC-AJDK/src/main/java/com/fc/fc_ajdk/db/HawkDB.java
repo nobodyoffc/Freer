@@ -1,9 +1,11 @@
 package com.fc.fc_ajdk.db;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.fc.fc_ajdk.utils.JsonUtils;
 import com.fc.fc_ajdk.utils.MapQueue;
+import com.fc.fc_ajdk.utils.ObjectUtils;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.fc.fc_ajdk.data.fcData.FcEntity;
@@ -12,65 +14,57 @@ import com.fc.fc_ajdk.utils.TimberLogger;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentNavigableMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * A Hawk-based implementation of LocalDB interface.
- * This implementation uses Hawk for persistent storage with in-memory indices.
- * 
+ * A simplified Hawk-based implementation of LocalDB interface.
+ * Uses an ordered ID list instead of complex index maps for better performance.
+ *
  * @param <T> The type of entity to store, must extend FcEntity
  */
 public class HawkDB<T extends FcEntity> implements LocalDB<T> {
     private static final String TAG = "HawkDB";
     private static final String SETTINGS_MAP = "settings";
     public static final String ITEMS = "items";
-    public static final String INDEX_ID_MAP = "index_id_map";
-    public static final String ID_INDEX_MAP = "id_index_map";
+    public static final String ID_LIST = "id_list";
     public static final String META_MAP = "meta";
     public static final String STATE_MAP = "state";
     public static final String MAP_TYPES = "map_types";
+    public static final String LOCAL_DELETED_LIST_NAME = "localDeletedList";
+
     public static final int QUEUE_SIZE = 200;
-    private final SortType sortType;
     private volatile boolean isClosed = false;
-//    private final Gson gson;
-    
+
     // Add namespace prefix for unique storage spaces
     private String namespacePrefix;
-    
+    private final Class<T> tclass;
+
     // Add read-write lock for thread safety
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final Lock readLock = lock.readLock();
     private final Lock writeLock = lock.writeLock();
-    
+
     // Thread-local temporary variables for pagination
     private final ThreadLocal<Long> tempIndex = new ThreadLocal<>();
     private final ThreadLocal<String> tempId = new ThreadLocal<>();
-    
-    // Main storage maps
+
+    // Main storage - simplified structure
     private final MapQueue<String, T> itemMap = new MapQueue<>(QUEUE_SIZE);
-    private final ConcurrentNavigableMap<Long, String> indexIdMap = new ConcurrentSkipListMap<>();
-    private final ConcurrentNavigableMap<String, Long> idIndexMap = new ConcurrentSkipListMap<>();
+    private final List<String> idList = Collections.synchronizedList(new ArrayList<>());
     private final Map<String, Object> stateMap = new ConcurrentHashMap<>();
-    
+
     // Named maps for additional storage
     private final Map<String, MapQueue<Object, Object>> namedMapsMap = new ConcurrentHashMap<>();
-
     private final Map<String, String> mapTypes = new ConcurrentHashMap<>();
     private final Map<String, String> listTypes = new ConcurrentHashMap<>();
 
-    private final Set<String> listNames = new HashSet<>();
-    private final String sortField;
     private Map<String, String> metaMap;
-//    private final Set<String> mapNames = new HashSet<>();
-    
-    public HawkDB(SortType sortType,String sortField) {
-        this.sortType = sortType;
-        this.sortField = sortField;
+
+    public HawkDB(Class<T> tClass) {
+        this.tclass = tClass;
     }
-    
+
     @Override
     public String initialize(String passwordName, String fid, String sid, String dbPath, String dbName) {
         if (isClosed) {
@@ -80,41 +74,40 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
         // Create a unique namespace prefix for this user and app combination
         this.namespacePrefix = createNamespacePrefix(passwordName, fid, sid, dbName);
 
-        // Load indices if sorting is enabled
-        if (sortType != SortType.NO_SORT) {
-            loadIndexMaps();
-        }
+        // Load ID list
+        loadIdList();
 
         // Load metadata and settings
         loadMetaMap();
-
-        // Initialize mapTypes from metaMap
-        String storedMapTypes = metaMap.get(MAP_TYPES);
-        if(storedMapTypes!=null) {
-            Map<String, String> map = JsonUtils.jsonToMap(storedMapTypes, String.class, String.class);
-            if (map != null) mapTypes.putAll(map);
-        }
-
+        loadMapTypeMap();
         loadStateMap();
 
-        if(metaMap.get(SORT_TYPE_META_KEY)==null) {
-            metaMap.put(SORT_TYPE_META_KEY, this.sortType.name());
-        }
-
-        if (sortType != SortType.NO_SORT) {
-            if (indexIdMap.size() != idIndexMap.size()) {
-                reIndex();
-            }
-        }
-
-        // Initialize standard maps
-        createMap(LOCAL_REMOVED_MAP,String.class);
-        createMap(ON_CHAIN_DELETED_MAP,String.class);
-        createMap(SETTINGS_MAP,Object.class);
+        createMap(SETTINGS_MAP, Object.class);
+        createList(LOCAL_DELETED_LIST_NAME, Object.class);
 
         String metaMapKey = getNamespacedKey(META_MAP);
         Hawk.put(metaMapKey, metaMap);
         return namespacePrefix.substring(0, namespacePrefix.length() - 1);
+    }
+
+    private void loadIdList() {
+        List<String> savedIdList = Hawk.get(getNamespacedKey(ID_LIST));
+        if (savedIdList != null) {
+            idList.clear();
+            idList.addAll(savedIdList);
+        }
+    }
+
+    private Map<String, String> loadMapTypeMap() {
+        String storedMapTypes = metaMap.get(MAP_TYPES);
+        if (storedMapTypes != null) {
+            Map<String, String> map = JsonUtils.jsonToMap(storedMapTypes, String.class, String.class);
+            if (map != null) {
+                mapTypes.putAll(map);
+                return map;
+            }
+        }
+        return null;
     }
 
     private void loadMetaMap() {
@@ -127,7 +120,7 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
 
     private void loadStateMap() {
         Map<String, Object> stateMapInHawk = Hawk.get(getNamespacedKey(STATE_MAP));
-        stateMap.putAll(stateMapInHawk != null ? stateMapInHawk: new HashMap<>());
+        stateMap.putAll(stateMapInHawk != null ? stateMapInHawk : new HashMap<>());
     }
 
     /**
@@ -151,37 +144,12 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
         TimberLogger.d(TAG, "Created namespace prefix: %s with fid=%s, sid=%s, dbName=%s", result, fid, sid, dbName);
         return result;
     }
-    
+
     /**
      * Gets a namespaced key for Hawk storage
      */
     private String getNamespacedKey(String key) {
         return namespacePrefix + key;
-    }
-    
-    @Override
-    public SortType getSortType() {
-        return sortType;
-    }
-
-    @Override
-    public String getSortField() {
-        return sortField;
-    }
-    
-    @Override
-    public void put(String key, T value) {
-        writeLock.lock();
-        try {
-            itemMap.put(key, value);
-            // Store individual item instead of entire map
-            Hawk.put(getItemKey(key), value);
-            updateIndex(key);
-            saveIdIndexMap();
-            saveIndexIdMap();
-        } finally {
-            writeLock.unlock();
-        }
     }
 
     @NonNull
@@ -189,6 +157,25 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
         return getNamespacedKey(HawkDB.ITEMS + "_" + key);
     }
 
+    @Override
+    public void put(String key, T value) {
+        writeLock.lock();
+        try {
+            boolean isNew = !idList.contains(key);
+
+            // Store item
+            itemMap.put(key, value);
+            Hawk.put(getItemKey(key), value);
+
+            // Add to ID list if new
+            if (isNew) {
+                idList.add(key);
+                saveIdList();
+            }
+        } finally {
+            writeLock.unlock();
+        }
+    }
 
     @Override
     public T get(String key) {
@@ -207,311 +194,95 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
         } finally {
             readLock.unlock();
         }
-        
-        // Update access order outside of the read lock if needed
-        if (value != null && sortType == SortType.ACCESS_ORDER) {
-            writeLock.lock();
-            try {
-                updateAccessOrderBatch(Collections.singletonList(key));
-                Hawk.put(getNamespacedKey(ID_INDEX_MAP), idIndexMap);
-                Hawk.put(getNamespacedKey(INDEX_ID_MAP), indexIdMap);
-            } finally {
-                writeLock.unlock();
-            }
-        }
         return value;
     }
-    
+
     @Override
     public List<T> get(List<String> keys) {
         readLock.lock();
         try {
             List<T> values = new ArrayList<>();
-            List<String> accessedKeys = new ArrayList<>();
-            List<String> missingKeys = new ArrayList<>();
-            
-            // First pass: check cache
+
             for (String key : keys) {
                 T value = itemMap.get(key);
-                if (value != null) {
-                    values.add(value);
-                    if (sortType == SortType.ACCESS_ORDER) {
-                        accessedKeys.add(key);
-                    }
-                } else {
-                    missingKeys.add(key);
-                }
-            }
-            
-            // Second pass: load missing items from Hawk
-            for (String key : missingKeys) {
-                T value = Hawk.get(getItemKey(key));
-                if (value != null) {
-                    values.add(value);
-                    itemMap.put(key, value);
-                    if (sortType == SortType.ACCESS_ORDER) {
-                        accessedKeys.add(key);
+                if (value == null) {
+                    value = Hawk.get(getItemKey(key));
+                    if (value != null) {
+                        itemMap.put(key, value);
                     }
                 }
+                if (value != null) {
+                    values.add(value);
+                }
             }
-            
-            if (!accessedKeys.isEmpty()) {
-                updateAccessOrderBatch(accessedKeys);
-                Hawk.put(getNamespacedKey(ID_INDEX_MAP), idIndexMap);
-                Hawk.put(getNamespacedKey(INDEX_ID_MAP), indexIdMap);
-            }
+
             return values;
         } finally {
             readLock.unlock();
         }
     }
-    
+
     @Override
     public void remove(String key) {
         writeLock.lock();
         try {
-            if (sortType != SortType.NO_SORT) {
-                Long index = idIndexMap.get(key);
-                if (index != null) {
-                    indexIdMap.remove(index);
-                    idIndexMap.remove(key);
-                    
-                    shiftHigherIndicesDown1(index);
-                    Hawk.put(getNamespacedKey(ID_INDEX_MAP), idIndexMap);
-                    Hawk.put(getNamespacedKey(INDEX_ID_MAP), indexIdMap);
-                }
-            }
+            // Remove from ID list
+            idList.remove(key);
+            saveIdList();
+
+            // Remove from cache and storage
             itemMap.remove(key);
             Hawk.delete(getItemKey(key));
-            
-            putInMap(LOCAL_REMOVED_MAP, key, System.currentTimeMillis());
-
         } finally {
             writeLock.unlock();
         }
     }
-    
+
     @Override
     public void remove(List<T> list) {
         if (list == null || list.isEmpty()) return;
-        
+
         writeLock.lock();
         try {
-            // Collect indices to update
-            List<Long> indicesToUpdate = new ArrayList<>();
-            
             for (T item : list) {
                 if (item == null) continue;
-                
+
                 String key = item.getId();
                 if (key == null) continue;
-                
-                // Remove from item map
+
+                // Remove from ID list
+                idList.remove(key);
+
+                // Remove from cache and storage
                 itemMap.remove(key);
                 Hawk.delete(getItemKey(key));
-                // Collect index for later update
-                if (sortType != SortType.NO_SORT) {
-                    Long index = idIndexMap.get(key);
-                    if (index != null) {
-                        indicesToUpdate.add(index);
-                    }
-                }
-                
-                // Mark as locally removed
-                putInMap(LOCAL_REMOVED_MAP, key, System.currentTimeMillis());
             }
-            
-            // Update indices if needed
-            if (sortType != SortType.NO_SORT && !indicesToUpdate.isEmpty()) {
-                // Sort indices in descending order to avoid shifting issues
-                indicesToUpdate.sort(Collections.reverseOrder());
-                
-                // Remove from maps and shift indices
-                for (Long index : indicesToUpdate) {
-                    String key = indexIdMap.get(index);
-                    if (key != null) {
-                        indexIdMap.remove(index);
-                        idIndexMap.remove(key);
-                    }
-                }
-                
-                // Shift remaining indices
-                for (Long index : indicesToUpdate) {
-                    shiftHigherIndicesDown1(index);
-                }
-
-                Hawk.put(getNamespacedKey(ID_INDEX_MAP), idIndexMap);
-                Hawk.put(getNamespacedKey(INDEX_ID_MAP), indexIdMap);
-            }
-
-        } finally {
-            writeLock.unlock();
-        }
-    }
-    
-    private void updateIndex(String id) {
-        // Skip index updates if sorting is disabled
-        if (sortType == SortType.NO_SORT) {
-            idIndexMap.put(id, 0L);
-            return;
-        }
-        
-        Long existingIndex = idIndexMap.get(id);
-
-        
-        switch (sortType) {
-            case KEY_ORDER -> {
-                if (existingIndex == null) {
-                    // Find the correct position based on key order
-                    loadIndexMaps();
-                    long insertIndex = 1;
-                    for (Map.Entry<Long, String> entry : indexIdMap.entrySet()) {
-                        if (id.compareTo(entry.getValue()) < 0) {
-                            break;
-                        }
-                        insertIndex = entry.getKey() + 1;
-                    }
-                    
-                    // Shift all higher indices up by 1
-                    NavigableMap<Long, String> entriesToShift = indexIdMap.tailMap(insertIndex, true);
-                    List<Map.Entry<Long, String>> shiftList = new ArrayList<>(entriesToShift.entrySet());
-                    
-                    for (int i = shiftList.size() - 1; i >= 0; i--) {
-                        Map.Entry<Long, String> entry = shiftList.get(i);
-                        String existingId = entry.getValue();
-                        long oldIndex = entry.getKey();
-                        long newIndex = oldIndex + 1;
-                        
-                        indexIdMap.put(newIndex, existingId);
-                        idIndexMap.put(existingId, newIndex);
-                    }
-                    
-                    // Insert the new entry
-                    indexIdMap.put(insertIndex, id);
-                    idIndexMap.put(id, insertIndex);
-                }
-            }
-            
-            case UPDATE_ORDER, ACCESS_ORDER -> {
-                // Remove old index if exists
-                if (existingIndex != null) {
-                    indexIdMap.remove(existingIndex);
-                }
-                
-                // Add at the end with next available index
-                long newIndex = indexIdMap.isEmpty() ? 1 : indexIdMap.lastKey() + 1;
-                indexIdMap.put(newIndex, id);
-                idIndexMap.put(id, newIndex);
-            }
-            
-            case BIRTH_ORDER -> {
-                // Only add if not already exists
-                if (existingIndex == null) {
-                    long newIndex = indexIdMap.isEmpty() ? 1 : indexIdMap.lastKey() + 1;
-                    indexIdMap.put(newIndex, id);
-                    idIndexMap.put(id, newIndex);
-                }
-            }
-        }
-
-    }
-
-    private void loadIndexMaps() {
-        Map<Long, String> savedIndexIdMap = Hawk.get(getNamespacedKey(INDEX_ID_MAP), new HashMap<>());
-        Map<String, Long> savedIdIndexMap = Hawk.get(getNamespacedKey(ID_INDEX_MAP), new HashMap<>());
-        indexIdMap.putAll(savedIndexIdMap);
-        idIndexMap.putAll(savedIdIndexMap);
-    }
-
-    private void updateAccessOrderBatch(List<String> ids) {
-        if (sortType != SortType.ACCESS_ORDER || ids.isEmpty()) {
-            return;
-        }
-        
-        // Note: caller must hold writeLock
-        for (String id : ids) {
-            Long existingIndex = idIndexMap.get(id);
-            if (existingIndex != null) {
-                indexIdMap.remove(existingIndex);
-                idIndexMap.remove(id);
-            }
-        }
-        
-        long newIndex = indexIdMap.isEmpty() ? 1 : indexIdMap.lastKey() + 1;
-        for (String id : ids) {
-            if (itemMap.containsKey(id)) {  // Only update if item still exists
-                indexIdMap.put(newIndex, id);
-                idIndexMap.put(id, newIndex);
-                newIndex++;
-            }
-        }
-
-        Hawk.put(getNamespacedKey(ID_INDEX_MAP), idIndexMap);
-        Hawk.put(getNamespacedKey(INDEX_ID_MAP), indexIdMap);
-    }
-    
-    private void shiftHigherIndicesDown1(Long index) {
-        writeLock.lock();
-        try {
-            NavigableMap<Long, String> higherEntries = indexIdMap.tailMap(index, false);
-            List<Map.Entry<Long, String>> entriesToShift = new ArrayList<>(higherEntries.entrySet());
-            
-            for (Map.Entry<Long, String> entry : entriesToShift) {
-                String id = entry.getValue();
-                long oldIndex = entry.getKey();
-                long newIndex = oldIndex - 1;
-                
-                indexIdMap.remove(oldIndex);
-                indexIdMap.put(newIndex, id);
-                idIndexMap.put(id, newIndex);
-            }
+            saveIdList();
         } finally {
             writeLock.unlock();
         }
     }
 
-    private void saveToHawk() {
-        // No need to save entire itemMap anymore since items are stored individually
-        // Only save indices and metadata
-        if (sortType != SortType.NO_SORT) {
-            saveIndexIdMap();
-        }
-        saveIdIndexMap();
-
-        saveStateMap();
-    }
-
-    public void saveIdIndexMap(Map<String,Long> idIndexMap){
-        Hawk.put(getNamespacedKey(ID_INDEX_MAP), idIndexMap);
-    }
-
-    public void saveIndexIdMap(Map<Long,String> indexIdMap){
-        Hawk.put(getNamespacedKey(INDEX_ID_MAP), indexIdMap);
+    @Override
+    public void saveIdList() {
+        Hawk.put(getNamespacedKey(ID_LIST), new ArrayList<>(idList));
     }
 
     @Override
-    public void saveIdIndexMap(){
-        Hawk.put(getNamespacedKey(ID_INDEX_MAP), idIndexMap);
-    }
-
-    @Override
-    public void saveIndexIdMap(){
-        Hawk.put(getNamespacedKey(INDEX_ID_MAP), indexIdMap);
-    }
-
-    @Override
-    public void saveStateMap(){
+    public void saveStateMap() {
         Hawk.put(getNamespacedKey(STATE_MAP), stateMap);
     }
 
     @Override
     public void commit() {
+        // No-op for Hawk implementation
     }
 
     @Override
     public void close() {
         if (!isClosed) {
-            saveToHawk();
+            saveIdList();
+            saveStateMap();
             isClosed = true;
         }
     }
@@ -538,13 +309,8 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
     }
 
     @Override
-    public NavigableMap<Long, String> getIndexIdMap() {
-        return indexIdMap;
-    }
-
-    @Override
-    public NavigableMap<String, Long> getIdIndexMap() {
-        return idIndexMap;
+    public List<String> getIdList() {
+        return new ArrayList<>(idList);
     }
 
     @Override
@@ -567,11 +333,11 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
         if (key == null) {
             return;
         }
-        
+
         writeLock.lock();
         try {
             String stringValue;
-            
+
             if (value == null) {
                 stringValue = null;
             } else if (value instanceof String) {
@@ -581,7 +347,7 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
             } else {
                 stringValue = new GsonBuilder().setPrettyPrinting().create().toJson(value);
             }
-            
+
             Map<String, Object> settingsMap = Hawk.get(getNamespacedKey(SETTINGS_MAP));
             if (settingsMap == null) {
                 settingsMap = new HashMap<>();
@@ -658,7 +424,7 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
         writeLock.lock();
         try {
             stateMap.put(key, value);
-            Hawk.put(getNamespacedKey(STATE_MAP),stateMap);
+            Hawk.put(getNamespacedKey(STATE_MAP), stateMap);
         } finally {
             writeLock.unlock();
         }
@@ -669,7 +435,7 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
         writeLock.lock();
         try {
             stateMap.remove(key);
-            Hawk.put(getNamespacedKey(STATE_MAP),stateMap);
+            Hawk.put(getNamespacedKey(STATE_MAP), stateMap);
         } finally {
             writeLock.unlock();
         }
@@ -680,7 +446,7 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
         writeLock.lock();
         try {
             stateMap.clear();
-            Hawk.put(getNamespacedKey(STATE_MAP),stateMap);
+            Hawk.put(getNamespacedKey(STATE_MAP), stateMap);
         } finally {
             writeLock.unlock();
         }
@@ -711,33 +477,32 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
     }
 
     @Override
-    public Long getIndexById(String id) {
-        return idIndexMap.get(id);
+    public int getIndexById(String id) {
+        return idList.indexOf(id);
     }
 
     @Override
-    public String getIdByIndex(long index) {
-        return indexIdMap.get(index);
-    }
-
-    @Override
-    public T getByIndex(long index) {
-        readLock.lock();
-        try {
-            return itemMap.get(indexIdMap.get(index));
-        } finally {
-            readLock.unlock();
+    public String getIdByIndex(int index) {
+        if (index < 0 || index >= idList.size()) {
+            return null;
         }
+        return idList.get(index);
+    }
+
+    @Override
+    public T getByIndex(int index) {
+        String id = getIdByIndex(index);
+        return id != null ? get(id) : null;
     }
 
     @Override
     public int getSize() {
-        return idIndexMap.size();
+        return idList.size();
     }
 
     @Override
     public boolean isEmpty() {
-        return getAll().isEmpty();
+        return idList.isEmpty();
     }
 
     @Override
@@ -793,25 +558,15 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
         try {
             // Clear in-memory cache
             itemMap.clear();
-            
-            // Clear indices if sorting is enabled
-            if (sortType != SortType.NO_SORT) {
-                indexIdMap.clear();
-                idIndexMap.clear();
+
+            // Clear ID list
+            for (String key : idList) {
+                Hawk.delete(getItemKey(key));
             }
-            
-            // Clear all items from Hawk
-            Map<String, Long> idIndexMap = Hawk.get(getNamespacedKey(ID_INDEX_MAP));
-            if (idIndexMap != null) {
-                for (String key : idIndexMap.keySet()) {
-                    Hawk.delete(getItemKey(key));
-                }
-            }
-            
-            // Clear indices from Hawk
-            Hawk.delete(getNamespacedKey(INDEX_ID_MAP));
-            Hawk.delete(getNamespacedKey(ID_INDEX_MAP));
-            
+            idList.clear();
+
+            // Save cleared ID list
+            saveIdList();
         } finally {
             writeLock.unlock();
         }
@@ -821,57 +576,371 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
     public void clearDB() {
         writeLock.lock();
         try {
+            // Clear all items
+            for (String key : idList) {
+                Hawk.delete(getItemKey(key));
+            }
+
+            // Clear ID list
+            idList.clear();
+            Hawk.delete(getNamespacedKey(ID_LIST));
+
             // Clear in-memory cache
             itemMap.clear();
 
-            // Clear indices if sorting is enabled
-            if (sortType != SortType.NO_SORT) {
-                indexIdMap.clear();
-                idIndexMap.clear();
-            }
-            
-            // Clear all items from Hawk
-            Map<String, Long> idIndexMap = Hawk.get(getNamespacedKey(ID_INDEX_MAP));
-            if (idIndexMap != null) {
-                for (String key : idIndexMap.keySet()) {
-                    Hawk.delete(getItemKey(key));
-                }
-            }
-            
-            // Clear indices from Hawk
-            Hawk.delete(getNamespacedKey(INDEX_ID_MAP));
-            Hawk.delete(getNamespacedKey(ID_INDEX_MAP));
-            
-            // Clear meta, settings and state maps
-            Hawk.put(getNamespacedKey(META_MAP), new HashMap<>());
-            Hawk.put(getNamespacedKey(SETTINGS_MAP), new HashMap<>());
-            Hawk.put(getNamespacedKey(STATE_MAP), new HashMap<>());
-            stateMap.clear();
-            
+            loadMetaMap();
+            loadMapTypeMap();
+
             // Clear all named maps
             for (String mapName : mapTypes.keySet()) {
-                // Clear individual entries
-                Set<String> keys = Hawk.get(getMapKeysKey(mapName), new HashSet<>());
+                List<String> keys = Hawk.get(getMapKeysKey(mapName), new ArrayList<>());
                 if (keys != null) {
                     for (String key : keys) {
                         Hawk.delete(getMapKey(mapName, key));
                     }
                 }
-                // Clear keys set
                 Hawk.delete(getMapKeysKey(mapName));
             }
-            
-            // Clear map types
+
+            // Clear all named Lists
+            for (String listName : listTypes.keySet()) {
+                Hawk.delete(getNamespacedKey(listName));
+            }
+
+            // Clear meta, settings and state maps
+            Hawk.put(getNamespacedKey(META_MAP), new HashMap<>());
+            Hawk.put(getNamespacedKey(SETTINGS_MAP), new HashMap<>());
+            Hawk.put(getNamespacedKey(STATE_MAP), new HashMap<>());
+
+            stateMap.clear();
             mapTypes.clear();
-            
-            // Recreate default maps
-            createMap(LOCAL_REMOVED_MAP, String.class);
-            createMap(ON_CHAIN_DELETED_MAP, String.class);
-            
+            listTypes.clear();
         } finally {
             writeLock.unlock();
         }
     }
+
+    @Override
+    public LinkedHashMap<String, T> getMap(Integer size, String fromId, Integer fromIndex,
+                                          boolean isFromInclude, String toId, Integer toIndex,
+                                          boolean isToInclude, boolean isFromEnd) {
+        readLock.lock();
+        try {
+            if (idList.isEmpty()) {
+                return new LinkedHashMap<>();
+            }
+
+            // Determine start and end indices
+            int startIdx = 0;
+            int endIdx = idList.size();
+
+            if (isFromEnd) {
+                // When paginating from end (reverse order), fromIndex/fromId specifies where to stop (exclusive end)
+                // and toIndex/toId specifies where to start (inclusive start from beginning)
+                if (fromIndex != null) {
+                    // fromIndex specifies the boundary - exclude items at or after this index
+                    endIdx = isFromInclude ? fromIndex + 1 : fromIndex;
+                } else if (fromId != null) {
+                    int idx = idList.indexOf(fromId);
+                    if (idx >= 0) {
+                        // fromId specifies the boundary - exclude items at or after this ID
+                        endIdx = isFromInclude ? idx + 1 : idx;
+                    }
+                }
+
+                if (toIndex != null) {
+                    startIdx = isToInclude ? toIndex : toIndex + 1;
+                } else if (toId != null) {
+                    int idx = idList.indexOf(toId);
+                    if (idx >= 0) {
+                        startIdx = isToInclude ? idx : idx + 1;
+                    }
+                }
+            } else {
+                // Normal forward pagination
+                if (fromIndex != null) {
+                    startIdx = isFromInclude ? fromIndex : fromIndex + 1;
+                } else if (fromId != null) {
+                    int idx = idList.indexOf(fromId);
+                    if (idx >= 0) {
+                        startIdx = isFromInclude ? idx : idx + 1;
+                    }
+                }
+
+                if (toIndex != null) {
+                    endIdx = isToInclude ? toIndex + 1 : toIndex;
+                } else if (toId != null) {
+                    int idx = idList.indexOf(toId);
+                    if (idx >= 0) {
+                        endIdx = isToInclude ? idx + 1 : idx;
+                    }
+                }
+            }
+
+            // Ensure valid range
+            startIdx = Math.max(0, Math.min(startIdx, idList.size()));
+            endIdx = Math.max(0, Math.min(endIdx, idList.size()));
+
+            if (startIdx >= endIdx) {
+                return new LinkedHashMap<>();
+            }
+
+            // Get the sublist
+            List<String> subList = idList.subList(startIdx, endIdx);
+
+            // Reverse if needed
+            if (isFromEnd) {
+                List<String> reversed = new ArrayList<>(subList);
+                Collections.reverse(reversed);
+                subList = reversed;
+            }
+
+            // Apply size limit
+            if (size != null && size < subList.size()) {
+                subList = subList.subList(0, size);
+            }
+
+            // Build result map
+            LinkedHashMap<String, T> result = new LinkedHashMap<>();
+            String lastId = null;
+            int lastIndex = 0;
+
+            for (String id : subList) {
+                T item = itemMap.get(id);
+                if (item == null) {
+                    item = Hawk.get(getItemKey(id));
+                    if (item != null) {
+                        itemMap.put(id, item);
+                    }
+                }
+                if (item != null) {
+                    result.put(id, item);
+                    lastId = id;
+                    lastIndex = idList.indexOf(id);
+                }
+            }
+
+            // Store temp values for pagination
+            if (lastId != null) {
+                tempIndex.set((long) lastIndex);
+                tempId.set(lastId);
+            }
+
+            return result;
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    @Override
+    public List<T> getList(Integer size, String fromId, Integer fromIndex,
+                          boolean isFromInclude, String toId, Integer toIndex,
+                          boolean isToInclude, boolean isFromEnd) {
+        return new ArrayList<>(getMap(size, fromId, fromIndex, isFromInclude, toId, toIndex, isToInclude, isFromEnd).values());
+    }
+
+    @Override
+    public void put(Map<String, T> items) {
+        if (items == null || items.isEmpty()) return;
+
+        writeLock.lock();
+        try {
+            boolean idListChanged = false;
+
+            // Update in-memory cache first
+            for (Map.Entry<String, T> entry : items.entrySet()) {
+                String key = entry.getKey();
+                T value = entry.getValue();
+
+                // Store in cache
+                itemMap.put(key, value);
+
+                // Add to ID list if new
+                if (!idList.contains(key)) {
+                    idList.add(key);
+                    idListChanged = true;
+                }
+            }
+
+            // Batch write to Hawk - unfortunately Hawk doesn't expose batch operations,
+            // but we minimize overhead by doing all updates together
+            // Note: In SharedPreferences, each Hawk.put() triggers a commit/apply.
+            // Consider grouping items if performance becomes critical.
+            for (Map.Entry<String, T> entry : items.entrySet()) {
+                Hawk.put(getItemKey(entry.getKey()), entry.getValue());
+            }
+
+            // Only save ID list if it changed
+            if (idListChanged) {
+                saveIdList();
+            }
+        } finally {
+            writeLock.unlock();
+        }
+    }
+
+    @Override
+    public void updateItemsOnly(List<T> items) {
+        if (items == null || items.isEmpty()) return;
+
+        writeLock.lock();
+        try {
+            for (T item : items) {
+                if (item == null) continue;
+
+                String id = item.getId();
+                if (id != null) {
+                    if (idList.contains(id)) {
+                        // Update existing item (keep position)
+                        itemMap.put(id, item);
+                        Hawk.put(getItemKey(id), item);
+                    } else {
+                        // Add new item at end
+                        put(id, item);
+                    }
+                }
+            }
+        } finally {
+            writeLock.unlock();
+        }
+    }
+
+    @Override
+    public void addAll(List<T> items, String idField) {
+        if (items == null || items.isEmpty()) return;
+
+        writeLock.lock();
+        try {
+            for (T item : items) {
+                if (item == null) continue;
+
+                String id = item.getId();
+                if (id != null) {
+                    // Store item
+                    itemMap.put(id, item);
+                    Hawk.put(getItemKey(id), item);
+
+                    // Add to ID list if new
+                    if (!idList.contains(id)) {
+                        idList.add(id);
+                    }
+                }
+            }
+            saveIdList();
+        } finally {
+            writeLock.unlock();
+        }
+    }
+
+    @Override
+    public Map<String, T> getAll() {
+        readLock.lock();
+        try {
+            Map<String, T> result = new LinkedHashMap<>();
+
+            for (String id : idList) {
+                T item = itemMap.get(id);
+                if (item == null) {
+                    item = Hawk.get(getItemKey(id));
+                    if (item != null) {
+                        itemMap.put(id, item);
+                    }
+                }
+                if (item != null) {
+                    result.put(id, item);
+                }
+            }
+
+            return result;
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    @Override
+    public List<T> searchString(String part) {
+        readLock.lock();
+        try {
+            List<T> matches = new ArrayList<>();
+            Gson gson = new GsonBuilder()
+                .disableHtmlEscaping()
+                .create();
+
+            for (String id : idList) {
+                T item = itemMap.get(id);
+                if (item == null) {
+                    item = Hawk.get(getItemKey(id));
+                    if (item != null) {
+                        itemMap.put(id, item);
+                    }
+                }
+                if (item != null) {
+                    String json = gson.toJson(item);
+                    if (json.contains(part)) {
+                        matches.add(item);
+                    }
+                }
+            }
+
+            return matches;
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    @Override
+    public void removeList(List<String> ids) {
+        writeLock.lock();
+        try {
+            for (String key : ids) {
+                idList.remove(key);
+                itemMap.remove(key);
+                Hawk.delete(getItemKey(key));
+            }
+            saveIdList();
+        } finally {
+            writeLock.unlock();
+        }
+    }
+
+    @Override
+    public int insertAll(List<T> items) {
+        if (items == null || items.isEmpty()) {
+            return 0;
+        }
+
+        writeLock.lock();
+        try {
+            int insertedCount = 0;
+            List<String> newIds = new ArrayList<>();
+
+            for (T item : items) {
+                if (item != null && item.getId() != null) {
+                    String key = item.getId();
+
+                    // Store the item
+                    itemMap.put(key, item);
+                    Hawk.put(getItemKey(key), item);
+
+                    // Collect new IDs
+                    if (!idList.contains(key)) {
+                        newIds.add(key);
+                        insertedCount++;
+                    }
+                }
+            }
+
+            // Insert all new IDs at the beginning
+            idList.addAll(0, newIds);
+            saveIdList();
+
+            return insertedCount;
+        } finally {
+            writeLock.unlock();
+        }
+    }
+
+    // ============== Named Map Operations ==============
 
     @Override
     public <V> void createMap(String mapName, Class<V> vClass) {
@@ -882,14 +951,13 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
         writeLock.lock();
         try {
             if (!mapTypes.containsKey(mapName)) {
-                registerMapType(mapName,vClass);
-                Hawk.put(getNamespacedKey(mapName),new HashMap<>());
+                registerMapType(mapName, vClass);
+                Hawk.put(getNamespacedKey(mapName), new HashMap<>());
             }
         } finally {
             writeLock.unlock();
         }
     }
-
 
     @Override
     public Set<String> getMapNames() {
@@ -900,13 +968,23 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
     public <V> void putInMap(String mapName, String key, V value) {
         writeLock.lock();
         try {
-            if(!mapTypes.containsKey(mapName))
-                registerMapType(mapName,value.getClass());
-            if(Objects.equals(mapTypes.get(mapName), byte[].class.getName())){
+            if (!mapTypes.containsKey(mapName)) {
+                registerMapType(mapName, value.getClass());
+            }
+
+            if (Objects.equals(mapTypes.get(mapName), byte[].class.getName())) {
                 String str = Base64.getEncoder().encodeToString((byte[]) value);
                 Hawk.put(getMapKey(mapName, key), str);
+            } else {
+                Hawk.put(getMapKey(mapName, key), value);
             }
-            // Update in-memory cache if needed
+
+            // Update keys set
+            Set<String> keys = Hawk.get(getMapKeysKey(mapName), new HashSet<>());
+            keys.add(key);
+            Hawk.put(getMapKeysKey(mapName), keys);
+
+            // Update in-memory cache
             MapQueue<Object, Object> map = getNamedMap(mapName);
             map.put(key, value);
         } finally {
@@ -922,20 +1000,21 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
     @Override
     public <V> V getFromMap(String mapName, String key) {
         readLock.lock();
-        if(mapTypes.get(mapName)==null)return null;
+        if (mapTypes.get(mapName) == null) return null;
         try {
             // Try to get from cache first
             V value = null;
             MapQueue<Object, Object> map = getNamedMap(mapName);
-            Object obj  = map.get(key);
-            if(obj!=null)value = (V) obj;
+            Object obj = map.get(key);
+            if (obj != null) value = (V) obj;
+
             if (value == null) {
                 // If not in cache, load from Hawk
-                if(Objects.equals(mapTypes.get(mapName), byte[].class.getName())){
+                if (Objects.equals(mapTypes.get(mapName), byte[].class.getName())) {
                     String vStr = Hawk.get(getMapKey(mapName, key));
-                    if(vStr!=null)
+                    if (vStr != null)
                         value = (V) Base64.getDecoder().decode(vStr);
-                }else{
+                } else {
                     value = Hawk.get(getMapKey(mapName, key));
                 }
                 if (value != null) {
@@ -952,18 +1031,16 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
     public <V> Map<String, V> getAllFromMap(String mapName) {
         readLock.lock();
         try {
-            // Get all keys for this map
             Set<String> keys = Hawk.get(getMapKeysKey(mapName), new HashSet<>());
             Map<String, V> result = new HashMap<>();
-            
-            // Load each entry individually
+
             for (String key : keys) {
                 V value = Hawk.get(getMapKey(mapName, key));
                 if (value != null) {
                     result.put(key, value);
                 }
             }
-            
+
             return result;
         } finally {
             readLock.unlock();
@@ -974,18 +1051,14 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
     public void clearMap(String mapName) {
         writeLock.lock();
         try {
-            // Get all keys for this map
             Set<String> keys = Hawk.get(getMapKeysKey(mapName), new HashSet<>());
-            
-            // Remove each entry individually
+
             for (String key : keys) {
                 Hawk.delete(getMapKey(mapName, key));
             }
-            
-            // Clear the keys set
+
             Hawk.delete(getMapKeysKey(mapName));
-            
-            // Clear in-memory cache
+
             MapQueue<Object, Object> map = getNamedMap(mapName);
             map.clear();
         } finally {
@@ -1000,23 +1073,30 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
         }
 
         writeLock.lock();
-        if(!mapTypes.containsKey(mapName))registerMapType(mapName,map.values().iterator().next().getClass());
-
         try {
-            // Store each entry individually
-            for (Map.Entry<String, V> entry : map.entrySet()) {
-                Hawk.put(getMapKey(mapName, entry.getKey()), entry.getValue());
+            if (!mapTypes.containsKey(mapName)) {
+                registerMapType(mapName, map.values().iterator().next().getClass());
             }
-            
-            // Update the keys set
-            Set<String> keys = Hawk.get(getMapKeysKey(mapName), new HashSet<>());
-            keys.addAll(map.keySet());
-            Hawk.put(getMapKeysKey(mapName), keys);
-            
-            // Update in-memory cache
-            MapQueue<Object, Object> targetMap =getNamedMap(mapName);
+
             for (Map.Entry<String, V> entry : map.entrySet()) {
-                targetMap.put(entry.getKey(), entry.getValue());
+                if (entry.getKey() != null && entry.getValue() != null) {
+                    Hawk.put(getMapKey(mapName, entry.getKey()), entry.getValue());
+                }
+            }
+
+            Set<String> keys = Hawk.get(getMapKeysKey(mapName), new HashSet<>());
+            for (Map.Entry<String, V> entry : map.entrySet()) {
+                if (entry.getKey() != null && entry.getValue() != null) {
+                    keys.add(entry.getKey());
+                }
+            }
+            Hawk.put(getMapKeysKey(mapName), keys);
+
+            MapQueue<Object, Object> targetMap = getNamedMap(mapName);
+            for (Map.Entry<String, V> entry : map.entrySet()) {
+                if (entry.getKey() != null && entry.getValue() != null) {
+                    targetMap.put(entry.getKey(), entry.getValue());
+                }
             }
         } finally {
             writeLock.unlock();
@@ -1027,15 +1107,12 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
     public void removeFromMap(String mapName, String key) {
         writeLock.lock();
         try {
-            // Remove individual entry
             Hawk.delete(getMapKey(mapName, key));
-            
-            // Update keys set
+
             Set<String> keys = Hawk.get(getMapKeysKey(mapName), new HashSet<>());
             keys.remove(key);
             Hawk.put(getMapKeysKey(mapName), keys);
-            
-            // Update in-memory cache
+
             MapQueue<Object, Object> map = getNamedMap(mapName);
             map.remove(key);
         } finally {
@@ -1047,17 +1124,14 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
     public void removeFromMap(String mapName, List<String> keys) {
         writeLock.lock();
         try {
-            // Remove each entry individually
             for (String key : keys) {
                 Hawk.delete(getMapKey(mapName, key));
             }
-            
-            // Update keys set
+
             Set<String> existingKeys = Hawk.get(getMapKeysKey(mapName), new HashSet<>());
             keys.forEach(existingKeys::remove);
             Hawk.put(getMapKeysKey(mapName), existingKeys);
-            
-            // Update in-memory cache
+
             MapQueue<Object, Object> map = getNamedMap(mapName);
             for (String key : keys) {
                 map.remove(key);
@@ -1071,7 +1145,6 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
     public int getMapSize(String mapName) {
         readLock.lock();
         try {
-            // Get size from keys set instead of loading entire map
             Set<String> keys = Hawk.get(getMapKeysKey(mapName), new HashSet<>());
             return keys.size();
         } finally {
@@ -1092,7 +1165,7 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
         writeLock.lock();
         try {
             mapTypes.put(mapName, typeClass.getName());
-            
+
             if (metaMap == null) {
                 metaMap = new HashMap<>();
             }
@@ -1108,13 +1181,7 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
         writeLock.lock();
         try {
             listTypes.put(listName, typeClass.getName());
-            // Store the map types in meta
-            Map<String, String> typeNames = new HashMap<>();
-            Map<String, Object> metaMap = Hawk.get(getNamespacedKey(META_MAP));
-            if (metaMap == null) {
-                metaMap = new HashMap<>();
-            }
-            metaMap.put(LIST_TYPES_META_KEY, listTypes);
+            metaMap.put(LIST_TYPES_META_KEY, new Gson().toJson(listTypes));
             Hawk.put(getNamespacedKey(META_MAP), metaMap);
         } finally {
             writeLock.unlock();
@@ -1140,52 +1207,85 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
     }
 
     @Override
-    public <V> void createOrderedList(String listName, Class<V> vClass) {
+    public Class<?> getListType(String listName) {
+        readLock.lock();
+        try {
+            Object listTypesObj = metaMap.get(LIST_TYPES_META_KEY);
+            Map<String, String> listTypes = ObjectUtils.objectToMap(listTypesObj, String.class, String.class);
+            if (listTypes == null) return null;
+            String className = listTypes.get(listName);
+            if (className != null) {
+                try {
+                    return Class.forName(className);
+                } catch (ClassNotFoundException e) {
+                    return null;
+                }
+            }
+            return null;
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    // ============== Named List Operations ==============
+
+    @Override
+    public <V> void createList(String listName, Class<V> vClass) {
         if (listName == null || vClass == null) {
             return;
         }
-        
+
         writeLock.lock();
         try {
+            Set<String> listNames = getListNames();
+
+            if (listNames == null)
+                listNames = new HashSet<>();
+
             if (!listNames.contains(listName)) {
                 listNames.add(listName);
-                Map<String, Object> metaMap = Hawk.get(getNamespacedKey(META_MAP));
-                if (metaMap == null) {
-                    metaMap = new HashMap<>();
-                }
-                metaMap.put(MAP_NAMES_META_KEY, listNames);
-                Hawk.put(getNamespacedKey(META_MAP), metaMap);
-                registerMapType(listName, vClass);
+
+                metaMap.put(LIST_NAMES_META_KEY, new Gson().toJson(listNames));
+
+                registerListType(listName, vClass);
                 Hawk.put(getNamespacedKey(listName), new ArrayList<V>());
             }
         } finally {
             writeLock.unlock();
         }
     }
-    
+
+    @Override
+    public Set<String> getListNames() {
+        Object result = metaMap.get(LIST_NAMES_META_KEY);
+        if (result == null) return new HashSet<>();
+        List<String> list = ObjectUtils.objectToList(result, String.class);
+        if (list != null)
+            return new HashSet<>(list);
+        else return new HashSet<>();
+    }
+
     @Override
     public <V> long addToList(String listName, V value) {
         if (listName == null || value == null) {
             return -1;
         }
-        
+
         writeLock.lock();
         try {
             List<V> list = (List<V>) getList(listName);
 
-            // Add the new element
             long index = list.size();
             list.add(value);
-            
-            // Increment the count
-            saveListToHawk(listName,list);
-            
+
+            saveListToHawk(listName, list);
+
             return index;
         } finally {
             writeLock.unlock();
         }
     }
-    
+
     @Override
     public <V> long addAllToList(String listName, List<V> values) {
         if (listName == null || values == null || values.isEmpty()) {
@@ -1196,26 +1296,24 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
         try {
             List<Object> list = getList(listName);
 
-            long startIndex =list.size();
+            long startIndex = list.size();
 
-                    // Add all elements
             list.addAll(values);
-            
-            // Update the count
-            saveListToHawk(listName,list);
-            
+
+            saveListToHawk(listName, list);
+
             return startIndex;
         } finally {
             writeLock.unlock();
         }
     }
-    
+
     @Override
     public <V> V getFromList(String listName, long index, Class<V> vClass) {
         if (listName == null || index < 0) {
             return null;
         }
-        
+
         readLock.lock();
         try {
             List<V> list = (List<V>) getList(listName);
@@ -1229,13 +1327,13 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
             readLock.unlock();
         }
     }
-    
+
     @Override
     public <V> List<V> getAllFromList(String listName) {
         if (listName == null) {
             return new ArrayList<>();
         }
-        
+
         readLock.lock();
         try {
             List<V> list = (List<V>) getList(listName);
@@ -1249,13 +1347,13 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
             readLock.unlock();
         }
     }
-    
+
     @Override
     public <V> List<V> getRangeFromList(String listName, long startIndex, long endIndex) {
         if (listName == null || startIndex < 0 || endIndex <= startIndex) {
             return new ArrayList<>();
         }
-        
+
         readLock.lock();
         try {
             List<V> list = (List<V>) getList(listName);
@@ -1263,30 +1361,27 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
             if (list == null || startIndex >= list.size()) {
                 return new ArrayList<>();
             }
-            
-            // Adjust endIndex if it's beyond the list size
+
             endIndex = Math.min(endIndex, list.size());
-            
-            // Create a new list with the elements in the range
+
             List<V> result = new ArrayList<>();
             for (long i = startIndex; i < endIndex; i++) {
-
                 V value = list.get((int) i);
                 result.add(value);
             }
-            
+
             return result;
         } finally {
             readLock.unlock();
         }
     }
-    
+
     @Override
     public <V> List<V> getRangeFromListReverse(String listName, long startIndex, long endIndex) {
         if (listName == null || startIndex < 0 || endIndex <= startIndex) {
             return new ArrayList<>();
         }
-        
+
         readLock.lock();
         try {
             List<V> list = (List<V>) getList(listName);
@@ -1294,38 +1389,34 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
             if (list == null || list.isEmpty()) {
                 return new ArrayList<>();
             }
-            
+
             int count = list.size();
-            
-            // Convert from end-based indices to start-based indices
-            int startFromBeginning = Math.max(0, count - (int)endIndex);
-            int endFromBeginning = Math.min(count, count - (int)startIndex);
-            
-            // Adjust if the range is beyond the list size
+
+            int startFromBeginning = Math.max(0, count - (int) endIndex);
+            int endFromBeginning = Math.min(count, count - (int) startIndex);
+
             if (startFromBeginning >= count || endFromBeginning <= 0) {
                 return new ArrayList<>();
             }
-            
-            List<V> result = new ArrayList<>();
-            // Iterate in reverse order
-            for (int i = endFromBeginning - 1; i >= startFromBeginning; i--) {
 
+            List<V> result = new ArrayList<>();
+            for (int i = endFromBeginning - 1; i >= startFromBeginning; i--) {
                 V value = list.get(i);
                 result.add(value);
             }
-            
+
             return result;
         } finally {
             readLock.unlock();
         }
     }
-    
+
     @Override
     public boolean removeFromList(String listName, long index) {
         if (listName == null || index < 0) {
             return false;
         }
-        
+
         writeLock.lock();
         try {
             List<Object> list = getList(listName);
@@ -1333,13 +1424,11 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
             if (list == null || index >= list.size()) {
                 return false;
             }
-            
-            // Remove the element
+
             list.remove((int) index);
-            
-            // Update the count
-            saveListToHawk(listName,list);
-            
+
+            saveListToHawk(listName, list);
+
             return true;
         } finally {
             writeLock.unlock();
@@ -1355,18 +1444,17 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
         if (listName == null || indices == null || indices.isEmpty()) {
             return 0;
         }
-        
+
         writeLock.lock();
         try {
             List<Object> list = getList(listName);
             if (list == null) {
                 return 0;
             }
-            
-            // Sort indices in descending order to avoid shifting issues
+
             List<Long> sortedIndices = new ArrayList<>(indices);
             sortedIndices.sort(Collections.reverseOrder());
-            
+
             int removedCount = 0;
             for (Long index : sortedIndices) {
                 if (index != null && index >= 0 && index < list.size()) {
@@ -1374,22 +1462,21 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
                     removedCount++;
                 }
             }
-            
-            // Update the count
-            saveListToHawk(listName,list);
-            
+
+            saveListToHawk(listName, list);
+
             return removedCount;
         } finally {
             writeLock.unlock();
         }
     }
-    
+
     @Override
     public long getListSize(String listName) {
         if (listName == null) {
             return 0;
         }
-        
+
         readLock.lock();
         try {
             List<Object> list = getList(listName);
@@ -1398,19 +1485,19 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
             readLock.unlock();
         }
     }
-    
+
     @Override
     public void clearList(String listName) {
         if (listName == null) {
             return;
         }
-        
+
         writeLock.lock();
         try {
             List<Object> list = getList(listName);
             if (list != null) {
                 list.clear();
-                saveListToHawk(listName,list);
+                saveListToHawk(listName, list);
             }
         } finally {
             writeLock.unlock();
@@ -1418,280 +1505,75 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
     }
 
     @Override
-    public LinkedHashMap<String, T> getMap(Integer size, String fromId, Long fromIndex,
-                                          boolean isFromInclude, String toId, Long toIndex,
-                                          boolean isToInclude, boolean isFromEnd) {
-        if (indexIdMap.isEmpty()) {
-            return new LinkedHashMap<>();
+    public <V> long insertIntoList(String listName, long index, V value) {
+        if (listName == null || value == null) {
+            return -1;
         }
 
-        try {
-            NavigableMap<Long, String> subMap = indexIdMap;
-            
-            if (isFromEnd) {
-                // Handle start boundary
-                if (fromIndex != null) {
-                    if (fromIndex == 0) return new LinkedHashMap<>();
-                    subMap = subMap.headMap(fromIndex, false);
-                } else if (fromId != null) {
-                    Long endIndexFromId = idIndexMap.get(fromId);
-                    if (endIndexFromId != null) {
-                        subMap = subMap.headMap(endIndexFromId, isFromInclude);
-                    }
-                }
-                
-                // Handle end boundary
-                if (toIndex != null) {
-                    subMap = subMap.tailMap(toIndex, isToInclude);
-                } else if (toId != null) {
-                    Long startIndexFromId = idIndexMap.get(toId);
-                    if (startIndexFromId != null) {
-                        subMap = subMap.tailMap(startIndexFromId, isToInclude);
-                    }
-                }
-            } else {
-                if (fromIndex != null) {
-                    subMap = subMap.tailMap(fromIndex, isFromInclude);
-                } else if (fromId != null) {
-                    Long startIndexFromId = idIndexMap.get(fromId);
-                    if (startIndexFromId != null) {
-                        subMap = subMap.tailMap(startIndexFromId, isFromInclude);
-                    }
-                }
-                
-                if (toIndex != null) {
-                    subMap = subMap.headMap(toIndex, isToInclude);
-                } else if (toId != null) {
-                    Long endIndexFromId = idIndexMap.get(toId);
-                    if (endIndexFromId != null) {
-                        subMap = subMap.headMap(endIndexFromId, isToInclude);
-                    }
-                }
-            }
-            
-            // Reverse if needed
-            if (isFromEnd) {
-                subMap = subMap.descendingMap();
-            }
-            
-            // Build result map
-            LinkedHashMap<String, T> result = new LinkedHashMap<>();
-            String lastId = null;
-            Long lastIndex = null;
-            
-            // Collect all entries first to avoid modifying the map while iterating
-            List<Map.Entry<Long, String>> entries = new ArrayList<>(subMap.entrySet());
-            
-            for (Map.Entry<Long, String> entry : entries) {
-                if (size != null && result.size() >= size) {
-                    break;
-                }
-                
-                lastIndex = entry.getKey();
-                lastId = entry.getValue();
-                T item = itemMap.get(lastId);
-                if(item==null)item = Hawk.get(getItemKey(lastId));
-                if (item != null) {
-                    result.put(lastId, item);
-                }
-            }
-            
-            // Update access order for all items after collecting them
-            if (sortType == SortType.ACCESS_ORDER && !result.isEmpty()) {
-                updateAccessOrderBatch(new ArrayList<>(result.keySet()));
-            }
-            
-            // Store the appropriate index for next pagination
-            if (lastIndex != null) {
-                tempIndex.set(lastIndex);
-            }
-            
-            // Store the last processed ID
-            tempId.set(lastId);
-            
-            return result;
-            
-        } catch (Exception e) {
-            System.err.println("ERROR in getMap: " + e.getMessage());
-            return new LinkedHashMap<>();
-        }
-    }
-
-    @Override
-    public List<T> getList(Integer size, String fromId, Long fromIndex,
-                          boolean isFromInclude, String toId, Long toIndex,
-                          boolean isToInclude, boolean isFromEnd) {
-        return new ArrayList<>(getMap(size, fromId, fromIndex, isFromInclude, toId, toIndex, isToInclude, isFromEnd).values());
-    }
-
-    public void putAll(Map<String, T> items) {
-        if (items == null || items.isEmpty()) return;
-        
         writeLock.lock();
         try {
-            if (sortType == SortType.KEY_ORDER) {
-                TreeMap<String, T> sortedItems = new TreeMap<>(String::compareTo);
-                sortedItems.putAll(items);
-                
-                itemMap.putAll(sortedItems);
-                for (String key : sortedItems.keySet()) {
-                    // Store each item individually
-                    Hawk.put(getItemKey(key), sortedItems.get(key));
-                    updateIndex(key);
-                }
-            } else {
-                itemMap.putAll(items);
-                for (String key : items.keySet()) {
-                    // Store each item individually
-                    Hawk.put(getItemKey(key), items.get(key));
-                    updateIndex(key);
-                }
+            List<Object> list = getList(listName);
+            if (list == null) {
+                list = new ArrayList<>();
             }
-            saveIdIndexMap();
-            saveIndexIdMap();
+
+            if (index < 0 || index > list.size()) {
+                return -1;
+            }
+
+            list.add((int) index, value);
+
+            saveListToHawk(listName, list);
+
+            return index;
         } finally {
             writeLock.unlock();
         }
     }
 
     @Override
-    public void addAll(List<T> items, String idField) {
-        if (items == null || items.isEmpty()) return;
-        
+    public <V> int insertAllIntoList(String listName, long index, List<V> values) {
+        if (listName == null || values == null || values.isEmpty()) {
+            return 0;
+        }
+
         writeLock.lock();
         try {
-            for (T item : items) {
-                if (item == null) continue;
-                
-                try {
-                    String id = item.getId();
-                    if (id != null) {
-                        // Store the item
-                        itemMap.put(id, item);
-                        Hawk.put(getItemKey(id), item);
-                        
-                        // Update index to preserve order
-                        updateIndex(id);
-                    }
-                } catch (Exception e) {
-                    throw new IllegalArgumentException("Failed to get ID from field: " + idField, e);
+            List<Object> list = getList(listName);
+            if (list == null) {
+                list = new ArrayList<>();
+            }
+
+            if (index < 0 || index > list.size()) {
+                return 0;
+            }
+
+            int insertIndex = (int) index;
+            int insertedCount = 0;
+
+            for (V value : values) {
+                if (value != null) {
+                    list.add(insertIndex, value);
+                    insertedCount++;
                 }
             }
-            
-            // Save indices once at the end for efficiency
-            saveIdIndexMap();
-            saveIndexIdMap();
+
+            saveListToHawk(listName, list);
+
+            return insertedCount;
         } finally {
             writeLock.unlock();
         }
     }
 
-    @Override
-    public Map<String, T> getAll() {
-        readLock.lock();
-        try {
-            if(sortType.equals(SortType.NO_SORT)){
-                Map<String,Long> IdIndexMap = Hawk.get(getNamespacedKey(ID_INDEX_MAP));
-                Map<String,T> itemMap = new LinkedHashMap<>();
-                for(String key : IdIndexMap.keySet()){
-                    T item = Hawk.get(getItemKey(key));
-                    if(item != null){
-                        itemMap.put(key, item);
-                    }
-                }
-                return itemMap;
-            }
-            Map<String,T> itemMap = new LinkedHashMap<>();
-
-            Map<Long,String> indexIdMap = Hawk.get(getNamespacedKey(INDEX_ID_MAP));
-            if(indexIdMap==null || indexIdMap.isEmpty())return itemMap;
-            long size = indexIdMap.size();
-
-            for(int i = 0; i < size; i++){
-                String id = indexIdMap.get((long)i+1);
-                T item = Hawk.get(getItemKey(id));
-                if(item != null){
-                    itemMap.put(id, item);
-                }
-            }
-            return itemMap;
-        } finally {
-            readLock.unlock();
-        }
-    }
-
-    @Override
-    public List<T> searchString(String part) {
-        readLock.lock();
-        try {
-            List<T> matches = new ArrayList<>();
-            Gson gson = new GsonBuilder().setPrettyPrinting().create();
-
-            Map<Long,String> indexIdMap = Hawk.get(getNamespacedKey(INDEX_ID_MAP));
-            long size = indexIdMap.size();
-
-            for(int i = 0; i < size; i++){
-                String id = indexIdMap.get((long)i);
-                T item = Hawk.get(getItemKey(id));
-                if(item != null){
-                    String json = gson.toJson(item);
-                    if (json.contains(part)) {
-                        matches.add(item);
-                    }
-                }
-            }
-
-            return matches;
-        } finally {
-            readLock.unlock();
-        }
-    }
-
-    @Override
-    public void removeList(List<String> ids) {
+    private <V> void saveListToHawk(String listName, List<V> list) {
         writeLock.lock();
         try {
-            if (sortType == SortType.KEY_ORDER) {
-                List<Long> indicesToRemove = new ArrayList<>();
-                for (String key : ids) {
-                    Long index = idIndexMap.get(key);
-                    if (index != null) {
-                        indicesToRemove.add(index);
-                    }
-                }
-                
-                Collections.sort(indicesToRemove);
-                
-                for (Long indexToRemove : indicesToRemove) {
-                    String key = indexIdMap.get(indexToRemove);
-                    if (key != null) {
-                        itemMap.remove(key);
-                        indexIdMap.remove(indexToRemove);
-                        idIndexMap.remove(key);
-                        putInMap(LOCAL_REMOVED_MAP, key, System.currentTimeMillis());
-                        
-                        shiftHigherIndicesDown1(indexToRemove);
-                    }
-                }
-            } else {
-                for (String key : ids) {
-                    Long index = idIndexMap.get(key);
-                    if (index != null) {
-                        indexIdMap.remove(index);
-                        idIndexMap.remove(key);
-                        shiftHigherIndicesDown1(index);
-                    }
-                    itemMap.remove(key);
-                    putInMap(LOCAL_REMOVED_MAP, key, System.currentTimeMillis());
-                }
-            }
-            Hawk.put(getNamespacedKey(ID_INDEX_MAP), idIndexMap);
-            Hawk.put(getNamespacedKey(INDEX_ID_MAP), indexIdMap);
+            Hawk.put(getNamespacedKey(listName), new ArrayList<>(list));
         } finally {
             writeLock.unlock();
         }
     }
-
 
     @Override
     public <V> List<V> getFromMap(String mapName, List<String> keyList) {
@@ -1709,12 +1591,13 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
             readLock.unlock();
         }
     }
+
     @Override
     public <V> void putAllInMap(String mapName, List<String> keyList, List<V> valueList) {
         if (keyList.size() != valueList.size()) {
             throw new IllegalArgumentException("Key list and value list must be the same size");
         }
-        
+
         writeLock.lock();
         try {
             for (int i = 0; i < keyList.size(); i++) {
@@ -1724,227 +1607,11 @@ public class HawkDB<T extends FcEntity> implements LocalDB<T> {
             writeLock.unlock();
         }
     }
-    public void reIndex() {
-        writeLock.lock();
-        try {
-            if (sortType == SortType.NO_SORT) {
-                return;
-            }
-            
-            indexIdMap.clear();
-        
-            Map<String, T> itemsMap = new LinkedHashMap<>();
 
-            for(String key : idIndexMap.keySet()){
-                T t = get(key);
-                if(t!=null){
-                    itemsMap.put(key, t);
-                }
-            }
-            
-            List<Map.Entry<String, T>> entries = new ArrayList<>(itemsMap.entrySet());
-            
-            switch (sortType) {
-                case KEY_ORDER -> entries.sort(Map.Entry.comparingByKey());
-                case UPDATE_ORDER, ACCESS_ORDER -> {
-                    if(sortField==null)return;
-                    entries.sort((e1, e2) -> {
-                        Long h1 = getFieldValue(e1.getValue(), sortField);
-                        Long h2 = getFieldValue(e2.getValue(), sortField);
-                        return compareValues(h1, h2);
-                    });
-                }
-                case BIRTH_ORDER -> {
-                    entries.sort((e1, e2) -> {
-                        Long h1 = getFieldValue(e1.getValue(), sortField);
-                        Long h2 = getFieldValue(e2.getValue(), sortField);
-                        return compareValues(h1, h2);
-                    });
-                }
-                default -> throw new IllegalArgumentException("Unexpected value: " + sortType);
-            }
-            
-            long index = 1;
-            for (Map.Entry<String, T> entry : entries) {
-                String key = entry.getKey();
-                indexIdMap.put(index, key);
-                idIndexMap.put(key, index);
-                index++;
-            }
-
-            Hawk.put(getNamespacedKey(ID_INDEX_MAP), idIndexMap);
-            Hawk.put(getNamespacedKey(INDEX_ID_MAP), indexIdMap);
-        } finally {
-            writeLock.unlock();
-        }
+    @Nullable
+    public Long getStateLong(String key) {
+        Object obj = getState(key);
+        if (obj == null) return null;
+        return Long.valueOf((String) obj);
     }
-    
-    private Long getFieldValue(T obj, String fieldName) {
-        try {
-            return (Long) obj.getClass().getMethod(fieldName).invoke(obj);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-    
-    private int compareValues(Long h1, Long h2) {
-        if (h1 == null && h2 == null) return 0;
-        if (h1 == null) return -1;
-        if (h2 == null) return 1;
-        return h1.compareTo(h2);
-    }
-
-    @Override
-    public <V> long insertIntoList(String listName, long index, V value) {
-        if (listName == null || value == null) {
-            return -1;
-        }
-        
-        writeLock.lock();
-        try {
-            List<Object> list = getList(listName);
-            if (list == null) {
-                list = new ArrayList<>();
-            }
-            
-            // Validate index bounds - allow inserting at end (index == size)
-            if (index < 0 || index > list.size()) {
-                return -1;
-            }
-            
-            // Insert the element at the specified index
-            list.add((int) index, value);
-            
-            // Save the updated list
-            saveListToHawk(listName, list);
-            
-            return index;
-        } finally {
-            writeLock.unlock();
-        }
-    }
-    
-    @Override
-    public <V> int insertAllIntoList(String listName, long index, List<V> values) {
-        if (listName == null || values == null || values.isEmpty()) {
-            return 0;
-        }
-        
-        writeLock.lock();
-        try {
-            List<Object> list = getList(listName);
-            if (list == null) {
-                list = new ArrayList<>();
-            }
-            
-            // Validate index bounds - allow inserting at end (index == size)
-            if (index < 0 || index > list.size()) {
-                return 0;
-            }
-            
-            // Insert all elements at the same index position
-            // Each insertion pushes previous insertions to the right
-            int insertIndex = (int) index;
-            int insertedCount = 0;
-            
-            for (V value : values) {
-                if (value != null) {
-                    list.add(insertIndex, value);
-                    insertedCount++;
-                }
-            }
-            
-            // Save the updated list
-            saveListToHawk(listName, list);
-            
-            return insertedCount;
-        } finally {
-            writeLock.unlock();
-        }
-    }
-
-    private <V> void saveListToHawk(String listName, List<V> list) {
-        writeLock.lock();
-        try {
-            Hawk.put(getNamespacedKey(listName), new ArrayList<>(list));
-        } finally {
-            writeLock.unlock();
-        }
-    }
-
-    @Override
-    public int insertAll(List<T> items) {
-        if (items == null || items.isEmpty()) {
-            return 0;
-        }
-
-        writeLock.lock();
-        try {
-            int insertedCount = 0;
-            int totalItems = items.size();
-            
-            // Skip index updates if sorting is disabled
-            if (sortType == SortType.NO_SORT) {
-                for (T item : items) {
-                    if (item != null && item.getId() != null) {
-                        String key = item.getId();
-                        itemMap.put(key, item);
-                        Hawk.put(getItemKey(key), item);
-                        idIndexMap.put(key, 0L);
-                        insertedCount++;
-                    }
-                }
-                saveIdIndexMap();
-                return insertedCount;
-            }
-
-            // For sorted databases, we need to shift existing indices and insert new items
-            // Step 1: Shift all existing indices up by the number of items we're inserting
-            NavigableMap<Long, String> tempIndexIdMap = new ConcurrentSkipListMap<>();
-            NavigableMap<String, Long> tempIdIndexMap = new ConcurrentSkipListMap<>();
-            
-            // Copy existing mappings with shifted indices
-            for (Map.Entry<Long, String> entry : indexIdMap.entrySet()) {
-                long newIndex = entry.getKey() + totalItems;
-                tempIndexIdMap.put(newIndex, entry.getValue());
-                tempIdIndexMap.put(entry.getValue(), newIndex);
-            }
-            
-            // Step 2: Insert new items at the beginning in reverse order
-            // This ensures the first item in the list becomes index 1, second becomes index 2, etc.
-            long currentIndex = 1;
-            for (int i = totalItems - 1; i >= 0; i--) {
-                T item = items.get(i);
-                if (item != null && item.getId() != null) {
-                    String key = item.getId();
-                    
-                    // Store the item
-                    itemMap.put(key, item);
-                    Hawk.put(getItemKey(key), item);
-                    
-                    // Add to temporary maps
-                    tempIndexIdMap.put(currentIndex, key);
-                    tempIdIndexMap.put(key, currentIndex);
-                    
-                    currentIndex++;
-                    insertedCount++;
-                }
-            }
-            
-            // Step 3: Replace the original maps with the new ones
-            indexIdMap.clear();
-            idIndexMap.clear();
-            indexIdMap.putAll(tempIndexIdMap);
-            idIndexMap.putAll(tempIdIndexMap);
-            
-            // Step 4: Save to persistent storage
-            saveIdIndexMap();
-            saveIndexIdMap();
-            
-            return insertedCount;
-            
-        } finally {
-            writeLock.unlock();
-        }
-    }
-} 
+}

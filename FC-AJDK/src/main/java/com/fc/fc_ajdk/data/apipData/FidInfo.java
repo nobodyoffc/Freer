@@ -1,7 +1,6 @@
 package com.fc.fc_ajdk.data.apipData;
 
 
-import com.fc.fc_ajdk.core.fch.Inputer;
 import com.fc.fc_ajdk.core.crypto.KeyTools;
 import com.fc.fc_ajdk.core.crypto.old.EccAes256K1P7;
 import com.fc.fc_ajdk.utils.Hex;
@@ -38,22 +37,6 @@ public class FidInfo {
         this.prikeyCipher = EccAes256K1P7.encryptWithSymkey(prikey, symkey);
     }
 
-    public static FidInfo inputPrikey(BufferedReader br, byte[] initSymkey) {
-
-        byte[] prikey32;
-
-        while (true) {
-            prikey32 = Inputer.importOrCreatePrikey(br);
-            if (prikey32 == null) return null;
-
-            FidInfo fidInfo = new FidInfo(prikey32, initSymkey);
-            if (fidInfo.getFid() == null) {
-                System.out.println("Wrong input. Try again.");
-                continue;
-            }
-            return fidInfo;
-        }
-    }
 
     public Map<String, String> getAddresses() {
         return addresses;

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Reusable FID Card Layout -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/fidCard"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -14,7 +15,6 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical"
         android:layout_marginBottom="14dp">
 
         <!-- Avatar (bigger) -->
@@ -24,72 +24,194 @@
             android:layout_height="72dp"
             android:layout_marginEnd="16dp"
             android:src="@drawable/ic_person"
+            android:gravity="center_vertical"
             android:contentDescription="@string/person_avatar" />
-
-        <!-- Name and Label Container -->
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:orientation="vertical"
-            android:gravity="center_vertical">
+            >
 
-            <!-- Name (CID or FID) -->
-            <TextView
-                android:id="@+id/fidName"
+            <!-- Name and Label Container -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <!-- Name and label -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/fidName"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Loading..."
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:maxLines="2"
+                        android:ellipsize="middle"
+                        android:textColor="@color/accent"
+
+                         />
+                    <!-- Label (clickable for editing) -->
+                    <TextView
+                        android:id="@+id/fidLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/hint"
+                        android:background="?attr/selectableItemBackground"
+                        android:padding="4dp"
+                        android:gravity="center_vertical"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:visibility="gone"
+                        android:minWidth="20dp"
+                        android:minHeight="20dp"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+
+                    <!-- Label icon (shown when no label) -->
+                    <ImageView
+                        android:id="@+id/fidEditIcon"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_marginTop="2dp"
+                        android:src="@drawable/ic_label"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="2dp"
+                        android:gravity="center_vertical"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:contentDescription="@string/enter_label"
+                        android:visibility="gone" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:gravity="top"
+                    >
+                    <ImageView
+                        android:id="@+id/fidRefreshIcon"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_marginStart="12dp"
+                        android:layout_marginBottom="8dp"
+                        android:src="@drawable/ic_refresh"
+                        app:tint="@color/hint"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:contentDescription="@string/refresh" />
+                    <ImageView
+                        android:id="@+id/fidQrIcon"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_marginStart="12dp"
+                        android:layout_marginBottom="8dp"
+                        android:src="@drawable/ic_make_qr"
+                        app:tint="@color/hint"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:contentDescription="@string/show_qr_code" />
+                    <!-- Multisig Icon (shown when fid != mainFid) -->
+                    <ImageView
+                        android:id="@+id/multisigIcon"
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
+                        android:layout_marginStart="8dp"
+                        android:layout_marginBottom="8dp"
+                        android:src="@drawable/ic_no_prikey"
+                        android:visibility="gone"
+                        android:scaleType="centerInside" />
+
+                    <!-- Dead Icon (shown when isNobody is true) -->
+                    <ImageView
+                        android:id="@+id/fidDeadIcon"
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
+                        android:layout_marginStart="8dp"
+                        android:layout_marginBottom="8dp"
+                        android:src="@drawable/ic_dead"
+                        android:visibility="gone"
+                        android:scaleType="centerInside"
+                        android:contentDescription="@string/nobody" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- CID Metrics Layout (weight, reputation, hot) -->
+            <LinearLayout
+                android:id="@+id/cid_metrics_layout"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Loading..."
-                android:textSize="20sp"
-                android:textStyle="bold"
-                android:textColor="@color/colorAccent"
-                android:maxLines="2"
-                android:ellipsize="end" />
-
-            <!-- Label (clickable for editing) -->
-            <TextView
-                android:id="@+id/fidLabel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:textColor="@color/hint"
-                android:background="?attr/selectableItemBackground"
-                android:padding="4dp"
-                android:clickable="true"
-                android:focusable="true"
+                android:orientation="horizontal"
+                android:layout_gravity="end"
+                android:layout_marginTop="4dp"
                 android:visibility="gone"
-                android:minWidth="20dp"
-                android:minHeight="20dp"
-                android:maxLines="1"
-                android:ellipsize="end" />
+                >
 
-            <!-- Label icon (shown when no label) -->
-            <ImageView
-                android:id="@+id/fidEditIcon"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:layout_marginTop="2dp"
-                android:src="@drawable/ic_label"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:padding="2dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:contentDescription="@string/enter_label"
-                android:visibility="gone" />
+                <ImageView
+                    android:id="@+id/icon_weight"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_weight"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginEnd="2dp"/>
 
+                <TextView
+                    android:id="@+id/text_weight"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="12sp"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginEnd="8dp"/>
+
+                <ImageView
+                    android:id="@+id/icon_reputation"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_good"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginEnd="2dp"/>
+
+                <TextView
+                    android:id="@+id/text_reputation"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="12sp"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginEnd="8dp"/>
+
+                <ImageView
+                    android:id="@+id/icon_hot"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_hot"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginEnd="2dp"/>
+
+                <TextView
+                    android:id="@+id/text_hot"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="12sp"
+                    android:layout_gravity="center_vertical"/>
+
+            </LinearLayout>
         </LinearLayout>
-
-        <!-- No Private Key Icon (shown when fid != mainFid) -->
-        <ImageView
-            android:id="@+id/fidNoPrikeyIcon"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:layout_marginTop="-22dp"
-            android:src="@drawable/ic_no_prikey"
-            android:visibility="gone"
-            android:scaleType="centerInside" />
 
     </LinearLayout>
 
@@ -106,8 +228,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1.8"
             android:orientation="horizontal"
-            android:gravity="center_vertical|end">
-            
+            android:gravity="center_vertical|start">
+
             <TextView
                 android:id="@+id/fidCash"
                 android:layout_width="wrap_content"
@@ -116,16 +238,16 @@
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="@color/field_name"
-                android:layout_marginEnd="4dp"
+                android:layout_marginEnd="6dp"
                 android:minWidth="20dp"
                 android:minHeight="20dp" />
 
-            <TextView
+            <ImageView
+                android:id="@+id/fidCashIcon"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="cash"
-                android:textSize="16sp"
-                android:textColor="@color/hint" />
+                android:layout_height="24dp"
+                android:layout_gravity="center_vertical"
+                android:src="@drawable/ic_cash" />
         </LinearLayout>
 
         <!-- Balance Value with F suffix -->
@@ -134,7 +256,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="2.8"
             android:orientation="horizontal"
-            android:gravity="center_vertical|end">
+            android:gravity="center_vertical|center_horizontal">
 
             <TextView
                 android:id="@+id/fidBalance"
@@ -144,16 +266,16 @@
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="@color/field_name"
-                android:layout_marginEnd="2dp"
                 android:minWidth="20dp"
                 android:minHeight="20dp" />
+            <ImageView
+                android:id="@+id/fidBalanceIcon"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:src="@drawable/ic_f"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="2dp"/>
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="F"
-                android:textSize="16sp"
-                android:textColor="@color/hint" />
         </LinearLayout>
 
         <!-- CD Value with CD suffix -->
@@ -163,7 +285,7 @@
             android:layout_weight="2"
             android:orientation="horizontal"
             android:gravity="center_vertical|end">
-            
+
             <TextView
                 android:id="@+id/fidCd"
                 android:layout_width="wrap_content"
@@ -172,16 +294,16 @@
                 android:textStyle="bold"
                 android:textSize="16sp"
                 android:textColor="@color/field_name"
-                android:layout_marginEnd="2dp"
                 android:minWidth="20dp"
                 android:minHeight="20dp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="cd"
-                android:textSize="16sp"
-                android:textColor="@color/hint" />
+            <ImageView
+                android:id="@+id/fidCdIcon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginStart="6dp"
+                android:src="@drawable/ic_power"
+                android:layout_gravity="center_vertical"
+                />
         </LinearLayout>
 
     </LinearLayout>

@@ -1,32 +1,37 @@
 package com.fc.freer.initiate;
 
+import static com.fc.freer.initiate.CreatePasswordActivity.FROM_NEW_PASSWORD;
+
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.os.Bundle;
-import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.Button;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
+
+import com.fc.freer.ui.WaitingDialog;
+import com.fc.freer.utils.ChooseMode;
+import com.fc.freer.utils.KeyCardContainer;
+import com.fc.freer.utils.ToastUtils;
+
+import androidx.activity.OnBackPressedCallback;
+import androidx.appcompat.app.AppCompatActivity;
 
 import com.fc.freer.model.Configure;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
-import com.fc.freer.home.BaseCryptoActivity;
 import com.fc.freer.manager.AvatarManager;
-import com.fc.freer.utils.KeyCardManager;
+import com.fc.freer.utils.ToolbarUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class ChooseCidActivity extends BaseCryptoActivity {
+public class ChooseCidActivity extends AppCompatActivity {
     private static final String TAG = "ChooseCidActivity";
-    
+    public static final String SELECTED_KEY_INFO_JSON = "selected_key_info_json";
+
     private LinearLayout cidListContainer;
     private Button cancelButton;
     private Button createButton;
@@ -34,51 +39,53 @@ public class ChooseCidActivity extends BaseCryptoActivity {
     private Configure configure;
     private KeyInfo selectedKeyInfo;
     private List<KeyInfo> keyInfoList;
-    private KeyCardManager keyCardManager;
+    private KeyCardContainer keyCardContainer;
     private View selectedCardView;
+    private WaitingDialog waitingDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
+        setContentView(R.layout.activity_choose_cid);
+
+        // Set up toolbar
+        ToolbarUtils.setupToolbar(this, getString(R.string.choose_cid));
+
+        // Set up back button handling
+        setupBackButton();
+
         // Get configure from ConfigureManager
         configure = ConfigureManager.getInstance().getConfigure();
         if (configure == null) {
-            Toast.makeText(this, "Configuration not found", Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.error_configuration_not_found));
             finish();
             return;
         }
-        
+
+        // Initialize views
+        initializeViews();
+
         // Initialize PopupMenuHelper
         popupMenuHelper = new ChooseCidPopupMenuHelper(this);
-        
-        // Initialize KeyCardManager with clickToReturn mode
-        keyCardManager = new KeyCardManager(this, cidListContainer, null, true, null);
-        keyCardManager.setOnKeyClickedListener(this::onKeySelected);
-        
+
+        // Initialize KeyCardContainer with CHOOSE_ONE_RETURN mode
+        keyCardContainer = new KeyCardContainer(this, cidListContainer, ChooseMode.CHOOSE_ONE_RETURN);
+        keyCardContainer.setOnKeyClickedListener(this::onKeySelected);
+
+        // Setup buttons
+        setupButtons();
+
         // Load keyInfo list from configure
         loadKeyInfoList();
     }
 
-    @Override
-    protected int getLayoutId() {
-        return R.layout.activity_choose_cid;
-    }
-
-    @Override
-    protected String getActivityTitle() {
-        return getString(R.string.choose_cid);
-    }
-
-    @Override
-    protected void initializeViews() {
+    private void initializeViews() {
         cidListContainer = findViewById(R.id.cid_list_container);
         cancelButton = findViewById(R.id.cancel_button);
         createButton = findViewById(R.id.create_button);
     }
 
-    @Override
-    protected void setupButtons() {
+    private void setupButtons() {
         cancelButton.setOnClickListener(v -> {
             setResult(RESULT_CANCELED);
             finish();
@@ -90,9 +97,14 @@ public class ChooseCidActivity extends BaseCryptoActivity {
         });
     }
 
-    @Override
-    protected void handleQrScanResult(int requestCode, String qrContent) {
-        // This activity doesn't use QR scanning
+    private void setupBackButton() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                setResult(RESULT_CANCELED);
+                finish();
+            }
+        });
     }
 
     private void loadKeyInfoList() {
@@ -130,7 +142,7 @@ public class ChooseCidActivity extends BaseCryptoActivity {
     }
 
     private void displayKeyInfoList() {
-        keyCardManager.clearAll();
+        keyCardContainer.clearAll();
         selectedCardView = null;
         
         if (keyInfoList.isEmpty()) {
@@ -145,21 +157,50 @@ public class ChooseCidActivity extends BaseCryptoActivity {
         }
         
         for (KeyInfo keyInfo : keyInfoList) {
-            keyCardManager.addKeyCard(keyInfo);
+            keyCardContainer.addKeyCard(keyInfo);
         }
     }
 
     private void onKeySelected(KeyInfo keyInfo) {
         selectedKeyInfo = keyInfo;
-        
+
         // Update card selection highlighting
         updateCardSelection(keyInfo);
-        
-        // Return the selected keyInfo as JSON string
-        Intent resultIntent = new Intent();
-        resultIntent.putExtra("selected_key_info_json", selectedKeyInfo.toJson());
-        setResult(RESULT_OK, resultIntent);
-        finish();
+
+        // Show waiting dialog
+        if (waitingDialog == null) {
+            waitingDialog = new WaitingDialog(this, getString(R.string.loading));
+        }
+        waitingDialog.show();
+
+        // Check if this is from new password creation during timeout
+        boolean fromNewPassword = getIntent().getBooleanExtra(FROM_NEW_PASSWORD, false);
+
+        if (fromNewPassword) {
+            // Create or load Setting for the selected CID
+            SettingManager settingManager = SettingManager.getInstance();
+            com.fc.freer.model.Setting setting = settingManager.getOrCreateSetting(this, selectedKeyInfo);
+
+            if (setting != null) {
+                settingManager.setCurrentSetting(setting);
+                TimberLogger.d(TAG, "Setting created and set for CID: %s", selectedKeyInfo.getId());
+
+                // Launch HomeActivity with flags to clear the entire stack
+                Intent homeIntent = new Intent(this, com.fc.freer.home.HomeActivity.class);
+                homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(homeIntent);
+                finish();
+            } else {
+                TimberLogger.e(TAG, "Failed to create setting for selected CID");
+                ToastUtils.makeText(this, getString(R.string.error_creating_setting));
+            }
+        } else {
+            // Normal flow: return the selected keyInfo as JSON string
+            Intent resultIntent = new Intent();
+            resultIntent.putExtra(SELECTED_KEY_INFO_JSON, selectedKeyInfo.toJson());
+            setResult(RESULT_OK, resultIntent);
+            finish();
+        }
     }
 
     // Method to get the selected keyInfo
@@ -180,32 +221,32 @@ public class ChooseCidActivity extends BaseCryptoActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        
+
         if (requestCode == REQUEST_CODE_CREATE_KEY && resultCode == RESULT_OK) {
-            // Handle the created keyInfo
+            // Reload the configure to ensure we have the latest data
+            configure = ConfigureManager.getInstance().getConfigure();
+
+            // Handle the created/imported keyInfo
             if (data != null && data.hasExtra("key_info")) {
                 String keyInfoJson = data.getStringExtra("key_info");
                 if (keyInfoJson != null) {
                     try {
                         KeyInfo newKeyInfo = KeyInfo.fromJson(keyInfoJson,KeyInfo.class);
                         if (newKeyInfo != null) {
-                            // The key has already been saved to configure by the creation activity
+                            // The key has already been saved to configure by the creation/import activity
                             // Just refresh the list and select the new key
-                            loadKeyInfoList();
+//                            loadKeyInfoList();
                             selectNewlyCreatedKey(newKeyInfo);
-                            
-                            Toast.makeText(this, "Key created successfully", Toast.LENGTH_SHORT).show();
                         }
                     } catch (Exception e) {
                         TimberLogger.e(TAG, "Error parsing keyInfo from JSON: " + e.getMessage());
-                        Toast.makeText(this, "Error parsing created key", Toast.LENGTH_SHORT).show();
+                        ToastUtils.makeText(this, getString(R.string.error_parsing_key));
                     }
                 }
             } else {
-                // If no key_info in data, the key was already saved to configure
-                // Just refresh the list to show the new key
+                // If no key_info in data, the key(s) were already saved to configure
+                // Just refresh the list to show the new key(s)
                 loadKeyInfoList();
-                Toast.makeText(this, "Key created successfully", Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -215,7 +256,7 @@ public class ChooseCidActivity extends BaseCryptoActivity {
         if (selectedCardView != null) {
             selectedCardView.setBackgroundResource(R.drawable.key_card_background);
         }
-        
+
         // Find and highlight the selected card
         for (int i = 0; i < cidListContainer.getChildCount(); i++) {
             View cardView = cidListContainer.getChildAt(i);
@@ -225,6 +266,17 @@ public class ChooseCidActivity extends BaseCryptoActivity {
                 selectedCardView = cardView;
                 break;
             }
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        // Dismiss waiting dialog to prevent window leak
+        if (waitingDialog != null && waitingDialog.isShowing()) {
+            waitingDialog.dismiss();
+            waitingDialog = null;
         }
     }
 } 

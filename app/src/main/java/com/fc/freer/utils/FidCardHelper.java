@@ -60,7 +60,7 @@ public class FidCardHelper {
         TextView cashTextView = cardView.findViewById(R.id.fidCash);
         TextView balanceTextView = cardView.findViewById(R.id.fidBalance);
         TextView cdTextView = cardView.findViewById(R.id.fidCd);
-        ImageView noPrikeyIconView = cardView.findViewById(R.id.fidNoPrikeyIcon);
+        ImageView noPrikeyIconView = cardView.findViewById(R.id.multisigIcon);
 
         // Set avatar
         if (avatar != null) {
@@ -137,7 +137,7 @@ public class FidCardHelper {
             String prikeyCipher = keyInfo.getPrikeyCipher();
             if (prikeyCipher == null || prikeyCipher.trim().isEmpty()) {
                 String fidId = keyInfo.getId();
-                // Check if fidId is a multisign FID (starts with '3')
+                // Check if fidId is a multisig FID (starts with '3')
                 if (fidId != null && fidId.startsWith("3")) {
                     noPrikeyIconView.setImageResource(R.drawable.ic_people);
                 } else {
@@ -172,15 +172,15 @@ public class FidCardHelper {
     }
 
     /**
-     * Creates a FID card for a multisign ID (when you only have the ID, not full KeyInfo)
+     * Creates a FID card for a multisig ID (when you only have the ID, not full KeyInfo)
      * @param context The context to use for inflating the layout
-     * @param multisignId The multisign ID to display
+     * @param multisignId The multisig ID to display
      * @param parent The parent view to add the card to (can be null if you want to handle adding manually)
      * @param enableClickListeners Whether to enable click listeners for copying and avatar display
      * @param clickListener Optional click listener for handling custom clicks (can be null)
      * @return The configured card view
      */
-    public static View createMultisignFidCard(Context context, String multisignId, ViewGroup parent, boolean enableClickListeners, MultisignCardClickListener clickListener) {
+    public static View createMultisignFidCard(Context context, String multisignId, ViewGroup parent, boolean enableClickListeners, MultisigCardClickListener clickListener) {
         if (multisignId == null || multisignId.isEmpty()) {
             return null;
         }
@@ -196,14 +196,14 @@ public class FidCardHelper {
     }
 
     /**
-     * Sets up an existing FID card view with multisign ID data
+     * Sets up an existing FID card view with multisig ID data
      * @param context The context to use
      * @param cardView The card view to configure (should use layout_fid_card)
-     * @param multisignId The multisign ID to display
+     * @param multisignId The multisig ID to display
      * @param enableClickListeners Whether to enable click listeners for copying and avatar display
      * @param clickListener Optional click listener for handling custom clicks (can be null)
      */
-    public static void setupMultisignFidCardView(Context context, View cardView, String multisignId, boolean enableClickListeners, MultisignCardClickListener clickListener) {
+    public static void setupMultisignFidCardView(Context context, View cardView, String multisignId, boolean enableClickListeners, MultisigCardClickListener clickListener) {
         if (cardView == null || multisignId == null) return;
 
         ImageView avatar = cardView.findViewById(R.id.fidAvatar);
@@ -213,7 +213,7 @@ public class FidCardHelper {
         TextView cashTextView = cardView.findViewById(R.id.fidCash);
         TextView balanceTextView = cardView.findViewById(R.id.fidBalance);
         TextView cdTextView = cardView.findViewById(R.id.fidCd);
-        ImageView noPrikeyIconView = cardView.findViewById(R.id.fidNoPrikeyIcon);
+        ImageView noPrikeyIconView = cardView.findViewById(R.id.multisigIcon);
 
         // Set avatar
         if (avatar != null) {
@@ -230,12 +230,12 @@ public class FidCardHelper {
             }
         }
 
-        // Set name (display the multisign ID)
+        // Set name (display the multisig ID)
         if (nameTextView != null) {
             nameTextView.setText(multisignId);
         }
 
-        // Hide label and edit icon for multisign senders
+        // Hide label and edit icon for multisig senders
         if (labelTextView != null) {
             labelTextView.setVisibility(View.GONE);
         }
@@ -243,7 +243,7 @@ public class FidCardHelper {
             editIconView.setVisibility(View.GONE);
         }
 
-        // Hide cash, balance, cd for multisign (they don't have individual values)
+        // Hide cash, balance, cd for multisig (they don't have individual values)
         if (cashTextView != null) {
             cashTextView.setText("-");
         }
@@ -254,7 +254,7 @@ public class FidCardHelper {
             cdTextView.setText("-");
         }
 
-        // Show people icon for multisign FID (starts with '3')
+        // Show people icon for multisig FID (starts with '3')
         if (noPrikeyIconView != null) {
             if (multisignId.startsWith("3")) {
                 noPrikeyIconView.setImageResource(R.drawable.ic_people);
@@ -316,9 +316,9 @@ public class FidCardHelper {
     }
 
     /**
-     * Interface for handling multisign card click events
+     * Interface for handling multisig card click events
      */
-    public interface MultisignCardClickListener {
+    public interface MultisigCardClickListener {
         default void onAvatarClick(String multisignId) {}
         default void onNameClick(String multisignId) {}
     }

@@ -8,6 +8,7 @@ import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -15,7 +16,7 @@ import androidx.annotation.NonNull;
 
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
-import com.fc.freer.home.BaseCryptoActivity;
+import com.fc.freer.BaseCryptoActivity;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -39,9 +40,8 @@ public class InputObjectActivity extends BaseCryptoActivity {
     private Map<String, TextInputEditText> inputFields;
     private Map<String, AutoCompleteTextView> enumFields;
     private LinearLayout inputFieldsContainer;
-    private Button clearButton;
-    private Button cancelButton;
-    private Button confirmButton;
+    private ImageButton clearButton;
+    private ImageButton confirmButton;
     
     private final Gson gson = new Gson();
 
@@ -111,12 +111,6 @@ public class InputObjectActivity extends BaseCryptoActivity {
     protected void setupButtons() {
         clearButton = findViewById(R.id.clearButton);
         setupButton(clearButton, v -> clearAllInputs());
-
-        cancelButton = findViewById(R.id.cancelButton);
-        setupButton(cancelButton, v -> {
-            setResult(RESULT_CANCELED);
-            finish();
-        });
 
         confirmButton = findViewById(R.id.confirmButton);
         setupButton(confirmButton, v -> validateAndConfirm());

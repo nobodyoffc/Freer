@@ -12,6 +12,8 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="5"
+        android:background="@drawable/container_outline"
+        android:layout_margin="16dp"
         android:fillViewport="true">
 
         <LinearLayout
@@ -75,41 +77,35 @@
 
     <LinearLayout
         android:id="@+id/buttonContainer"
-        style="?android:attr/buttonBarStyle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center"
+        android:gravity="end"
         android:padding="8dp">
 
-        <Button
+        <ImageButton
             android:id="@+id/saveButton"
-            style="?android:attr/buttonBarButtonStyle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="4dp"
-            android:text="@string/save" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_save"
+            android:contentDescription="@string/save" />
 
-        <Button
+        <ImageButton
             android:id="@+id/stopButton"
-            style="?android:attr/buttonBarButtonStyle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
-            android:text="@string/stop" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_stop"
+            android:contentDescription="@string/stop" />
 
-        <Button
+        <ImageButton
             android:id="@+id/startButton"
-            style="?android:attr/buttonBarButtonStyle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="4dp"
-            android:text="@string/start" />
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_play"
+            android:contentDescription="@string/start" />
 
+        <ImageButton
+            android:id="@+id/back_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_back"
+            android:contentDescription="@string/back" />
     </LinearLayout>
 
 </LinearLayout> 

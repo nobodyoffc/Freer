@@ -1,39 +1,41 @@
 package com.fc.freer.home;
 
+import static com.fc.fc_ajdk.constants.FieldNames.FREER;
 import static com.fc.fc_ajdk.constants.FieldNames.ID;
 import static com.fc.fc_ajdk.constants.FieldNames.USED_CIDS;
 
 import android.content.Intent;
 import android.text.TextUtils;
 import android.view.View;
-import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
+
+import com.fc.fc_ajdk.data.fchData.Freer;
+import com.fc.freer.BaseCryptoActivity;
+import com.fc.freer.utils.ChooseMode;
+import com.fc.freer.utils.KeyCardContainer;
+import com.fc.freer.utils.ToastUtils;
 
 
 import com.fc.fc_ajdk.core.crypto.KeyTools;
 import com.fc.fc_ajdk.data.apipData.Fcdsl;
-import com.fc.fc_ajdk.data.fchData.Cid;
 import com.fc.fc_ajdk.utils.StringUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
-import com.fc.fc_ajdk.utils.http.AuthType;
-import com.fc.fc_ajdk.utils.http.RequestMethod;
 import com.fc.freer.R;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.Setting;
-import com.fc.freer.network.ApipClient;
+import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.ui.DetailActivity;
 import com.fc.freer.ui.UserConfirmDialog;
 import com.fc.freer.utils.ApiCenter;
-import com.fc.freer.utils.KeyCardManager;
 import com.fc.freer.ui.WaitingDialog;
 import com.fc.freer.feip.FeipHandler;
-import com.fc.freer.tx.TxHandler;
+import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.core.fch.RawTxInfo;
 import com.fc.freer.utils.SecurePrikeyManager;
@@ -47,22 +49,21 @@ public class SetMasterActivity extends BaseCryptoActivity {
     private LinearLayout mainFidLayout;
     private TextView searchResultsHint;
     private EditText masterSearchEditText;
-    private Button searchButton;
+    private ImageButton searchButton;
     private LinearLayout searchResultsLayout;
-    private Button clearButton;
-    private Button cancelButton;
-    private Button confirmButton;
+    private ImageButton clearButton;
+    private ImageButton confirmButton;
     
     private String selectedMasterFid = null;
-    private Cid selectedMasterCid = null;
+    private Freer selectedMasterFreer = null;
     private View selectedCardView = null;
     private String originalMasterInput = null; // Store original input (FID or pubkey)
-    private ApipClient apipClient;
+    private FapiClient fapiClient;
     private FeipHandler feipHandler;
     private TxHandler txHandler;
     private CashManager cashManager;
-    private KeyCardManager keyCardManager;
-    private KeyCardManager mainFidKeyCardManager;
+    private KeyCardContainer keyCardContainer;
+    private KeyCardContainer mainFidKeyCardContainer;
     private WaitingDialog waitingDialog;
 
     @Override
@@ -98,20 +99,19 @@ public class SetMasterActivity extends BaseCryptoActivity {
         searchButton = findViewById(R.id.searchButton);
         searchResultsLayout = findViewById(R.id.searchResultsLayout);
         clearButton = findViewById(R.id.clearButton);
-        cancelButton = findViewById(R.id.cancelButton);
         confirmButton = findViewById(R.id.setMasterButton);
         
         confirmButton.setEnabled(false);
         confirmButton.setAlpha(0.5f);
         
-        // Initialize main FID KeyCardManager (no interactions needed)
-        mainFidKeyCardManager = new KeyCardManager(this, mainFidLayout);
+        // Initialize main FID KeyCardContainer (no interactions needed)
+        mainFidKeyCardContainer = new KeyCardContainer(this, mainFidLayout);
         
-        // Initialize search KeyCardManager with single choice and clickToReturn enabled
+        // Initialize search KeyCardContainer with single choice and clickToReturn enabled
 
-        keyCardManager = new KeyCardManager(this, searchResultsLayout, true, true, null);
-        keyCardManager.setOnKeyClickedListener(this::onMasterSelected);
-        keyCardManager.setOnMenuItemClickListener(this::onMenuItemClicked);
+        keyCardContainer = new KeyCardContainer(this, searchResultsLayout, ChooseMode.CHOOSE_ONE_RETURN);
+        keyCardContainer.setOnKeyClickedListener(this::onMasterSelected);
+        keyCardContainer.setOnMenuItemClickListener(this::onMenuItemClicked);
     }
     
     private void setupData() {
@@ -122,27 +122,27 @@ public class SetMasterActivity extends BaseCryptoActivity {
                 String mainFid = fidManager.getMainFid();
                 if (mainFid != null) {
                     // Clear existing cards and add main FID card
-                    mainFidKeyCardManager.clearAll();
+                    mainFidKeyCardContainer.clearAll();
                     
                     // Create KeyInfo for main FID
                     KeyInfo mainFidKeyInfo = new KeyInfo();
                     mainFidKeyInfo.setId(mainFid);
                     mainFidKeyInfo.setLabel("Main FID");
                     
-                    mainFidKeyCardManager.addKeyCard(mainFidKeyInfo);
+                    mainFidKeyCardContainer.addKeyCard(mainFidKeyInfo);
                 } else {
                     // Show placeholder if main FID not available
-                    mainFidKeyCardManager.clearAll();
+                    mainFidKeyCardContainer.clearAll();
                     KeyInfo placeholderKeyInfo = new KeyInfo();
                     placeholderKeyInfo.setId(getString(R.string.main_fid_not_available));
-                    mainFidKeyCardManager.addKeyCard(placeholderKeyInfo);
+                    mainFidKeyCardContainer.addKeyCard(placeholderKeyInfo);
                 }
             }
             
-            // Get APIP client
+            // Get FAPI client
             ApiCenter apiCenter = ApiCenter.getInstance();
             if (apiCenter != null) {
-                apipClient = (ApipClient) apiCenter.getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.APIP);
+                fapiClient = (FapiClient) apiCenter.getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.FAPI_No1_NrC7);
             }
             
             // Initialize FeipHandler, TxHandler, and CashManager
@@ -158,7 +158,6 @@ public class SetMasterActivity extends BaseCryptoActivity {
     private void setupListeners() {
         searchButton.setOnClickListener(v -> performSearch());
         clearButton.setOnClickListener(v -> clearAll());
-        cancelButton.setOnClickListener(v -> finish());
         confirmButton.setOnClickListener(v -> confirmSetMaster());
         confirmButton.setEnabled(false);
         confirmButton.setAlpha(0.5f);
@@ -175,7 +174,7 @@ public class SetMasterActivity extends BaseCryptoActivity {
 
         String searchString = masterSearchEditText.getText().toString().trim();
         if (TextUtils.isEmpty(searchString)) {
-            Toast.makeText(this, getString(R.string.please_enter_search_term), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.please_enter_search_term));
             return;
         }
         
@@ -200,9 +199,9 @@ public class SetMasterActivity extends BaseCryptoActivity {
             displayKeyInfoResults(keyInfoList);
             
             // Use post to ensure UI is updated before auto-selecting
-            selectedMasterCid = new Cid();
-            selectedMasterCid.setId(KeyTools.pubkeyToFchAddr(searchString));
-            selectedMasterCid.setPubkey(searchString);
+            selectedMasterFreer = new Freer();
+            selectedMasterFreer.setId(KeyTools.pubkeyToFchAddr(searchString));
+            selectedMasterFreer.setPubkey(searchString);
             selectedMasterFid = KeyTools.pubkeyToFchAddr(searchString);
 
 
@@ -211,7 +210,7 @@ public class SetMasterActivity extends BaseCryptoActivity {
                 selectedCardView = cardView;
 
             // Show selected FID in the search EditText with middle truncation
-            String displayText = StringUtils.omitMiddle(selectedMasterFid, 20);
+            String displayText = selectedMasterFid;
 
             masterSearchEditText.setText(displayText);
 
@@ -222,8 +221,8 @@ public class SetMasterActivity extends BaseCryptoActivity {
             return;
         }
         
-        if (apipClient == null) {
-            Toast.makeText(this, getString(R.string.apip_client_not_available), Toast.LENGTH_SHORT).show();
+        if (fapiClient == null) {
+            ToastUtils.makeText(this, getString(R.string.apip_client_not_available));
             return;
         }
         
@@ -255,17 +254,17 @@ public class SetMasterActivity extends BaseCryptoActivity {
         new Thread(() -> {
             try {
 
-                Cid cidInfo = apipClient.cidInfoById(fid, RequestMethod.POST, AuthType.FREE, this);
+                Freer freerInfo = fapiClient.getFreer(fid);
                 
                 runOnUiThread(() -> {
                     dismissWaitingDialog();
 
-                    if (cidInfo != null) {
-                        List<Cid> results = new ArrayList<>();
-                        results.add(cidInfo);
+                    if (freerInfo != null) {
+                        List<Freer> results = new ArrayList<>();
+                        results.add(freerInfo);
                         displaySearchResults(results);
                     } else {
-                        Toast.makeText(this, getString(R.string.fid_not_found), Toast.LENGTH_SHORT).show();
+                        ToastUtils.makeText(this, getString(R.string.fid_not_found));
                         clearSearchResults();
                     }
                 });
@@ -274,7 +273,7 @@ public class SetMasterActivity extends BaseCryptoActivity {
                 runOnUiThread(() -> {
                     dismissWaitingDialog();
 
-                    Toast.makeText(this, getString(R.string.search_failed), Toast.LENGTH_SHORT).show();
+                    ToastUtils.makeText(this, getString(R.string.search_failed));
                     clearSearchResults();
                 });
             }
@@ -290,7 +289,7 @@ public class SetMasterActivity extends BaseCryptoActivity {
                 fcdsl.addNewQuery().addNewPart().addNewFields(ID, USED_CIDS).addNewValue(searchString);
                 fcdsl.setSize("20");
 
-                List<Cid> results = apipClient.cidSearch(fcdsl, RequestMethod.POST, AuthType.FREE, this);
+                List<Freer> results = fapiClient.entitySearch(FREER,fcdsl,Freer.class);
                 
                 runOnUiThread(() -> {
                     dismissWaitingDialog();
@@ -299,7 +298,7 @@ public class SetMasterActivity extends BaseCryptoActivity {
                         displaySearchResults(results);
                     } else {
                         TimberLogger.d(TAG, "No CID results found, showing toast");
-                        Toast.makeText(this, getString(R.string.no_matching_cids_found), Toast.LENGTH_SHORT).show();
+                        ToastUtils.makeText(this, getString(R.string.no_matching_cids_found));
                         clearSearchResults();
                     }
                 });
@@ -308,45 +307,45 @@ public class SetMasterActivity extends BaseCryptoActivity {
                 TimberLogger.e(TAG, "Error searching partial CID: %s", e.getMessage());
                 runOnUiThread(() -> {
                     dismissWaitingDialog();
-                    Toast.makeText(this, getString(R.string.search_failed), Toast.LENGTH_SHORT).show();
+                    ToastUtils.makeText(this, getString(R.string.search_failed));
                     clearSearchResults();
                 });
             }
         }).start();
     }
     
-    private void displaySearchResults(List<Cid> results) {
+    private void displaySearchResults(List<Freer> results) {
         // Clear existing results and selection
-        keyCardManager.clearAll();
+        keyCardContainer.clearAll();
         selectedCardView = null;
         
         // Show search results hint
         searchResultsHint.setVisibility(View.VISIBLE);
         
-        // Convert Cid objects to KeyInfo objects and add them to KeyCardManager
-        for (Cid cid : results) {
-            KeyInfo keyInfo = KeyInfo.fromCid(cid);
+        // Convert Freer objects to KeyInfo objects and add them to KeyCardContainer
+        for (Freer freer : results) {
+            KeyInfo keyInfo = KeyInfo.fromCid(freer);
             if (keyInfo != null) {
                 // Don't set label - let CID value show in the CID field instead
-                keyCardManager.addKeyCard(keyInfo);
+                keyCardContainer.addKeyCard(keyInfo);
             }
         }
     }
     
     private void displayKeyInfoResults(List<KeyInfo> keyInfoList) {
         // Clear existing results and selection
-        keyCardManager.clearAll();
+        keyCardContainer.clearAll();
         selectedCardView = null;
         
-        // Add KeyInfo objects directly to KeyCardManager
+        // Add KeyInfo objects directly to KeyCardContainer
         for (KeyInfo keyInfo : keyInfoList) {
-            keyCardManager.addKeyCard(keyInfo);
+            keyCardContainer.addKeyCard(keyInfo);
         }
     }
     
     private void clearSearchResults() {
         TimberLogger.d(TAG, "clearSearchResults() called");
-        keyCardManager.clearAll();
+        keyCardContainer.clearAll();
         searchResultsHint.setVisibility(View.GONE);
     }
     
@@ -359,7 +358,7 @@ public class SetMasterActivity extends BaseCryptoActivity {
         
         // Reset selection state
         selectedMasterFid = null;
-        selectedMasterCid = null;
+        selectedMasterFreer = null;
         selectedCardView = null;
         originalMasterInput = null;
         
@@ -367,17 +366,17 @@ public class SetMasterActivity extends BaseCryptoActivity {
         confirmButton.setEnabled(false);
         confirmButton.setAlpha(0.5f);
         
-        Toast.makeText(this, getString(R.string.cleared), Toast.LENGTH_SHORT).show();
+        ToastUtils.makeText(this, getString(R.string.cleared));
     }
     
     private void onMasterSelected(KeyInfo keyInfo) {
         selectedMasterFid = keyInfo.getId();
         
-        // Convert KeyInfo back to Cid for compatibility with existing logic
-        selectedMasterCid = new Cid();
-        selectedMasterCid.setId(keyInfo.getId());
-        selectedMasterCid.setCid(keyInfo.getCid());
-        selectedMasterCid.setPubkey(keyInfo.getPubkey());
+        // Convert KeyInfo back to Freer for compatibility with existing logic
+        selectedMasterFreer = new Freer();
+        selectedMasterFreer.setId(keyInfo.getId());
+        selectedMasterFreer.setCid(keyInfo.getCid());
+        selectedMasterFreer.setPubkey(keyInfo.getPubkey());
         
         // If we don't have original input stored (direct FID search), use the FID
         if (originalMasterInput == null) {
@@ -400,7 +399,7 @@ public class SetMasterActivity extends BaseCryptoActivity {
         confirmButton.setEnabled(true);
         confirmButton.setAlpha(1.0f);
         
-        Toast.makeText(this, getString(R.string.master_selected), Toast.LENGTH_SHORT).show();
+        ToastUtils.makeText(this, getString(R.string.master_selected));
     }
     
     private void onMenuItemClicked(String menuItem, KeyInfo keyInfo) {
@@ -417,39 +416,38 @@ public class SetMasterActivity extends BaseCryptoActivity {
             startActivity(intent);
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error showing KeyInfo detail: %s", e.getMessage());
-            Toast.makeText(this, getString(R.string.error_showing_detail), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.error_showing_detail));
         }
     }
     
     
     private void confirmSetMaster() {
-        if (selectedMasterFid == null || selectedMasterCid == null) {
-            Toast.makeText(this, getString(R.string.no_master_selected), Toast.LENGTH_SHORT).show();
+        if (selectedMasterFid == null || selectedMasterFreer == null) {
+            ToastUtils.makeText(this, getString(R.string.no_master_selected));
             return;
         }
         
         if (feipHandler == null) {
-            Toast.makeText(this, getString(R.string.feip_handler_not_available), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.feip_handler_not_available));
             return;
         }
         
         // Get main FID from FidManager
         FidManager fidManager = FidManager.getInstance();
         if (fidManager == null) {
-            Toast.makeText(this, getString(R.string.fid_manager_not_available), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.fid_manager_not_available));
             return;
         }
         
         String mainFid = fidManager.getMainFid();
         if (mainFid == null) {
-            Toast.makeText(this, getString(R.string.main_fid_not_available), Toast.LENGTH_SHORT).show();
+            ToastUtils.makeText(this, getString(R.string.main_fid_not_available));
             return;
         }
         
         // Disable button to prevent double submission
         confirmButton.setEnabled(false);
         confirmButton.setAlpha(0.5f);
-        confirmButton.setText(getString(R.string.setting_master));
         // Show confirmation dialog
         String title = getString(R.string.confirm_set_master);
         String message = getString(R.string.confirm_set_master_message, selectedMasterFid, mainFid);
@@ -463,21 +461,21 @@ public class SetMasterActivity extends BaseCryptoActivity {
                     String prikeyCipher = fidManager != null ? fidManager.getLiveKeyInfo().getPrikeyCipher() : null;
                     if (prikeyCipher == null) {
                         runOnUiThread(() -> {
-                            Toast.makeText(SetMasterActivity.this,
-                                getString(R.string.failed_to_get_private_key_cipher),
-                                Toast.LENGTH_LONG).show();
+                            ToastUtils.makeText(SetMasterActivity.this,
+                                getString(R.string.failed_to_get_prikey_cipher)
+                            );
                             confirmButton.setEnabled(true);
                             confirmButton.setAlpha(1.0f);
                         });
                         return;
                     }
                     byte[] prikey = SecurePrikeyManager.fetchPrikeySilent(prikeyCipher);
-                    String feipJson = feipHandler.masterSet(selectedMasterCid.getPubkey(), prikey);
+                    String feipJson = feipHandler.masterSet(selectedMasterFreer.getPubkey(), prikey);
                     if (feipJson == null || feipJson.isEmpty()) {
                         runOnUiThread(() -> {
-                            Toast.makeText(SetMasterActivity.this,
-                                getString(R.string.failed_to_set_master),
-                                Toast.LENGTH_LONG).show();
+                            ToastUtils.makeText(SetMasterActivity.this,
+                                getString(R.string.failed_to_set_master)
+                            );
                             // Re-enable button
                             confirmButton.setEnabled(true);
                             confirmButton.setAlpha(1.0f);
@@ -486,14 +484,15 @@ public class SetMasterActivity extends BaseCryptoActivity {
                     }
 
                     // Step 2: Use TxSender to create, sign, and broadcast FEIP transaction
-                    TxSender.carveSimpleFeip(
+                    TxSender txSender = new TxSender();
+                    txSender.carveSimpleFeip(
                             SetMasterActivity.this,
                             mainFid,
                             feipJson,
                             prikey,
                             cashManager,
                             txHandler,
-                            apipClient,
+                            fapiClient,
                             new TxSender.TxCallback() {
                                 @Override
                                 public void onSuccess(String txId) {
@@ -514,9 +513,9 @@ public class SetMasterActivity extends BaseCryptoActivity {
                                             TimberLogger.e(TAG, "Error updating mainKeyInfo.master: %s", e.getMessage());
                                         }
                                         
-                                        Toast.makeText(SetMasterActivity.this,
-                                            getString(R.string.master_set_successfully, txId),
-                                            Toast.LENGTH_LONG).show();
+                                        ToastUtils.makeText(SetMasterActivity.this,
+                                            getString(R.string.master_set_successfully, txId)
+                                        );
                                         setResult(RESULT_OK);
                                         SecurePrikeyManager.erasePrikey(prikey);
                                         
@@ -527,9 +526,9 @@ public class SetMasterActivity extends BaseCryptoActivity {
                                 @Override
                                 public void onError(String errorMessage) {
                                     runOnUiThread(() -> {
-                                        Toast.makeText(SetMasterActivity.this,
-                                            getString(R.string.failed_to_set_master, errorMessage),
-                                            Toast.LENGTH_LONG).show();
+                                        ToastUtils.makeText(SetMasterActivity.this,
+                                            getString(R.string.failed_to_set_master, errorMessage)
+                                        );
                                         // Re-enable button
                                         confirmButton.setEnabled(true);
                                         confirmButton.setAlpha(1.0f);
@@ -542,7 +541,19 @@ public class SetMasterActivity extends BaseCryptoActivity {
                                 public void onUnsignedTx(RawTxInfo rawTxInfo) {
                                     runOnUiThread(() -> {
                                         // Show unsigned transaction as QR codes
-                                        TxSender.showUnsignedTxAsQR(SetMasterActivity.this, rawTxInfo);
+                                        txSender.showUnsignedTxAsQR(SetMasterActivity.this, rawTxInfo);
+                                        // Re-enable button since we're not finishing
+                                        confirmButton.setEnabled(true);
+                                        confirmButton.setAlpha(1.0f);
+                                        SecurePrikeyManager.erasePrikey(prikey);
+                                    });
+                                }
+
+                                @Override
+                                public void onUnbroadcasted(String signedTxHex) {
+                                    runOnUiThread(() -> {
+                                        // Show signed transaction as QR code for manual broadcasting
+                                        txSender.showSignedTxAsQR(SetMasterActivity.this, signedTxHex);
                                         // Re-enable button since we're not finishing
                                         confirmButton.setEnabled(true);
                                         confirmButton.setAlpha(1.0f);
@@ -553,9 +564,9 @@ public class SetMasterActivity extends BaseCryptoActivity {
 
                 } catch (Exception e) {
                     runOnUiThread(() -> {
-                        Toast.makeText(SetMasterActivity.this,
-                            getString(R.string.failed_to_set_master, e.getMessage()),
-                            Toast.LENGTH_LONG).show();
+                        ToastUtils.makeText(SetMasterActivity.this,
+                            getString(R.string.failed_to_set_master, e.getMessage())
+                        );
                         // Re-enable button
                         confirmButton.setEnabled(true);
                         confirmButton.setAlpha(1.0f);

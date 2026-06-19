@@ -1,31 +1,36 @@
 package com.fc.freer.tx;
 
+import android.app.Activity;
 import android.content.Context;
-import android.widget.Toast;
+import android.content.Intent;
+
+import com.fc.fc_ajdk.data.fchData.Cash;
+import com.fc.fc_ajdk.fapi.message.FapiResponse;
+import com.fc.freer.utils.ToastUtils;
 
 import com.fc.fc_ajdk.core.fch.RawTxInfo;
+import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
-import com.fc.fc_ajdk.data.fchData.Cash;
-import com.fc.fc_ajdk.data.fchData.Multisign;
-import com.fc.fc_ajdk.data.fchData.SendTo;
+import com.fc.fc_ajdk.data.fchData.Multisig;
+import com.fc.fc_ajdk.data.fchData.P2SH;
 import com.fc.fc_ajdk.data.feipData.Feip;
 import com.fc.fc_ajdk.utils.BytesUtils;
 import com.fc.fc_ajdk.utils.Hex;
 import com.fc.fc_ajdk.utils.TimberLogger;
-import com.fc.fc_ajdk.utils.http.AuthType;
-import com.fc.fc_ajdk.utils.http.RequestMethod;
 import com.fc.freer.R;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
-import com.fc.freer.model.FcReplyBody;
-import com.fc.freer.network.ApipClient;
+import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.freer.utils.QRCodeGenerator;
 import com.fc.freer.network.NetworkUtils;
+import com.fc.freer.multisig.SignMultisigTxActivity;
+import com.fc.freer.ui.WaitingDialog;
 
 import org.bitcoinj.core.Address;
 import org.bitcoinj.core.Transaction;
 import org.bitcoinj.core.TransactionOutput;
 import org.bitcoinj.params.MainNetParams;
+import org.bitcoinj.script.Script;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,14 +39,91 @@ import java.util.List;
  * General utility class for creating, signing, and broadcasting transactions
  */
 public class TxSender {
-    
+
+    private static TxSender currentInstance = null;
+    private TxCallback pendingCallback = null;
+    private WaitingDialog waitingDialog = null;
+
+    private void showWaitingDialog(Context context) {
+        if (context instanceof Activity) {
+            Activity activity = (Activity) context;
+            if (!activity.isFinishing() && !activity.isDestroyed()) {
+                activity.runOnUiThread(() -> {
+                    if (!activity.isFinishing() && !activity.isDestroyed()) {
+                        waitingDialog = new WaitingDialog(activity, activity.getString(R.string.loading));
+                        waitingDialog.show();
+                    }
+                });
+            }
+        }
+    }
+
+    private void dismissWaitingDialog(Context context) {
+        if (context instanceof Activity) {
+            Activity activity = (Activity) context;
+            activity.runOnUiThread(() -> {
+                if (waitingDialog != null && waitingDialog.isShowing()) {
+                    waitingDialog.dismiss();
+                    waitingDialog = null;
+                }
+            });
+        }
+    }
+
     public interface TxCallback {
         void onSuccess(String txId);
         void onError(String errorMessage);
         void onUnsignedTx(RawTxInfo rawTxInfo);
+        void onUnbroadcasted(String signedTxHex);
     }
 
-    public static void carveFeipWithRecipient(
+    /**
+     * Call this method when SendTxActivity finishes successfully
+     * @param txId The transaction ID returned from the activity
+     */
+    public void onActivityResult(String txId) {
+        if (pendingCallback != null && txId != null) {
+            pendingCallback.onSuccess(txId);
+            pendingCallback = null; // Clear the callback after use
+        }
+    }
+
+    /**
+     * Call this method when SendTxActivity finishes with an error
+     * @param errorMessage The error message
+     */
+    public void onActivityError(String errorMessage) {
+        if (pendingCallback != null) {
+            pendingCallback.onError(errorMessage);
+            pendingCallback = null; // Clear the callback after use
+        }
+    }
+
+    /**
+     * Gets the current active TxSender instance (for use by activities)
+     * @return The current instance, or null if none
+     */
+    public static TxSender getCurrentInstance() {
+        return currentInstance;
+    }
+
+    /**
+     * Gets the pending callback (for use by activities)
+     * @return The pending callback, or null if none
+     */
+    public TxCallback getPendingCallback() {
+        return pendingCallback;
+    }
+
+    /**
+     * Clears the pending callback and current instance
+     */
+    public void clearPendingCallback() {
+        pendingCallback = null;
+        currentInstance = null;
+    }
+
+    public void carveFeipWithRecipient(
             Context context,
             String sender,
             String recipient,
@@ -50,25 +132,25 @@ public class TxSender {
             byte[] prikey,
             CashManager cashManager,
             TxHandler txHandler,
-            ApipClient apipClient,
+            FapiClient fapiClient,
             TxCallback callback){
-        List<SendTo> sendToList = new ArrayList<>();
-        if(amount==null)amount=SendTo.MIN_AMOUNT;
-        SendTo sendTo = new SendTo(recipient,amount);
-        sendToList.add(sendTo);
-        sendTx(context, sender, sendToList, feipJson, prikey, Feip.REQUIRED_CD, TxHandler.DEFAULT_FEE_RATE, null,ApipClient.ApipApiNames.VERSION_2, cashManager, txHandler, apipClient,callback);
+        List<Cash> cashList = new ArrayList<>();
+        if(amount==null)amount= Cash.MIN_AMOUNT;
+        Cash cash = new Cash(recipient,amount);
+        cashList.add(cash);
+        sendTx(context, sender, cashList, feipJson, prikey, Feip.CD_REQUIRED, TxHandler.DEFAULT_FEE_RATE, null, RawTxInfo.VERSION_2, null, cashManager, txHandler, fapiClient,callback,true);
     }
 
-    public static void carveSimpleFeip(
-                Context context,
-                String sender,
-                String feipJson,
-                byte[] prikey,
-                CashManager cashManager,
-                TxHandler txHandler,
-                ApipClient apipClient,
-                TxCallback callback){
-        sendTx(context, sender, null, feipJson, prikey, Feip.REQUIRED_CD, TxHandler.DEFAULT_FEE_RATE, null,ApipClient.ApipApiNames.VERSION_2, cashManager, txHandler, apipClient,callback);
+    public void carveSimpleFeip(
+            Context context,
+            String sender,
+            String feipJson,
+            byte[] prikey,
+            CashManager cashManager,
+            TxHandler txHandler,
+            FapiClient fapiClient,
+            TxCallback callback){
+        sendTx(context, sender, null, feipJson, prikey, Feip.CD_REQUIRED, TxHandler.DEFAULT_FEE_RATE, null, RawTxInfo.VERSION_2, null, cashManager, txHandler, fapiClient,callback,true);
     }
     
     /**
@@ -76,95 +158,149 @@ public class TxSender {
      *
      * @param context     The context
      * @param sender      The sender FID
-     * @param outputs     List of SendTo objects
+     * @param outputs     List of Cash objects
      * @param opReturn    OP_RETURN message
      * @param prikey      Private key cipher (null for unsigned tx)
      * @param cd          CD value
      * @param feeRate     Fee rate
-     * @param multisign   Multisign object (can be null)
+     * @param multisig   Multisig object (can be null)
      * @param ver         Transaction version
      * @param cashManager CashManager instance
      * @param txHandler   TxHandler instance
-     * @param apipClient  ApipClient instance
+     * @param fapiClient  FapiClient instance
      * @param callback    Callback for results
      */
-    public static void sendTx(
+    public void sendTx(
             Context context,
             String sender,
-            List<SendTo> outputs,
+            List<Cash> outputs,
             String opReturn,
             byte[] prikey, Long cd,
             Double feeRate,
-            Multisign multisign,
+            Multisig multisig,
             String ver,
             CashManager cashManager,
             TxHandler txHandler,
-            ApipClient apipClient,
+            FapiClient fapiClient,
             TxCallback callback) {
+        sendTx(context, sender, outputs, opReturn, prikey, cd, feeRate, multisig, ver,
+                null, cashManager, txHandler, fapiClient, callback, false);
+    }
+
+    /**
+     * Creates, signs (if possible), and broadcasts a transaction with confirmation option
+     *
+     * @param context     The context
+     * @param sender      The sender FID
+     * @param outputs     List of Cash objects
+     * @param opReturn    OP_RETURN message
+     * @param prikey      Private key cipher (null for unsigned tx)
+     * @param requiredCd  CD value
+     * @param feeRate     Fee rate
+     * @param multisig   Multisig object (can be null)
+     * @param ver         Transaction version
+     * @param lockTime
+     * @param cashManager CashManager instance
+     * @param txHandler   TxHandler instance
+     * @param fapiClient  FapiClient instance
+     * @param callback    Callback for results
+     * @param withConfirm Whether to show confirmation UI before sending
+     */
+    public void sendTx(
+            Context context,
+            String sender,
+            List<Cash> outputs,
+            String opReturn,
+            byte[] prikey,
+            Long requiredCd,
+            Double feeRate,
+            Multisig multisig,
+            String ver,
+            Long lockTime,
+            CashManager cashManager,
+            TxHandler txHandler,
+            FapiClient fapiClient,
+            TxCallback callback,
+            boolean withConfirm) {
+        showWaitingDialog(context);
         try{
             if (sender == null || sender.isEmpty()) {
+                dismissWaitingDialog(context);
                 if (callback != null) {
-                    callback.onError("No sender FID available");
+                    callback.onError("No sender FID");
                 }
                 return;
             }
 
-            if(!sender.equals(cashManager.getMainFid())){
+            if(!sender.equals(cashManager.getLiveFid())){
+                dismissWaitingDialog(context);
                 if (callback != null) {
                     callback.onError("The sender do not match the cash manager.");
                 }
                 return;
             }
 
+            Long bestHeight = fapiClient.getBestHeight();
+
+            if(requiredCd>0 && bestHeight!=null && bestHeight<Feip.CDD_CHECK_HEIGHT) {
+                requiredCd = 0L;
+            }
+            Long finalRequiredCd = requiredCd;
+
             new Thread(() -> {
                 try {
-                    sendTxInternal(context, sender, outputs, opReturn, cd, feeRate,
-                        multisign, ver, prikey, cashManager, txHandler, apipClient, callback, false);
+                    sendTxInternal(context, sender, outputs, opReturn, finalRequiredCd, feeRate,
+                            multisig, ver, lockTime, prikey, cashManager, txHandler, fapiClient, callback, false, withConfirm);
                 } catch (Exception e) {
+                    dismissWaitingDialog(context);
                     if (callback != null) {
                         callback.onError("Transaction creation failed: " + e.getMessage());
                     }
                 }
             }).start();
         } catch (Exception e) {
+            dismissWaitingDialog(context);
             if (callback != null) {
                 callback.onError("Failed to create FEIP transaction: " + e.getMessage());
             }
         }
     }
     
-    private static void sendTxInternal(
+    private void sendTxInternal(
             Context context,
             String sender,
-            List<SendTo> outputs,
+            List<Cash> outputs,
             String opReturn,
-            Long cd,
+            Long cdRequired,
             Double feeRate,
-            Multisign multisign,
+            Multisig multisig,
             String ver,
+            Long lockTime,
             byte[] prikey,
             CashManager cashManager,
             TxHandler txHandler,
-            ApipClient apipClient,
+            FapiClient fapiClient,
             TxCallback callback,
-            boolean isRetry) {
+            boolean isRetry,
+            boolean withConfirm) {
         
         try {
             // Step 1: Load valid cash list
             double payValue = 0.0;
             if (outputs != null) {
-                for (SendTo sendTo : outputs) {
-                    payValue += sendTo.getAmount();
+                for (Cash cash : outputs) {
+                    payValue += cash.getAmount();
                 }
             }
             
             int outputSize = (outputs != null ? outputs.size() : 0);
             int msgSize = (opReturn != null ? opReturn.getBytes().length : 0);
             
-            List<Cash> validCashList = cashManager.getValidCashes(payValue, cd, outputSize, msgSize, 
-                feeRate != null ? feeRate :TxHandler.DEFAULT_FEE_RATE, multisign);
+            List<Cash> validCashList = cashManager.getValidCashes(payValue, cdRequired, outputSize, msgSize,
+                feeRate != null ? feeRate :TxHandler.DEFAULT_FEE_RATE, multisig,context);
             
             if (validCashList == null || validCashList.isEmpty()) {
+                dismissWaitingDialog(context);
                 if (callback != null) {
                     callback.onError("No valid cash available for transaction");
                 }
@@ -172,89 +308,157 @@ public class TxSender {
             }
             
             // Step 2: Create RawTxInfo
-            RawTxInfo rawTxInfo = new RawTxInfo(sender, validCashList, outputs, opReturn, cd, 
-                feeRate, multisign, ver);
-            
+            RawTxInfo rawTxInfo = new RawTxInfo(sender, validCashList, outputs, opReturn, cdRequired,
+                feeRate, multisig, ver);
+
+            // Step 2.5: Show confirmation UI if requested
+            if (withConfirm) {
+                // Store the callback for later use by the activity
+                pendingCallback = callback;
+                currentInstance = this;
+
+                Intent intent;
+                if (multisig != null) {
+                    // Use SignMultisigTxActivity for multisig transactions
+                    intent = new Intent(context, SignMultisigTxActivity.class);
+                } else {
+                    // Use SendTxActivity for regular transactions
+                    intent = new Intent(context, SendTxActivity.class);
+                }
+                intent.putExtra(SendTxActivity.EXTRA_TX_INFO_JSON, rawTxInfo.toNiceJson());
+                dismissWaitingDialog(context);
+                context.startActivity(intent);
+                return;
+            }
+
             // Step 3: Create transaction
             Transaction tx = txHandler.createTx(rawTxInfo, MainNetParams.get());
             if (tx == null) {
+                dismissWaitingDialog(context);
                 if (callback != null) {
                     callback.onError("Failed to create transaction");
                 }
                 return;
             }
-            
+
             // Step 4: Check if we should sign and broadcast or show as QR
             if (prikey != null && !BytesUtils.isFilledKey(prikey)) {
 
                 // Sign the transaction
                 String signedTxHex = txHandler.signTx(rawTxInfo, prikey);
                 if (signedTxHex == null || signedTxHex.isEmpty()) {
+                    dismissWaitingDialog(context);
                     if (callback != null) {
                         callback.onError("Failed to sign transaction");
                     }
                     return;
                 }
-                
+
+                // Check if transaction has lockTime in the future
+                if (rawTxInfo.getLockTime() != null && rawTxInfo.getLockTime() > 0) {
+                    Long bestHeight = fapiClient.getBestHeight();
+                    if (bestHeight != null && rawTxInfo.getLockTime() > bestHeight) {
+                        long blocksToWait = rawTxInfo.getLockTime() - bestHeight;
+                        ToastUtils.makeText(context,
+                            "Transaction is time-locked until block " + rawTxInfo.getLockTime() +
+                            " (current: " + bestHeight + ", " + blocksToWait + " blocks to wait). " +
+                            "Transaction signed but not broadcast.");
+                        dismissWaitingDialog(context);
+                        if (callback != null) {
+                            callback.onUnbroadcasted(signedTxHex);
+                        }
+                        return;
+                    }
+                }
+
                 // Check network connectivity before broadcasting
                 if (NetworkUtils.isNetworkAvailable(context)) {
                     // Network is available, proceed with broadcasting
-                    String result = apipClient.broadcastTx(signedTxHex, RequestMethod.POST, AuthType.FC_SIGN_BODY, context);
-                    FcReplyBody response = apipClient.getApiEvent().getResponseBody();
+                    //TODO
+                    TimberLogger.d("TxSender","TX:"+signedTxHex);
+
+                    String result = fapiClient.broadcastTx(signedTxHex);
+                    FapiResponse response = fapiClient.getLastResponse();
                     String message = response.getMessage();
                     if (Hex.isHex32(result)) {
-                        if(!updateFromTx(signedTxHex, sender, context, cashManager))
-                            Toast.makeText(context,
-                                    R.string.failed_to_update_cash_db,
-                                    Toast.LENGTH_LONG).show();
+                        if(!updateCashOfTx(signedTxHex, sender, context, cashManager))
+                            ToastUtils.makeText(context,
+                                    R.string.failed_to_update_cash_db
+                            );
+                        dismissWaitingDialog(context);
                         if (callback != null) {
-                            callback.onSuccess(tx.getTxId().toString());
+                            callback.onSuccess(result);
                         }
                     } else {
                         // Handle specific error cases
-                        if (message != null && message.contains("-25")) {
+                        if (message != null && (message.contains("-25") || message.contains("-26"))) {
+                            // -25: Missing inputs (spent or never existed)
+                            // -26: Mempool conflict (inputs already used in another mempool tx)
                             // Refresh cash DB and retry
                             if (!isRetry) {
-                                int count = cashManager.freshValidCashDB(context,AuthType.FC_SIGN_BODY,RequestMethod.POST);
+                                String errorType = message.contains("-25") ? "missing inputs" : "mempool conflict";
+                                TimberLogger.w("TxSender", "Transaction failed due to " + errorType + ", refreshing cash DB and retrying");
+
+                                // Refresh cash database (already on background thread)
+                                int count = cashManager.freshValidCashDB(context);
+
+                                // For -26 errors, also update conflicted status
+                                if (message.contains("-26")) {
+                                    int conflictedCount = cashManager.updateConflictedCashes(context);
+                                    TimberLogger.i("TxSender", "Marked %d cashes as conflicted in mempool", conflictedCount);
+                                }
+
                                 if(count>0)
-                                    Toast.makeText(context, context.getString(R.string.cash_refreshed_and_saved, count), Toast.LENGTH_SHORT).show();
-                                sendTxInternal(context, sender, outputs, opReturn, cd,
-                                        feeRate, multisign, ver, prikey, cashManager, txHandler,
-                                        apipClient, callback, true);
+                                    ToastUtils.makeText(context, context.getString(R.string.cash_refreshed_and_saved, count));
+                                else
+                                    ToastUtils.makeText(context, "Cash database refreshed");
+
+                                sendTxInternal(context, sender, outputs, opReturn, cdRequired,
+                                        feeRate, multisig, ver, lockTime, prikey, cashManager, txHandler,
+                                        fapiClient, callback, true, false);
+                            } else {
+                                // Already retried once, don't retry again
+                                dismissWaitingDialog(context);
+                                if (callback != null) {
+                                    callback.onError("Transaction broadcast failed after retry: " + message);
+                                }
                             }
                         } else if (message != null && message.contains("-27")) {
                             // Already confirmed on chain
-                            if(!updateFromTx(signedTxHex, sender, context, cashManager))
-                                Toast.makeText(context,
-                                        R.string.failed_to_update_cash_db,
-                                        Toast.LENGTH_LONG).show();
+                            if(!updateCashOfTx(signedTxHex, sender, context, cashManager))
+                                ToastUtils.makeText(context,
+                                        R.string.failed_to_update_cash_db
+                                );
+                            dismissWaitingDialog(context);
                             if (callback != null) {
-                                callback.onSuccess(tx.getTxId().toString());
+                                callback.onSuccess(result);
                             }
                         }else{
+                            dismissWaitingDialog(context);
                             if (callback != null) {
                                 callback.onError("Transaction broadcast failed: " + message);
                             }
                         }
                     }
                 } else {
-                    // Network is not available, show signed transaction as QR code
-                    Toast.makeText(context, "Network is not available. Please broadcast manually using the QR code.", Toast.LENGTH_LONG).show();
+                    // Network is not available, call onUnbroadcasted with signed transaction
+                    ToastUtils.makeText(context, "Network is not available. Please broadcast manually.");
+                    dismissWaitingDialog(context);
                     if (callback != null) {
-                        callback.onError("Network is not available. Showing signed transaction as QR code.");
+                        callback.onUnbroadcasted(signedTxHex);
                     }
-                    // Show the signed transaction as QR code
-                    showSignedTxAsQR(context, signedTxHex);
                 }
-                
+
             } else {
                 // Show unsigned transaction as QR codes
+                dismissWaitingDialog(context);
                 if (callback != null) {
                     callback.onUnsignedTx(rawTxInfo);
                 }
             }
-            
+
         } catch (Exception e) {
+            dismissWaitingDialog(context);
             if (callback != null) {
                 callback.onError("Transaction processing failed: " + e.getMessage());
             }
@@ -267,7 +471,7 @@ public class TxSender {
      * @param context The context
      * @param rawTxInfo The unsigned transaction info
      */
-    public static void showUnsignedTxAsQR(Context context, RawTxInfo rawTxInfo) {
+    public void showUnsignedTxAsQR(Context context, RawTxInfo rawTxInfo) {
         if (context != null && rawTxInfo != null) {
             String json = rawTxInfo.toNiceJson();
             QRCodeGenerator.generateAndShowQRCode(context, json, "Unsigned TX");
@@ -280,7 +484,7 @@ public class TxSender {
      * @param context The context
      * @param signedTxHex The signed transaction hex string
      */
-    public static void showSignedTxAsQR(Context context, String signedTxHex) {
+    public void showSignedTxAsQR(Context context, String signedTxHex) {
         if (context != null && signedTxHex != null) {
             // Create a simple JSON structure for the signed transaction
             QRCodeGenerator.generateAndShowQRCode(context, signedTxHex, "Signed TX");
@@ -295,19 +499,45 @@ public class TxSender {
      * @param prikey      Private key for signing
      * @param cashManager CashManager instance
      * @param txHandler   TxHandler instance
-     * @param apipClient  ApipClient instance
+     * @param fapiClient  FapiClient instance
      * @param callback    Callback for results
      */
-    public static void sendTx(
+    public void sendTx(
             Context context,
             RawTxInfo rawTxInfo,
             byte[] prikey,
             CashManager cashManager,
             TxHandler txHandler,
-            ApipClient apipClient,
+            FapiClient fapiClient,
             TxCallback callback) {
-        
+        sendTx(context, rawTxInfo, prikey, cashManager, txHandler, fapiClient, callback, false);
+    }
+
+    /**
+     * Signs and sends a transaction from RawTxInfo with confirmation option
+     *
+     * @param context     The context
+     * @param rawTxInfo   The raw transaction info containing all transaction details
+     * @param prikey      Private key for signing
+     * @param cashManager CashManager instance
+     * @param txHandler   TxHandler instance
+     * @param fapiClient  FapiClient instance
+     * @param callback    Callback for results
+     * @param withConfirm Whether to show confirmation UI before sending
+     */
+    public void sendTx(
+            Context context,
+            RawTxInfo rawTxInfo,
+            byte[] prikey,
+            CashManager cashManager,
+            TxHandler txHandler,
+            FapiClient fapiClient,
+            TxCallback callback,
+            boolean withConfirm) {
+        showWaitingDialog(context);
+
         if (rawTxInfo == null) {
+            dismissWaitingDialog(context);
             if (callback != null) {
                 callback.onError("RawTxInfo is null");
             }
@@ -316,13 +546,15 @@ public class TxSender {
 
         String sender = rawTxInfo.getSender();
         if (sender == null || sender.isEmpty()) {
+            dismissWaitingDialog(context);
             if (callback != null) {
                 callback.onError("No sender FID available");
             }
             return;
         }
 
-        if (!sender.equals(cashManager.getMainFid())) {
+        if (!sender.equals(cashManager.getLiveFid())) {
+            dismissWaitingDialog(context);
             if (callback != null) {
                 callback.onError("The sender does not match the cash manager.");
             }
@@ -331,9 +563,10 @@ public class TxSender {
 
         new Thread(() -> {
             try {
-                sendRawTxInternal(context, rawTxInfo, prikey, cashManager, 
-                    txHandler, apipClient, callback, false);
+                sendRawTxInternal(context, rawTxInfo, prikey, cashManager,
+                    txHandler, fapiClient, callback, false, withConfirm);
             } catch (Exception e) {
+                dismissWaitingDialog(context);
                 if (callback != null) {
                     callback.onError("Transaction sending failed: " + e.getMessage());
                 }
@@ -341,103 +574,166 @@ public class TxSender {
         }).start();
     }
 
-    private static void sendRawTxInternal(
+    private void sendRawTxInternal(
             Context context,
             RawTxInfo rawTxInfo,
             byte[] prikey,
             CashManager cashManager,
             TxHandler txHandler,
-            ApipClient apipClient,
+            FapiClient fapiClient,
             TxCallback callback,
-            boolean isRetry) {
+            boolean isRetry,
+            boolean withConfirm) {
         
         try {
             String sender = rawTxInfo.getSender();
-            
+
+            // Show confirmation UI if requested
+            if (withConfirm) {
+                // Store the callback for later use by the activity
+                pendingCallback = callback;
+                currentInstance = this;
+
+                Intent intent;
+                if (rawTxInfo.getSenderMultisig() != null) {
+                    // Use SignMultisigTxActivity for multisig transactions
+                    intent = new Intent(context, SignMultisigTxActivity.class);
+                } else {
+                    // Use SendTxActivity for regular transactions
+                    intent = new Intent(context, SendTxActivity.class);
+                }
+                intent.putExtra(SendTxActivity.EXTRA_TX_INFO_JSON, rawTxInfo.toNiceJson());
+                dismissWaitingDialog(context);
+                context.startActivity(intent);
+                return;
+            }
+
             // Create transaction
             Transaction tx = txHandler.createTx(rawTxInfo, MainNetParams.get());
             if (tx == null) {
+                dismissWaitingDialog(context);
                 if (callback != null) {
                     callback.onError("Failed to create transaction");
                 }
                 return;
             }
-            
+
             // Check if we have private key to sign
             if (prikey != null && !BytesUtils.isFilledKey(prikey)) {
-                // Sign the transaction
-                String signedTxHex = txHandler.signTx(rawTxInfo, prikey);
+                // Sign the transaction with P2SH/CLTV support
+                String signedTxHex = txHandler.signTx(prikey, tx, rawTxInfo.getInputs());
                 if (signedTxHex == null || signedTxHex.isEmpty()) {
+                    dismissWaitingDialog(context);
                     if (callback != null) {
                         callback.onError("Failed to sign transaction");
                     }
                     return;
                 }
-                
+
+                // Check if transaction has lockTime in the future
+                if (rawTxInfo.getLockTime() != null && rawTxInfo.getLockTime() > 0) {
+                    Long bestHeight = fapiClient.getBestHeight();
+                    if (bestHeight != null && rawTxInfo.getLockTime() > bestHeight) {
+                        long blocksToWait = rawTxInfo.getLockTime() - bestHeight;
+                        ToastUtils.makeText(context,
+                            context.getString(R.string.tx_is_time_locked_until_block_d_current_d_d_blocks_to_wait_transaction_signed_but_not_broadcast,rawTxInfo.getLockTime() ,bestHeight,blocksToWait));
+                        dismissWaitingDialog(context);
+                        if (callback != null) {
+                            callback.onUnbroadcasted(signedTxHex);
+                        }
+                        return;
+                    }
+                }
+
                 // Check network connectivity before broadcasting
                 if (NetworkUtils.isNetworkAvailable(context)) {
                     // Network is available, proceed with broadcasting
-                    String result = apipClient.broadcastTx(signedTxHex, RequestMethod.POST, AuthType.FC_SIGN_BODY, context);
-                    FcReplyBody response = apipClient.getApiEvent().getResponseBody();
+                    String result = fapiClient.broadcastTx(signedTxHex);
+                    FapiResponse response = fapiClient.getLastResponse();
                     String message = response.getMessage();
-                    
+
                     if (Hex.isHex32(result)) {
                         // Transaction broadcast successful
-                        if (!updateFromTx(signedTxHex, sender, context, cashManager)) {
-                            Toast.makeText(context,
-                                    R.string.failed_to_update_cash_db,
-                                    Toast.LENGTH_LONG).show();
+                        if (!updateCashOfTx(signedTxHex, sender, context, cashManager)) {
+                            ToastUtils.makeText(context,
+                                    R.string.failed_to_update_cash_db
+                            );
                         }
+                        dismissWaitingDialog(context);
                         if (callback != null) {
                             callback.onSuccess(result);
                         }
                     } else {
                         // Handle specific error cases
-                        if (message != null && message.contains("-25")) {
+                        if (message != null && (message.contains("-25") || message.contains("-26"))) {
+                            // -25: Missing inputs (spent or never existed)
+                            // -26: Mempool conflict (inputs already used in another mempool tx)
                             // Refresh cash DB and retry
                             if (!isRetry) {
-                                int count = cashManager.freshValidCashDB(context, AuthType.FC_SIGN_BODY, RequestMethod.POST);
-                                if (count > 0) {
-                                    Toast.makeText(context, context.getString(R.string.cash_refreshed_and_saved, count), Toast.LENGTH_SHORT).show();
+                                String errorType = message.contains("-25") ? "missing inputs" : "mempool conflict";
+                                TimberLogger.w("TxSender", "Transaction failed due to " + errorType + ", refreshing cash DB and retrying");
+
+                                // Refresh cash database (already on background thread)
+                                int count = cashManager.freshValidCashDB(context);
+
+                                // For -26 errors, also update conflicted status
+                                if (message.contains("-26")) {
+                                    int conflictedCount = cashManager.updateConflictedCashes(context);
+                                    TimberLogger.i("TxSender", "Marked %d cashes as conflicted in mempool", conflictedCount);
                                 }
-                                sendRawTxInternal(context, rawTxInfo, prikey, cashManager, 
-                                    txHandler, apipClient, callback, true);
+
+                                if (count > 0) {
+                                    ToastUtils.makeText(context, context.getString(R.string.cash_refreshed_and_saved, count));
+                                } else {
+                                    ToastUtils.makeText(context, "Cash database refreshed");
+                                }
+                                sendRawTxInternal(context, rawTxInfo, prikey, cashManager,
+                                    txHandler, fapiClient, callback, true, false);
                                 return;
+                            } else {
+                                // Already retried once, don't retry again
+                                dismissWaitingDialog(context);
+                                if (callback != null) {
+                                    callback.onError("Transaction broadcast failed after retry: " + message);
+                                }
                             }
                         } else if (message != null && message.contains("-27")) {
                             // Already confirmed on chain
-                            if (!updateFromTx(signedTxHex, sender, context, cashManager)) {
-                                Toast.makeText(context,
-                                        R.string.failed_to_update_cash_db,
-                                        Toast.LENGTH_LONG).show();
+                            if (!updateCashOfTx(signedTxHex, sender, context, cashManager)) {
+                                ToastUtils.makeText(context,
+                                        R.string.failed_to_update_cash_db
+                                );
                             }
+                            dismissWaitingDialog(context);
                             if (callback != null) {
                                 callback.onSuccess(tx.getTxId().toString());
                             }
                         } else {
+                            dismissWaitingDialog(context);
                             if (callback != null) {
                                 callback.onError("Transaction broadcast failed: " + message);
                             }
                         }
                     }
                 } else {
-                    // Network is not available, show signed transaction as QR code
-                    Toast.makeText(context, "Network is not available. Please broadcast manually using the QR code.", Toast.LENGTH_LONG).show();
+                    // Network is not available, call onUnbroadcasted with signed transaction
+                    ToastUtils.makeText(context, "Network is not available. Please broadcast manually using the QR code.");
+                    dismissWaitingDialog(context);
                     if (callback != null) {
-                        callback.onError("Network is not available. Showing signed transaction as QR code.");
+                        callback.onUnbroadcasted(signedTxHex);
                     }
-                    // Show the signed transaction as QR code
-                    showSignedTxAsQR(context, signedTxHex);
                 }
-                
+
             } else {
                 // No private key available, return unsigned transaction
+                dismissWaitingDialog(context);
                 if (callback != null) {
                     callback.onUnsignedTx(rawTxInfo);
                 }
             }
-            
+
         } catch (Exception e) {
+            dismissWaitingDialog(context);
             if (callback != null) {
                 callback.onError("Transaction processing failed: " + e.getMessage());
             }
@@ -445,16 +741,25 @@ public class TxSender {
     }
 
     /**
+     * Parse P2SH map from OP_RETURN output
+     * @param transaction The transaction to parse
+     * @return Map of hash160Hex to redeemScriptHex if found, null otherwise
+     */
+    private java.util.Map<String, String> parseP2shMapFromOpReturn(Transaction transaction) {
+        return P2SH.parseP2SHMapFromOpReturn(transaction);
+    }
+
+    /**
      * Updates cash database from a signed transaction.
      * Removes consumed inputs and adds new outputs for the sender.
-     * 
-     * @param signedTx The signed transaction hex
-     * @param sender The sender FID
-     * @param context The context
+     *
+     * @param signedTx    The signed transaction hex
+     * @param sender      The sender FID
+     * @param context     The context
      * @param cashManager The cash manager instance
      * @return true if successful, false otherwise
      */
-    public static boolean updateFromTx(String signedTx, String sender, Context context, CashManager cashManager) {
+    public boolean updateCashOfTx(String signedTx, String sender, Context context, CashManager cashManager) {
         if (signedTx == null || sender == null || cashManager == null) {
             return false;
         }
@@ -491,6 +796,9 @@ public class TxSender {
             // Remove all consumed cash in batch
             if (!consumedCashList.isEmpty()) {
                 cashManager.removeCashList(consumedCashList);
+
+                cashManager.setTotalCashOnChain(cashManager.getTotalCashOnChain()-consumedCashList.size());
+
                 Long balance = liveKeyInfo.getBalance();
                 balance -= totalValue;
                 liveKeyInfo.setBalance(balance);
@@ -500,14 +808,21 @@ public class TxSender {
 
             totalValue = 0;
             // Add new outputs for the sender
+
+            // Parse P2SH map from OP_RETURN (hash160Hex -> redeemScriptHex)
+            java.util.Map<String, String> p2shMap = parseP2shMapFromOpReturn(transaction);
+
             List<TransactionOutput> outputs = transaction.getOutputs();
             for (int i = 0; i < outputs.size(); i++) {
                 TransactionOutput output = outputs.get(i);
+                org.bitcoinj.script.Script script = output.getScriptPubKey();
 
                 try {
-                    Address address = output.getScriptPubKey().getToAddress(com.fc.fc_ajdk.core.fch.FchMainNetwork.MAINNETWORK);
+                    Address address = script.getToAddress(com.fc.fc_ajdk.core.fch.FchMainNetwork.MAINNETWORK);
+                    String addressStr = address.toString();
 
-                    if (sender.equals(address.toString())) {
+                    // Check if output belongs to sender (standard P2PKH)
+                    if (sender.equals(addressStr)) {
                         Cash cash = new Cash();
                         cash.setBirthTxId(txId);
                         cash.setBirthIndex(i);
@@ -515,9 +830,62 @@ public class TxSender {
                         cash.setValue(output.getValue().getValue());
                         cash.setValid(true);
                         cash.makeId();
+                        cash.setNew(Boolean.TRUE);
+
                         newCashList.add(cash);
                         totalValue += cash.getValue();
+                        TimberLogger.d("TxSender", "Added standard output " + i + " for sender");
+
+                    } else if (script.getScriptType() == Script.ScriptType.P2SH && p2shMap != null && !p2shMap.isEmpty()) {
+                        // Check for P2SH outputs (CLTV and MULTISIG_CLTV)
+                        try {
+                            // Calculate hash160 of this P2SH output's redeemScript
+                            byte[] p2shScriptHash = P2SH.extractP2SHScriptHash(output.getScriptBytes());
+                            if (p2shScriptHash != null) {
+                                String hash160Hex = Hex.toHex(p2shScriptHash);
+
+                                // Look up redeemScript in the map using hash160
+                                String redeemScriptHex = p2shMap.get(hash160Hex);
+                                if (redeemScriptHex != null && !redeemScriptHex.isEmpty()) {
+                                    // Parse redeemScript to extract owner and type
+                                    Cash cash = new Cash();
+                                    boolean valid = P2SH.addCLTVInfoToCashWithValidation(cash, redeemScriptHex);
+
+                                    if(!valid)
+                                        continue;
+
+                                    String cashType = cash.getType();
+
+                                    // Check if this P2SH belongs to sender (CLTV or MULTISIG_CLTV types)
+                                    if (sender.equals(cash.getOwner()) &&
+                                            (Cash.CashType.P2SH_CLTV.getValue().equals(cashType) ||
+                                                    Cash.CashType.P2SH_MULTISIG_CLTV.getValue().equals(cashType))) {
+
+                                        // This is a P2SH CLTV or MULTISIG_CLTV output for the sender
+                                        cash.setBirthTxId(txId);
+                                        cash.setBirthIndex(i);
+                                        cash.setValue(output.getValue().getValue());
+                                        cash.setValid(true);
+                                        cash.setRedeemScript(redeemScriptHex);
+                                        // Extract lockTime from redeemScript
+                                        Long lockTime = P2SH.extractLockTimeFromRedeemScript(redeemScriptHex);
+                                        cash.setLockTime(lockTime);
+                                        cash.makeId();
+                                        cash.setNew(Boolean.TRUE);
+
+                                        newCashList.add(cash);
+                                        totalValue += cash.getValue();
+
+                                        TimberLogger.d("TxSender", "Added " + cashType + " output " + i +
+                                                " with lockTime " + cash.getLockTime());
+                                    }
+                                }
+                            }
+                        } catch (Exception ex) {
+                            TimberLogger.d("TxSender", "Error processing P2SH output " + i + ": " + ex.getMessage());
+                        }
                     }
+
                 } catch (Exception e) {
                     // Skip outputs that can't be converted to addresses (e.g., OP_RETURN)
                     TimberLogger.d("TxSender", "Skipping output " + i + " - cannot convert to address: " + e.getMessage());
@@ -530,7 +898,9 @@ public class TxSender {
             }
             
             // Add new cash to database and commit changes
-            int added = cashManager.updateValidCashList(newCashList, true);
+            int added = cashManager.updateValidToDB(newCashList, true);
+            if(added>0)
+                cashManager.setTotalCashOnChain( cashManager.getTotalCashOnChain()+added);
             cashManager.commit();
             TimberLogger.i("TxSender", "Updated cash from transaction: removed %d inputs, added %d outputs",
                 consumedCashList.size(), added);

@@ -2,6 +2,8 @@ package com.fc.fc_ajdk.data.fchData;
 
 import com.fc.fc_ajdk.data.fcData.FcObject;
 
+import java.util.ArrayList;
+
 public class Block extends FcObject {
 	//from block head
 	private Long size;		//block size
@@ -19,6 +21,8 @@ public class Block extends FcObject {
 	private Long outValueT;		//total amount of all outputs values in satoshi
 	private Long fee;		//total amount of tx fee in satoshi
 	private Long cdd;		//total amount of coindays destroyed
+
+	private ArrayList<TxMask> txList;
 	
 	public Long getSize() {
 		return size;
@@ -97,5 +101,13 @@ public class Block extends FcObject {
 	}
 	public void setCdd(Long cdd) {
 		this.cdd = cdd;
+	}
+
+	public ArrayList<TxMask> getTxList() {
+		return txList;
+	}
+
+	public void setTxList(ArrayList<TxMask> txList) {
+		this.txList = txList;
 	}
 }

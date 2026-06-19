@@ -1,12 +1,10 @@
 package com.fc.fc_ajdk.data.fchData;
 
-import java.io.BufferedReader;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import com.google.gson.Gson;
 
-import com.fc.fc_ajdk.ui.Shower;
 import com.fc.fc_ajdk.core.crypto.Hash;
 import com.fc.fc_ajdk.data.fcData.FcObject;
 import com.fc.fc_ajdk.utils.BytesUtils;
@@ -25,7 +23,13 @@ import static com.fc.fc_ajdk.constants.FieldNames.OWNER;
 import static com.fc.fc_ajdk.constants.FieldNames.VALID;
 import static com.fc.fc_ajdk.constants.FieldNames.VALUE;
 
+import androidx.annotation.NonNull;
+
+import org.jetbrains.annotations.NotNull;
+
 public class Cash extends FcObject {
+
+	public static final Double MIN_AMOUNT = 0.0001;
 
 	//calculated
 	private String owner; 	//address
@@ -33,8 +37,8 @@ public class Cash extends FcObject {
 	private String issuer; //first input fid when this cash was born.
 
 	//from utxo
-	private Integer birthIndex;		//index of cash. Order in cashs of the tx when created.
-	private String type;	//type of the script. P2PKH,Multisign,OP_RETURN,Unknown,MultiSig
+	private Integer birthIndex;		//index of cash. Order in cashes of the tx when created.
+	private String type;	//type of the script. P2PKH,Multisig,OP_RETURN,Unknown,MultiSig
 	private Long cd;		//CoinDays
 
 	private String lockScript;	//LockScript
@@ -58,19 +62,132 @@ public class Cash extends FcObject {
 	private Boolean valid;	//Is this cash valid (utxo), or spent (stxo);
 	private Long lastTime;
 	private Long lastHeight;
+	private Boolean isNew;
+	private Boolean isConflicted;	// Is this cash conflicted in mempool (spent by unconfirmed tx)
+
+	// P2SH fields
+	private String redeemScript;	// For P2SH outputs (multisig, CLTV, etc.) - hex format
+	private Long lockTime;			// For CLTV outputs - Unix timestamp or block height
+	private Boolean onChain;
 
 	public Cash() {
 		// default constructor
 	}
 
-	public Cash(String txId, int index, double amount) {
+	public Cash(String fid,Double amount) {
+		super();
+		this.owner = fid;
+		setAmount(amount);
+	}
+
+	public Cash(String fid,Double amount,Long lockTime) {
+		super();
+		this.owner = fid;
+		this.lockTime = lockTime;
+		P2SH p2SH = new P2SH(fid,lockTime);
+		this.redeemScript = p2SH.getRedeemScript();
+		setAmount(amount);
+	}
+
+	public Cash(String fid,Double amount,Long lockTime,Multisig multisig) {
+		super();
+		addMultisigCltvInfo(fid,lockTime,multisig);
+		setAmount(amount);
+	}
+
+	public Cash(String txId, int index, Double amount) {
 		super();
 		this.birthTxId = txId;
 		this.birthIndex = index;
-		this.value = FchUtils.coinToSatoshi(amount);
+		setAmount(amount);
+	}
+
+	public void addMultisigCltvInfo(@NotNull String owner, Long lockTime, Multisig ownerMultisig) {
+		this.owner = owner;
+		if(lockTime != null && lockTime > 0 && ownerMultisig != null){
+			P2SH p2sh = new P2SH(ownerMultisig.getPubkeys(), ownerMultisig.getM(), ownerMultisig.getN(), lockTime);
+			this.redeemScript = p2sh.getRedeemScript();
+			this.lockTime = lockTime;
+			this.type = CashType.P2SH_MULTISIG_CLTV.name();
+
+		} else if (lockTime != null && lockTime > 0 ) {
+			P2SH p2sh = new P2SH(owner,lockTime);
+			this.redeemScript = p2sh.getRedeemScript();
+			this.lockTime = lockTime;
+			this.type = CashType.P2SH_CLTV.name();
+		}else if(ownerMultisig!=null){
+			this.redeemScript = ownerMultisig.getRedeemScript();
+			this.type = CashType.P2SH_MULTISIG.name();
+		}
 	}
 
 
+	/**
+	 * Enum representing different types of transaction outputs (Cash types)
+	 */
+	public enum CashType {
+		P2PKH("P2PKH"),              // Pay-to-Public-Key-Hash (standard address)
+		P2PK("P2PK"),                // Pay-to-Public-Key (legacy format)
+		P2SH("P2SH"),                // Pay-to-Script-Hash (generic)
+		P2SH_MULTISIG("P2SH_Multisig"),           // P2SH Multisig without time lock
+		P2SH_CLTV("P2SH_CLTV"),                   // P2SH with CheckLockTimeVerify (time-locked single-sig)
+		P2SH_MULTISIG_CLTV("P2SH_Multisig_CLTV"), // P2SH Multisig with CheckLockTimeVerify
+
+		OP_RETURN("OP_RETURN"),      // Data storage output (unspeakable)
+		UNKNOWN("Unknown");           // Unrecognized script type
+
+		private final String value;
+
+		CashType(String value) {
+			this.value = value;
+		}
+
+		public String getValue() {
+			return value;
+		}
+
+		/**
+		 * Get CashType from string value
+		 * @param value String representation of the cash type
+		 * @return Corresponding CashType enum, or UNKNOWN if not found
+		 */
+		public static CashType fromString(String value) {
+			if (value == null || value.isEmpty()) {
+				return UNKNOWN;
+			}
+
+			// Normalize the string for comparison
+			String normalized = value.trim().toUpperCase().replace("-", "_").replace(" ", "_");
+
+			// Try direct enum match first
+			try {
+				return CashType.valueOf(normalized);
+			} catch (IllegalArgumentException e) {
+				// Handle legacy string formats
+				switch (normalized) {
+					case "MULTISIGN":
+					case "MULTISIG":
+						return P2SH_MULTISIG;
+					case "P2SH_MULTISIGN":
+						return P2SH_MULTISIG;
+					case "LOCKTIME":
+					case "CLTV":
+						return P2SH_CLTV;
+					case "MULTISIGNWITHLOCKTIME":
+					case "MULTISIGWITHLOCKTIME":
+						return P2SH_MULTISIG_CLTV;
+					default:
+						return UNKNOWN;
+				}
+			}
+		}
+
+		@NonNull
+		@Override
+		public String toString() {
+			return value;
+		}
+	}
 	public static LinkedHashMap<String,Integer>getFieldWidthMap(){
 		LinkedHashMap<String,Integer> map = new LinkedHashMap<>();
 		map.put(VALUE,AMOUNT_DEFAULT_SHOW_SIZE);
@@ -136,16 +253,12 @@ public class Cash extends FcObject {
 		addFieldToMap(fieldMap, "valid", "Valid", "有效");
 		addFieldToMap(fieldMap, "lastTime", "Last Time", "最后时间");
 		addFieldToMap(fieldMap, "lastHeight", "Last Height", "最后高度");
-		
+		addFieldToMap(fieldMap, "redeemScript", "Redeem Script", "赎回脚本");
+		addFieldToMap(fieldMap, "lockTime", "Lock Time", "锁定时间");
+
 		return fieldMap;
 	}
-	
-//	private static void addFieldToMap(LinkedHashMap<String, Map<String, String>> fieldMap, String fieldName, String enName, String zhName) {
-//		Map<String, String> languageMap = new HashMap<>();
-//		languageMap.put("en", enName);
-//		languageMap.put("zh", zhName);
-//		fieldMap.put(fieldName, languageMap);
-//	}
+
 	public static List<String> getReplaceWithMeFieldList() {
 		return List.of(OWNER,ISSUER);
 	}
@@ -181,7 +294,12 @@ public class Cash extends FcObject {
 			newCash.setBirthTxId(cash.getBirthTxId());
 			newCash.setBirthIndex(cash.getBirthIndex());
 			newCash.setValue(cash.getValue());
-//			newCash.setOwner(cash.getOwner());
+			newCash.setCd(cash.getCd());
+			// CRITICAL: Copy redeemScript and lockTime for P2SH/CLTV outputs
+			newCash.setRedeemScript(cash.getRedeemScript());
+			newCash.setLockTime(cash.getLockTime());
+			// Also copy owner for better tracking
+			newCash.setOwner(cash.getOwner());
 			resultCashList.add(newCash);
 		}
 		return resultCashList;
@@ -268,11 +386,11 @@ public class Cash extends FcObject {
 		return FchUtils.satoshiToCoin(sum);
 	}
 
-	public static long sumCashCd(List<Cash> cashList) {
+	public static long sumCashCd(List<Cash> cashList, long bestHeight) {
 		if(cashList==null||cashList.isEmpty())return 0;
 		long sum = 0;
 		for(Cash cash :cashList){
-			if(cash.makeCd()==null)continue;
+			if(cash.makeCd(bestHeight)==null)continue;
 			if(cash.getCd()!=null)sum+=cash.getCd();
 		}
 		return sum;
@@ -281,21 +399,6 @@ public class Cash extends FcObject {
 	public static void checkImmatureCoinbase(List<Cash> cashList, long bestHeight) {
 		cashList.removeIf(cash -> COINBASE.equals(cash.getIssuer()) && bestHeight != 0 && (bestHeight - cash.getBirthHeight()) < OneDayInterval * 10);
 	}
-
-    public static List<Cash> showOrChooseCashList(List<Cash> cashList, String title, String myFid, boolean choose, BufferedReader br) {
-		return Shower.showOrChooseList(
-				title,
-				cashList,
-				myFid, choose,  // choose
-				Cash.class, br
-		);
-    }
-
-
-	public static List<Cash> showAndChooseCashListInPages(List<Cash> cashList, String title, String myFid, boolean choose,java.io.BufferedReader br) {
-        if(cashList==null || cashList.isEmpty())return null;
-		return Shower.showOrChooseListInPages(title,cashList,Shower.DEFAULT_PAGE_SIZE, myFid, choose,Cash.class,br);
-    }
 
     public String getBirthBlockId() {
 		return birthBlockId;
@@ -425,9 +528,9 @@ public class Cash extends FcObject {
 	public Long getCd() {
 		return cd;
 	}
-	public Long makeCd(){
-		if(value==null || birthTime==null)return null;
-		this.cd = FchUtils.cdd(getValue(),getBirthTime(),System.currentTimeMillis()/1000);
+	public Long makeCd(long bestHeight){
+		if(value==null || birthHeight==null)return null;
+		this.cd = FchUtils.cdd(getValue(),getBirthHeight(),bestHeight);
 		return this.cd;
 	}
 	public void setCd(Long cd) {
@@ -464,4 +567,86 @@ public class Cash extends FcObject {
 		this.lastHeight = lastHeight;
 	}
 
+	public Boolean getValid() {
+		return valid;
+	}
+
+	public Boolean getNew() {
+		return isNew;
+	}
+
+	public void setNew(Boolean aNew) {
+		isNew = aNew;
+	}
+
+	public String getRedeemScript() {
+		return redeemScript;
+	}
+
+	/**
+	 * Set the redeemScript for P2SH outputs
+	 * Accepts both hex and ASM formats. ASM format will be automatically converted to hex.
+	 * The redeemScript is ALWAYS stored in hex format internally.
+	 *
+	 * @param redeemScript RedeemScript in hex or ASM format
+	 */
+	public void setRedeemScript(String redeemScript) {
+		if (redeemScript == null || redeemScript.isEmpty()) {
+			this.redeemScript = redeemScript;
+			return;
+		}
+
+		// Check if it's already in hex format (only contains 0-9, a-f, A-F)
+		if (redeemScript.matches("^[0-9a-fA-F]+$")) {
+			// Already hex format, store directly
+			this.redeemScript = redeemScript;
+		} else {
+			// ASM format - convert to hex before storing
+			try {
+				// Preprocess: Remove PUSHDATA(n)[...] notation if present
+				// Example: "PUSHDATA(3)[627c2d]" becomes "627c2d"
+				String preprocessed = redeemScript.replaceAll("PUSHDATA\\(\\d+\\)\\[([0-9a-fA-F]+)\\]", "$1");
+
+				// Use P2SH.scriptAsmToHex to convert
+                this.redeemScript = P2SH.scriptAsmToHex(preprocessed);
+			} catch (Exception e) {
+				// If conversion fails, store as-is and let the caller handle the error
+				this.redeemScript = redeemScript;
+			}
+		}
+	}
+
+	public Long getLockTime() {
+		return lockTime;
+	}
+
+	public void setLockTime(Long lockTime) {
+		this.lockTime = lockTime;
+	}
+
+	public Boolean getConflicted() {
+		return isConflicted;
+	}
+
+	public void setConflicted(Boolean conflicted) {
+		isConflicted = conflicted;
+	}
+
+	public Double getAmount() {
+		if(value==null)return null;
+		return FchUtils.satoshiToCoin(value);
+	}
+
+	public void setAmount(Double amount) {
+		if(amount==null)setValue(null);
+		else setValue(FchUtils.coinToSatoshi(amount));
+	}
+
+	public Boolean getOnChain() {
+		return onChain;
+	}
+
+	public void setOnChain(Boolean onChain) {
+		this.onChain = onChain;
+	}
 }

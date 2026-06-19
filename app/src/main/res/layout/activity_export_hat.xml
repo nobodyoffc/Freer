@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/main_background">
+
+    <include layout="@layout/common_toolbar" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Result container -->
+        <include
+            android:id="@+id/resultView"
+            layout="@layout/layout_text_box_with_make_qr"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- Button container -->
+        <LinearLayout
+            style="?android:attr/buttonBarStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            android:gravity="end">
+
+            <ImageButton
+                android:id="@+id/copy_button"
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_copy"
+                android:contentDescription="@string/copy" />
+
+            <ImageButton
+                android:id="@+id/export_button"
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_export"
+                android:contentDescription="@string/export" />
+
+            <ImageButton
+                android:id="@+id/back_button"
+                style="@style/ImageButtonStyle"
+                android:src="@drawable/ic_back"
+                android:contentDescription="@string/back" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

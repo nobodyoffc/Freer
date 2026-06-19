@@ -3,6 +3,8 @@ package com.fc.freer.initiate;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import androidx.annotation.NonNull;
+
 import com.fc.freer.model.Configure;
 import com.fc.freer.model.Setting;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
@@ -44,26 +46,10 @@ public class SettingManager {
     /**
      * Sets the current active setting.
      * 
-     * @param context The application context
      * @param setting The Setting object to set as current
      */
-    public void setCurrentSetting(Context context, Setting setting) {
-//        if (context == null) {
-//            throw new IllegalArgumentException("Context is null");
-//        }
-        
+    public void setCurrentSetting(Setting setting) {
         this.currentSetting = setting;
-        
-//        // Save the current setting FID to SharedPreferences for persistence
-//        if (setting != null) {
-//            SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
-//            prefs.edit().putString(CURRENT_SETTING_KEY, setting.getFid()).apply();
-//            TimberLogger.d("SettingManager", "Set current setting to FID: " + setting.getFid());
-//        } else {
-//            SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
-//            prefs.edit().remove(CURRENT_SETTING_KEY).apply();
-//            TimberLogger.d("SettingManager", "Cleared current setting");
-//        }
     }
 
     /**
@@ -121,7 +107,7 @@ public class SettingManager {
 
         // If not found, create new setting
         TimberLogger.d("SettingManager", "Creating new setting for FID: " + fid);
-        setting = createNewSetting(context, keyInfo);
+        setting = createNewSetting(context, keyInfo, new HashMap<>());
         
         // Add KeyInfo to configure's mainCidInfoMap
         addKeyInfoToConfigure(keyInfo);
@@ -130,14 +116,20 @@ public class SettingManager {
 
     /**
      * Creates a new Setting object for the given KeyInfo.
-     * 
-     * @param context The application context
-     * @param keyInfo The KeyInfo object containing FID information
+     *
+     * @param context    The application context
+     * @param keyInfo    The KeyInfo object containing FID information
+     * @param settingMap The initial setting map to use
      * @return The newly created Setting object
      */
-    private Setting createNewSetting(Context context, KeyInfo keyInfo) {
+    private Setting createNewSetting(Context context, KeyInfo keyInfo, Map<String, Object> settingMap) {
+        Configure configure = ConfigureManager.getInstance().getConfigure();
+        if (configure == null) {
+            throw new IllegalStateException("Configure is not available from ConfigureManager");
+        }
+
         String fid = keyInfo.getId();
-        byte[] symkey = ConfigureManager.getInstance().getSymkey();
+        byte[] symkey = configure.getSymkey();
         
         if (symkey == null) {
             throw new IllegalStateException("Symkey is not available from ConfigureManager");
@@ -145,6 +137,7 @@ public class SettingManager {
 
         // Create new setting with the keyInfo
         Setting setting = new Setting(new HashMap<>(), keyInfo, symkey);
+        setting.setSettingMap(settingMap);
         
         // Save to local storage
         saveSettings(context, setting);
@@ -168,16 +161,18 @@ public class SettingManager {
         if (fid == null) {
             throw new IllegalArgumentException("FID is null");
         }
+        Configure configure = ConfigureManager.getInstance().getConfigure();
 
-        SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
-        String settingsJson = prefs.getString(SETTINGS_KEY, "{}");
-        Map<String, Setting> settingsMap = settingMapFromJson(settingsJson);
-        
-        if (settingsMap == null) {
-            settingsMap = new HashMap<>();
-        }
-        
+        Map<String, Setting> settingsMap = loadSettingMap(context, getSettingMapKey(configure));
+
         return settingsMap.get(fid);
+    }
+
+    @NonNull
+    public static Map<String, Setting> loadSettingMap(Context context, String key) {
+        SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
+        String settingsJson = prefs.getString(key, "{}");
+        return settingMapFromJson(settingsJson);
     }
 
     /**
@@ -198,9 +193,11 @@ public class SettingManager {
 
         SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
-        
+
+        Configure configure = ConfigureManager.getInstance().getConfigure();
+
         // Get existing setting map or create new one
-        String settingsJson = prefs.getString(SETTINGS_KEY, "{}");
+        String settingsJson = prefs.getString(getSettingMapKey(configure), "{}");
         Map<String, Setting> settingsMap = settingMapFromJson(settingsJson);
         
         // Add or update the setting object
@@ -208,10 +205,36 @@ public class SettingManager {
         
         // Save back to SharedPreferences
         String newSettingMapJson = JsonUtils.toJson(settingsMap);
-        editor.putString(SETTINGS_KEY, newSettingMapJson);
+        editor.putString(getSettingMapKey(configure), newSettingMapJson);
         editor.apply();
         
         TimberLogger.d("SettingManager", "Saved setting for FID: " + setting.getFid());
+    }
+
+    @NonNull
+    public static String getSettingMapKey(Configure configure) {
+        return configure.getPasswordName() + "_" + SETTINGS_KEY;
+    }
+
+    public static void saveSettingMap(Context context, String key, Map<String, Setting> settingMap) {
+        SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putString(key, JsonUtils.toJson(settingMap));
+        editor.apply();
+    }
+
+    /**
+     * Erases a setting map from SharedPreferences by its key.
+     *
+     * @param context The application context
+     * @param key The key of the setting map to erase
+     */
+    public static void eraseSettingMap(Context context, String key) {
+        SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.remove(key);
+        editor.apply();
+        TimberLogger.d("SettingManager", "Erased setting map for key: " + key);
     }
 
     /**
@@ -314,20 +337,14 @@ public class SettingManager {
         if (context == null) {
             throw new IllegalArgumentException("Context is null");
         }
+        Configure configure = ConfigureManager.getInstance().getConfigure();
+        Map<String, Setting> settingsMap = loadSettingMap(context, getSettingMapKey(configure));
 
-        SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
-        String settingsJson = prefs.getString(SETTINGS_KEY, "{}");
-        Map<String, Setting> settingsMap = settingMapFromJson(settingsJson);
-        
-        if (settingsMap == null) {
-            return new java.util.HashSet<>();
-        }
-        
         return settingsMap.keySet();
     }
 
     /**
-     * Special JSON parser to fully preserve nested KeyInfo (including multisign) when reading settings.
+     * Special JSON parser to fully preserve nested KeyInfo (including multisig) when reading settings.
      * The generic Map<String, Setting> parsing can sometimes coerce nested maps in a way
      * that drops complex nested fields. This method reparses each Setting and its keyInfoMap explicitly.
      */

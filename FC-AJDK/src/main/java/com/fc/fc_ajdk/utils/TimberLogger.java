@@ -206,4 +206,16 @@ public class TimberLogger {
     public static void e(String tag, String message, Throwable throwable) {
         Timber.tag(tag).e(throwable, message);
     }
+    
+    /**
+     * Log an error message with a specific tag, exception, format and arguments
+     * @param tag The tag to use for the log
+     * @param throwable The exception to log
+     * @param format The format string
+     * @param args The arguments to format
+     */
+    public static void e(String tag, Throwable throwable, String format, Object... args) {
+        String formattedMessage = String.format(format, args);
+        Timber.tag(tag).e(throwable, formattedMessage);
+    }
 }

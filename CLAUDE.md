@@ -44,7 +44,7 @@ The app follows a modular architecture with clear separation of concerns:
 - API architecture supports multiple service types (APIP, DISK) with flexible client management
 
 **UI Structure**:
-- Feature-based packages: `home`, `myKeys`, `secret`, `multisign`, `tx`, `tools`, `qr`
+- Feature-based packages: `home`, `myKeys`, `secret`, `multisig`, `tx`, `tools`, `qr`
 - Common UI components in `ui` package
 - Activity-specific dialogs and custom views
 
@@ -112,7 +112,7 @@ The app follows a modular architecture with clear separation of concerns:
 Default APIP endpoints configured in `ApipClient.freeAPIs`:
 - https://apip.cash/APIP
 - https://freecash.info/APIP
-- https://cid.cash/APIP
+- https://freer.cash/APIP
 - https://help.cash/APIP
 
 ## Important Notes

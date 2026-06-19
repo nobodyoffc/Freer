@@ -1,14 +1,8 @@
 package com.fc.fc_ajdk.data.fcData;
 
-import com.fc.fc_ajdk.config.Settings;
 import com.fc.fc_ajdk.constants.CodeMessage;
-import com.fc.fc_ajdk.data.fchData.Block;
-import com.fc.fc_ajdk.handlers.AccountHandler;
-import com.fc.fc_ajdk.handlers.Handler;
-import com.fc.fc_ajdk.handlers.SessionHandler;
-import com.fc.fc_ajdk.utils.FchUtils;
 
-import java.io.IOException;
+
 import java.util.List;
 
 public class ReplyBody extends FcObject {
@@ -24,30 +18,13 @@ public class ReplyBody extends FcObject {
     protected Long got;
     protected Long total;
     protected Long bestHeight;
+    private String newKey;
+
     protected String bestBlockId; //For rollback checking
     protected transient String sid;
-    protected transient AccountHandler accountHandler;
-    protected transient SessionHandler sessionHandler;
-    protected transient Settings settings;
-    protected transient String finalJson;
+
 
     public ReplyBody() {
-    }
-
-    public ReplyBody(Settings settings) {
-        this.sid = settings.getSid();
-        this.settings = settings;
-        if (settings.getHandler(Handler.HandlerType.ACCOUNT) != null)
-            accountHandler = (AccountHandler) settings.getHandler(Handler.HandlerType.ACCOUNT);
-        if (settings.getHandler(Handler.HandlerType.SESSION) != null)
-            sessionHandler = (SessionHandler) settings.getHandler(Handler.HandlerType.SESSION);
-    }
-
-    public void setBestBlock() {
-        Block block = settings.getBestBlock();
-
-        this.bestHeight = block.getHeight();
-        this.bestBlockId = block.getId();
     }
 
     public void set0Success() {
@@ -204,5 +181,13 @@ public class ReplyBody extends FcObject {
     public void setCodeMessage(Integer code) {
         this.code = code;
         this.message = CodeMessage.getMsg(code);
+    }
+
+    public String getNewKey() {
+        return newKey;
+    }
+
+    public void setNewKey(String newKey) {
+        this.newKey = newKey;
     }
 }
