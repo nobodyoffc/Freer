@@ -14,6 +14,7 @@ import com.fc.fc_ajdk.data.fcData.RequestType;
 import com.fc.fc_ajdk.data.feipData.Team;
 import com.fc.fc_ajdk.db.LocalDB;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.R;
 import com.fc.freer.im.MessageQueue.SendResult;
 import com.fc.freer.manager.DatabaseManager;
 
@@ -46,6 +47,14 @@ public class TeamHandler extends BaseHandler {
     private void loadTeamsIntoCache() {
         try {
             Map<String, Team> stored = teamsDb.getAll();
+            for (Team team : stored.values()) {
+                // Migration: teams saved before onChain field existed have onChain==null
+                // but are confirmed on chain if birthHeight is set.
+                if (team.getOnChain() == null && team.getBirthHeight() != null) {
+                    team.setOnChain(true);
+                    teamsDb.put(team.getId(), team);
+                }
+            }
             teamCache.putAll(stored);
         } catch (Exception e) {
             TimberLogger.e(TAG, "Failed to load teams from local DB: %s", e.getMessage());
@@ -116,9 +125,13 @@ public class TeamHandler extends BaseHandler {
             // Fallback: resolve team's DOCK URL and forward via user's own DOCK
             String targetDockUrl = null;
             Team cachedTeam = teamCache.get(teamId);
-            if (cachedTeam != null && cachedTeam.getHome() != null) {
+            if (cachedTeam == null) {
+                cachedTeam = loadTeamInfo(teamId);
+            }
+            Map<String, String> teamHome = (cachedTeam != null) ? cachedTeam.getHome() : null;
+            if (teamHome != null) {
                 targetDockUrl = fapiClient.getHomeServiceResolver()
-                        .resolveDockFromHome(cachedTeam.getHome(), fapiClient);
+                        .resolveDockFromHome(teamHome, fapiClient);
             }
             if (targetDockUrl == null) {
                 try {
@@ -128,7 +141,18 @@ public class TeamHandler extends BaseHandler {
                 }
             }
 
-            if (targetDockUrl != null && dockAvailabilityChecker != null
+            // A team's messages must land on the team's own DOCK so every member
+            // fetches them from the same server. If we cannot resolve a target
+            // DOCK, sending via our own DOCK would store the message where only we
+            // can read it and falsely report "sent". Fail loudly instead.
+            if (targetDockUrl == null) {
+                notifyError(context.getString(hasDockConfigured(teamHome)
+                        ? R.string.im_dock_unresolvable
+                        : R.string.im_dock_not_configured));
+                return SendResult.FAIL_PERMANENT;
+            }
+
+            if (dockAvailabilityChecker != null
                     && !dockAvailabilityChecker.isDockReachable(targetDockUrl)) {
                 notifyError("Cannot reach team's DOCK server: " + targetDockUrl);
                 return SendResult.RETRY_TRANSIENT;
@@ -162,7 +186,7 @@ public class TeamHandler extends BaseHandler {
     @Override
     public void handleIncoming(ImMessage message) {
         if (message == null) return;
-        
+
         String teamId = message.getTargetId();
         
         // Decrypt if encrypted
@@ -387,6 +411,7 @@ public class TeamHandler extends BaseHandler {
             Map<String, Team> result = fapiClient.entityByIds("team", Team.class, List.of(teamId));
             Team team = result.get(teamId);
             if (team != null) {
+                team.setOnChain(true);
                 saveTeam(team);
             }
             return team;
@@ -402,11 +427,35 @@ public class TeamHandler extends BaseHandler {
     }
     
     /**
-     * Save team info from public sync (does not require ownership).
+     * Save team info from public sync (confirmed on chain).
      */
     public void saveTeamPublic(Team team) {
         if (team == null || team.getId() == null) return;
+        team.setOnChain(true);
         saveTeam(team);
+    }
+
+    /**
+     * Save a locally-created pending team (TX broadcast, not yet confirmed).
+     * Sets onChain=null to mark it as pending.
+     */
+    public void savePendingTeam(Team team) {
+        if (team == null || team.getId() == null) return;
+        team.setOnChain(null);
+        saveTeam(team);
+    }
+
+    /**
+     * Return all teams with onChain==null (TX submitted, awaiting confirmation).
+     */
+    public List<Team> getPendingTeams() {
+        List<Team> pending = new java.util.ArrayList<>();
+        for (Team team : teamCache.values()) {
+            if (team.getOnChain() == null) {
+                pending.add(team);
+            }
+        }
+        return pending;
     }
     
     /**

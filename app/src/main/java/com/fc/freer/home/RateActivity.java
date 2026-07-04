@@ -656,8 +656,6 @@ public class RateActivity extends BaseCryptoActivity {
                 @Override
                 public void onSuccess(String txId) {
                     runOnUiThread(() -> {
-                        ToastUtils.makeText(RateActivity.this, 
-                            getString(R.string.rating_submitted, txId));
                         finish();
                     });
                 }

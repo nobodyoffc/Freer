@@ -40,6 +40,9 @@ public class CheckPasswordActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Register this instance so the background auto-lock won't stack a second
+        // password screen on top while this one is alive.
+        com.fc.freer.utils.BackgroundTimeoutManager.onPasswordCheckCreated();
         getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         setContentView(R.layout.activity_check_password);
         // Set up toolbar
@@ -237,9 +240,23 @@ public class CheckPasswordActivity extends AppCompatActivity {
                         // Store the Configure object in ConfigureManager for sharing across activities
                         ConfigureManager.getInstance().setConfigure(configure);
 
-                        // If from background timeout, just finish without setting result
-                        // This allows the underlying HomeActivity to resume naturally
+                        // If from background timeout, normally the process is still
+                        // alive and the underlying HomeActivity (with its current
+                        // setting + FidManager) can simply resume.
                         if (fromBackgroundTimeout) {
+                            // But if the process was killed during the background sleep
+                            // and only restored now, the symkey we just rebuilt is
+                            // present while the current setting is gone. Resuming
+                            // HomeActivity in that state leaves the FID card stuck on
+                            // "Loading...", so re-select the identity to fully restore
+                            // the session before continuing (the symkey is already valid,
+                            // so no extra password prompt is needed).
+                            if (com.fc.freer.initiate.SettingManager.getInstance().getCurrentSetting() == null) {
+                                TimberLogger.d(TAG, "Session restored after process death; selecting CID to rebuild setting");
+                                Intent intent = new Intent(this, ChooseCidActivity.class);
+                                startActivityForResult(intent, REQUEST_CODE_CHOOSE_CID);
+                                return;
+                            }
                             TimberLogger.d(TAG, "Same password during background timeout, resuming to existing activity");
                             finish();
                             return;
@@ -260,6 +277,12 @@ public class CheckPasswordActivity extends AppCompatActivity {
                 });
             }
         }).start();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        com.fc.freer.utils.BackgroundTimeoutManager.onPasswordCheckDestroyed();
     }
 
     @Override

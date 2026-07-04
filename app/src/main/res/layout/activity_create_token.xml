@@ -18,12 +18,8 @@
             android:orientation="vertical"
             android:padding="8dp">
 
-            <!-- Token ID -->
-            <include
-                android:id="@+id/tokenIdView"
-                layout="@layout/layout_text_input_with_scan" />
-
             <!-- Token Name -->
+            <!-- The tokenId of a new token is the id of the deploy TX, so it is not an input. -->
             <include
                 android:id="@+id/tokenNameView"
                 layout="@layout/layout_text_input_with_scan" />

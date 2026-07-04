@@ -84,7 +84,7 @@ public class UpdateContactActivity extends BaseCryptoActivity {
         // Get the contact detail from intent
         String contactJson = getIntent().getStringExtra("contactDetail");
         if (contactJson == null || contactJson.isEmpty()) {
-            ToastUtils.makeText(this, "No contact data provided");
+            ToastUtils.makeText(this, getString(R.string.toast_no_contact_data));
             finish();
             return;
         }
@@ -92,13 +92,13 @@ public class UpdateContactActivity extends BaseCryptoActivity {
         try {
             originalContact = Contact.fromJson(contactJson, Contact.class);
             if (originalContact == null) {
-                ToastUtils.makeText(this, "Invalid contact data");
+                ToastUtils.makeText(this, getString(R.string.toast_invalid_contact_data));
                 finish();
                 return;
             }
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error parsing contact data: %s", e.getMessage());
-            ToastUtils.makeText(this, "Error loading contact data");
+            ToastUtils.makeText(this, getString(R.string.toast_error_loading_contact));
             finish();
             return;
         }
@@ -278,7 +278,7 @@ public class UpdateContactActivity extends BaseCryptoActivity {
                     .setPositiveButton(R.string.update, (dialog, which) -> {
                         contactManager.updateContact(updatedContact);
                         contactManager.commit();
-                        ToastUtils.makeText(this, "Contact updated successfully");
+                        ToastUtils.makeText(this, getString(R.string.toast_contact_updated));
                         setResult(Activity.RESULT_OK);
                         finish();
                     })
@@ -288,7 +288,7 @@ public class UpdateContactActivity extends BaseCryptoActivity {
             // Should not happen for update, but handle gracefully
             contactManager.addContact(updatedContact);
             contactManager.commit();
-            ToastUtils.makeText(this, "Contact updated successfully");
+            ToastUtils.makeText(this, getString(R.string.toast_contact_updated));
             setResult(Activity.RESULT_OK);
             finish();
         }
@@ -352,7 +352,6 @@ public class UpdateContactActivity extends BaseCryptoActivity {
                             contactManager.updateContact(updatedContact);
                             contactManager.commit();
 
-                            ToastUtils.makeText(UpdateContactActivity.this, "Contact updated on-chain successfully");
                             setResult(Activity.RESULT_OK);
                             finish();
                         });
@@ -361,14 +360,14 @@ public class UpdateContactActivity extends BaseCryptoActivity {
                     @Override
                     public void onError(String errorMessage) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(UpdateContactActivity.this, "Failed to carve FEIP on-chain: " + errorMessage);
+                            ToastUtils.makeText(UpdateContactActivity.this, getString(R.string.toast_failed_carve_feip, errorMessage));
                         });
                     }
 
                     @Override
                     public void onUnsignedTx(RawTxInfo rawTxInfo) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(UpdateContactActivity.this, "Cannot sign transaction - showing unsigned TX");
+                            ToastUtils.makeText(UpdateContactActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
                             txSender.showUnsignedTxAsQR(UpdateContactActivity.this, rawTxInfo);
                         });
                     }
@@ -391,7 +390,7 @@ public class UpdateContactActivity extends BaseCryptoActivity {
             contactManager.updateContact(updatedContact);
             contactManager.commit();
 
-            ToastUtils.makeText(this, "Contact updated locally");
+            ToastUtils.makeText(this, getString(R.string.toast_contact_updated_local));
             setResult(Activity.RESULT_OK);
             finish();
         }

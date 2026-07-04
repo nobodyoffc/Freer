@@ -1,13 +1,36 @@
 # task
 
-[] set home with sid.
+[] token
+[] publish codes.
+[] make up nerve server
+[] update services
+[] add disk mirror and dock mirror.
+[] create APIP protocol
+[x] upload server programs
+[x] publish APPs
+    [x] freer
+    [x] safe
+    [x] MyCoins
+[x] publish NIDs
+[x] update download.xml
+[x] add uploadAll to FAPI client.
+[x] add download file to protocol in the app
+[x] DISK server on http. Free only for downloading. 
+[x]link protocol, app to DISK. 
+
+[x] modify protocols
+
+[x] update the bundle prefix of the algorithm.
+[x] cd for updating square
+[x] about
+[x] set home with sid.
 
 [x] room: ROOM_ACCEPT, ROOM_DISBAND。解散时由房主发出 DISBAND 消息。成员端收到后标注已解散，可自主选择是否删除历史信息。
 [x] show members
 [x] p2p dock logic
-[] when 'im manager not ready, try later', return causes crash.
-[] pending message logic: reject and block it. accept and resume.
-[] the symkey sharing message is shown in p2p chat.
+[x] when 'im manager not ready, try later', return causes crash.
+[x] pending message logic: reject and block it. accept and resume.
+[x] the symkey sharing message is shown in p2p chat.
 
 [x] opreturn list +
 [x] fetch the messages of myself

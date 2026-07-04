@@ -30,7 +30,13 @@ public class SquareSyncManager {
     private static final String TAG = "SquareSyncManager";
     private static final String MMKV_PREFIX = "square_sync_";
     private static final String CURSOR_KEY = "cursor";
+    private static final String LAST_FULL_SYNC_KEY = "last_full_sync";
     private static final int PAGE_SIZE = 20;
+    // The lastHeight cursor only moves forward, so it can permanently skip a member square
+    // whose lastHeight is below the cursor (e.g. an old square the user just joined, when
+    // joining does not bump the square's lastHeight). Periodically ignore the cursor and
+    // rescan from scratch to rediscover such squares.
+    private static final long FULL_SYNC_INTERVAL_MS = 6L * 60 * 60 * 1000; // 6 hours
 
     private final String liveFid;
     private final MMKV cursorStore;
@@ -62,7 +68,8 @@ public class SquareSyncManager {
         try {
             int newCount = 0;
             int updatedCount = 0;
-            List<String> cursor = loadCursor();
+            boolean fullScan = shouldFullScan();
+            List<String> cursor = fullScan ? null : loadCursor();
 
             while (true) {
                 Fcdsl fcdsl = new Fcdsl();
@@ -140,6 +147,9 @@ public class SquareSyncManager {
                 cursor = loadCursor();
             }
 
+            if (fullScan) {
+                cursorStore.encode(LAST_FULL_SYNC_KEY, System.currentTimeMillis());
+            }
             if (callback != null) callback.onSyncComplete(newCount, updatedCount);
         } catch (Exception e) {
             TimberLogger.e(TAG, "Sync failed: %s", e.getMessage());
@@ -178,6 +188,15 @@ public class SquareSyncManager {
         if (last.getLastHeight() != null) {
             List<String> cursor = List.of(String.valueOf(last.getLastHeight()), last.getId());
             saveCursor(cursor);
+        }
+    }
+
+    private boolean shouldFullScan() {
+        try {
+            long last = cursorStore.decodeLong(LAST_FULL_SYNC_KEY, 0L);
+            return System.currentTimeMillis() - last > FULL_SYNC_INTERVAL_MS;
+        } catch (Exception e) {
+            return true;
         }
     }
 

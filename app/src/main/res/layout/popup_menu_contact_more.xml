@@ -6,6 +6,20 @@
     android:orientation="vertical">
 
     <TextView
+        android:id="@+id/about_item"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        android:text="@string/about_contact"
+        android:textColor="?android:attr/textColorPrimary"
+        android:textSize="16sp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?android:attr/listDivider" />
+
+    <TextView
         android:id="@+id/add_from_list_item"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

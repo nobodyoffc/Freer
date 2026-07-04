@@ -7,11 +7,31 @@
     android:padding="8dp">
 
     <TextView
+        android:id="@+id/about_item"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="12dp"
+        android:text="@string/about_token"
+        android:textSize="16sp"
+        android:textColor="@color/text"
+        android:background="?android:attr/selectableItemBackground" />
+
+    <TextView
         android:id="@+id/refresh_item"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="12dp"
         android:text="@string/refresh"
+        android:textSize="16sp"
+        android:textColor="@color/text"
+        android:background="?android:attr/selectableItemBackground" />
+
+    <TextView
+        android:id="@+id/hide_item"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="12dp"
+        android:text="@string/hide_items"
         android:textSize="16sp"
         android:textColor="@color/text"
         android:background="?android:attr/selectableItemBackground" />

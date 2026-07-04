@@ -1129,7 +1129,7 @@ public abstract class FcManager<T extends FcEntity> {
             activity.startActivity(intent);
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error launching delete activity for %s: %s", entityName, e.getMessage());
-            ToastUtils.makeText(activity, "Error launching delete activity");
+            ToastUtils.makeText(activity, activity.getString(R.string.toast_error_launching_delete));
         }
     }
 

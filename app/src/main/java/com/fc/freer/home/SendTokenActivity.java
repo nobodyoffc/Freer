@@ -309,14 +309,45 @@ public class SendTokenActivity extends BaseCryptoActivity {
             return;
         }
 
-        // Check if token is transferable
-        if (tokenInfo != null && !"true".equalsIgnoreCase(tokenInfo.getTransferable())) {
-            ToastUtils.makeText(this, R.string.token_not_transferable);
-            return;
+        // The parser rejects transfers of closed tokens and amounts with more
+        // decimal places than the token's decimal
+        if (tokenInfo != null) {
+            if (Boolean.TRUE.equals(tokenInfo.getClosed())) {
+                ToastUtils.makeText(this, R.string.token_closed);
+                return;
+            }
+
+            if (!Boolean.TRUE.equals(tokenInfo.getTransferable())) {
+                ToastUtils.makeText(this, R.string.token_not_transferable);
+                return;
+            }
+
+            int maxDecimal = parseDecimal(tokenInfo.getDecimal());
+            if (getDecimalPlaces(amountStr) > maxDecimal) {
+                ToastUtils.makeText(this, getString(R.string.too_many_decimal_places, maxDecimal));
+                return;
+            }
         }
 
         // Perform transfer
         performTransfer(recipient, amount);
+    }
+
+    static int parseDecimal(String decimal) {
+        if (decimal == null) return 0;
+        try {
+            return Integer.parseInt(decimal);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    static int getDecimalPlaces(String amountStr) {
+        try {
+            return Math.max(0, new java.math.BigDecimal(amountStr).stripTrailingZeros().scale());
+        } catch (NumberFormatException e) {
+            return Integer.MAX_VALUE;
+        }
     }
 
     private void performTransfer(String recipient, double amount) {
@@ -353,8 +384,6 @@ public class SendTokenActivity extends BaseCryptoActivity {
                         public void onSuccess(String txId) {
                             runOnUiThread(() -> {
                                 dismissWaitingDialog();
-                                ToastUtils.makeText(SendTokenActivity.this,
-                                    getString(R.string.token_transferred_successfully, txId));
                                 setResult(RESULT_OK);
                                 finish();
                             });

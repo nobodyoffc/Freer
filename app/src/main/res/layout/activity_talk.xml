@@ -62,6 +62,46 @@
 
     </LinearLayout>
 
+    <!-- Send-only mode banner: no DOCK registered, sending works but receiving doesn't -->
+    <LinearLayout
+        android:id="@+id/send_only_banner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginTop="4dp"
+        android:padding="10dp"
+        android:background="@drawable/container_outline"
+        android:gravity="center_vertical"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_send"
+            app:tint="@color/warning" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:text="@string/talk_send_only_banner"
+            android:textSize="14sp"
+            android:textColor="@color/warning" />
+
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_marginStart="4dp"
+            android:src="@drawable/ic_chevron_right"
+            app:tint="@color/warning" />
+
+    </LinearLayout>
+
     <!-- Conversation list container -->
     <LinearLayout
         android:layout_width="match_parent"

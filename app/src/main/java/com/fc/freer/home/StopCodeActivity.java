@@ -145,7 +145,6 @@ public class StopCodeActivity extends BaseCryptoActivity {
                             Intent resultIntent = new Intent();
                             resultIntent.putExtra("stopped_code_ids", codeIds.toArray(new String[0]));
                             setResult(Activity.RESULT_OK, resultIntent);
-                            ToastUtils.makeText(StopCodeActivity.this, getString(R.string.codes_stopped_successfully, txId));
                             finish();
                         });
                     }

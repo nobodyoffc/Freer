@@ -68,7 +68,7 @@ public class DestroyProofActivity extends BaseCryptoActivity {
         // Get the proof details from intent
         String proofListJson = getIntent().getStringExtra("proofList");
         if (proofListJson == null || proofListJson.isEmpty()) {
-            ToastUtils.makeText(this, "No proofs provided for destruction");
+            ToastUtils.makeText(this, getString(R.string.toast_no_proofs_for_destruction));
             finish();
             return;
         }
@@ -76,13 +76,13 @@ public class DestroyProofActivity extends BaseCryptoActivity {
         try {
             proofList = JsonUtils.listFromJson(proofListJson, Proof.class);
             if (proofList.isEmpty()) {
-                ToastUtils.makeText(this, "No valid proofs found");
+                ToastUtils.makeText(this, getString(R.string.toast_no_valid_proofs));
                 finish();
                 return;
             }
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error parsing proof list: %s", e.getMessage());
-            ToastUtils.makeText(this, "Error loading proof data");
+            ToastUtils.makeText(this, getString(R.string.toast_error_loading_proof));
             finish();
             return;
         }
@@ -202,7 +202,7 @@ public class DestroyProofActivity extends BaseCryptoActivity {
             if (proofCardContainer == null) return;
             List<Proof> proofsToDestroy = new ArrayList<>(proofCardContainer.getProofList());
             if (proofsToDestroy.isEmpty()) {
-                ToastUtils.makeText(this, "No proofs to destroy");
+                ToastUtils.makeText(this, getString(R.string.toast_no_proofs_to_destroy));
                 return;
             }
             performDestroyOperation(proofsToDestroy);
@@ -219,7 +219,7 @@ public class DestroyProofActivity extends BaseCryptoActivity {
         // Remove deleted off-chain proofs from the UI
         if (remainingOnChainProofs.size() < proofsToDestroy.size()) {
             int deletedCount = proofsToDestroy.size() - remainingOnChainProofs.size();
-            ToastUtils.makeText(this, "Deleted " + deletedCount + " off-chain proofs locally");
+            ToastUtils.makeText(this, getString(R.string.toast_deleted_proofs_local, deletedCount));
         }
 
         // If there are no on-chain proofs to destroy, we're done
@@ -232,7 +232,7 @@ public class DestroyProofActivity extends BaseCryptoActivity {
         // For remaining on-chain proofs, proceed with blockchain destruction
         KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
         if (liveKeyInfo == null) {
-            ToastUtils.makeText(this, "No active key available");
+            ToastUtils.makeText(this, getString(R.string.toast_no_active_key));
             return;
         }
 
@@ -267,7 +267,6 @@ public class DestroyProofActivity extends BaseCryptoActivity {
 
                             proofManager.commit();
 
-                            ToastUtils.makeText(DestroyProofActivity.this, "Proofs destroyed successfully on-chain");
                             setResult(Activity.RESULT_OK);
                             finish();
                         });
@@ -276,14 +275,14 @@ public class DestroyProofActivity extends BaseCryptoActivity {
                     @Override
                     public void onError(String errorMessage) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(DestroyProofActivity.this, "Failed to destroy proofs on-chain: " + errorMessage);
+                            ToastUtils.makeText(DestroyProofActivity.this, getString(R.string.toast_failed_destroy_proofs_onchain, errorMessage));
                         });
                     }
 
                     @Override
                     public void onUnsignedTx(RawTxInfo rawTxInfo) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(DestroyProofActivity.this, "Cannot sign transaction - showing unsigned TX");
+                            ToastUtils.makeText(DestroyProofActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
                             txSender.showUnsignedTxAsQR(DestroyProofActivity.this, rawTxInfo);
                         });
                     }
@@ -304,7 +303,7 @@ public class DestroyProofActivity extends BaseCryptoActivity {
 
             proofManager.commit();
 
-            ToastUtils.makeText(this, "Proofs deleted locally");
+            ToastUtils.makeText(this, getString(R.string.toast_proofs_deleted_local));
             setResult(Activity.RESULT_OK);
             finish();
         }

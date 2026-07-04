@@ -17,48 +17,50 @@ public class NidOpData {
 	private List<String> names;
 
 	public enum Op {
-		REGISTER(FeipOp.REGISTER),
-		UPDATE(FeipOp.UPDATE),
-		CLOSE(FeipOp.CLOSE),
-		RATE(FeipOp.RATE);
+		ADD(FeipOp.ADD),
+		STOP(FeipOp.STOP),
+		RECOVER(FeipOp.RECOVER);
 
-        private final FeipOp feipOp;
+		private final FeipOp feipOp;
 
-        Op(FeipOp feipOp) {
-            this.feipOp = feipOp;
-        }
+		Op(FeipOp feipOp) {
+			this.feipOp = feipOp;
+		}
 
-        public FeipOp getFeipOp() {
-            return feipOp;
-        }
+		public FeipOp getFeipOp() {
+			return feipOp;
+		}
 
-        public static Op fromValue(String value) {
-            for (Op op : values()) {
-                if (op.getFeipOp().equals(value)) {
-                    return op;
-                }
-            }
-            throw new IllegalArgumentException("Unknown op: " + value);
-        }
+		public static Op fromString(String text) {
+			for (Op op : values()) {
+				if (op.name().equalsIgnoreCase(text)) {
+					return op;
+				}
+			}
+			throw new IllegalArgumentException("No constant with text " + text + " found");
+		}
+
+		public String toLowerCase() {
+			return feipOp.getValue().toLowerCase();
+		}
 	}
 
 	public static final Map<String, String[]> OP_FIELDS = Map.ofEntries(
-		entry(Op.REGISTER.name(), new String[]{FieldNames.NAME, Values.DESC}),
-		entry(Op.UPDATE.name(), new String[]{FieldNames.OID, FieldNames.NAME, Values.DESC}),
-		entry(Op.CLOSE.name(), new String[]{FieldNames.NAMES}),
-		entry(Op.RATE.name(), new String[]{FieldNames.OID})
+			entry(Op.ADD.toLowerCase(), new String[]{FieldNames.NAME, FieldNames.OID, Values.DESC}),
+			entry(Op.STOP.toLowerCase(), new String[]{FieldNames.NAMES}),
+			entry(Op.RECOVER.toLowerCase(), new String[]{FieldNames.NAMES})
 	);
 
 
 	public List<String> getNames() {
-        return names;
-    }
+		return names;
+	}
 
-    public void setNames(List<String> names) {
-        this.names = names;
-    }
+	public void setNames(List<String> names) {
+		this.names = names;
+	}
 
-    public String getOp() {
+	public String getOp() {
 		return op;
 	}
 
@@ -90,34 +92,26 @@ public class NidOpData {
 		this.oid = oid;
 	}
 
-	public static NidOpData makeRegister(String name, String desc) {
+	public static NidOpData makeAdd(String name, String oid, String desc) {
 		NidOpData data = new NidOpData();
-		data.setOp(Op.REGISTER.name());
+		data.setOp(Op.ADD.toLowerCase());
 		data.setName(name);
-		data.setDesc(desc);
-		return data;
-	}
-
-	public static NidOpData makeUpdate(String oid, String name, String desc) {
-		NidOpData data = new NidOpData();
-		data.setOp(Op.UPDATE.name());
 		data.setOid(oid);
-		data.setName(name);
 		data.setDesc(desc);
 		return data;
 	}
 
-	public static NidOpData makeClose(List<String> names) {
+	public static NidOpData makeStop(List<String> names) {
 		NidOpData data = new NidOpData();
-		data.setOp(Op.CLOSE.name());
+		data.setOp(Op.STOP.toLowerCase());
 		data.setNames(names);
 		return data;
 	}
 
-	public static NidOpData makeRate(String oid) {
+	public static NidOpData makeRecover(List<String> names) {
 		NidOpData data = new NidOpData();
-		data.setOp(Op.RATE.name());
-		data.setOid(oid);
+		data.setOp(Op.RECOVER.toLowerCase());
+		data.setNames(names);
 		return data;
 	}
 }

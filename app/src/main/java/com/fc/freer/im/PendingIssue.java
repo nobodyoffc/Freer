@@ -14,8 +14,6 @@ public class PendingIssue extends FcEntity {
     public enum IssueType {
         STRANGER_PEER,
         GROUP_INVITE,
-        TEAM_INVITE,
-        TEAM_TRANSFER,
         FILE_OFFER,
         ROOM_INVITE
     }
@@ -115,21 +113,6 @@ public class PendingIssue extends FcEntity {
     public static PendingIssue fromJson(String json) { return JsonUtils.fromJson(json, PendingIssue.class); }
 
     /**
-     * Payload for TEAM_INVITE and TEAM_TRANSFER issues.
-     */
-    public static class TeamNotificationData {
-        public String teamId;
-        public String teamName;
-        public String senderFid;
-        public String txId;
-
-        public String toJson() { return JsonUtils.toJson(this); }
-        public static TeamNotificationData fromJson(String json) {
-            return JsonUtils.fromJson(json, TeamNotificationData.class);
-        }
-    }
-
-    /**
      * Payload for ROOM_INVITE issues.
      * Stores the raw roomInfo JSON so the room can be created on accept.
      */
@@ -180,45 +163,4 @@ public class PendingIssue extends FcEntity {
         return issue;
     }
 
-    public static PendingIssue createTeamInvite(String senderFid, String teamId, String teamName, String txId) {
-        PendingIssue issue = new PendingIssue();
-        issue.setId("TEAM_INVITE_" + teamId + "_" + System.currentTimeMillis());
-        issue.setIssueType(IssueType.TEAM_INVITE);
-        issue.setStatus(IssueStatus.PENDING);
-        issue.setPeerFid(senderFid);
-        issue.setCreatedAt(System.currentTimeMillis());
-
-        TeamNotificationData data = new TeamNotificationData();
-        data.teamId = teamId;
-        data.teamName = teamName;
-        data.senderFid = senderFid;
-        data.txId = txId;
-        issue.setDataFrom(data);
-
-        if (teamName != null && !teamName.isEmpty()) {
-            issue.setNote(teamName);
-        }
-        return issue;
-    }
-
-    public static PendingIssue createTeamTransfer(String senderFid, String teamId, String teamName, String txId) {
-        PendingIssue issue = new PendingIssue();
-        issue.setId("TEAM_TRANSFER_" + teamId + "_" + System.currentTimeMillis());
-        issue.setIssueType(IssueType.TEAM_TRANSFER);
-        issue.setStatus(IssueStatus.PENDING);
-        issue.setPeerFid(senderFid);
-        issue.setCreatedAt(System.currentTimeMillis());
-
-        TeamNotificationData data = new TeamNotificationData();
-        data.teamId = teamId;
-        data.teamName = teamName;
-        data.senderFid = senderFid;
-        data.txId = txId;
-        issue.setDataFrom(data);
-
-        if (teamName != null && !teamName.isEmpty()) {
-            issue.setNote(teamName);
-        }
-        return issue;
-    }
 }

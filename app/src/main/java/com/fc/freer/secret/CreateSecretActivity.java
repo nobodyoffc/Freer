@@ -176,7 +176,7 @@ public class CreateSecretActivity extends BaseCryptoActivity {
 
         if(typeDisplay.equals("TOTP" )) {
             if(!Base32.isBase32(content)) {
-                ToastUtils.makeText(this, "Failed to save! TOTP key have to be base32 encoded");
+                ToastUtils.makeText(this, getString(R.string.toast_totp_save_base32));
                 return;
             }
         }
@@ -240,7 +240,7 @@ public class CreateSecretActivity extends BaseCryptoActivity {
 
         if(typeDisplay.equals("TOTP" )) {
             if(!Base32.isBase32(content)) {
-                ToastUtils.makeText(this, "Failed to save! TOTP key have to be base32 encoded");
+                ToastUtils.makeText(this, getString(R.string.toast_totp_save_base32));
                 return;
             }
         }
@@ -297,14 +297,14 @@ public class CreateSecretActivity extends BaseCryptoActivity {
                     @Override
                     public void onError(String errorMessage) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(CreateSecretActivity.this, "Failed to carve FEIP on-chain: " + errorMessage);
+                            ToastUtils.makeText(CreateSecretActivity.this, getString(R.string.toast_failed_carve_feip, errorMessage));
                         });
                     }
 
                     @Override
                     public void onUnsignedTx(RawTxInfo rawTxInfo) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(CreateSecretActivity.this, "Cannot sign transaction - showing unsigned TX");
+                            ToastUtils.makeText(CreateSecretActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
                             txSender.showUnsignedTxAsQR(CreateSecretActivity.this, rawTxInfo);
                         });
                     }

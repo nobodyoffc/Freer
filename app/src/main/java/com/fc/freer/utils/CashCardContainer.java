@@ -603,7 +603,8 @@ public class CashCardContainer {
                 checkBox.setVisibility(VISIBLE);
                 // Disable checkbox if cash is conflicted
                 checkBox.setEnabled(Boolean.FALSE.equals(cash.getConflicted()));
-                checkBoxes.add(checkBox);
+                // Note: checkBox is added to checkBoxes at the correct position below
+                // (checkBoxes.add(position, checkBox)) to stay aligned with cashList.
                 break;
             default:
                 break;

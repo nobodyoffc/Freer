@@ -59,7 +59,7 @@ public class DetailActivity extends AppCompatActivity {
         }
 
         if (entity == null) {
-            ToastUtils.makeText(this, "Error: No entity data available");
+            ToastUtils.makeText(this, getString(R.string.toast_error_no_entity_data));
             finish();
             return;
         }

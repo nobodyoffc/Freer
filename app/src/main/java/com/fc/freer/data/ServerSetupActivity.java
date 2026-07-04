@@ -9,14 +9,11 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import com.fc.fc_ajdk.constants.Constants;
 import com.fc.fc_ajdk.core.fch.RawTxInfo;
 import com.fc.fc_ajdk.core.fch.TxHandler;
-import com.fc.fc_ajdk.data.fcData.FcEntity;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.data.feipData.Feip;
 import com.fc.fc_ajdk.data.feipData.HomeOpData;
 import com.fc.fc_ajdk.data.feipData.Service;
-import com.fc.fc_ajdk.fapi.client.ApiProvider;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
-import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.im.ImManager;
@@ -27,6 +24,7 @@ import com.fc.freer.model.Setting;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.SecurePrikeyManager;
+import com.fc.freer.utils.ServicePickerUtils;
 import com.fc.freer.utils.ToastUtils;
 import com.google.android.material.textfield.TextInputEditText;
 
@@ -75,14 +73,14 @@ public class ServerSetupActivity extends BaseCryptoActivity {
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                        handleServiceSelected(result.getData(), dockInput);
+                        ServicePickerUtils.applySelectedService(this, result.getData(), dockInput);
                     }
                 });
         setDiskLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                        handleServiceSelected(result.getData(), diskInput);
+                        ServicePickerUtils.applySelectedService(this, result.getData(), diskInput);
                     }
                 });
     }
@@ -103,17 +101,10 @@ public class ServerSetupActivity extends BaseCryptoActivity {
     protected void setupButtons() {
         registerButton.setOnClickListener(v -> register());
         backButton.setOnClickListener(v -> finish());
-        chooseDockButton.setOnClickListener(v -> setDockLauncher.launch(
-                pickerIntent(Constants.DOCK_NO1_NRC7, getString(R.string.server_setup_dock_label))));
-        chooseDiskButton.setOnClickListener(v -> setDiskLauncher.launch(
-                pickerIntent(Constants.DISK_NO1_NRC7, getString(R.string.server_setup_disk_label))));
-    }
-
-    private Intent pickerIntent(String component, String title) {
-        Intent intent = new Intent(this, SetDiskActivity.class);
-        intent.putExtra(SetDiskActivity.EXTRA_COMPONENT, component);
-        intent.putExtra(SetDiskActivity.EXTRA_TITLE, title);
-        return intent;
+        chooseDockButton.setOnClickListener(v -> setDockLauncher.launch(ServicePickerUtils.pickerIntent(
+                this, Constants.DOCK_NO1_NRC7, getString(R.string.server_setup_dock_label))));
+        chooseDiskButton.setOnClickListener(v -> setDiskLauncher.launch(ServicePickerUtils.pickerIntent(
+                this, Constants.DISK_NO1_NRC7, getString(R.string.server_setup_disk_label))));
     }
 
     @Override
@@ -150,21 +141,6 @@ public class ServerSetupActivity extends BaseCryptoActivity {
                 if (dockValue != null) dockInput.setText(dockValue);
                 if (diskValue != null) diskInput.setText(diskValue);
             });
-        }).start();
-    }
-
-    private void handleServiceSelected(Intent data, TextInputEditText target) {
-        String json = data.getStringExtra(SetDiskActivity.EXTRA_SELECTED_SERVICE);
-        if (json == null || json.isEmpty()) return;
-        new Thread(() -> {
-            try {
-                ApiProvider provider = FcEntity.fromJson(json, ApiProvider.class);
-                if (provider == null || provider.getId() == null) return;
-                final String sid = provider.getId();
-                runOnUiThread(() -> target.setText(sid));
-            } catch (Exception e) {
-                TimberLogger.e(TAG, "Error reading selected service: %s", e.getMessage());
-            }
         }).start();
     }
 
@@ -249,8 +225,6 @@ public class ServerSetupActivity extends BaseCryptoActivity {
                                 if (im != null) im.onRegistrationTxSent(txId);
                             }
                             runOnUiThread(() -> {
-                                ToastUtils.makeText(ServerSetupActivity.this,
-                                        getString(R.string.server_setup_registered, txId));
                                 setResult(RESULT_OK);
                                 finish();
                             });

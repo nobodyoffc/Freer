@@ -32,8 +32,8 @@ import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.im.adapter.ConversationAdapter;
 import com.fc.freer.im.handler.TeamHandler;
-import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.CashManager;
+import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.Setting;
 import com.fc.freer.tx.TxSender;
@@ -43,7 +43,9 @@ import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ToastUtils;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Activity for Team conversations list.
@@ -213,45 +215,6 @@ public class TeamActivity extends BaseCryptoActivity implements ConversationAdap
             runOnUiThread(() -> TimberLogger.e(TAG, error));
         }
 
-        @Override
-        public void onTeamNotificationReceived(PendingIssue issue) {
-            runOnUiThread(() -> {
-                updatePendingIssuesBanner();
-                TeamNotificationDialog.show(TeamActivity.this, issue,
-                        new TeamNotificationDialog.DialogCallback() {
-                            @Override
-                            public void onAccepted(PendingIssue issue) {
-                                if (imManager != null) {
-                                    PendingIssueManager m = imManager.getPendingIssueManager();
-                                    if (m != null && issue.getId() != null) {
-                                        m.acceptTeamIssue(issue.getId());
-                                    }
-                                }
-                                ToastUtils.makeText(TeamActivity.this,
-                                        getString(R.string.team_notification_accepted));
-                                updatePendingIssuesBanner();
-                            }
-
-                            @Override
-                            public void onRejected(PendingIssue issue) {
-                                if (imManager != null) {
-                                    PendingIssueManager m = imManager.getPendingIssueManager();
-                                    if (m != null && issue.getId() != null) {
-                                        m.rejectTeamIssue(issue.getId());
-                                    }
-                                }
-                                ToastUtils.makeText(TeamActivity.this,
-                                        getString(R.string.team_notification_rejected));
-                                updatePendingIssuesBanner();
-                            }
-
-                            @Override
-                            public void onDeferred(PendingIssue issue) {
-                                updatePendingIssuesBanner();
-                            }
-                        });
-            });
-        }
     };
 
     private void registerListener() {
@@ -316,14 +279,33 @@ public class TeamActivity extends BaseCryptoActivity implements ConversationAdap
         conversations.clear();
 
         TeamHandler teamHandler = imManager.getTeamHandler();
+        Set<String> confirmedTeamIds = new HashSet<>();
         for (Conversation conv : all) {
             if (conv.getType() == ImType.TEAM) {
                 if (conv.getLeftGroup() != null && conv.getLeftGroup()) continue;
                 resolveTeamInfo(conv, teamHandler);
                 conversations.add(conv);
+                confirmedTeamIds.add(conv.getTargetId());
             }
         }
 
+        // Inject pending teams (TX broadcast but not yet confirmed on chain).
+        Set<String> pendingIds = new HashSet<>();
+        if (teamHandler != null) {
+            for (Team pending : teamHandler.getPendingTeams()) {
+                if (confirmedTeamIds.contains(pending.getId())) continue; // already confirmed
+                Conversation conv = new Conversation();
+                conv.setId("TEAM_PENDING_" + pending.getId());
+                conv.setType(ImType.TEAM);
+                conv.setTargetId(pending.getId());
+                conv.setDisplayName(pending.getStdName());
+                conv.setAvatarDid(pending.getOwner());
+                conversations.add(0, conv); // prepend so pending items appear at top
+                pendingIds.add(pending.getId());
+            }
+        }
+
+        adapter.setPendingTargetIds(pendingIds);
         adapter.setUnavailableTargetIds(imManager.getUnavailableTargetIds("team"));
         filterConversations(searchEditText.getText().toString());
         swipeRefreshLayout.setRefreshing(false);
@@ -509,8 +491,6 @@ public class TeamActivity extends BaseCryptoActivity implements ConversationAdap
                         public void onSuccess(String txId) {
                             markTeamConversationsAsLeft(teamIds);
                             runOnUiThread(() -> {
-                                ToastUtils.makeText(TeamActivity.this,
-                                        getString(R.string.team_disbanded_successfully, txId));
                                 loadConversations();
                             });
                         }
@@ -557,8 +537,6 @@ public class TeamActivity extends BaseCryptoActivity implements ConversationAdap
                         public void onSuccess(String txId) {
                             markTeamConversationsAsLeft(teamIds);
                             runOnUiThread(() -> {
-                                ToastUtils.makeText(TeamActivity.this,
-                                        getString(R.string.teams_left_successfully));
                                 loadConversations();
                             });
                         }
@@ -608,6 +586,11 @@ public class TeamActivity extends BaseCryptoActivity implements ConversationAdap
         popupWindow.setElevation(10f);
         popupWindow.setOutsideTouchable(true);
         popupWindow.setBackgroundDrawable(new ColorDrawable(getResources().getColor(R.color.background_light, null)));
+
+        popupView.findViewById(R.id.about_item).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            com.fc.freer.utils.AboutDialog.show(this, R.string.about_team_title, R.string.about_team_message);
+        });
 
         popupView.findViewById(R.id.menu_disbanded_teams).setOnClickListener(v -> {
             popupWindow.dismiss();

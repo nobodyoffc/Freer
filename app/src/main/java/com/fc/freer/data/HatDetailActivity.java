@@ -66,6 +66,7 @@ public class HatDetailActivity extends BaseCryptoActivity {
     private ImageButton backButton;
 
     private ActivityResultLauncher<Intent> textEditorLauncher;
+    private HatFileOpener hatFileOpener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -136,13 +137,16 @@ public class HatDetailActivity extends BaseCryptoActivity {
         downloadButton = findViewById(R.id.download_button);
         saveButton = findViewById(R.id.save_button);
         backButton = findViewById(R.id.back_button);
+
+        hatFileOpener = new HatFileOpener(this, hatManager);
+        hatFileOpener.setTextEditorLauncher(textEditorLauncher);
     }
 
     @Override
     protected void setupButtons() {
         openButton.setOnClickListener(v -> {
             KeyboardUtils.hideKeyboard(this);
-            openFile();
+            hatFileOpener.open(hat);
         });
         openButton.setOnLongClickListener(v -> {
             KeyboardUtils.hideKeyboard(this);
@@ -259,44 +263,8 @@ public class HatDetailActivity extends BaseCryptoActivity {
         downloadButton.setVisibility(isDownloadable ? android.view.View.VISIBLE : android.view.View.GONE);
     }
 
-    private String resolveMimeType() {
-        String mimeType = null;
-        List<String> types = hat.getTypes();
-        if (types != null && !types.isEmpty()) {
-            mimeType = types.get(0);
-        }
-        if (mimeType == null) {
-            mimeType = FileTypeHandler.getMimeType(hat.getName());
-        }
-        return mimeType;
-    }
-
-    private void openFile() {
-        String localPath = findLocalPath();
-        if (localPath == null) {
-            ToastUtils.showError(this, getString(R.string.file_not_available_locally));
-            return;
-        }
-
-        File file = new File(localPath);
-        if (!file.exists()) {
-            ToastUtils.showError(this, getString(R.string.file_not_found));
-            return;
-        }
-
-        String mimeType = resolveMimeType();
-
-        if (FileTypeHandler.isEditable(mimeType) || FileTypeHandler.isEditableByExtension(hat.getName())) {
-            Intent intent = new Intent(this, TextEditorActivity.class);
-            intent.putExtra(TextEditorActivity.EXTRA_HAT_ID, hat.getId());
-            textEditorLauncher.launch(intent);
-        } else {
-            openWithSystemApp(file, mimeType);
-        }
-    }
-
     /**
-     * Long-press handler: always show system chooser, even for text files.
+     * Long-press handler: always show system chooser, bypassing the in-app text editor.
      */
     private void openFileWithChooser() {
         String localPath = findLocalPath();
@@ -311,7 +279,10 @@ public class HatDetailActivity extends BaseCryptoActivity {
             return;
         }
 
-        String mimeType = resolveMimeType();
+        String mimeType = null;
+        List<String> types = hat.getTypes();
+        if (types != null && !types.isEmpty()) mimeType = types.get(0);
+        if (mimeType == null) mimeType = FileTypeHandler.getMimeType(hat.getName());
         openWithSystemApp(file, mimeType);
     }
 
@@ -424,7 +395,7 @@ public class HatDetailActivity extends BaseCryptoActivity {
                     if (localFile.exists()) {
                         localFile.delete();
                     }
-                    ToastUtils.showError(HatDetailActivity.this, getString(R.string.download_failed) + ": " + dataSyncManager.getLastError());
+                    ToastUtils.showError(HatDetailActivity.this, getString(R.string.download_failed, dataSyncManager.getLastError()));
                 }
             });
         }).start();

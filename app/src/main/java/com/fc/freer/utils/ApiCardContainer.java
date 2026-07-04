@@ -405,7 +405,7 @@ public class ApiCardContainer {
             } catch (Exception e) {
                 TimberLogger.e(TAG, "Error showing Service details: %s", e.getMessage());
                 ((android.app.Activity) context).runOnUiThread(() -> {
-                    ToastUtils.makeText(context, "Error: " + e.getMessage());
+                    ToastUtils.makeText(context, context.getString(R.string.toast_error_detail, e.getMessage()));
                 });
             }
         }).start();
@@ -430,18 +430,18 @@ public class ApiCardContainer {
                         });
                     } else {
                         ((android.app.Activity) context).runOnUiThread(() -> {
-                            ToastUtils.makeText(context, "Failed to load CID info");
+                            ToastUtils.makeText(context, context.getString(R.string.toast_failed_load_cid_info));
                         });
                     }
                 } else {
                     ((android.app.Activity) context).runOnUiThread(() -> {
-                        ToastUtils.makeText(context, "No FAPI client available");
+                        ToastUtils.makeText(context, context.getString(R.string.toast_no_fapi_client));
                     });
                 }
             } catch (Exception e) {
                 TimberLogger.e(TAG, "Error showing CID info details: %s", e.getMessage());
                 ((android.app.Activity) context).runOnUiThread(() -> {
-                    ToastUtils.makeText(context, "Error: " + e.getMessage());
+                    ToastUtils.makeText(context, context.getString(R.string.toast_error_detail, e.getMessage()));
                 });
             }
         }).start();

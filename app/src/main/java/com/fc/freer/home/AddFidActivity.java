@@ -485,7 +485,7 @@ public class AddFidActivity extends BaseCryptoActivity {
         currentText += selectedFid;
         fidInput.setText(currentText);
 
-        ToastUtils.makeText(this, "FID added to input");
+        ToastUtils.makeText(this, getString(R.string.toast_fid_added_to_input));
     }
 
     private void onMenuItemClicked(String menuItemId, KeyInfo keyInfo) {

@@ -27,7 +27,7 @@ public class PendingIssueManager {
     private final Context context;
     private final LocalDB<PendingIssue> db;
     private final String liveFid;
-    private final ContactPolicy contactPolicy;
+    private ContactPolicy contactPolicy;
 
     private ImManager imManager;
     private FudpNode fudpNode;
@@ -60,6 +60,10 @@ public class PendingIssueManager {
         this.countChangeListener = listener;
     }
 
+    public void setContactPolicy(ContactPolicy contactPolicy) {
+        this.contactPolicy = contactPolicy;
+    }
+
     private void loadKnownPeers() {
         try {
             Map<String, PendingIssue> all = db.getAll();
@@ -80,7 +84,7 @@ public class PendingIssueManager {
     public boolean addStrangerPeerIssue(String peerFid) {
         if (peerFid == null) return false;
 
-        if (contactPolicy.isWhitelisted(peerFid) || contactPolicy.isContact(peerFid)) {
+        if (contactPolicy != null && (contactPolicy.isWhitelisted(peerFid) || contactPolicy.isContact(peerFid))) {
             return false;
         }
 
@@ -102,64 +106,6 @@ public class PendingIssueManager {
         toastNewIssue(context.getString(R.string.stranger_peer_request));
         TimberLogger.i(TAG, "Stranger peer issue created for: %s", peerFid);
         return true;
-    }
-
-    /**
-     * Add a team invite issue. Returns true if a new issue was created.
-     */
-    public boolean addTeamInviteIssue(String senderFid, String teamId, String teamName, String txId) {
-        if (senderFid == null || teamId == null) return false;
-
-        PendingIssue issue = PendingIssue.createTeamInvite(senderFid, teamId, teamName, txId);
-        db.put(issue.getId(), issue);
-        notifyCountChange();
-        toastNewIssue(context.getString(R.string.team_invite_request));
-        TimberLogger.i(TAG, "Team invite issue created: team=%s from=%s", teamId, senderFid);
-        return true;
-    }
-
-    /**
-     * Add a team transfer issue. Returns true if a new issue was created.
-     */
-    public boolean addTeamTransferIssue(String senderFid, String teamId, String teamName, String txId) {
-        if (senderFid == null || teamId == null) return false;
-
-        PendingIssue issue = PendingIssue.createTeamTransfer(senderFid, teamId, teamName, txId);
-        db.put(issue.getId(), issue);
-        notifyCountChange();
-        toastNewIssue(context.getString(R.string.team_transfer_request));
-        TimberLogger.i(TAG, "Team transfer issue created: team=%s from=%s", teamId, senderFid);
-        return true;
-    }
-
-    /**
-     * Accept a team invite/transfer issue.
-     */
-    public void acceptTeamIssue(String issueId) {
-        PendingIssue issue = db.get(issueId);
-        if (issue == null) return;
-
-        issue.setStatus(PendingIssue.IssueStatus.ACCEPTED);
-        issue.setResolvedAt(System.currentTimeMillis());
-        db.put(issue.getId(), issue);
-        notifyCountChange();
-
-        TimberLogger.i(TAG, "Team issue accepted: %s", issueId);
-    }
-
-    /**
-     * Reject a team invite/transfer issue.
-     */
-    public void rejectTeamIssue(String issueId) {
-        PendingIssue issue = db.get(issueId);
-        if (issue == null) return;
-
-        issue.setStatus(PendingIssue.IssueStatus.REJECTED);
-        issue.setResolvedAt(System.currentTimeMillis());
-        db.put(issue.getId(), issue);
-        notifyCountChange();
-
-        TimberLogger.i(TAG, "Team issue rejected: %s", issueId);
     }
 
     /**
@@ -227,19 +173,6 @@ public class PendingIssueManager {
     }
 
     /**
-     * Defer a team issue for later decision.
-     */
-    public void deferIssue(String issueId) {
-        PendingIssue issue = db.get(issueId);
-        if (issue == null) return;
-
-        issue.setStatus(PendingIssue.IssueStatus.PENDING);
-        db.put(issue.getId(), issue);
-
-        TimberLogger.i(TAG, "Team issue deferred: %s", issueId);
-    }
-
-    /**
      * Update message count and preview data on an existing stranger peer issue.
      * Called by ImManager each time a quarantined message is stored.
      */
@@ -288,14 +221,14 @@ public class PendingIssueManager {
 
         String fid = issue.getPeerFid();
         if (fid != null) {
-            contactPolicy.addToWhitelist(fid);
+            if (contactPolicy != null) contactPolicy.addToWhitelist(fid);
             if (imManager != null) {
                 TalkPartner partner = new TalkPartner();
                 partner.setFid(fid);
                 partner.setAddedAt(System.currentTimeMillis());
-                if (issue.getPeerAlias() != null) {
-                    partner.setCid(issue.getPeerAlias());
-                }
+                // Do NOT use peerAlias as the CID: it's only the last 4 chars of
+                // the FID, a placeholder label. Leaving CID null lets the real CID
+                // be resolved later (or the full FID shown as fallback).
                 imManager.addTalkPartner(partner);
                 imManager.promoteQuarantinedMessages(fid);
             }
@@ -319,7 +252,7 @@ public class PendingIssueManager {
 
         String fid = issue.getPeerFid();
         if (fid != null) {
-            contactPolicy.addToBlacklist(fid);
+            if (contactPolicy != null) contactPolicy.addToBlacklist(fid);
             if (imManager != null) {
                 imManager.purgeQuarantinedMessages(fid);
             }

@@ -347,8 +347,6 @@ public class SetNoticeFeeActivity extends BaseCryptoActivity {
                                 myNoticeFeeButton.setBackgroundTintList(ColorStateList.valueOf(
                                     ContextCompat.getColor(SetNoticeFeeActivity.this, R.color.accent)));
 
-                                ToastUtils.makeText(SetNoticeFeeActivity.this,
-                                    getString(R.string.notice_fee_carved_successfully, txId));
                             });
                         }
 

@@ -14,6 +14,7 @@ import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.fapi.client.HomeServiceResolver;
 import com.fc.fc_ajdk.utils.Hex;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.R;
 import com.fc.freer.im.MessageQueue.SendResult;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.FidManager;
@@ -118,8 +119,10 @@ public class P2pHandler extends BaseHandler {
 
         String targetDockUrl = null;
         String targetRoadUrl = null;
+        Map<String, String> recipientHome = null;
         TalkPartner partner = (talkPartnerProvider != null) ? talkPartnerProvider.getTalkPartner(targetFid) : null;
         if (partner != null && partner.getHome() != null && fapiClient != null) {
+            recipientHome = partner.getHome();
             HomeServiceResolver resolver = fapiClient.getHomeServiceResolver();
             targetDockUrl = resolver.resolveDockFromHome(partner.getHome(), fapiClient);
             if (useRoad) {
@@ -131,6 +134,7 @@ public class P2pHandler extends BaseHandler {
             try {
                 com.fc.fc_ajdk.data.fchData.Freer freer = fapiClient.getFreer(targetFid);
                 if (freer != null && freer.getHome() != null) {
+                    recipientHome = freer.getHome();
                     HomeServiceResolver resolver = fapiClient.getHomeServiceResolver();
                     if (useRoad && targetRoadUrl == null) {
                         targetRoadUrl = resolver.resolveFromHome(freer.getHome(), ROAD_NO1_NRC7, fapiClient);
@@ -164,44 +168,62 @@ public class P2pHandler extends BaseHandler {
         }
 
         // 3. DOCK_STORED — default channel. Preference order:
-        //    a. Direct put to the recipient's DOCK when a live client already exists
-        //       (one hop, no local forwarding fees, works when own DOCK has forwarding disabled).
+        //    a. Direct put to the recipient's own DOCK. One hop, and the sender
+        //       pays only the recipient DOCK's ingress+storage (no extra local
+        //       forwarding fees). Works even when the sender's own DOCK has
+        //       forwarding disabled or the sender can't afford the forward fees.
+        //       A client to the target DOCK is bootstrapped on demand if one
+        //       isn't already cached — this is the reliable cross-DOCK path and
+        //       must not depend on whether the own DOCK forwards.
         //    b. Own DOCK with targetDockUrl — the server forwards synchronously and
         //       returns the remote dockId, so success means the item is stored remotely.
-        //    c. No own DOCK — bootstrap a direct client so the message can still go out.
+        //       Used as a fallback when a direct connection can't be established.
         FapiClient ownDockClient = ApiCenter.getInstance().getClient(ApiCenter.ConnectionRole.DOCK);
 
         if (targetDockUrl != null) {
             FapiClient directClient = (dockRegistry != null && !dockRegistry.isFailed(targetDockUrl))
                     ? dockRegistry.getClientForDock(targetDockUrl) : null;
+            if (directClient == null && dockRegistry != null) {
+                // No cached client for the target DOCK — bootstrap one so a direct
+                // put can be attempted regardless of whether an own DOCK exists.
+                directClient = dockRegistry.retryBootstrap(targetDockUrl);
+            }
 
             if (directClient != null && directClient != ownDockClient) {
                 Boolean direct = putToDock(directClient, envelope, message, targetFid, null,
                         "directly in target DOCK " + targetDockUrl);
                 if (Boolean.TRUE.equals(direct)) return SendResult.SUCCESS;
                 if (direct == null) {
-                    // Connection-level failure — drop the dead client so later sends
-                    // skip straight to forwarding until the registry re-bootstraps.
+                    // Connection-level failure — drop the dead client so a later
+                    // attempt re-bootstraps instead of reusing it.
                     dockRegistry.invalidateClient(targetDockUrl);
                 }
             }
 
+            // b. Ask our own DOCK to forward to the target DOCK. Runs as a recovery
+            //    path when the direct attempt failed, and is also the path taken when
+            //    the target IS our own DOCK (directClient == ownDockClient, so the
+            //    direct branch is skipped): dockPut drops TARGET_DOCK_URL when it
+            //    equals the server URL, making this a plain local store.
             if (ownDockClient != null) {
                 Boolean forwarded = putToDock(ownDockClient, envelope, message, targetFid, targetDockUrl,
                         "in target DOCK " + targetDockUrl + " via own DOCK forward");
                 if (Boolean.TRUE.equals(forwarded)) return SendResult.SUCCESS;
-            } else if (directClient == null && dockRegistry != null) {
-                FapiClient bootstrapped = dockRegistry.retryBootstrap(targetDockUrl);
-                if (bootstrapped != null) {
-                    Boolean direct = putToDock(bootstrapped, envelope, message, targetFid, null,
-                            "directly in target DOCK " + targetDockUrl + " (no own DOCK)");
-                    if (Boolean.TRUE.equals(direct)) return SendResult.SUCCESS;
-                }
             }
         }
 
         TimberLogger.e(TAG, "All delivery methods failed for message %s to %s", message.getId(), targetFid);
         message.setStatus(MessageStatus.FAILED);
+
+        // The recipient declared a DOCK we could not resolve (e.g. a non-existent
+        // SID in their home). DOCK is the only store-and-forward channel, so
+        // retrying will never succeed — surface a clear error and stop, mirroring
+        // the Square/Team handlers.
+        if (targetDockUrl == null && hasDockConfigured(recipientHome)) {
+            notifyError(context.getString(R.string.im_dock_unresolvable));
+            return SendResult.FAIL_PERMANENT;
+        }
+
         if (ownDockClient == null && targetDockUrl == null) {
             return SendResult.FAIL_PERMANENT;
         }

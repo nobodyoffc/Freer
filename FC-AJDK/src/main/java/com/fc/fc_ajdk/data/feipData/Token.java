@@ -1,6 +1,22 @@
 package com.fc.fc_ajdk.data.feipData;
 
+import static com.fc.fc_ajdk.constants.FieldNames.BIRTH_TIME;
+import static com.fc.fc_ajdk.constants.FieldNames.CAPACITY;
+import static com.fc.fc_ajdk.constants.FieldNames.CLOSABLE;
+import static com.fc.fc_ajdk.constants.FieldNames.CLOSED;
+import static com.fc.fc_ajdk.constants.FieldNames.CONSENSUS_ID;
+import static com.fc.fc_ajdk.constants.FieldNames.DEPLOYER;
+import static com.fc.fc_ajdk.constants.FieldNames.DESC;
+import static com.fc.fc_ajdk.constants.FieldNames.ID;
+import static com.fc.fc_ajdk.constants.FieldNames.LAST_TIME;
+import static com.fc.fc_ajdk.constants.FieldNames.NAME;
+import static com.fc.fc_ajdk.constants.FieldNames.TRANSFERABLE;
+
 import com.fc.fc_ajdk.data.fcData.FcObject;
+
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class Token extends FcObject {
 	private String name;
@@ -8,13 +24,13 @@ public class Token extends FcObject {
 	private String consensusId;
 	private String capacity;
 	private String decimal;
-	private String transferable;
-	private String closable;
-	private String openIssue;
+	private Boolean transferable;
+	private Boolean closable;
+	private Boolean openIssue;
 	private String maxAmtPerIssue;
 	private String minCddPerIssue;
 	private String maxIssuesPerAddr;
-	private String closed;
+	private Boolean closed;
 	
 	private String deployer;
 	private Double circulating;
@@ -64,27 +80,27 @@ public class Token extends FcObject {
 		this.decimal = decimal;
 	}
 
-	public String getTransferable() {
+	public Boolean getTransferable() {
 		return transferable;
 	}
 
-	public void setTransferable(String transferable) {
+	public void setTransferable(Boolean transferable) {
 		this.transferable = transferable;
 	}
 
-	public String getClosable() {
+	public Boolean getClosable() {
 		return closable;
 	}
 
-	public void setClosable(String closable) {
+	public void setClosable(Boolean closable) {
 		this.closable = closable;
 	}
 
-	public String getOpenIssue() {
+	public Boolean getOpenIssue() {
 		return openIssue;
 	}
 
-	public void setOpenIssue(String openIssue) {
+	public void setOpenIssue(Boolean openIssue) {
 		this.openIssue = openIssue;
 	}
 
@@ -112,11 +128,11 @@ public class Token extends FcObject {
 		this.maxIssuesPerAddr = maxIssuesPerAddr;
 	}
 
-	public String getClosed() {
+	public Boolean getClosed() {
 		return closed;
 	}
 
-	public void setClosed(String closed) {
+	public void setClosed(Boolean closed) {
 		this.closed = closed;
 	}
 
@@ -174,5 +190,104 @@ public class Token extends FcObject {
 
 	public void setLastHeight(Long lastHeight) {
 		this.lastHeight = lastHeight;
+	}
+
+	/**
+	 * Returns a LinkedHashMap with field names in their declaration order and their display names in multiple languages
+	 * @return LinkedHashMap<fieldName, Map<language, displayName>>
+	 */
+	public static LinkedHashMap<String, Map<String, String>> getFieldNameMap() {
+		LinkedHashMap<String, Map<String, String>> fieldMap = new LinkedHashMap<>();
+
+		addFieldToMap(fieldMap, NAME, "Name", "名称");
+		addFieldToMap(fieldMap, DESC, "Description", "描述");
+		addFieldToMap(fieldMap, CONSENSUS_ID, "Consensus ID", "共识ID");
+		addFieldToMap(fieldMap, CAPACITY, "Capacity", "容量");
+		addFieldToMap(fieldMap, TRANSFERABLE, "Transferable", "可转移");
+		addFieldToMap(fieldMap, CLOSABLE, "Closable", "可关闭");
+		addFieldToMap(fieldMap, CLOSED, "Closed", "已关闭");
+		addFieldToMap(fieldMap, DEPLOYER, "Deployer", "部署人");
+		addFieldToMap(fieldMap, "circulating", "Circulating", "流通量");
+		addFieldToMap(fieldMap, BIRTH_TIME, "Birth Time", "创建时间");
+		addFieldToMap(fieldMap, LAST_TIME, "Last Time", "最新时间");
+		addFieldToMap(fieldMap, ID, "ID", "ID");
+
+		return fieldMap;
+	}
+
+	public static void addFieldToMap(LinkedHashMap<String, Map<String, String>> fieldMap, String fieldName, String englishName, String chineseName) {
+		Map<String, String> languageMap = new HashMap<>();
+		languageMap.put("en", englishName);
+		languageMap.put("zh", chineseName);
+		fieldMap.put(fieldName, languageMap);
+	}
+
+	/**
+	 * Returns searchable fields that can be used in search queries.
+	 * Searchable fields: name, desc, consensusId, deployer, id
+	 *
+	 * @return LinkedHashMap with field names and their display names in both languages
+	 */
+	public static LinkedHashMap<String, Map<String, String>> getSearchableFields() {
+		return filterFieldsByNames(NAME, DESC, CONSENSUS_ID, DEPLOYER, ID);
+	}
+
+	/**
+	 * Returns sortable fields that can be used for sorting results.
+	 * Sortable fields: name, deployer, circulating, birthTime, lastTime
+	 *
+	 * @return LinkedHashMap with field names and their display names in both languages
+	 */
+	public static LinkedHashMap<String, Map<String, String>> getSortableFields() {
+		return filterFieldsByNames(NAME, DEPLOYER, "circulating", BIRTH_TIME, LAST_TIME);
+	}
+
+	/**
+	 * Helper method to filter fields from getFieldNameMap() by specified field names
+	 */
+	private static LinkedHashMap<String, Map<String, String>> filterFieldsByNames(String... fieldNames) {
+		LinkedHashMap<String, Map<String, String>> filteredFields = new LinkedHashMap<>();
+		LinkedHashMap<String, Map<String, String>> allFields = getFieldNameMap();
+
+		for (String fieldName : fieldNames) {
+			if (allFields.containsKey(fieldName)) {
+				filteredFields.put(fieldName, allFields.get(fieldName));
+			}
+		}
+
+		return filteredFields;
+	}
+
+	/**
+	 * Get field name by display name (searches in all languages)
+	 * @param displayName The display name to search for (English or Chinese)
+	 * @return Field name if found, null otherwise
+	 */
+	public static String getFieldNameByDisplayName(String displayName) {
+		if (displayName == null || displayName.isEmpty()) {
+			return null;
+		}
+
+		for (Map.Entry<String, Map<String, String>> entry : getFieldNameMap().entrySet()) {
+			if (entry.getValue().containsValue(displayName)) {
+				return entry.getKey();
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Get display name by field name and language
+	 * @param fieldName The field name
+	 * @param language The language code ("en" or "zh")
+	 * @return Display name if found, null otherwise
+	 */
+	public static String getDisplayNameByFieldName(String fieldName, String language) {
+		if (fieldName == null || fieldName.isEmpty() || language == null) {
+			return null;
+		}
+
+		Map<String, String> languages = getFieldNameMap().get(fieldName);
+		return languages != null ? languages.get(language) : null;
 	}
 }

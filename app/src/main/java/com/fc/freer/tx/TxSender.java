@@ -75,6 +75,7 @@ public class TxSender {
         void onError(String errorMessage);
         void onUnsignedTx(RawTxInfo rawTxInfo);
         void onUnbroadcasted(String signedTxHex);
+        default void onCancelled() {}
     }
 
     /**
@@ -116,11 +117,17 @@ public class TxSender {
     }
 
     /**
-     * Clears the pending callback and current instance
+     * Clears the pending callback and current instance, notifying the callback if still pending.
      */
     public void clearPendingCallback() {
-        pendingCallback = null;
-        currentInstance = null;
+        if (pendingCallback != null) {
+            TxCallback cb = pendingCallback;
+            pendingCallback = null;
+            currentInstance = null;
+            cb.onCancelled();
+        } else {
+            currentInstance = null;
+        }
     }
 
     public void carveFeipWithRecipient(
@@ -302,7 +309,7 @@ public class TxSender {
             if (validCashList == null || validCashList.isEmpty()) {
                 dismissWaitingDialog(context);
                 if (callback != null) {
-                    callback.onError("No valid cash available for transaction");
+                    callback.onError(context.getString(R.string.no_valid_cash_available_for_transaction));
                 }
                 return;
             }
@@ -385,6 +392,7 @@ public class TxSender {
                             ToastUtils.makeText(context,
                                     R.string.failed_to_update_cash_db
                             );
+                        ToastUtils.makeText(context, R.string.tx_sent);
                         dismissWaitingDialog(context);
                         if (callback != null) {
                             callback.onSuccess(result);
@@ -411,7 +419,7 @@ public class TxSender {
                                 if(count>0)
                                     ToastUtils.makeText(context, context.getString(R.string.cash_refreshed_and_saved, count));
                                 else
-                                    ToastUtils.makeText(context, "Cash database refreshed");
+                                    ToastUtils.makeText(context, context.getString(R.string.toast_cash_db_refreshed));
 
                                 sendTxInternal(context, sender, outputs, opReturn, cdRequired,
                                         feeRate, multisig, ver, lockTime, prikey, cashManager, txHandler,
@@ -429,6 +437,7 @@ public class TxSender {
                                 ToastUtils.makeText(context,
                                         R.string.failed_to_update_cash_db
                                 );
+                            ToastUtils.makeText(context, R.string.tx_sent);
                             dismissWaitingDialog(context);
                             if (callback != null) {
                                 callback.onSuccess(result);
@@ -442,7 +451,7 @@ public class TxSender {
                     }
                 } else {
                     // Network is not available, call onUnbroadcasted with signed transaction
-                    ToastUtils.makeText(context, "Network is not available. Please broadcast manually.");
+                    ToastUtils.makeText(context, context.getString(R.string.toast_network_unavailable_broadcast_manual));
                     dismissWaitingDialog(context);
                     if (callback != null) {
                         callback.onUnbroadcasted(signedTxHex);
@@ -659,6 +668,7 @@ public class TxSender {
                                     R.string.failed_to_update_cash_db
                             );
                         }
+                        ToastUtils.makeText(context, R.string.tx_sent);
                         dismissWaitingDialog(context);
                         if (callback != null) {
                             callback.onSuccess(result);
@@ -685,9 +695,38 @@ public class TxSender {
                                 if (count > 0) {
                                     ToastUtils.makeText(context, context.getString(R.string.cash_refreshed_and_saved, count));
                                 } else {
-                                    ToastUtils.makeText(context, "Cash database refreshed");
+                                    ToastUtils.makeText(context, context.getString(R.string.toast_cash_db_refreshed));
                                 }
-                                sendRawTxInternal(context, rawTxInfo, prikey, cashManager,
+                                // The original rawTxInfo has the conflicting inputs baked in; re-selecting
+                                // them from the just-refreshed (mempool-aware) DB is required, otherwise the
+                                // retry rebroadcasts the identical TX and hits the same -26. Mirror the input
+                                // selection done in sendTxInternal.
+                                List<Cash> retryOutputs = rawTxInfo.getOutputs();
+                                double retryPayValue = 0.0;
+                                if (retryOutputs != null) {
+                                    for (Cash out : retryOutputs) retryPayValue += out.getAmount();
+                                }
+                                int retryOutputSize = retryOutputs != null ? retryOutputs.size() : 0;
+                                String retryOpReturn = rawTxInfo.getOpReturn();
+                                int retryMsgSize = retryOpReturn != null ? retryOpReturn.getBytes().length : 0;
+                                Multisig retryMultisig = rawTxInfo.getSenderMultisig();
+                                double retryFeeRate = rawTxInfo.getFeeRate() != null
+                                        ? rawTxInfo.getFeeRate() : TxHandler.DEFAULT_FEE_RATE;
+                                List<Cash> retryInputs = cashManager.getValidCashes(retryPayValue,
+                                        rawTxInfo.getCd(), retryOutputSize, retryMsgSize, retryFeeRate,
+                                        retryMultisig, context);
+                                if (retryInputs == null || retryInputs.isEmpty()) {
+                                    dismissWaitingDialog(context);
+                                    if (callback != null) {
+                                        callback.onError("Transaction broadcast failed after retry: " + message);
+                                    }
+                                    return;
+                                }
+                                RawTxInfo retryTxInfo = new RawTxInfo(rawTxInfo.getSender(), retryInputs,
+                                        retryOutputs, retryOpReturn, rawTxInfo.getCd(), rawTxInfo.getFeeRate(),
+                                        retryMultisig, rawTxInfo.getVer());
+                                retryTxInfo.setLockTime(rawTxInfo.getLockTime());
+                                sendRawTxInternal(context, retryTxInfo, prikey, cashManager,
                                     txHandler, fapiClient, callback, true, false);
                                 return;
                             } else {
@@ -704,6 +743,7 @@ public class TxSender {
                                         R.string.failed_to_update_cash_db
                                 );
                             }
+                            ToastUtils.makeText(context, R.string.tx_sent);
                             dismissWaitingDialog(context);
                             if (callback != null) {
                                 callback.onSuccess(tx.getTxId().toString());
@@ -717,7 +757,7 @@ public class TxSender {
                     }
                 } else {
                     // Network is not available, call onUnbroadcasted with signed transaction
-                    ToastUtils.makeText(context, "Network is not available. Please broadcast manually using the QR code.");
+                    ToastUtils.makeText(context, context.getString(R.string.toast_network_unavailable_broadcast_qr));
                     dismissWaitingDialog(context);
                     if (callback != null) {
                         callback.onUnbroadcasted(signedTxHex);

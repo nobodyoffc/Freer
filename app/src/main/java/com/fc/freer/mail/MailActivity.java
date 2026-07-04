@@ -1478,6 +1478,11 @@ public class MailActivity extends BaseCryptoActivity {
             handleMarkAllRead();
         });
 
+        popupView.findViewById(R.id.about_item).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            com.fc.freer.utils.AboutDialog.show(this, R.string.about_mail_title, R.string.about_mail_message);
+        });
+
         // Measure the popup view to get its height
         popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         int popupHeight = popupView.getMeasuredHeight();
@@ -1628,8 +1633,6 @@ public class MailActivity extends BaseCryptoActivity {
 
                             // Refresh the mail list
                             refreshList();
-
-                            showSuccessMessage("Mail sent on-chain successfully! TxID: " + txId);
                         });
                     }
 

@@ -37,7 +37,6 @@ import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.ToastUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -72,7 +71,7 @@ public class MemberListActivity extends BaseCryptoActivity {
         } else if ("room".equals(type)) {
             return getString(R.string.members);
         }
-        return getString(R.string.group_members);
+        return getString(R.string.square_members);
     }
 
     @Override
@@ -204,7 +203,7 @@ public class MemberListActivity extends BaseCryptoActivity {
                 if (apiCenter == null) {
                     runOnUiThread(() -> {
                         waitingDialog.dismiss();
-                        ToastUtils.makeText(this, "API center not available");
+                        ToastUtils.makeText(this, getString(R.string.toast_api_center_unavailable));
                     });
                     return;
                 }
@@ -213,7 +212,7 @@ public class MemberListActivity extends BaseCryptoActivity {
                 if (fapiClient == null) {
                     runOnUiThread(() -> {
                         waitingDialog.dismiss();
-                        ToastUtils.makeText(this, "FAPI client not available");
+                        ToastUtils.makeText(this, getString(R.string.toast_fapi_client_unavailable));
                     });
                     return;
                 }

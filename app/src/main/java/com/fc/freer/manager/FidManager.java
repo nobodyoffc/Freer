@@ -11,6 +11,7 @@ import com.fc.fc_ajdk.data.fchData.Freer;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
 import com.fc.freer.im.ImManager;
+import com.fc.freer.im.PendingIssueManager;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.model.Setting;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
@@ -18,6 +19,7 @@ import com.fc.freer.utils.ApiCenter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * FidManager - Manages mainFid and liveFid runtime state
@@ -49,6 +51,7 @@ public class FidManager {
     private FcObjectManager fcObjectManager;
     private ProofManager proofManager;
     private ImManager imManager;
+    private PendingIssueManager pendingIssueManager;
 
     private FidManager() {
         // Private constructor for singleton
@@ -262,7 +265,9 @@ public class FidManager {
         }
         imManager = currentSetting.getOrCreateImManager(context, fapiClient);
         if (imManager != null) {
-            TimberLogger.d(TAG, "Reloaded ImManager for mainFid: %s", mainFid);
+            pendingIssueManager = new PendingIssueManager(context, mainFid, null);
+            imManager.setPendingIssueManager(pendingIssueManager);
+            TimberLogger.d(TAG, "Reloaded ImManager and PendingIssueManager for mainFid: %s", mainFid);
         }
     }
     
@@ -289,6 +294,7 @@ public class FidManager {
                 currentSetting.setImManager(null);
             }
         }
+        pendingIssueManager = null;
 
         TimberLogger.d(TAG, "Closed existing managers");
     }
@@ -524,6 +530,12 @@ public class FidManager {
         this.imManager = imManager;
     }
 
+    public PendingIssueManager getPendingIssueManager() { return pendingIssueManager; }
+
+    public void setPendingIssueManager(PendingIssueManager pendingIssueManager) {
+        this.pendingIssueManager = pendingIssueManager;
+    }
+
     public void setLiveKeyInfo(KeyInfo liveKeyInfo) {
         this.liveKeyInfo = liveKeyInfo;
     }
@@ -566,6 +578,11 @@ public class FidManager {
                     Long balance = freerInfo.getBalance();
                     if (balance == null || balance == 0) {
                         checkTopUpIfNeeded(context);
+                    } else {
+                        // Funded (e.g. the first FCH just arrived on a request-board
+                        // ask): if no DOCK is registered yet the user is still
+                        // unreachable — prompt the server setup now.
+                        checkDockSetupAfterFunding(context, freerInfo);
                     }
 
                     // Update KeyInfo with fresh data while preserving user-specific data
@@ -620,6 +637,52 @@ public class FidManager {
                 TimberLogger.e(TAG, "Error refreshing cidInfo for live FID %s: %s", liveFid, e.getMessage());
             }
         }).start();
+    }
+
+    /** FIDs already prompted for DOCK setup after funding, once per app run. */
+    private static final java.util.Set<String> dockPromptedFids =
+            java.util.Collections.synchronizedSet(new java.util.HashSet<>());
+
+    /**
+     * A freshly funded FID without home.DOCK can send but not receive messages
+     * (send-only mode). Now that it can afford the registration TX, prompt the
+     * server setup once per app run. Typical path: a newcomer asked for their
+     * first FCH on the request board and the coins just arrived.
+     */
+    private void checkDockSetupAfterFunding(Context context, Freer freerInfo) {
+        try {
+            String mainFid = getMainFid();
+            if (mainFid == null || dockPromptedFids.contains(mainFid)) return;
+
+            Map<String, String> home = freerInfo.getHome();
+            if (home != null) {
+                for (Map.Entry<String, String> entry : home.entrySet()) {
+                    String key = entry.getKey();
+                    String value = entry.getValue();
+                    if (key != null && key.startsWith("DOCK")
+                            && value != null && !value.trim().isEmpty()) {
+                        return; // DOCK already registered
+                    }
+                }
+            }
+
+            Setting currentSetting = SettingManager.getInstance().getCurrentSetting();
+            com.fc.freer.im.ImManager imManager =
+                    currentSetting != null ? currentSetting.getImManager() : null;
+            if (imManager != null && imManager.isRegistrationPending()) return;
+
+            if (context instanceof android.app.Activity activity) {
+                if (activity.isFinishing() || activity.isDestroyed()) return;
+                dockPromptedFids.add(mainFid);
+                activity.runOnUiThread(() -> {
+                    if (!activity.isFinishing() && !activity.isDestroyed()) {
+                        com.fc.freer.im.ChannelSetupDialog.show(activity, null);
+                    }
+                });
+            }
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error checking DOCK setup after funding: " + e.getMessage(), e);
+        }
     }
 
     /**

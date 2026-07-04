@@ -31,6 +31,7 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
 
     private PendingIssue issue;
     private PendingIssueManager pendingIssueManager;
+    private ImManager imManager;
 
     public static void start(Context context, PendingIssue issue) {
         if (context == null || issue == null) return;
@@ -53,13 +54,13 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
     protected void initializeViews() {
         String json = getIntent().getStringExtra(EXTRA_ISSUE_JSON);
         if (json == null || json.isEmpty()) {
-            ToastUtils.showWarning(this, "No issue data");
+            ToastUtils.showWarning(this, getString(R.string.toast_no_issue_data));
             finish();
             return;
         }
         issue = PendingIssue.fromJson(json);
         if (issue == null) {
-            ToastUtils.showWarning(this, "Failed to parse issue data");
+            ToastUtils.showWarning(this, getString(R.string.toast_failed_parse_issue_data));
             finish();
             return;
         }
@@ -86,7 +87,7 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
         try {
             Setting setting = SettingManager.getInstance().getCurrentSetting();
             if (setting == null) return;
-            ImManager imManager = setting.getImManager();
+            imManager = setting.getImManager();
             if (imManager != null) {
                 pendingIssueManager = imManager.getPendingIssueManager();
             }
@@ -142,10 +143,6 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
             case STRANGER_PEER:
                 populateStrangerPeerData(container, label);
                 break;
-            case TEAM_INVITE:
-            case TEAM_TRANSFER:
-                populateTeamData(container, label);
-                break;
             case ROOM_INVITE:
                 populateRoomData(container, label);
                 break;
@@ -177,28 +174,6 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
         }
         if (data.peerPort > 0) {
             addDataRow(container, getString(R.string.peer_port), String.valueOf(data.peerPort));
-        }
-    }
-
-    private void populateTeamData(LinearLayout container, TextView label) {
-        PendingIssue.TeamNotificationData data =
-                issue.getDataAs(PendingIssue.TeamNotificationData.class);
-        if (data == null) return;
-
-        label.setVisibility(View.VISIBLE);
-        container.setVisibility(View.VISIBLE);
-
-        if (data.teamName != null) {
-            addDataRow(container, getString(R.string.team_name), data.teamName);
-        }
-        if (data.teamId != null) {
-            addDataRow(container, getString(R.string.team_id), data.teamId);
-        }
-        if (data.senderFid != null) {
-            addDataRow(container, getString(R.string.sender), data.senderFid);
-        }
-        if (data.txId != null) {
-            addDataRow(container, getString(R.string.tx_id), data.txId);
         }
     }
 
@@ -251,30 +226,22 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
         acceptBtn.setOnClickListener(v -> {
             hideKeyboard();
             if (pendingIssueManager == null || issue.getId() == null) return;
-
-            if (issue.getIssueType() == PendingIssue.IssueType.TEAM_INVITE
-                    || issue.getIssueType() == PendingIssue.IssueType.TEAM_TRANSFER) {
-                pendingIssueManager.acceptTeamIssue(issue.getId());
-                ToastUtils.showInfo(this, getString(R.string.team_notification_accepted));
-            } else if (issue.getIssueType() == PendingIssue.IssueType.ROOM_INVITE) {
+            if (issue.getIssueType() == PendingIssue.IssueType.ROOM_INVITE) {
                 pendingIssueManager.acceptRoomInvite(issue.getId());
                 ToastUtils.showInfo(this, getString(R.string.room_invite_accepted));
+                finish();
             } else {
                 pendingIssueManager.accept(issue.getId());
                 ToastUtils.showInfo(this, getString(R.string.peer_accepted));
+                finish();
             }
-            finish();
         });
 
         rejectBtn.setOnClickListener(v -> {
             hideKeyboard();
             if (pendingIssueManager == null || issue.getId() == null) return;
 
-            if (issue.getIssueType() == PendingIssue.IssueType.TEAM_INVITE
-                    || issue.getIssueType() == PendingIssue.IssueType.TEAM_TRANSFER) {
-                pendingIssueManager.rejectTeamIssue(issue.getId());
-                ToastUtils.showInfo(this, getString(R.string.team_notification_rejected));
-            } else if (issue.getIssueType() == PendingIssue.IssueType.ROOM_INVITE) {
+            if (issue.getIssueType() == PendingIssue.IssueType.ROOM_INVITE) {
                 pendingIssueManager.rejectRoomInvite(issue.getId());
                 ToastUtils.showInfo(this, getString(R.string.room_invite_rejected));
             } else {
@@ -290,10 +257,6 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
         switch (type) {
             case STRANGER_PEER:
                 return getString(R.string.stranger_peer_request);
-            case TEAM_INVITE:
-                return getString(R.string.team_invite_request);
-            case TEAM_TRANSFER:
-                return getString(R.string.team_transfer_request);
             case ROOM_INVITE:
                 return getString(R.string.room_invite_request);
             default:

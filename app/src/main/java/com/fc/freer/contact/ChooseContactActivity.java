@@ -711,7 +711,7 @@ public class ChooseContactActivity extends BaseCryptoActivity {
                 earliestId = contactList.get(contactList.size() - 1).getId();
 
                 TimberLogger.i(TAG, "Loaded %d contact items", moreItems.size());
-                ToastUtils.makeText(this, "Loaded " + moreItems.size() + " contacts");
+                ToastUtils.makeText(this, getString(R.string.toast_loaded_contacts, moreItems.size()));
             } else {
                 // No more items in local database - try to fetch from API
                 ToastUtils.makeText(this, getString(R.string.loading_more_from_apip));

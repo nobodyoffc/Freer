@@ -357,8 +357,6 @@ public class CreateAppActivity extends BaseCryptoActivity {
                                     appManager.commit();
                                 }
 
-                                ToastUtils.makeText(CreateAppActivity.this, 
-                                    getString(R.string.app_published_successfully, txId));
                                 setResult(RESULT_OK);
                                 finish();
                             });

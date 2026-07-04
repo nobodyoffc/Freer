@@ -40,7 +40,7 @@ public class PasswordVerificationDialog extends Dialog {
         verifyButton.setOnClickListener(v -> {
             String password = passwordInput.getText().toString();
             if (password.isEmpty()) {
-                ToastUtils.makeText(getContext(), "Please enter your password");
+                ToastUtils.makeText(getContext(), getContext().getString(R.string.toast_please_enter_password));
                 return;
             }
             byte[] passwordBytes = password.getBytes();

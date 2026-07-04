@@ -263,8 +263,6 @@ public class CloseServiceActivity extends BaseCryptoActivity {
                                 resultIntent.putExtra("closed_service_ids", serviceIds.toArray(new String[0]));
                                 setResult(Activity.RESULT_OK, resultIntent);
 
-                                ToastUtils.makeText(CloseServiceActivity.this, 
-                                    getString(R.string.services_closed_successfully, txId));
                                 finish();
                             });
                         }

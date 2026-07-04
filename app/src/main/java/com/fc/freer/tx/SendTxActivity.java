@@ -235,7 +235,7 @@ public class SendTxActivity extends BaseCryptoActivity {
                     public void onSuccess(String txId) {
                         isSent = true;
                         result = txId; // Store the txId as result
-                        ToastUtils.makeText(SendTxActivity.this, getString(R.string.tx_sent));
+                        // tx_sent toast is shown by TxSender on broadcast success; don't duplicate it here.
 //                        updateButtonTexts();
 
                         // Notify TxSender if there's a pending callback

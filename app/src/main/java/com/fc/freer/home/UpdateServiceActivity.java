@@ -652,13 +652,8 @@ public class UpdateServiceActivity extends BaseCryptoActivity {
                                         serviceManager.commit();
                                     }
                                     
-                                    ToastUtils.makeText(UpdateServiceActivity.this,
-                                        getString(R.string.service_published_successfully, txId));
-                                } else {
-                                    ToastUtils.makeText(UpdateServiceActivity.this,
-                                        getString(R.string.service_updated_successfully, txId));
                                 }
-                                
+
                                 setResult(RESULT_OK);
                                 finish();
                             });

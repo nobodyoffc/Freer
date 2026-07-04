@@ -358,6 +358,7 @@
     <string name="failed_to_scan_qr_code">Failed to scan QR code</string>
     <string name="no_items_selected">No items selected</string>
     <string name="too_many_cash_selected">No more than 200 cash!</string>
+    <string name="count_must_be_less_than_20">The count of new cashes must be less than 20.</string>
     <string name="deleted">Deleted</string>
     <string name="input_value_must_be_greater_than_0">Input value must be greater than 0.</string>
     <string name="invalid_txid">Invalid txid.</string>
@@ -378,9 +379,6 @@
     <string name="no_contacts_found">No contacts found</string>
     <string name="contact_not_ready_try_later">The contact manager is not ready. Retry later</string>
     <string name="im_not_ready_try_later">The IM manager is not ready. Retry later</string>
-    <string name="retry">Retry</string>
-    <string name="im_connecting">Connecting to messaging…</string>
-    <string name="im_not_ready_retry">Messaging is not ready</string>
 
     <string name="no_more_contacts">No more contacts</string>
     <string name="failed_to_update_contacts_db">Failed to update contacts database</string>
@@ -899,7 +897,6 @@
     <string name="error_creating_transaction">Error creating transaction. %s</string>
     <string name="input_the_name_of_any_used_cid">Input the name of any used CID.</string>
     <string name="no_more_than_4_used_cids_allowed">No more than 4 used CIDs allowed</string>
-    <string name="cid_carved">CID carved</string>
     <string name="failed_to_parse_contact">Failed to parse the contact</string>
     <string name="show_the_payer">Show it to the payer</string>
     <string name="pay">Pay</string>
@@ -980,7 +977,7 @@
     <string name="no_mails_to_delete">No mails to delete</string>
     <string name="deleted_off_chain_mails_locally">Deleted %d off-chain mails locally</string>
     <string name="deleted_on_chain_mails_locally">Deleted %d on-chain mails locally</string>
-    <string name="no_valid_cash_available_for_transaction">No valid cash available for transaction</string>
+    <string name="no_valid_cash_available_for_transaction">No valid cash for transaction</string>
     <string name="failed_to_create_transaction">Failed to create transaction</string>
     <string name="mails_deleted_successfully_on_chain">Mails deleted on-chain</string>
 
@@ -1019,7 +1016,9 @@
     <string name="dealer">Dealer</string>
     <string name="dealer_avatar">Dealer Avatar</string>
     <string name="api_url">API URL</string>
-    <string name="set_apis">Set APIs</string>
+    <string name="set_apis">Set Base</string>
+    <string name="set_dock_disk">Set my DOCK/DISK</string>
+    <string name="set_my_dock">Set my DOCK</string>
     <string name="backup_prikey">Backup prikey</string>
     <string name="id" translatable="false">ID</string>
     <string name="loaded_newer_cash_from_local_db">Loaded %d newer cash from local DB</string>
@@ -1249,6 +1248,8 @@
     <string name="owner_avatar">Owner Avatar</string>
 
     <string name="found_proofs_count">Found %d proofs</string>
+    <string name="found_tokens_count">Found %d tokens</string>
+    <string name="found_token_holders_count">Found %d token holders</string>
     <string name="error_invalid_symkey">Invalid symkey</string>
     <string name="error_decryption_failed">Decryption failed</string>
     <string name="no_private_key">No prikey</string>
@@ -1548,9 +1549,13 @@
     <string name="no_token_history_found">No token history found</string>
     <string name="enter_token_id">Enter token ID</string>
     <string name="enter_token_name">Enter token name</string>
-    <string name="home_tokens_mode">Home Tokens</string>
     <string name="hidden_tokens">Hidden Tokens</string>
     <string name="hidden_token_holders">Hidden Token Holders</string>
+    <string name="hide_items">Hide Items</string>
+    <string name="no_hidden_tokens_found">No hidden tokens found</string>
+    <string name="no_hidden_token_holders_found">No hidden token holders found</string>
+    <string name="tokens_revealed_successfully">%1$d token(s) revealed</string>
+    <string name="token_holders_revealed_successfully">%1$d token holder(s) revealed</string>
     <string name="loading_tokens">Loading tokens…</string>
     <string name="loading_token_holders">Loading token holders…</string>
     <string name="loading_token_history">Loading token history…</string>
@@ -1567,6 +1572,24 @@
     <string name="signer">Signer</string>
     <string name="no_valid_token_ids">No valid token IDs</string>
     <string name="insufficient_balance">Insufficient balance</string>
+    <string name="issue_token">Issue Token</string>
+    <string name="amount_to_issue">Amount</string>
+    <string name="add_recipient">Add recipient</string>
+    <string name="only_deployer_can_issue">Only the deployer can issue this token</string>
+    <string name="exceeds_max_amt_per_issue">Total exceeds max amount per issue (%1$s)</string>
+    <string name="exceeds_capacity">Total exceeds the token capacity</string>
+    <string name="failed_to_issue_token">Failed to issue token</string>
+    <string name="burn_token">Burn Token</string>
+    <string name="burn_token_confirm">Burn your whole balance of %1$s? This cannot be undone.</string>
+    <string name="failed_to_burn_token">Failed to burn token</string>
+    <string name="no_balance_to_burn">No balance to burn</string>
+    <string name="token_closed">This token is closed</string>
+    <string name="too_many_decimal_places">Amount supports at most %1$d decimal places</string>
+    <string name="decimal_must_be_integer">Decimal must be a non-negative integer</string>
+    <string name="invalid_capacity">Invalid capacity</string>
+    <string name="invalid_max_amt_per_issue">Invalid max amount per issue</string>
+    <string name="invalid_min_cdd_per_issue">Invalid min CDD per issue</string>
+    <string name="invalid_max_issues_per_addr">Invalid max issues per address</string>
 
 
     <string name="price_per_kb">Price Per KB (FCH)</string>
@@ -1681,7 +1704,7 @@
     <string name="attach">Attach</string>
 
     <string name="new_chat">New Chat</string>
-    <string name="enter_fid_or_cid_to_chat">Enter FID, CID or URL to start chat</string>
+    <string name="enter_fid_or_cid_to_chat">Enter FID or CID to search</string>
     <string name="choose_from_contacts">Choose from Contacts</string>
     <string name="please_select_a_fid">Please select a FID first</string>
     <string name="failed">Failed</string>
@@ -1689,9 +1712,12 @@
     <string name="request_symkey">Request Key</string>
     <string name="ask_symkey">Ask Symkey</string>
     <string name="select_members_to_ask_symkey">Select members to request symmetric key from</string>
+
     <string name="symkey_requests_sent">Symkey request sent to %d member(s)</string>
     <string name="owner_no_reachable_channels">Owner has no reachable channels (FUDP/ROAD/DOCK)</string>
     <string name="members_no_reachable_channels">%d member(s) have no reachable channels</string>
+    <string name="im_dock_unresolvable">The message server (DOCK) does not exist or cannot be resolved. The message was not delivered.</string>
+    <string name="im_dock_not_configured">No message server (DOCK) is configured for this conversation, so messages cannot be delivered.</string>
     <string name="share_symkey">Share Key</string>
     <string name="create_room">Create Room</string>
 
@@ -1746,35 +1772,79 @@
     <!-- P2P No Home Dialog -->
 
     <!-- Square Operations (FEIP "square" - open for everyone) -->
-    <string name="join_group">Join Group</string>
-    <string name="create_group">Create Group</string>
-    <string name="quit_group">Quit Group</string>
+    <string name="about_square">About Square</string>
+    <string name="about_square_title">What is a Square?</string>
+    <string name="about_square_message">A Square is an open, on-chain public square.\n\n• No owner or admins. Anyone can join or leave freely, and each join and leave is recorded on the blockchain.\n\n• Its ID is the transaction that created it — there is no central server.\n\n• Any member can edit the name and info, but each edit must burn some Coin-Days (CDD), so spam costs real weight.\n\n• Messages are public and unencrypted — everyone can read them.\n\nUse a Square for open communities. For governed membership or private chats, use a Team instead.</string>
+
+    <!-- About entities (FEIP protocol explanations) -->
+    <string name="about_team">About Team</string>
+    <string name="about_team_title">What is a Team?</string>
+    <string name="about_team_message">A Team is an owner-managed on-chain organization (protocol FEIP-18).\n\n• It is governed. Unlike a Square, a Team has an owner and managers. The owner can transfer or disband it; managers can invite or remove members.\n\n• Members share a consensus. Joining means agreeing to the team\'s consensus — its shared rule set — recorded on the blockchain.\n\n• Roles live on chain. Invite, join, leave, appoint, dismiss, rate and disband are all on-chain actions. Its ID is the transaction that created it.\n\nUse a Team for governed groups with managed membership. For open, ungoverned groups, use a Square instead.</string>
+
+    <string name="about_app">About App</string>
+    <string name="about_app_title">What is an App?</string>
+    <string name="about_app_message">An App is an on-chain registry entry for a decentralized application (protocol FEIP-15).\n\n• Anyone can publish. There is no app-store gatekeeper — you register app metadata directly on the blockchain.\n\n• It records metadata. Name, type, home links, download entries, and the protocols, services and code it depends on.\n\n• Its ID (aid) is the transaction that published it.\n\nApps let people discover and verify decentralized software without a central authority.</string>
+
+    <string name="about_code">About Code</string>
+    <string name="about_code_title">What is Code?</string>
+    <string name="about_code_message">Code is an on-chain registry entry for a software artifact — a library, tool or implementation (protocol FEIP-2).\n\n• Anyone can publish. References to software are recorded on-chain without a central authority.\n\n• It records metadata. Name, version, programming languages, homepage links, and the protocols it implements.\n\n• Its ID is the transaction that published it.\n\nCode entries let people find and reference implementations on chain.</string>
+
+    <string name="about_contact">About Contact</string>
+    <string name="about_contact_title">What is a Contact?</string>
+    <string name="about_contact_message">A Contact is an encrypted address-book entry stored on-chain (protocol FEIP-12).\n\n• Only you can read it. The chain holds only ciphertext; private fields like names, memos and preferences are encrypted, and only you hold the key.\n\n• It lives on the blockchain. Add, update, delete and recover are on-chain actions, so your contacts are backed up and follow you across devices.\n\nYour contacts stay private to you, even though they are stored on a public chain.</string>
+
+    <string name="about_mail">About Mail</string>
+    <string name="about_mail_title">What is Mail?</string>
+    <string name="about_mail_message">Mail is an encrypted message sent from one FID to another on-chain (protocol FEIP-7).\n\n• End-to-end encrypted. Messages use two-way encryption, so only the sender and recipient can read them.\n\n• Carried on the blockchain. There is no mail server; send, delete and recover are on-chain actions.\n\n• Addressed by FID. No email address or server — just the recipient\'s FID. You cannot mail yourself.\n\nUse Mail for private, durable messages that depend on no server.</string>
+
+    <string name="about_token">About Token</string>
+    <string name="about_token_title">What is a Token?</string>
+    <string name="about_token_message">A Token is a fungible on-chain asset (protocol FEIP-20).\n\n• Anyone can deploy one. Deploying fixes its rules — decimal places, optional capacity, and how it may be issued.\n\n• Balances live on chain. Issue, transfer and destroy (burn) move or remove balances; the deployer can close the token.\n\n• Its ID is the deploy transaction.\n\nTokens are simple on-chain assets whose rules are fixed at deploy time.</string>
+
+    <string name="about_proof">About Proof</string>
+    <string name="about_proof_title">What is a Proof?</string>
+    <string name="about_proof_message">A Proof is an on-chain document that records a fact or agreement (protocol FEIP-14).\n\n• Stored on the blockchain. It has a title and body, and its ID is the transaction that issued it.\n\n• Optional co-signing. The issuer can invite cosigners; the proof becomes active once all required signatures are in.\n\n• Transferable. Ownership can be transferred, and the owner can destroy it.\n\nUse a Proof for receipts, certificates, or agreements that need durable, verifiable signatures.</string>
+
+    <string name="about_protocol">About Protocol</string>
+    <string name="about_protocol_title">What is a Protocol?</string>
+    <string name="about_protocol_message">A Protocol is an on-chain registry entry for a formal protocol of the Freeverse ecosystem (protocol FEIP-1).\n\n• Anyone can publish. Protocols are registered on-chain without a central gatekeeper.\n\n• Its ID is the transaction that published it.\n\nProtocol entries let the ecosystem reference and build on shared, openly published standards.</string>
+
+    <string name="about_secret">About Secret</string>
+    <string name="about_secret_title">What is a Secret?</string>
+    <string name="about_secret_message">A Secret is an encrypted personal note stored on-chain — a password, key, or any sensitive text (protocol FEIP-17).\n\n• Only you can read it. The chain holds only ciphertext; only the holder of the decryption key can recover the plaintext.\n\n• Backed up on the blockchain. Your secrets persist on chain and follow you across devices.\n\nSecrets keep sensitive information private even though it lives on a public chain.</string>
+
+    <string name="about_service">About Service</string>
+    <string name="about_service_title">What is a Service?</string>
+    <string name="about_service_message">A Service is an on-chain registry entry for a decentralized service — an API endpoint, storage, relay, or other component (protocol FEIP-5).\n\n• Anyone can publish. Service offerings are registered on-chain without a central authority.\n\n• It records metadata. Endpoints, optional pricing, and links to the protocols and code it uses.\n\n• Its ID (sid) is the transaction that published it.\n\nServices let apps discover and connect to providers across the network.</string>
+
+    <string name="join_square">Join Square</string>
+    <string name="create_square">Create Square</string>
+    <string name="quit_square">Quit Square</string>
     <string name="quit_squares">Quit Squares</string>
     <string name="squares_quit_successfully">Successfully quit squares</string>
-    <string name="group_joined_successfully">Group joined successfully</string>
-    <string name="group_name">Group Name</string>
-    <string name="group_description">Group Description</string>
+    <string name="square_joined_successfully">Square joined successfully</string>
 
-
-    <string name="enter_group_name_or_id">Enter group name or ID</string>
-    <string name="group_name_required">Group name is required</string>
+    <string name="enter_square_name_or_id">Enter square name or ID</string>
 
     <string name="already_a_member">Already a member</string>
-    <string name="group_published_successfully">Group published: %s</string>
-    <string name="failed_to_publish_group">Failed to publish group</string>
+    <string name="square_published_successfully">Square published: %s</string>
+    <string name="failed_to_publish_square">Failed to publish square</string>
 
 
     <string name="no_conversations_selected">No conversations selected</string>
     <string name="confirm_delete_conversations">Delete %1$d selected conversations?</string>
     <string name="conversations_deleted">%1$d conversations deleted</string>
     <!-- Square Chat -->
-    <string name="update_group">Update Group</string>
-    <string name="leave_group">Leave Group</string>
-    <string name="group_members">Group Members</string>
+    <string name="update_square">Update Square</string>
+    <string name="leave_square">Leave Square</string>
+    <string name="square_members">Square Members</string>
     <string name="sid_copied_to_clipboard">SID copied to clipboard</string>
-    <string name="cdd_requirement_note">Your total CD must be larger than %d to update this group.</string>
-    <string name="group_updated_successfully">Group updated: %s</string>
-    <string name="failed_to_update_group">Failed to update group</string>
+    <string name="cdd_requirement_note">Your total CD must be larger than %d to update this square.</string>
+    <string name="cdd_required_title">CD Required</string>
+    <string name="select_cash_for_cdd">Updating this square requires destroying more than %d CD. Select the cashes to spend on the next screen.</string>
+    <string name="cdd_not_enough_to_update">Selected CD %1$d is not enough. It must be larger than %2$d to update this square.</string>
+    <string name="square_updated_successfully">Square updated: %s</string>
+    <string name="failed_to_update_square">Failed to update square</string>
 
     <!-- Dock Items -->
     <string name="dock_items">Dock Items</string>
@@ -1828,6 +1898,18 @@
     <string name="consensus_id_hint">Enter consensus ID (e.g. a TX ID)</string>
     <string name="team_name_required">Team name is required</string>
     <string name="consensus_id_required">Consensus ID is required</string>
+    <string name="consensus_document">Consensus document</string>
+    <string name="consensus_document_required">A consensus document is required</string>
+    <string name="team_servers_required">DOCK and DISK servers are required</string>
+    <string name="team_disk_must_be_service">DISK must be a service (choose one or enter a service ID)</string>
+    <string name="failed_to_read_consensus_document">Failed to read consensus document</string>
+    <string name="failed_to_upload_consensus_document">Failed to upload consensus document</string>
+    <string name="uploading_consensus_document">Uploading consensus…</string>
+    <string name="view_consensus_document">View consensus</string>
+    <string name="downloading_consensus_document">Downloading consensus…</string>
+    <string name="failed_to_download_consensus_document">Failed to download consensus document</string>
+    <string name="consensus_not_text">The consensus document is not plain text and cannot be previewed here.</string>
+    <string name="accept_and_join">Accept &amp; Join</string>
     <string name="team_published_successfully">Team published: %s</string>
     <string name="failed_to_publish_team">Failed to publish team</string>
     <string name="team_joined_successfully">Team joined successfully</string>
@@ -1881,7 +1963,7 @@
     <string name="clear_list">Clear list</string>
     <string name="fid_list_empty">FID list is empty</string>
     <string name="added_n_fids">Added %d FID(s)</string>
-    <string name="no_symkey_available">No symkey available for this team</string>
+    <string name="no_symkey_available">No symkey. You can ask the owner.</string>
     <string name="requesting_symkey_from_owner">Requesting symmetric key from team owner…</string>
     <string name="symkey_received_can_chat">Symkey received. You can send messages.</string>
 
@@ -1918,6 +2000,7 @@
     <string name="aids_comma_separated">App IDs (comma separated)</string>
     <string name="pids_comma_separated">Protocol IDs (comma separated)</string>
 
+
     <string name="team_invite_notification_title">Team Invitation</string>
     <string name="team_transfer_notification_title">Team Transfer</string>
     <string name="team_invite_notification_message">%1$s has invited you to join team: %2$s</string>
@@ -1934,7 +2017,6 @@
     <string name="enter_fid_or_cid">Enter FID or CID</string>
     <string name="confirm_leave_team">Are you sure you want to leave this team?</string>
     <string name="confirm_leave_teams">Are you sure you want to leave the selected teams?</string>
-    <string name="confirm_quit_group">Are you sure you want to quit the selected groups?</string>
     <string name="confirm_quit_square">Are you sure you want to quit the selected squares?</string>
     <string name="cannot_leave_own_teams_or_rooms">You can\'t leave your own teams or rooms. You can disband them.</string>
     <string name="leaving_team">Leaving team…</string>
@@ -1943,8 +2025,10 @@
     <string name="no_candidates">No candidates available</string>
 
     <!-- Archive Activities -->
-    <string name="left_groups">Left Groups</string>
     <string name="left_squares">Left Squares</string>
+    <string name="check_invitation">Check Invitation</string>
+    <string name="no_team_invitations">No pending invitations</string>
+    <string name="members_count">Members: %d</string>
     <string name="disbanded_teams">Left/Disbanded Teams</string>
     <string name="closed_rooms">Left/Closed Rooms</string>
     <string name="no_left_squares">No left squares</string>
@@ -1978,6 +2062,7 @@
     <string name="room_info_share_failed">Failed to share room info</string>
     <string name="ask_room_info">Ask Room Info</string>
     <string name="select_members_to_ask_room_info">Select members to request room info from</string>
+
     <string name="room_info_requests_sent">Room info request sent to %d member(s)</string>
     <string name="symkey_shared">Symkey shared to %d member(s)</string>
     <string name="symkey_share_failed">Failed to share symkey</string>
@@ -1998,7 +2083,7 @@
     <string name="room_owner_menu">Owner Menu</string>
     <string name="no_rooms_selected">No rooms selected</string>
     <string name="room_no_dock_hint">Room has no DOCK service. Set home first.</string>
-    <string name="chat_info_group">Square: on-chain members and public messages</string>
+    <string name="chat_info_square">Square: on-chain members and public messages</string>
     <string name="chat_info_team">Team: on-chain members and encrypted messages</string>
     <string name="chat_info_room">Room: off-chain members and encrypted messages</string>
     <string name="chat_info_p2p">P2P: encrypted messages</string>
@@ -2027,7 +2112,6 @@
     <string name="dock_not_configured_title">DOCK Setup Required</string>
     <string name="dock_not_configured_message">DOCK is required for receiving messages. Without it, you can send messages but cannot receive any when you are offline. Please register a DOCK service to continue.</string>
     <string name="dock_registered_successfully">DOCK registered successfully! TX: %s</string>
-    <string name="im_channel_ready">Messaging is ready</string>
     <string name="failed_to_register_dock">Failed to register DOCK</string>
 
     <!-- Combined DOCK + DISK server setup -->
@@ -2042,6 +2126,29 @@
     <string name="publishing">Publishing…</string>
     <string name="server_setup_registered">Servers registered! TX: %s</string>
     <string name="server_setup_failed">Failed to register servers</string>
+    <string name="team_invite_plain_message">You have been invited to join team \'%1$s\' (Team ID: %2$s). Please verify the consensus document and check your team invitations.</string>
+    <string name="team_invite_plain_message_no_doc">You have been invited to join team \'%1$s\' (Team ID: %2$s). Please check your team invitations.</string>
+    <string name="select_consensus_document">Select consensus document</string>
+    <string name="no_consensus_doc">No consensus document</string>
+    <string name="all_teams">All teams</string>
+    <string name="including_ignored">Including ignored</string>
+    <string name="invitations">Invitations</string>
+    <string name="pending_transfers">Pending Transfers</string>
+    <string name="status_pending_transfer">Transfer pending</string>
+    <string name="no_pending_transfers">No pending transfers</string>
+    <string name="ignored">Ignored</string>
+    <string name="team_invite_system_message">Invited to join team \'%1$s\'. Open invitations to join after the transaction confirms on chain.</string>
+    <string name="team_transfer_system_message">Team \'%1$s\' is being transferred to you. Open pending transfers to accept after the transaction confirms on chain.</string>
+
+    <string name="retry">Retry</string>
+    <string name="im_connecting">Connecting to messaging…</string>
+    <string name="im_not_ready_retry">Messaging is not ready</string>
+    <string name="asking_symkey">Asking for symkey…</string>
+    <string name="symkey_received_version">Symkey received (v%d)</string>
+    <string name="im_channel_ready">Messaging is ready</string>
+    <string name="asking_room_info">Asking for room info…</string>
+    <string name="room_info_received_symkey">Room info received (symkey v%d)</string>
+
     <string name="dock_url_empty">Please enter a DOCK URL</string>
 
     <string name="square_name_required">Square name is required</string>
@@ -2066,6 +2173,7 @@
     <string name="disk_service_not_available">DISK service not available. Please configure a FAPI service first.</string>
     <string name="set_disk">Set DISK</string>
     <string name="searching_disk_services">Searching DISK services…</string>
+    <string name="searching_services">Searching %s services…</string>
     <string name="no_disk_services_found">No DISK services found</string>
     <string name="service_has_no_disk">This service does not have DISK component</string>
     <string name="disk_not_configured_prompt">No DISK service configured. Please select a DISK service for data storage.</string>
@@ -2097,8 +2205,226 @@
 
     <string name="dock_service_unavailable">DOCK service is currently unavailable. Messages will be sent when the connection is restored.</string>
     <string name="dock_disconnected">Service disconnected</string>
+    <string name="pending_tx_confirmation">Pending blockchain confirmation…</string>
     <string name="role_namer">Namer</string>
 
+    <!-- Message actions menu -->
+    <string name="resend">Resend</string>
+    <string name="confirm_delete_message">Delete this message?</string>
+    <string name="copied_to_clipboard">Copied to clipboard</string>
 
+    <!-- DataSyncManager error messages (surfaced via toast) -->
+    <string name="dsm_raw_file_not_exist">Raw file does not exist</string>
+    <string name="dsm_fapi_client_unavailable">DISK service not available</string>
+    <string name="dsm_pubkey_unavailable">Public key not available</string>
+    <string name="dsm_file_encryption_failed">File encryption failed: %1$s</string>
+    <string name="dsm_symkey_encryption_failed">Symkey encryption failed: %1$s</string>
+    <string name="dsm_upload_to_disk_failed">Failed to upload to DISK: %1$s</string>
+    <string name="dsm_upload_to_disk_failed_simple">Failed to upload to DISK</string>
+    <string name="dsm_upload_failed">Upload failed: %1$s</string>
+    <string name="dsm_download_failed">Download failed: %1$s</string>
+    <string name="dsm_data_is_empty">Data is empty</string>
+    <string name="dsm_hat_is_null">HAT is null</string>
+    <string name="dsm_no_locations">No locations or cipherIds available in HAT</string>
+    <string name="dsm_download_all_failed">Failed to download from any cipher source</string>
+    <string name="dsm_file_does_not_exist">File does not exist</string>
+    <string name="dsm_unknown_error">Unknown error</string>
+
+    <!-- MessageQueue failure reasons (surfaced via toast) -->
+    <string name="mq_delivery_permanently_failed">Delivery permanently failed</string>
+    <string name="mq_max_retries_exceeded">Max retries exceeded</string>
+
+
+    <!-- Localized toast messages (auto-added) -->
+    <string name="toast_config_not_found">Configuration not found</string>
+    <string name="toast_error_saving_key">Error saving key: %1$s</string>
+    <string name="toast_password_changed_restart">Password changed. Restart the APP</string>
+    <string name="toast_error_no_entity_data">Error: No entity data available</string>
+    <string name="toast_failed_decode_image">Failed to decode image</string>
+    <string name="toast_avatar_saved_gallery">Avatar saved to gallery</string>
+    <string name="toast_error_saving_avatar">Error saving avatar: %1$s</string>
+    <string name="toast_failed_save_avatar">Failed to save avatar</string>
+    <string name="toast_content_copied">Content copied to clipboard</string>
+    <string name="toast_error_showing_dialog">Error showing dialog: %1$s</string>
+    <string name="toast_error_copying_fid">Error copying FID</string>
+    <string name="toast_no_proofs_for_destruction">No proofs provided for destruction</string>
+    <string name="toast_no_valid_proofs">No valid proofs found</string>
+    <string name="toast_error_loading_proof">Error loading proof data</string>
+    <string name="toast_no_proofs_to_destroy">No proofs to destroy</string>
+    <string name="toast_deleted_proofs_local">Deleted %1$d off-chain proofs locally</string>
+    <string name="toast_no_active_key">No active key available</string>
+    <string name="toast_failed_destroy_proofs_onchain">Failed to destroy proofs on-chain: %1$s</string>
+    <string name="toast_sign_tx_failed_unsigned">Cannot sign transaction - showing unsigned TX</string>
+    <string name="toast_proofs_deleted_local">Proofs deleted locally</string>
+    <string name="toast_fid_added_to_list">FID added to list</string>
+    <string name="toast_no_data_create_qr">No data to create QR code</string>
+    <string name="toast_invalid_fid">Invalid FID</string>
+    <string name="toast_api_center_unavailable">API center not available</string>
+    <string name="toast_fapi_client_unavailable">FAPI client not available</string>
+    <string name="toast_failed_load_fid_info">Failed to load FID info</string>
+    <string name="toast_error_loading_fid_info">Error loading FID info: %1$s</string>
+    <string name="toast_tokens_must_publish_onchain">Tokens must be published on-chain</string>
+    <string name="toast_loaded_proofs">Loaded %1$d proofs</string>
+    <string name="toast_loaded_newer_proofs">Loaded %1$d newer proofs</string>
+    <string name="toast_record_to_be_implemented">Record functionality to be implemented</string>
+    <string name="toast_loaded_apps">Loaded %1$d apps</string>
+    <string name="toast_loaded_newer_apps">Loaded %1$d newer apps</string>
+    <string name="toast_hidden_tokens">Hidden %1$d token(s)</string>
+    <string name="toast_error_detail">Error: %1$s</string>
+    <string name="toast_failed_carve_cid_onchain">Failed to carve CID on-chain: %1$s</string>
+    <string name="toast_hidden_token_holders">Hidden %1$d token holder(s)</string>
+    <string name="toast_failed_load_proof_data">Failed to load proof data</string>
+    <string name="toast_failed_carve_feip">Failed to carve FEIP on-chain: %1$s</string>
+    <string name="toast_failed_add_contacts">Failed to add contacts</string>
+    <string name="toast_cosigner_already_added">Cosigner already added</string>
+    <string name="toast_cosigner_added">Cosigner added</string>
+    <string name="toast_fid_added_to_input">FID added to input</string>
+    <string name="toast_loaded_contacts">Loaded %1$d contacts</string>
+    <string name="toast_loaded_newer_contacts">Loaded %1$d newer contacts</string>
+    <string name="toast_added_contact_fids">Added %1$d contact FIDs to list</string>
+    <string name="toast_no_valid_fids_in_contacts">No valid FIDs found in selected contacts</string>
+    <string name="toast_invalid_contact">Invalid contact</string>
+    <string name="toast_contact_already_onchain">Contact is already on-chain</string>
+    <string name="toast_no_live_key">No live key available</string>
+    <string name="toast_invalid_public_key">Invalid public key</string>
+    <string name="toast_failed_get_prikey_signing">Failed to get private key for transaction signing</string>
+    <string name="toast_no_fids_in_list">No FIDs found in list</string>
+    <string name="toast_completed_processing_fids">Completed processing %1$d FIDs</string>
+    <string name="toast_stopped_at_fid">Stopped at FID %1$d of %2$d</string>
+    <string name="toast_skipped_fid">Skipped FID %1$d of %2$d</string>
+    <string name="toast_contact_carved_fid">Contact carved for FID %1$d of %2$d</string>
+    <string name="toast_error_carving_contact">Error carving contact: %1$s</string>
+    <string name="toast_failed_load_newer_deleted_contacts">Failed to load newer deleted contacts</string>
+    <string name="toast_loaded_newer_deleted_contacts">Loaded %1$d newer deleted contacts</string>
+    <string name="toast_no_newer_deleted_contacts">No newer deleted contacts found</string>
+    <string name="toast_error_loading_newer_deleted_contacts">Error loading newer deleted contacts: %1$s</string>
+    <string name="toast_failed_load_earlier_deleted_contacts">Failed to load earlier deleted contacts</string>
+    <string name="toast_loaded_earlier_deleted_contacts">Loaded %1$d earlier deleted contacts</string>
+    <string name="toast_no_more_earlier_deleted_contacts">No more earlier deleted contacts found</string>
+    <string name="toast_error_loading_earlier_deleted_contacts">Error loading earlier deleted contacts: %1$s</string>
+    <string name="toast_no_contacts_selected_recovery">No contacts selected for recovery</string>
+    <string name="toast_no_valid_contact_ids_recovery">No valid contact IDs for recovery</string>
+    <string name="toast_failed_recover_contacts_onchain">Failed to recover contacts on-chain: %1$s</string>
+    <string name="toast_contacts_recovered_local">Contacts recovered locally</string>
+    <string name="toast_contacts_recovered_offchain">Contacts recovered successfully (off-chain)</string>
+    <string name="toast_failed_recover_contacts">Failed to recover contacts: %1$s</string>
+    <string name="toast_invalid_prikey_format">Invalid private key format</string>
+    <string name="toast_prikey_no_match_fid">Private key does not match current FID</string>
+    <string name="toast_error_processing_prikey">Error processing private key: %1$s</string>
+    <string name="toast_failed_decrypt_detail">Failed to decrypt: %1$s</string>
+    <string name="toast_invalid_decrypted_prikey">Invalid decrypted private key</string>
+    <string name="toast_decrypted_prikey_mismatch">Decrypted private key does not match current FID</string>
+    <string name="toast_error_decrypting_prikey">Error decrypting private key: %1$s</string>
+    <string name="toast_phrase_no_match_fid">Phrase does not generate the current FID</string>
+    <string name="toast_error_processing_phrase">Error processing phrase: %1$s</string>
+    <string name="toast_config_unavailable">Configuration not available</string>
+    <string name="toast_encryption_key_unavailable">Encryption key not available</string>
+    <string name="toast_failed_encrypt_prikey">Failed to encrypt private key: %1$s</string>
+    <string name="toast_fid_manager_unavailable">FidManager not available</string>
+    <string name="toast_live_keyinfo_unavailable">Live KeyInfo not available</string>
+    <string name="toast_prikey_saved">Private key saved successfully</string>
+    <string name="toast_failed_save_prikey">Failed to save private key</string>
+    <string name="toast_error_saving_prikey">Error saving private key: %1$s</string>
+    <string name="toast_no_master_yet">No master yet</string>
+    <string name="toast_api_service_unavailable">API service not available</string>
+    <string name="toast_no_master_announcement">No master announcement found</string>
+    <string name="toast_no_cipher_prikey">No cipher private key found</string>
+    <string name="toast_error_loading_master_announcement">Error loading master announcement: %1$s</string>
+    <string name="toast_error_processing_master">Error processing master: %1$s</string>
+    <string name="toast_fid_selected">FID selected</string>
+    <string name="toast_please_select_fid">Please select a FID first</string>
+    <string name="toast_no_contact_data">No contact data provided</string>
+    <string name="toast_invalid_contact_data">Invalid contact data</string>
+    <string name="toast_error_loading_contact">Error loading contact data</string>
+    <string name="toast_contact_updated">Contact updated successfully</string>
+    <string name="toast_contact_updated_local">Contact updated locally</string>
+    <string name="toast_no_keys_selected">No keys selected</string>
+    <string name="toast_no_contacts_for_deletion">No contacts provided for deletion</string>
+    <string name="toast_no_valid_contacts">No valid contacts found</string>
+    <string name="toast_no_contacts_to_delete">No contacts to delete</string>
+    <string name="toast_deleted_contacts_local">Deleted %1$d off-chain contacts locally</string>
+    <string name="toast_failed_delete_contacts_onchain">Failed to delete contacts on-chain: %1$s</string>
+    <string name="toast_contacts_deleted_local">Contacts deleted locally</string>
+    <string name="toast_please_enter_public_key">Please enter a public key</string>
+    <string name="toast_invalid_private_key">Invalid private key</string>
+    <string name="toast_private_key_empty">Private key is empty</string>
+    <string name="toast_prikey_cipher_empty">Private key cipher is empty</string>
+    <string name="toast_password_empty">Password is empty</string>
+    <string name="toast_failed_decrypt_prikey">Failed to decrypt private key</string>
+    <string name="toast_failed_save_key_info">Failed to save key info</string>
+    <string name="toast_fid_empty">FID is empty</string>
+    <string name="toast_failed_convert_multisig_contact">Failed to convert multisig to contact</string>
+    <string name="toast_unexpected_error">Unexpected error</string>
+    <string name="toast_tx_well_signed_build">The TX is well signed! Build it.</string>
+    <string name="toast_signed">Signed!</string>
+    <string name="toast_failed_get_prikey_of">Failed to get the priKey of %1$s</string>
+    <string name="toast_key_not_part_multisig">Selected key is not part of this multisig transaction</string>
+    <string name="toast_failed_get_key_info_of">Failed to get the key info of %1$s</string>
+    <string name="toast_no_active_key_decrypt">No active key available for decryption</string>
+    <string name="toast_failed_get_private_key">Failed to get private key</string>
+    <string name="toast_error_showing_content">Error showing content: %1$s</string>
+    <string name="toast_failed_decrypt_content">Failed to decrypt content</string>
+    <string name="toast_error_decrypting_content">Error decrypting content: %1$s</string>
+    <string name="toast_error_initiating_decryption">Error initiating decryption: %1$s</string>
+    <string name="toast_failed_load_cid_info">Failed to load CID info</string>
+    <string name="toast_no_fapi_client">No FAPI client available</string>
+    <string name="toast_cash_db_refreshed">Cash database refreshed</string>
+    <string name="toast_network_unavailable_broadcast_manual">Network is not available. Please broadcast manually.</string>
+    <string name="toast_network_unavailable_broadcast_qr">Network is not available. Please broadcast manually using the QR code.</string>
+    <string name="toast_error_scanning_qr">Error scanning QR: %1$s</string>
+    <string name="toast_error_reading_image">Error reading image: %1$s</string>
+    <string name="toast_unexpected_error_detail">Unexpected error: %1$s</string>
+    <string name="toast_creating_outputs">Creating outputs for %1$d contacts</string>
+    <string name="toast_error_launching_delete">Error launching delete activity</string>
+    <string name="toast_please_enter_password">Please enter your password</string>
+    <string name="toast_no_issue_data">No issue data</string>
+    <string name="toast_failed_parse_issue_data">Failed to parse issue data</string>
+    <string name="toast_voice_message_too_large">Voice message too large</string>
+    <string name="toast_totp_save_base32">Failed to save! TOTP key have to be base32 encoded</string>
+    <string name="toast_storage_permission_required">Storage permission is required to save backup files</string>
+    <string name="toast_no_data_make_qr">No data to make QR code.</string>
+    <string name="toast_copied_to_clipboard">Copied to clipboard</string>
+    <string name="toast_nothing_to_copy">Nothing to copy</string>
+    <string name="toast_exported_to">Exported to: %1$s</string>
+    <string name="toast_failed_save_file">Failed to save file</string>
+    <string name="toast_error_processing_secret">Error processing secret: %1$s</string>
+    <string name="toast_imported_cash">Imported %1$d cash, rejected %2$d items</string>
+    <string name="toast_loaded_secrets">Loaded %1$d secrets</string>
+    <string name="toast_loaded_newer_secrets">Loaded %1$d newer secrets</string>
+    <string name="toast_invalid_secret">Invalid secret</string>
+    <string name="toast_secret_already_onchain">Secret is already on-chain</string>
+    <string name="toast_not_offchain_secret">This secret is not an off-chain secret</string>
+    <string name="toast_no_content_send_onchain">No content available to send on-chain</string>
+    <string name="toast_failed_carve_secret_onchain">Failed to carve secret on-chain: %1$s</string>
+    <string name="toast_error_creating_tx">Error creating transaction: %1$s</string>
+    <string name="toast_no_secrets_for_deletion">No secrets provided for deletion</string>
+    <string name="toast_no_valid_secrets">No valid secrets found</string>
+    <string name="toast_error_loading_secret">Error loading secret data</string>
+    <string name="toast_no_secrets_to_delete">No secrets to delete</string>
+    <string name="toast_deleted_secrets_local">Deleted %1$d off-chain secrets locally</string>
+    <string name="toast_failed_delete_secrets_onchain">Failed to delete secrets on-chain: %1$s</string>
+    <string name="toast_secrets_deleted_local">Secrets deleted locally</string>
+    <string name="toast_error_generating_qr">Error generating QR code: %1$s</string>
+    <string name="toast_no_secret_data">No secret data provided</string>
+    <string name="toast_invalid_secret_data">Invalid secret data</string>
+    <string name="toast_totp_update_base32">Failed to update! TOTP key have to be base32 encoded</string>
+    <string name="toast_secret_updated">Secret updated successfully</string>
+    <string name="toast_secret_updated_local">Secret updated locally</string>
+
+    <!-- First-FCH request board (default nobody freer) -->
+    <string name="first_fch_board_name">First FCH Board</string>
+    <string name="nobody_board_education">This is a public request board on a nobody identity: its private key is public, so everything here can be read — and written — by anyone. Only use it to ask for your first FCH. You never need to pay, click a link, or share anything to receive FCH; your only proof is your own balance increasing.</string>
+    <string name="nobody_partner_warning">This identity is a nobody: its private key is public, so messages from it can be written by anyone and cannot be trusted.</string>
+    <string name="nobody_content_hidden">[Content from an unverifiable (nobody) identity is not shown]</string>
+    <string name="im_send_only_no_dock">Send-only mode: you have no receive (DOCK) server yet, so you can send messages but cannot receive replies. Answers to a first-FCH request arrive as coins in your wallet.</string>
+    <string name="talk_send_only_banner">Send-only mode — set up your receive server</string>
+    <string name="newcomer_requests">Check newcomer requests</string>
+    <string name="newcomer_requests_empty">No open first-FCH requests</string>
+    <string name="newcomer_requests_loading">Loading requests from the board…</string>
+    <string name="newcomer_requests_no_dock">The board\'s DOCK server could not be reached</string>
+    <string name="send_fch">Send FCH</string>
+    <string name="newcomer_requests_none_selected">No request selected</string>
+    <string name="ask_first_fch">Ask on First FCH Board</string>
+    <string name="first_fch_request_sent_as">Your message is posted publicly as a first-FCH request for %1$s</string>
 
 </resources>

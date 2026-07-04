@@ -75,6 +75,7 @@ public class TopupPromptDialog {
             Button ignoreButton = dialogView.findViewById(R.id.topupIgnoreButton);
             Button copyButton = dialogView.findViewById(R.id.topupCopyButton);
             Button okButton = dialogView.findViewById(R.id.topupOkButton);
+            Button askBoardButton = dialogView.findViewById(R.id.topupAskBoardButton);
 
             // Set FID text
             if (fidTextView != null) {
@@ -125,12 +126,29 @@ public class TopupPromptDialog {
                 });
             }
 
+            if (askBoardButton != null) {
+                // Zero-balance users can still post a send-only request on the
+                // public first-FCH board (the default nobody freer's DOCK inbox).
+                askBoardButton.setOnClickListener(v -> {
+                    android.content.Intent intent = new android.content.Intent(
+                            context, com.fc.freer.im.ChatActivity.class);
+                    intent.putExtra(com.fc.freer.im.ChatActivity.EXTRA_TYPE,
+                            com.fc.fc_ajdk.data.fcData.ImType.P2P.name());
+                    intent.putExtra(com.fc.freer.im.ChatActivity.EXTRA_TARGET_ID,
+                            com.fc.freer.im.NobodyBoard.DEFAULT_NOBODY_FID);
+                    intent.putExtra(com.fc.freer.im.ChatActivity.EXTRA_DISPLAY_NAME,
+                            context.getString(R.string.first_fch_board_name));
+                    context.startActivity(intent);
+                    dismiss();
+                });
+            }
+
             // Show the dialog
             dialog.show();
 
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error showing topup prompt dialog: " + e.getMessage(), e);
-            ToastUtils.showError(context, "Error showing dialog: " + e.getMessage());
+            ToastUtils.showError(context, context.getString(R.string.toast_error_showing_dialog, e.getMessage()));
         }
     }
 
@@ -154,7 +172,7 @@ public class TopupPromptDialog {
             ToastUtils.makeText(context, R.string.copied);
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error copying FID to clipboard: " + e.getMessage(), e);
-            ToastUtils.showError(context, "Error copying FID");
+            ToastUtils.showError(context, context.getString(R.string.toast_error_copying_fid));
         }
     }
 

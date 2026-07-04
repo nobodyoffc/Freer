@@ -1199,7 +1199,7 @@ public class FcEntityListFragment<T extends FcEntity> extends Fragment {
             // Create a bitmap from the image bytes
             Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
             if (bitmap == null) {
-                ToastUtils.makeText(requireContext(), "Failed to decode image");
+                ToastUtils.makeText(requireContext(), getString(R.string.toast_failed_decode_image));
                 return;
             }
             
@@ -1221,18 +1221,18 @@ public class FcEntityListFragment<T extends FcEntity> extends Fragment {
             if (imageUri != null) {
                 try (OutputStream out = requireContext().getContentResolver().openOutputStream(imageUri)) {
                     bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
-                    ToastUtils.makeText(requireContext(), "Avatar saved to gallery");
+                    ToastUtils.makeText(requireContext(), getString(R.string.toast_avatar_saved_gallery));
                 } catch (IOException e) {
-                    ToastUtils.makeText(requireContext(), "Error saving avatar: " + e.getMessage());
+                    ToastUtils.makeText(requireContext(), getString(R.string.toast_error_saving_avatar, e.getMessage()));
                 }
             } else {
-                ToastUtils.makeText(requireContext(), "Failed to save avatar");
+                ToastUtils.makeText(requireContext(), getString(R.string.toast_failed_save_avatar));
             }
             
             // Recycle the bitmap to free memory
             bitmap.recycle();
         } catch (Exception e) {
-            ToastUtils.makeText(requireContext(), "Error saving avatar: " + e.getMessage());
+            ToastUtils.makeText(requireContext(), getString(R.string.toast_error_saving_avatar, e.getMessage()));
         }
     }
     

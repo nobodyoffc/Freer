@@ -244,8 +244,6 @@ public class RecoverServiceActivity extends BaseCryptoActivity {
                                 }
                                 serviceManager.commit();
 
-                                ToastUtils.makeText(RecoverServiceActivity.this, 
-                                    getString(R.string.services_recovered_successfully, txId));
                                 setResult(Activity.RESULT_OK);
                                 finish();
                             });

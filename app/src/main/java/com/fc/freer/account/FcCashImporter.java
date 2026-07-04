@@ -115,7 +115,7 @@ public class FcCashImporter {
         
         // Show info about rejected items if any
         if (rejectedCount > 0) {
-            ToastUtils.makeText(context, "Imported " + validCashList.size() + " cash, rejected " + rejectedCount + " items");
+            ToastUtils.makeText(context, context.getString(R.string.toast_imported_cash, validCashList.size(), rejectedCount));
         }
         
         listener.onImportSuccess(finalCashList);

@@ -143,6 +143,7 @@ public class PopupMenuHelper {
         TextView changePassword = popupView.findViewById(R.id.change_password);
         TextView setCid = popupView.findViewById(R.id.set_cid);
         TextView setApis = popupView.findViewById(R.id.set_apis);
+        TextView setDockDisk = popupView.findViewById(R.id.set_dock_disk);
         TextView backupPrikey = popupView.findViewById(R.id.backup_prikey);
         TextView security_guidelines = popupView.findViewById(R.id.security_guidelines);
         TextView toastMessages = popupView.findViewById(R.id.toast_messages);
@@ -173,6 +174,11 @@ public class PopupMenuHelper {
             } else {
                 context.startActivity(intent);
             }
+        });
+
+        setDockDisk.setOnClickListener(v -> {
+            popupWindow.dismiss();
+            context.startActivity(new Intent(context, com.fc.freer.data.ServerSetupActivity.class));
         });
 
         backupPrikey.setOnClickListener(v -> {

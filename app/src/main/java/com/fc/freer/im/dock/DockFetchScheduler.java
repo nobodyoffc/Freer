@@ -294,8 +294,9 @@ public class DockFetchScheduler {
                 if (response == null || !response.isSuccess()) {
                     String errorMsg = response != null ? response.getMessage() : "null response";
                     TimberLogger.w(TAG, "dockFetch failed for %s: %s", dockUrl, errorMsg);
-                    dockCursors.remove(dockUrl);
-                    saveCursors();
+                    // Do NOT clear the cursor on transient errors — keep it so the
+                    // next successful fetch resumes from where we left off rather
+                    // than re-delivering up to 7 days of already-seen messages.
                     registry.invalidateClient(dockUrl);
                     registry.markFailed(dockUrl);
                     if (callback != null) {
@@ -332,8 +333,8 @@ public class DockFetchScheduler {
 
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error fetching from DOCK %s: %s", dockUrl, e.getMessage());
-            dockCursors.remove(dockUrl);
-            saveCursors();
+            // Do NOT clear the cursor on exceptions — same reason as the error-response
+            // path above: preserve progress so re-delivery doesn't occur after recovery.
             registry.invalidateClient(dockUrl);
             registry.markFailed(dockUrl);
             if (callback != null) {

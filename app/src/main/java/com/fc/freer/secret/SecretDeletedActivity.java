@@ -899,7 +899,6 @@ public class SecretDeletedActivity extends BaseCryptoActivity {
                             secretList.removeAll(secretsToRecover);
 
                             updateUI();
-                            ToastUtils.makeText(SecretDeletedActivity.this, getString(R.string.secrets_recovered_successfully_on_chain));
                         });
                     }
 

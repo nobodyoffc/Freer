@@ -441,7 +441,7 @@ public class ContactDeletedActivity extends BaseCryptoActivity {
                     runOnUiThread(() -> {
                         isLoadingNewer = false;
                         swipeRefreshLayout.setRefreshing(false);
-                        ToastUtils.makeText(this, "Failed to load newer deleted contacts");
+                        ToastUtils.makeText(this, getString(R.string.toast_failed_load_newer_deleted_contacts));
                     });
                     return;
                 }
@@ -485,9 +485,9 @@ public class ContactDeletedActivity extends BaseCryptoActivity {
                         // Check if there are more newer items available
                         hasMoreNewerData = newerContacts.size() >= pageSize;
 
-                        ToastUtils.makeText(this, "Loaded " + newerContactDetails.size() + " newer deleted contacts");
+                        ToastUtils.makeText(this, getString(R.string.toast_loaded_newer_deleted_contacts, newerContactDetails.size()));
                     } else {
-                        ToastUtils.makeText(this, "No newer deleted contacts found");
+                        ToastUtils.makeText(this, getString(R.string.toast_no_newer_deleted_contacts));
                     }
 
                     isLoadingNewer = false;
@@ -500,7 +500,7 @@ public class ContactDeletedActivity extends BaseCryptoActivity {
                 runOnUiThread(() -> {
                     isLoadingNewer = false;
                     swipeRefreshLayout.setRefreshing(false);
-                    ToastUtils.makeText(this, "Error loading newer deleted contacts: " + e.getMessage());
+                    ToastUtils.makeText(this, getString(R.string.toast_error_loading_newer_deleted_contacts, e.getMessage()));
                 });
             }
         }).start();
@@ -528,7 +528,7 @@ public class ContactDeletedActivity extends BaseCryptoActivity {
                 if (earlierContacts == null) {
                     runOnUiThread(() -> {
                         isLoadingEarlier = false;
-                        ToastUtils.makeText(this, "Failed to load earlier deleted contacts");
+                        ToastUtils.makeText(this, getString(R.string.toast_failed_load_earlier_deleted_contacts));
                     });
                     return;
                 }
@@ -573,10 +573,10 @@ public class ContactDeletedActivity extends BaseCryptoActivity {
                             hasMoreEarlierData = false;
                         }
 
-                        ToastUtils.makeText(this, "Loaded " + earlierContactDetails.size() + " earlier deleted contacts");
+                        ToastUtils.makeText(this, getString(R.string.toast_loaded_earlier_deleted_contacts, earlierContactDetails.size()));
                     } else {
                         hasMoreEarlierData = false;
-                        ToastUtils.makeText(this, "No more earlier deleted contacts found");
+                        ToastUtils.makeText(this, getString(R.string.toast_no_more_earlier_deleted_contacts));
                     }
 
                     isLoadingEarlier = false;
@@ -587,7 +587,7 @@ public class ContactDeletedActivity extends BaseCryptoActivity {
                 TimberLogger.e(TAG, "Error loading earlier deleted contacts: %s", e.getMessage());
                 runOnUiThread(() -> {
                     isLoadingEarlier = false;
-                    ToastUtils.makeText(this, "Error loading earlier deleted contacts: " + e.getMessage());
+                    ToastUtils.makeText(this, getString(R.string.toast_error_loading_earlier_deleted_contacts, e.getMessage()));
                 });
             }
         }).start();
@@ -626,7 +626,7 @@ public class ContactDeletedActivity extends BaseCryptoActivity {
             if (contactCardContainer == null) return;
             List<Contact> selectedContacts = contactCardContainer.getSelectedContacts();
             if (selectedContacts.isEmpty()) {
-                ToastUtils.makeText(this, "No contacts selected for recovery");
+                ToastUtils.makeText(this, getString(R.string.toast_no_contacts_selected_recovery));
                 return;
             }
             performRecoverOperation(selectedContacts);
@@ -825,7 +825,7 @@ public class ContactDeletedActivity extends BaseCryptoActivity {
         // On-chain recovery logic
         KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
         if (liveKeyInfo == null) {
-            ToastUtils.makeText(this, "No active key available");
+            ToastUtils.makeText(this, getString(R.string.toast_no_active_key));
             return;
         }
 
@@ -838,7 +838,7 @@ public class ContactDeletedActivity extends BaseCryptoActivity {
         }
 
         if (contactIds.isEmpty()) {
-            ToastUtils.makeText(this, "No valid contact IDs for recovery");
+            ToastUtils.makeText(this, getString(R.string.toast_no_valid_contact_ids_recovery));
             return;
         }
 
@@ -868,21 +868,20 @@ public class ContactDeletedActivity extends BaseCryptoActivity {
                             contactList.removeAll(contactsToRecover);
 
                             updateUI();
-                            ToastUtils.makeText(ContactDeletedActivity.this, "Contacts recovered successfully on-chain");
                         });
                     }
 
                     @Override
                     public void onError(String errorMessage) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(ContactDeletedActivity.this, "Failed to recover contacts on-chain: " + errorMessage);
+                            ToastUtils.makeText(ContactDeletedActivity.this, getString(R.string.toast_failed_recover_contacts_onchain, errorMessage));
                         });
                     }
 
                     @Override
                     public void onUnsignedTx(RawTxInfo rawTxInfo) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(ContactDeletedActivity.this, "Cannot sign transaction - showing unsigned TX");
+                            ToastUtils.makeText(ContactDeletedActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
                             txSender.showUnsignedTxAsQR(ContactDeletedActivity.this, rawTxInfo);
                         });
                     }
@@ -910,7 +909,7 @@ public class ContactDeletedActivity extends BaseCryptoActivity {
             contactList.removeAll(contactsToRecover);
 
             updateUI();
-            ToastUtils.makeText(this, "Contacts recovered locally");
+            ToastUtils.makeText(this, getString(R.string.toast_contacts_recovered_local));
 
             // Set up scroll listener for pagination
             setupScrollListener();
@@ -952,14 +951,14 @@ public class ContactDeletedActivity extends BaseCryptoActivity {
 
                     updateUI();
                     dismissWaitingDialog();
-                    ToastUtils.makeText(ContactDeletedActivity.this, "Contacts recovered successfully (off-chain)");
+                    ToastUtils.makeText(ContactDeletedActivity.this, getString(R.string.toast_contacts_recovered_offchain));
                 });
 
             } catch (Exception e) {
                 TimberLogger.e(TAG, "Error during off-chain recovery: %s", e.getMessage());
                 runOnUiThread(() -> {
                     dismissWaitingDialog();
-                    ToastUtils.makeText(ContactDeletedActivity.this, "Failed to recover contacts: " + e.getMessage());
+                    ToastUtils.makeText(ContactDeletedActivity.this, getString(R.string.toast_failed_recover_contacts, e.getMessage()));
                 });
             }
         }).start();

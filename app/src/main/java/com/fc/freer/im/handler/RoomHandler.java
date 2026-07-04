@@ -646,7 +646,10 @@ public class RoomHandler extends BaseHandler {
         if (room.getMembers() != null) {
             for (String member : room.getMembers()) {
                 if (!member.equals(liveFid)) {
-                    shareRoomInfo(room.getId(), member);
+                    boolean queued = shareRoomInfo(room.getId(), member);
+                    if (!queued) {
+                        TimberLogger.w(TAG, "Room invite for %s to %s could not be queued; will not be delivered", room.getId(), member);
+                    }
                 }
             }
         }

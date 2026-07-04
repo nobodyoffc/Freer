@@ -137,7 +137,6 @@ public class RecoverCodeActivity extends BaseCryptoActivity {
                         runOnUiThread(() -> {
                             for (Code code : codesToRecover) { code.setActive(true); code.setOnChain(null); codeManager.updateCode(code); }
                             codeManager.commit();
-                            ToastUtils.makeText(RecoverCodeActivity.this, getString(R.string.codes_recovered_successfully, txId));
                             setResult(Activity.RESULT_OK);
                             finish();
                         });

@@ -528,7 +528,6 @@ public class PayActivity extends BaseCryptoActivity {
                 @Override
                 public void onSuccess(String txId) {
                     runOnUiThread(() -> {
-                        ToastUtils.makeText(PayActivity.this, getString(R.string.tx_sent));
                         finish();
                     });
                 }

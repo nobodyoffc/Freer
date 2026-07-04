@@ -1033,6 +1033,23 @@ public class FapiClient implements ApiClient {
         return response;
     }
 
+    /**
+     * Build the {@link RuntimeException} for a failed response.
+     * A locally generated request timeout (HTTP 408) is a transport/client
+     * failure, not a verdict from the server, so its already-descriptive
+     * message is reported as-is rather than wrapped in a misleading
+     * "Server error" prefix.
+     */
+    private static RuntimeException responseError(FapiResponse response) {
+        String message = response != null && response.getMessage() != null
+                ? response.getMessage() : "Unknown error";
+        Integer code = response != null ? response.getCode() : null;
+        if (code != null && code == 408) {
+            return new RuntimeException(message);
+        }
+        return new RuntimeException("Server error: " + message);
+    }
+
     private void updateBalanceFromResponse(FapiResponse response) {
         if (response == null) return;
         
@@ -2377,8 +2394,11 @@ public class FapiClient implements ApiClient {
                 future = fudpNode.requestWithStream(
                     servicePeerId, serviceSid, headerData, fileStream, fileSize);
             }
-            
-            ResponseMessage response = future.get(requestTimeoutSeconds, TimeUnit.SECONDS);
+
+            // Dynamic timeout based on file size: base + 1s per 25KB (~25KB/s slow-link floor)
+            long dynamicTimeout = Math.max(requestTimeoutSeconds,
+                    requestTimeoutSeconds + (fileSize / (25 * 1024)));
+            ResponseMessage response = future.get(dynamicTimeout, TimeUnit.SECONDS);
             
             // Parse response body (server encodes FapiResponse even for errors)
             FapiResponse fapiResp = null;
@@ -2413,7 +2433,7 @@ public class FapiClient implements ApiClient {
             this.lastError = null;
             
             if (fapiResp.getCode() != 0) {
-                lastError = new RuntimeException("Server error: " + fapiResp.getMessage());
+                lastError = responseError(fapiResp);
                 return null;
             }
             
@@ -2421,7 +2441,7 @@ public class FapiClient implements ApiClient {
             
         } catch (TimeoutException e) {
             lastError = e;
-            TimberLogger.w(TAG, "FAPI streaming upload timeout (" + requestTimeoutSeconds + "s): api=" + api);
+            TimberLogger.w(TAG, "FAPI streaming upload timeout (size-based, base=" + requestTimeoutSeconds + "s): api=" + api);
             return null;
         } catch (Exception e) {
             lastError = e;
@@ -2443,8 +2463,14 @@ public class FapiClient implements ApiClient {
         // Create binary operation request
         FapiRequest fapiRequest = FapiRequest.binaryOperation(api, params, fileContent.length, dataHash);
 
+        // Calculate dynamic timeout based on data size:
+        // Base requestTimeoutSeconds + 1s per 25KB (assumes a ~25KB/s slow-link floor),
+        // minimum requestTimeoutSeconds. Slow P2P/FUDP uploads need generous headroom.
+        long dynamicTimeout = Math.max(requestTimeoutSeconds,
+                requestTimeoutSeconds + (fileContent.length / (25 * 1024)));
+
         // Send request
-        UnifiedCodec.UnifiedResponse unified = requestWithBinaryData(fapiRequest, fileContent);
+        UnifiedCodec.UnifiedResponse unified = requestWithBinaryData(fapiRequest, fileContent, dynamicTimeout);
 
         if (unified == null || unified.response() == null) {
             lastError = new RuntimeException("No response from server");
@@ -2452,7 +2478,7 @@ public class FapiClient implements ApiClient {
         }
 
         if (unified.response().getCode() != 0) {
-            lastError = new RuntimeException("Server error: " + unified.response().getMessage());
+            lastError = responseError(unified.response());
             return null;
         }
 
@@ -2509,7 +2535,7 @@ public class FapiClient implements ApiClient {
             }
 
             if (unified.response().getCode() != 0) {
-                lastError = new RuntimeException("Server error: " + unified.response().getMessage());
+                lastError = responseError(unified.response());
                 TimberLogger.w(TAG, "diskGet: server rejected did=%s code=%s message=%s",
                         did, unified.response().getCode(), unified.response().getMessage());
                 return null;
@@ -2807,7 +2833,7 @@ public class FapiClient implements ApiClient {
             }
 
             if (unified.response().getCode() != 0) {
-                lastError = new RuntimeException("Server error: " + unified.response().getMessage());
+                lastError = responseError(unified.response());
                 return null;
             }
 
@@ -2913,7 +2939,7 @@ public class FapiClient implements ApiClient {
             }
 
             if (unified.response().getCode() != 0) {
-                lastError = new RuntimeException("Server error: " + unified.response().getMessage());
+                lastError = responseError(unified.response());
                 return null;
             }
 
@@ -3529,7 +3555,7 @@ public class FapiClient implements ApiClient {
             }
 
             if (unified.response().getCode() != 0) {
-                lastError = new RuntimeException("Server error: " + unified.response().getMessage());
+                lastError = responseError(unified.response());
                 return null;
             }
 

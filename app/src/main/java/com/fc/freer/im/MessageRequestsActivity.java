@@ -13,6 +13,7 @@ import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.im.adapter.MessageRequestAdapter;
 import com.fc.freer.initiate.SettingManager;
+import com.fc.freer.manager.CidFidManager;
 import com.fc.freer.model.Setting;
 import com.fc.freer.utils.ToastUtils;
 
@@ -101,10 +102,17 @@ public class MessageRequestsActivity extends BaseCryptoActivity
         ToastUtils.showInfo(this, getString(R.string.messages_promoted));
         loadIssues();
 
+        // Use the real CID for the title when available; otherwise leave it null
+        // so ChatActivity falls back to the full FID (never the last-4 alias).
+        String cid = null;
+        if (issue.getPeerFid() != null) {
+            cid = CidFidManager.getInstance(this).getCidByFid(issue.getPeerFid());
+        }
+
         Intent intent = new Intent(this, ChatActivity.class);
         intent.putExtra(ChatActivity.EXTRA_TYPE, ImType.P2P.name());
         intent.putExtra(ChatActivity.EXTRA_TARGET_ID, issue.getPeerFid());
-        intent.putExtra(ChatActivity.EXTRA_DISPLAY_NAME, issue.getPeerAlias());
+        intent.putExtra(ChatActivity.EXTRA_DISPLAY_NAME, (cid != null && !cid.isEmpty()) ? cid : null);
         startActivity(intent);
     }
 

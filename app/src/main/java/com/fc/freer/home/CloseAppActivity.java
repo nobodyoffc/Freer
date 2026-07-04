@@ -270,8 +270,6 @@ public class CloseAppActivity extends BaseCryptoActivity {
                                 resultIntent.putExtra("closed_app_ids", appIds.toArray(new String[0]));
                                 setResult(Activity.RESULT_OK, resultIntent);
 
-                                ToastUtils.makeText(CloseAppActivity.this, 
-                                    getString(R.string.apps_closed_successfully, txId));
                                 finish();
                             });
                         }

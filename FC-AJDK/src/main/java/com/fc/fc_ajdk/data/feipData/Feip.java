@@ -4,7 +4,7 @@ import com.fc.fc_ajdk.utils.JsonUtils;
 
 public class Feip {
 	public static Long CD_REQUIRED = 1L;
-	public static long CDD_CHECK_HEIGHT=4032000;
+	public static long CDD_CHECK_HEIGHT=4000000;
 
 	private String type;
 	private String sn;

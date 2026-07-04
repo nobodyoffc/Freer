@@ -69,7 +69,7 @@ public class DeleteSecretActivity extends BaseCryptoActivity {
         // Get the secret details from intent
         String secretListJson = getIntent().getStringExtra("secretList");
         if (secretListJson == null || secretListJson.isEmpty()) {
-            ToastUtils.makeText(this, "No secrets provided for deletion");
+            ToastUtils.makeText(this, getString(R.string.toast_no_secrets_for_deletion));
             finish();
             return;
         }
@@ -80,13 +80,13 @@ public class DeleteSecretActivity extends BaseCryptoActivity {
         try {
             secretList = JsonUtils.listFromJson(secretListJson, Secret.class);
             if (secretList.isEmpty()) {
-                ToastUtils.makeText(this, "No valid secrets found");
+                ToastUtils.makeText(this, getString(R.string.toast_no_valid_secrets));
                 finish();
                 return;
             }
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error parsing secret list: %s", e.getMessage());
-            ToastUtils.makeText(this, "Error loading secret data");
+            ToastUtils.makeText(this, getString(R.string.toast_error_loading_secret));
             finish();
             return;
         }
@@ -203,7 +203,7 @@ public class DeleteSecretActivity extends BaseCryptoActivity {
             if (secretCardContainer == null) return;
             List<Secret> secretsToDelete = new ArrayList<>(secretCardContainer.getSecretList());
             if (secretsToDelete.isEmpty()) {
-                ToastUtils.makeText(this, "No secrets to delete");
+                ToastUtils.makeText(this, getString(R.string.toast_no_secrets_to_delete));
                 return;
             }
             performDeleteOperation(secretsToDelete);
@@ -233,7 +233,7 @@ public class DeleteSecretActivity extends BaseCryptoActivity {
         // Remove deleted off-chain secrets from the UI and update the list
         if (remainingOnChainSecrets.size() < secretsToDelete.size()) {
             int deletedCount = secretsToDelete.size() - remainingOnChainSecrets.size();
-            ToastUtils.makeText(this, "Deleted " + deletedCount + " off-chain secrets locally");
+            ToastUtils.makeText(this, getString(R.string.toast_deleted_secrets_local, deletedCount));
 
             // Update the secretList to remove deleted off-chain secrets
             secretList.clear();
@@ -257,7 +257,7 @@ public class DeleteSecretActivity extends BaseCryptoActivity {
     private void performOnChainDeleteOperation(List<Secret> onChainSecretsToDelete) {
         KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
         if (liveKeyInfo == null) {
-            ToastUtils.makeText(this, "No active key available");
+            ToastUtils.makeText(this, getString(R.string.toast_no_active_key));
             return;
         }
 
@@ -292,7 +292,6 @@ public class DeleteSecretActivity extends BaseCryptoActivity {
 
                             secretManager.commit();
 
-                            ToastUtils.makeText(DeleteSecretActivity.this, "Secrets deleted successfully on-chain");
                             setResult(Activity.RESULT_OK);
                             finish();
                         });
@@ -301,14 +300,14 @@ public class DeleteSecretActivity extends BaseCryptoActivity {
                     @Override
                     public void onError(String errorMessage) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(DeleteSecretActivity.this, "Failed to delete secrets on-chain: " + errorMessage);
+                            ToastUtils.makeText(DeleteSecretActivity.this, getString(R.string.toast_failed_delete_secrets_onchain, errorMessage));
                         });
                     }
 
                     @Override
                     public void onUnsignedTx(RawTxInfo rawTxInfo) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(DeleteSecretActivity.this, "Cannot sign transaction - showing unsigned TX");
+                            ToastUtils.makeText(DeleteSecretActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
                             txSender.showUnsignedTxAsQR(DeleteSecretActivity.this, rawTxInfo);
                         });
                     }
@@ -329,7 +328,7 @@ public class DeleteSecretActivity extends BaseCryptoActivity {
 
             secretManager.commit();
 
-            ToastUtils.makeText(this, "Secrets deleted locally");
+            ToastUtils.makeText(this, getString(R.string.toast_secrets_deleted_local));
             setResult(Activity.RESULT_OK);
             finish();
         }

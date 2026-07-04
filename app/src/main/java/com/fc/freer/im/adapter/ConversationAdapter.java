@@ -34,6 +34,7 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
     private boolean selectionMode = false;
     private final Set<String> selectedIds = new HashSet<>();
     private final Set<String> unavailableTargetIds = new HashSet<>();
+    private final Set<String> pendingTargetIds = new HashSet<>();
     
     private static final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("HH:mm", Locale.getDefault());
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("MM/dd", Locale.getDefault());
@@ -119,6 +120,22 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
             unavailableTargetIds.addAll(targetIds);
         }
     }
+
+    /**
+     * Set target IDs for conversations that are pending blockchain confirmation.
+     * These are rendered grayed-out and non-interactive.
+     * Does NOT call notifyDataSetChanged — caller should trigger refresh.
+     */
+    public void setPendingTargetIds(Set<String> targetIds) {
+        pendingTargetIds.clear();
+        if (targetIds != null) {
+            pendingTargetIds.addAll(targetIds);
+        }
+    }
+
+    public boolean isPending(String targetId) {
+        return targetId != null && pendingTargetIds.contains(targetId);
+    }
     
     @NonNull
     @Override
@@ -134,7 +151,9 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
         boolean isSelected = conversation.getId() != null && selectedIds.contains(conversation.getId());
         boolean isDockUnavailable = conversation.getTargetId() != null
                 && unavailableTargetIds.contains(conversation.getTargetId());
-        holder.bind(conversation, listener, selectionMode, isSelected, isDockUnavailable, this);
+        boolean isPending = conversation.getTargetId() != null
+                && pendingTargetIds.contains(conversation.getTargetId());
+        holder.bind(conversation, listener, selectionMode, isSelected, isDockUnavailable, isPending, this);
     }
     
     @Override
@@ -180,16 +199,16 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
         
         void bind(Conversation conversation, OnConversationClickListener listener,
                   boolean selectionMode, boolean isSelected, boolean isDockUnavailable,
-                  ConversationAdapter adapter) {
-            checkboxSelect.setVisibility(selectionMode ? View.VISIBLE : View.GONE);
+                  boolean isPending, ConversationAdapter adapter) {
+            checkboxSelect.setVisibility(selectionMode && !isPending ? View.VISIBLE : View.GONE);
             checkboxSelect.setChecked(isSelected);
             // Name
+            // Show the CID (resolved into displayName) when available, otherwise
+            // fall back to the full FID. Never truncate so the name is always a
+            // complete CID or FID.
             String displayName = conversation.getDisplayName();
             if (displayName == null || displayName.isEmpty()) {
                 displayName = conversation.getTargetId();
-                if (displayName != null && displayName.length() > 12) {
-                    displayName = displayName.substring(0, 6) + "..." + displayName.substring(displayName.length() - 4);
-                }
             }
             name.setText(displayName);
             
@@ -204,6 +223,14 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
                 avatarFid = conversation.getAvatarDid();
             }
             
+            // Nobody identities (public private key) render black-and-white.
+            if (conversation.getType() == ImType.P2P
+                    && com.fc.freer.im.NobodyBoard.isKnownNobody(targetId)) {
+                com.fc.freer.im.NobodyBoard.applyNobodyMark(avatar);
+            } else {
+                com.fc.freer.im.NobodyBoard.clearNobodyMark(avatar);
+            }
+
             if (avatarFid != null) {
                 AvatarManager avatarManager = AvatarManager.getInstance(itemView.getContext());
                 Bitmap avatarBitmap = avatarManager.getAvatarBitmap(avatarFid);
@@ -230,8 +257,12 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
                 setDefaultAvatar(iconRes);
             }
 
-            // Gray out avatar for disconnected groups
-            avatar.setAlpha(isDockUnavailable ? 0.4f : 1.0f);
+            // Gray out entire item for pending-confirmation items
+            float itemAlpha = isPending ? 0.45f : 1.0f;
+            itemView.setAlpha(itemAlpha);
+
+            // Gray out avatar for disconnected groups (only if not already fully grayed for pending)
+            avatar.setAlpha(isDockUnavailable && !isPending ? 0.4f : 1.0f);
 
             // Short ID under avatar for GROUP/TEAM/ROOM
             if (conversation.getType() == ImType.SQUARE
@@ -259,8 +290,11 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
                 time.setVisibility(View.GONE);
             }
             
-            // Preview — show "Service disconnected" for unavailable groups
-            if (isDockUnavailable) {
+            // Preview — pending confirmation takes priority over dock-disconnected
+            if (isPending) {
+                preview.setText(R.string.pending_tx_confirmation);
+                preview.setTextColor(itemView.getContext().getColor(R.color.hint));
+            } else if (isDockUnavailable) {
                 preview.setText(R.string.dock_disconnected);
                 preview.setTextColor(itemView.getContext().getColor(R.color.warning));
             } else {
@@ -331,14 +365,16 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
             }
             
             itemView.setOnClickListener(v -> {
+                if (isPending) return; // non-interactive while pending
                 if (selectionMode) {
                     adapter.toggleSelection(conversation.getId());
                 } else if (listener != null) {
                     listener.onConversationClick(conversation);
                 }
             });
-            
+
             itemView.setOnLongClickListener(v -> {
+                if (isPending) return true; // consume but do nothing
                 if (listener != null) {
                     listener.onConversationLongClick(conversation);
                 }

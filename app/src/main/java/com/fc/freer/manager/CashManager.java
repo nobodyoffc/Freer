@@ -605,8 +605,10 @@ public class CashManager {
                 if(TxHandler.isLockTimeUnlocked(cash.getLockTime(), bestHeight))
                     continue;
 
-            // 计算并更新该 cash 的 cd（基于区块高度）
-            Long currentCd = (bestHeight != null) ? cash.makeCd(bestHeight) : null;
+            // 计算并更新该 cash 的 cd（基于区块高度）。
+            // 当无法获取最新高度时，回退到该 cash 已存储的 cd，
+            // 避免把实际有 cd 的 cash 误判为 0 而错误地提示"CD不足"。
+            Long currentCd = (bestHeight != null) ? cash.makeCd(bestHeight) : cash.getCd();
             if (currentCd == null)
                 currentCd=0L;
 
@@ -944,6 +946,14 @@ public class CashManager {
             return null;
         }
 
+        // For valid-cash loading (the spend-input selection path), use base.cashValid so the
+        // server strips UTXOs already spent in an unconfirmed mempool TX. base.cashSearch is a
+        // raw ES query that reports such a UTXO as valid=true, which would then be selected as a
+        // TX input and rejected on broadcast with -26 txn-mempool-conflict. The non-valid
+        // (history/sync) path keeps the raw cashSearch since it must surface every cash.
+        if (onlyValid) {
+            return fapiClient.cashValid(fcdsl);
+        }
         return fapiClient.cashSearch(fcdsl);
     }
 

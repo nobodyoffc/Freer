@@ -110,8 +110,12 @@ public class ReadMailActivity extends BaseCryptoActivity {
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == RESULT_OK) {
-                    // Reply was sent successfully
-                    setResult(RESULT_REPLIED);
+                    // Reply was sent successfully — include mail ID so caller can mark it as read
+                    Intent resultIntent = new Intent();
+                    if (mail != null && mail.getId() != null) {
+                        resultIntent.putExtra(EXTRA_READ_MAIL_ID, mail.getId());
+                    }
+                    setResult(RESULT_REPLIED, resultIntent);
                     finish();
                 }
             }
@@ -171,6 +175,16 @@ public class ReadMailActivity extends BaseCryptoActivity {
             setResult(RESULT_OK, resultIntent);
             finish();
         });
+    }
+
+    @Override
+    public void onBackPressed() {
+        Intent resultIntent = new Intent();
+        if (mail != null && mail.getId() != null) {
+            resultIntent.putExtra(EXTRA_READ_MAIL_ID, mail.getId());
+        }
+        setResult(RESULT_OK, resultIntent);
+        super.onBackPressed();
     }
 
     @Override

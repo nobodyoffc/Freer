@@ -248,8 +248,6 @@ public class RecoverProtocolActivity extends BaseCryptoActivity {
                                 }
                                 protocolManager.commit();
 
-                                ToastUtils.makeText(RecoverProtocolActivity.this, 
-                                    getString(R.string.protocols_recovered_successfully, txId));
                                 setResult(Activity.RESULT_OK);
                                 finish();
                             });

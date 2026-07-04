@@ -393,7 +393,7 @@ public class CarveActivity extends BaseCryptoActivity {
                             });
                             dialog.setOnDismissListener(d -> currentDialog = null);
                             dialog.show();
-                            ToastUtils.makeText(this, "Creating outputs for " + fidList.size() + " contacts");
+                            ToastUtils.makeText(this, getString(R.string.toast_creating_outputs, fidList.size()));
                         } else {
                             ToastUtils.makeText(this, R.string.contact_has_no_fid);
                         }

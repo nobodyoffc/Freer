@@ -501,8 +501,6 @@ public class CreateServiceActivity extends BaseCryptoActivity {
                                     serviceManager.commit();
                                 }
 
-                                ToastUtils.makeText(CreateServiceActivity.this, 
-                                    getString(R.string.service_published_successfully, txId));
                                 setResult(RESULT_OK);
                                 finish();
                             });

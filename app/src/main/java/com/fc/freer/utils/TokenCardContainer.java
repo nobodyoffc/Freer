@@ -37,6 +37,7 @@ public class TokenCardContainer {
     private OnTokenListChangedListener onListChangedListener;
     private OnTokenClickListener onTokenClickListener;
     private OnHistoryIconClickListener onHistoryIconClickListener;
+    private OnIssueIconClickListener onIssueIconClickListener;
     private OnEditIconClickListener onEditIconClickListener;
     private OnClearIconClickListener onClearIconClickListener;
     private boolean hideEditButton = false;
@@ -52,6 +53,10 @@ public class TokenCardContainer {
 
     public interface OnHistoryIconClickListener {
         void onHistoryIconClick(Token token);
+    }
+
+    public interface OnIssueIconClickListener {
+        void onIssueIconClick(Token token);
     }
 
     public interface OnEditIconClickListener {
@@ -80,6 +85,10 @@ public class TokenCardContainer {
 
     public void setOnHistoryIconClickListener(OnHistoryIconClickListener listener) {
         this.onHistoryIconClickListener = listener;
+    }
+
+    public void setOnIssueIconClickListener(OnIssueIconClickListener listener) {
+        this.onIssueIconClickListener = listener;
     }
 
     public void setOnEditIconClickListener(OnEditIconClickListener listener) {
@@ -249,6 +258,7 @@ public class TokenCardContainer {
 
     private void setupButtons(View cardView, Token token) {
         ImageButton historyButton = cardView.findViewById(R.id.token_history_button);
+        ImageButton issueButton = cardView.findViewById(R.id.token_issue_button);
         ImageButton editButton = cardView.findViewById(R.id.token_edit_button);
 
         // History button - always visible
@@ -259,6 +269,21 @@ public class TokenCardContainer {
                     onHistoryIconClickListener.onHistoryIconClick(token);
                 }
             });
+        }
+
+        // Issue button - the parser accepts issue from the deployer, or from anyone when openIssue is true
+        if (issueButton != null) {
+            FidManager fidManager = FidManager.getInstance();
+            String liveFid = fidManager != null ? fidManager.getLiveFid() : null;
+            boolean canIssue = !Boolean.TRUE.equals(token.getClosed())
+                    && (Boolean.TRUE.equals(token.getOpenIssue())
+                        || (liveFid != null && liveFid.equals(token.getDeployer())));
+            if (canIssue && onIssueIconClickListener != null) {
+                issueButton.setVisibility(VISIBLE);
+                issueButton.setOnClickListener(v -> onIssueIconClickListener.onIssueIconClick(token));
+            } else {
+                issueButton.setVisibility(GONE);
+            }
         }
 
         // Edit button

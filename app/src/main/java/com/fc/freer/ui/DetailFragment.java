@@ -31,6 +31,10 @@ import com.fc.freer.home.RateFreerActivity;
 import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.manager.FidManager;
+import com.fc.freer.manager.HatManager;
+import com.fc.freer.data.DataSyncManager;
+import com.fc.fc_ajdk.data.fcData.Hat;
+import com.fc.freer.data.HatDetailActivity;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.fc_ajdk.core.crypto.Decryptor;
@@ -623,7 +627,7 @@ public class DetailFragment extends Fragment {
 
             listIcon.setOnClickListener(v -> {
                 com.fc.freer.FreerApplication.addFid(finalFidValue);
-                ToastUtils.makeText(requireContext(), "FID added to list");
+                ToastUtils.makeText(requireContext(), getString(R.string.toast_fid_added_to_list));
             });
 
             row.addView(listIcon);
@@ -680,12 +684,33 @@ public class DetailFragment extends Fragment {
                     if (finalDisplayValue != null && !finalDisplayValue.isEmpty()) {
                         com.fc.freer.utils.QRCodeGenerator.generateAndShowQRCode(requireContext(), finalDisplayValue);
                     } else {
-                        ToastUtils.makeText(requireContext(), "No data to create QR code");
+                        ToastUtils.makeText(requireContext(), getString(R.string.toast_no_data_create_qr));
                     }
                 });
             }
 
             row.addView(cipherIcon);
+        }
+
+        // Add download icon for DID fields. A DID references a content-addressed document
+        // stored on DISK; tapping the icon fetches it and opens the resulting HAT.
+        if (isDidField(fieldName, displayValue)) {
+            ImageView downloadIcon = new ImageView(requireContext());
+            downloadIcon.setImageResource(R.drawable.ic_download);
+            downloadIcon.setColorFilter(ContextCompat.getColor(requireContext(), R.color.accent));
+            int iconSize = (int) (24 * density);
+            LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(
+                iconSize, iconSize);
+            iconParams.setMargins((int)(8 * density), 0, 0, 0);
+            downloadIcon.setLayoutParams(iconParams);
+            downloadIcon.setClickable(true);
+            downloadIcon.setFocusable(true);
+            downloadIcon.setContentDescription(getString(R.string.download));
+
+            String finalDid = displayValue;
+            downloadIcon.setOnClickListener(v -> downloadDidDocument(finalDid));
+
+            row.addView(downloadIcon);
         }
 
         // Add row to container
@@ -1166,6 +1191,83 @@ public class DetailFragment extends Fragment {
         return null;
     }
 
+    /**
+     * True when a field is a DID reference: named "did" with a 64-hex content-hash value.
+     * Such a DID points to a document stored on DISK that can be downloaded by its hash.
+     * Applies to the DID field of any FcEntity (e.g. {@link Protocol#getDid()}).
+     */
+    private boolean isDidField(String fieldName, String value) {
+        return "did".equalsIgnoreCase(fieldName)
+                && value != null
+                && value.matches("[0-9a-fA-F]{64}");
+    }
+
+    /**
+     * Downloads the document referenced by a DID via {@link DataSyncManager#downloadByDid},
+     * which creates a HAT referencing this object's details and saves the file locally.
+     * On success the resulting HAT is opened in {@link HatDetailActivity} so the user can
+     * view/play the downloaded file.
+     */
+    private void downloadDidDocument(String did) {
+        if (did == null || did.isEmpty()) return;
+
+        FidManager fidManager = FidManager.getInstance();
+        String liveFid = fidManager != null ? fidManager.getLiveFid() : null;
+        if (liveFid == null) {
+            ToastUtils.makeText(requireContext(), getString(R.string.error_no_live_fid));
+            return;
+        }
+
+        HatManager hatManager = HatManager.getInstance(requireContext(), liveFid);
+        DataSyncManager dataSyncManager = new DataSyncManager(requireContext(), hatManager);
+
+        // Reference the source object's details on the created HAT.
+        String hatName = deriveEntityName();
+        String hatDesc = currentEntityClass != null
+                ? currentEntityClass.getSimpleName()
+                    + (currentEntity != null && currentEntity.getId() != null ? " " + currentEntity.getId() : "")
+                : null;
+
+        WaitingDialog waitingDialog = new WaitingDialog(requireContext(), getString(R.string.downloading_data));
+        waitingDialog.show();
+
+        new Thread(() -> {
+            Hat hat = dataSyncManager.downloadByDid(did, hatName, hatDesc);
+            requireActivity().runOnUiThread(() -> {
+                waitingDialog.dismiss();
+                if (hat != null) {
+                    ToastUtils.makeText(requireContext(), getString(R.string.download_successful));
+                    Intent intent = new Intent(requireContext(), HatDetailActivity.class);
+                    intent.putExtra(HatDetailActivity.EXTRA_HAT_ID, hat.getId());
+                    startActivity(intent);
+                } else {
+                    ToastUtils.makeText(requireContext(),
+                            getString(R.string.download_failed, dataSyncManager.getLastError()));
+                }
+            });
+        }).start();
+    }
+
+    /**
+     * Derives a display name for the created HAT from the source object (its "name" or
+     * "title" field), falling back to the entity class's simple name.
+     */
+    private String deriveEntityName() {
+        if (currentEntity == null) {
+            return currentEntityClass != null ? currentEntityClass.getSimpleName() : null;
+        }
+        for (String candidate : new String[]{"name", "title"}) {
+            try {
+                Object v = getFieldValue(currentEntity, candidate);
+                if (v instanceof String && !((String) v).isEmpty()) {
+                    return (String) v;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return currentEntityClass != null ? currentEntityClass.getSimpleName() : null;
+    }
+
     private boolean isRateableEntityType(Class<? extends FcEntity> entityClass) {
         return Freer.class.isAssignableFrom(entityClass)
                 || entityClass == Protocol.class
@@ -1216,7 +1318,7 @@ public class DetailFragment extends Fragment {
      */
     private void fetchAndShowCidInfo(String fid) {
         if (fid == null || fid.isEmpty() || !KeyTools.isGoodFid(fid)) {
-            ToastUtils.makeText(requireContext(), "Invalid FID");
+            ToastUtils.makeText(requireContext(), getString(R.string.toast_invalid_fid));
             return;
         }
 
@@ -1233,7 +1335,7 @@ public class DetailFragment extends Fragment {
                     requireActivity().runOnUiThread(() -> {
                         // Dismiss waiting dialog
                         waitingDialog.dismiss();
-                        ToastUtils.makeText(requireContext(), "API center not available");
+                        ToastUtils.makeText(requireContext(), getString(R.string.toast_api_center_unavailable));
                     });
                     return;
                 }
@@ -1243,7 +1345,7 @@ public class DetailFragment extends Fragment {
                     requireActivity().runOnUiThread(() -> {
                         // Dismiss waiting dialog
                         waitingDialog.dismiss();
-                        ToastUtils.makeText(requireContext(), "FAPI client not available");
+                        ToastUtils.makeText(requireContext(), getString(R.string.toast_fapi_client_unavailable));
                     });
                     return;
                 }
@@ -1263,7 +1365,7 @@ public class DetailFragment extends Fragment {
                         intent.putExtra(DetailActivity.EXTRA_ENTITY_CLASS, Freer.class.getName());
                         startActivity(intent);
                     } else {
-                        ToastUtils.makeText(requireContext(), "Failed to load FID info");
+                        ToastUtils.makeText(requireContext(), getString(R.string.toast_failed_load_fid_info));
                     }
                 });
 
@@ -1272,7 +1374,7 @@ public class DetailFragment extends Fragment {
                 requireActivity().runOnUiThread(() -> {
                     // Dismiss waiting dialog
                     waitingDialog.dismiss();
-                    ToastUtils.makeText(requireContext(), "Error loading FID info: " + e.getMessage());
+                    ToastUtils.makeText(requireContext(), getString(R.string.toast_error_loading_fid_info, e.getMessage()));
                 });
             }
         }).start();

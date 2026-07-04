@@ -831,7 +831,7 @@ public class QrCodeActivity extends BaseCryptoActivity {
             } catch (com.google.zxing.NotFoundException e) {
                 ToastUtils.makeText(this, getString(R.string.cannot_decode_image));
             } catch (Exception e) {
-                ToastUtils.makeText(this, "Error scanning QR: " + e.getMessage());
+                ToastUtils.makeText(this, getString(R.string.toast_error_scanning_qr, e.getMessage()));
             } finally {
                 if (!rgbBitmap.isRecycled()) {
                     rgbBitmap.recycle();
@@ -839,9 +839,9 @@ public class QrCodeActivity extends BaseCryptoActivity {
             }
 
         } catch (IOException e) {
-            ToastUtils.makeText(this, "Error reading image: " + e.getMessage());
+            ToastUtils.makeText(this, getString(R.string.toast_error_reading_image, e.getMessage()));
         } catch (Exception e) {
-            ToastUtils.makeText(this, "Unexpected error: " + e.getMessage());
+            ToastUtils.makeText(this, getString(R.string.toast_unexpected_error_detail, e.getMessage()));
         }
     }
 

@@ -10,7 +10,7 @@
         android:id="@+id/menu_setup_home"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/setup_home"
+        android:text="@string/set_my_dock"
         android:textSize="16sp"
         android:textColor="@color/text"
         android:padding="12dp"
@@ -35,6 +35,18 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/manage_blacklist"
+        android:textSize="16sp"
+        android:textColor="@color/text"
+        android:padding="12dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <TextView
+        android:id="@+id/menu_newcomer_requests"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/newcomer_requests"
         android:textSize="16sp"
         android:textColor="@color/text"
         android:padding="12dp"

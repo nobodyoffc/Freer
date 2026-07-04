@@ -107,7 +107,7 @@ public class CreateKeyByPrikeyActivity extends BaseCryptoActivity {
 
         byte[] prikey32 = KeyTools.getPrikey32(prikey);
         if(prikey32 ==null){
-            ToastUtils.makeText(this, "Invalid private key");
+            ToastUtils.makeText(this, getString(R.string.toast_invalid_private_key));
             return;
         }
 
@@ -154,12 +154,12 @@ public class CreateKeyByPrikeyActivity extends BaseCryptoActivity {
         String label = labelInput.getText() != null ? labelInput.getText().toString() : "";
 
         if (prikey.isEmpty()) {
-            ToastUtils.makeText(this, "Private key is empty");
+            ToastUtils.makeText(this, getString(R.string.toast_private_key_empty));
             return null;
         }
         byte[] prikey32 = KeyTools.getPrikey32(prikey);
         if(prikey32==null){
-            ToastUtils.makeText(this, "Invalid private key");
+            ToastUtils.makeText(this, getString(R.string.toast_invalid_private_key));
             return null;
         }
 

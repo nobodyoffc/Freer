@@ -34,6 +34,7 @@ public class TokenHolderCardContainer {
     private final ChooseMode chooseMode;
     private OnTokenHolderListChangedListener onListChangedListener;
     private OnSendIconClickListener onSendIconClickListener;
+    private OnBurnIconClickListener onBurnIconClickListener;
     private OnTokenHolderClickListener onTokenHolderClickListener;
     private Map<String, Token> tokenInfoMap;
 
@@ -43,6 +44,10 @@ public class TokenHolderCardContainer {
 
     public interface OnSendIconClickListener {
         void onSendIconClick(TokenHolder tokenHolder);
+    }
+
+    public interface OnBurnIconClickListener {
+        void onBurnIconClick(TokenHolder tokenHolder);
     }
 
     public interface OnTokenHolderClickListener {
@@ -63,6 +68,10 @@ public class TokenHolderCardContainer {
 
     public void setOnSendIconClickListener(OnSendIconClickListener listener) {
         this.onSendIconClickListener = listener;
+    }
+
+    public void setOnBurnIconClickListener(OnBurnIconClickListener listener) {
+        this.onBurnIconClickListener = listener;
     }
 
     public void setOnTokenHolderClickListener(OnTokenHolderClickListener listener) {
@@ -188,11 +197,24 @@ public class TokenHolderCardContainer {
     private void setupButtons(View cardView, TokenHolder tokenHolder) {
         ImageButton sendButton = cardView.findViewById(R.id.token_holder_send_button);
         if (sendButton != null) {
-            sendButton.setOnClickListener(v -> {
-                if (onSendIconClickListener != null) {
-                    onSendIconClickListener.onSendIconClick(tokenHolder);
-                }
-            });
+            if (onSendIconClickListener != null) {
+                sendButton.setVisibility(VISIBLE);
+                sendButton.setOnClickListener(v -> onSendIconClickListener.onSendIconClick(tokenHolder));
+            } else {
+                sendButton.setVisibility(GONE);
+            }
+        }
+
+        // Burn (destroy) needs a positive balance to be accepted by the parser
+        ImageButton burnButton = cardView.findViewById(R.id.token_holder_burn_button);
+        if (burnButton != null) {
+            boolean hasBalance = tokenHolder.getBalance() != null && tokenHolder.getBalance() > 0;
+            if (hasBalance && onBurnIconClickListener != null) {
+                burnButton.setVisibility(VISIBLE);
+                burnButton.setOnClickListener(v -> onBurnIconClickListener.onBurnIconClick(tokenHolder));
+            } else {
+                burnButton.setVisibility(GONE);
+            }
         }
     }
 

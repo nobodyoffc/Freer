@@ -1009,6 +1009,11 @@ public class ServiceActivity extends BaseCryptoActivity {
             searchMyServices();
         });
 
+        popupView.findViewById(R.id.about_item).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            com.fc.freer.utils.AboutDialog.show(this, R.string.about_service_title, R.string.about_service_message);
+        });
+
         popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         int popupHeight = popupView.getMeasuredHeight();
 

@@ -37,7 +37,20 @@
       "Bash(gh api *)",
       "Bash(git config *)",
       "Bash(git rev-list *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -q -m ' *)",
+      "Bash(git push *)",
+      "Bash(xargs ls)",
+      "Bash(awk -F: '$1 < 600')",
+      "Bash(awk '/isTeamNotification/{found=1; start=NR-5} found && NR>=start && NR<=start+20{print NR\": \"$0} NR>start+20{found=0}' /Users/liuchangyong/AndroidStudioProjects/Freer/app/src/main/java/com/fc/freer/im/ImManager.java)",
+      "Bash(xargs ls -la)",
+      "Bash(grep -v \":1$\")",
+      "Bash(grep -v \":0$\")",
+      "Bash(perl -0pi -e 's/new RuntimeException\\\\\\(\"Server error: \" \\\\+ unified\\\\.response\\\\\\(\\\\\\)\\\\.getMessage\\\\\\(\\\\\\)\\\\\\)/responseError\\(unified.response\\(\\)\\)/g; s/new RuntimeException\\\\\\(\"Server error: \" \\\\+ fapiResp\\\\.getMessage\\\\\\(\\\\\\)\\\\\\)/responseError\\(fapiResp\\)/g' FC-AJDK/src/main/java/com/fc/fc_ajdk/fapi/client/FapiClient.java)",
+      "Read(//Users/liuchangyong/Desktop/Freeverse/APIP/ApipServer/src/main/java/**)",
+      "Bash(echo \"grep exit: $?\")",
+      "Bash(perl -i -pe 's|\\(    <string name=\"found_proofs_count\">Found %d proofs</string>\\\\n\\)|$1    <string name=\"found_tokens_count\">Found %d tokens</string>\\\\n    <string name=\"found_token_holders_count\">Found %d token holders</string>\\\\n|' app/src/main/res/values/strings.xml)",
+      "Bash(perl -i -pe 's|\\(    <string name=\"found_proofs_count\">找到 %d 个凭据</string>\\\\n\\)|$1    <string name=\"found_tokens_count\">找到 %d 个通证</string>\\\\n    <string name=\"found_token_holders_count\">找到 %d 个通证持有</string>\\\\n|' app/src/main/res/values-zh/strings.xml)"
     ],
     "deny": [],
     "ask": []

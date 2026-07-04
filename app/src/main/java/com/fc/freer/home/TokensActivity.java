@@ -31,6 +31,7 @@ import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.utils.TokenCardContainer;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -43,8 +44,6 @@ public class TokensActivity extends BaseCryptoActivity {
 
     private ImageButton moreButton;
     private ImageButton createButton;
-    private ImageButton hideButton;
-    private ImageButton homeButton;
     private ImageButton clearButton;
     private ImageButton backButton;
     private CheckBox selectAllCheckBox;
@@ -56,11 +55,12 @@ public class TokensActivity extends BaseCryptoActivity {
 
     private final int pageSize = FreerApplication.DEFAULT_PAGE_SIZE;
     private final List<Token> tokenList = new ArrayList<>();
-    private boolean isHomeMode = false;
 
     private ActivityResultLauncher<Intent> createTokenLauncher;
     private ActivityResultLauncher<Intent> closeTokenLauncher;
     private ActivityResultLauncher<Intent> historyLauncher;
+    private ActivityResultLauncher<Intent> issueTokenLauncher;
+    private ActivityResultLauncher<Intent> hiddenLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -113,6 +113,24 @@ public class TokensActivity extends BaseCryptoActivity {
             new ActivityResultContracts.StartActivityForResult(),
             result -> {}
         );
+
+        issueTokenLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK) {
+                    refreshList();
+                }
+            }
+        );
+
+        hiddenLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK) {
+                    refreshList();
+                }
+            }
+        );
     }
 
     @Override
@@ -129,8 +147,6 @@ public class TokensActivity extends BaseCryptoActivity {
     protected void initializeViews() {
         moreButton = findViewById(R.id.more_button);
         createButton = findViewById(R.id.create_button);
-        hideButton = findViewById(R.id.hide_button);
-        homeButton = findViewById(R.id.home_button);
         clearButton = findViewById(R.id.clear_button);
         backButton = findViewById(R.id.back_button);
         loadMoreButton = findViewById(R.id.load_more_button);
@@ -140,8 +156,107 @@ public class TokensActivity extends BaseCryptoActivity {
         scrollView = findViewById(R.id.token_scroll_view);
         statisticsTextView = findViewById(R.id.statistics_text);
 
+        setupSearchControls();
+        setupTokenSpinners();
+
         setupSelectAllCheckBox();
         setupSwipeRefresh();
+    }
+
+    /**
+     * Sets up the spinner dropdowns specific to Token
+     */
+    private void setupTokenSpinners() {
+        // Determine language for display names
+        boolean useChinese = getResources().getConfiguration().locale.getLanguage().equals("zh");
+
+        // Set up 'Search in' spinner with Token searchable fields
+        if (searchFieldSpinner != null) {
+            LinkedHashMap<String, Map<String, String>> searchableFields = Token.getSearchableFields();
+
+            List<String> fieldOptionsList = new ArrayList<>();
+            fieldOptionsList.add(getString(R.string.search_in)); // First item is placeholder
+
+            for (Map.Entry<String, Map<String, String>> entry : searchableFields.entrySet()) {
+                Map<String, String> languages = entry.getValue();
+                String displayName = useChinese ? languages.get("zh") : languages.get("en");
+                fieldOptionsList.add(displayName);
+            }
+
+            setupSpinner(searchFieldSpinner, fieldOptionsList.toArray(new String[0]), R.string.field);
+        }
+
+        // Set up sort spinner with Token sortable fields
+        if (sortFieldSpinner != null) {
+            LinkedHashMap<String, Map<String, String>> sortableFields = Token.getSortableFields();
+
+            List<String> sortOptionsList = new ArrayList<>();
+            sortOptionsList.add(getString(R.string.sort_by)); // First item is placeholder
+
+            for (Map.Entry<String, Map<String, String>> entry : sortableFields.entrySet()) {
+                Map<String, String> languages = entry.getValue();
+                String displayName = useChinese ? languages.get("zh") : languages.get("en");
+                sortOptionsList.add(displayName);
+            }
+
+            setupSpinner(sortFieldSpinner, sortOptionsList.toArray(new String[0]), R.string.field);
+        }
+
+        // Set up Order spinner
+        if (sortOrderSpinner != null) {
+            String[] orderOptions = new String[]{"Order", "DESC", "ASC"};
+            setupSpinner(sortOrderSpinner, orderOptions, R.string.order);
+        }
+    }
+
+    @Override
+    protected void onExitSearchMode() {
+        refreshList();
+    }
+
+    @Override
+    protected void onPerformSearch(String query, String searchField, String sortField, String sortOrder) {
+        performSearchFromAPI();
+    }
+
+    /**
+     * Performs the search from API using the current search parameters
+     */
+    private void performSearchFromAPI() {
+        if (tokenManager == null) {
+            return;
+        }
+
+        showWaitingDialog(getString(R.string.searching));
+
+        new Thread(() -> {
+            try {
+                List<Token> searchResults = tokenManager.filterHiddenTokens(
+                    tokenManager.searchTokensFromApi(
+                        currentSearchQuery,
+                        currentSearchField,
+                        currentSortField,
+                        currentSortOrder,
+                        null));
+
+                runOnUiThread(() -> {
+                    dismissWaitingDialog();
+                    if (searchResults != null && !searchResults.isEmpty()) {
+                        showItemList(searchResults);
+                        ToastUtils.makeText(this, getString(R.string.found_tokens_count, searchResults.size()));
+                    } else {
+                        ToastUtils.makeText(this, getString(R.string.no_tokens_found));
+                        updateUI();
+                    }
+                });
+            } catch (Exception e) {
+                TimberLogger.e(TAG, "Error performing search: %s", e.getMessage());
+                runOnUiThread(() -> {
+                    dismissWaitingDialog();
+                    ToastUtils.makeText(this, getString(R.string.search_failed) + ": " + e.getMessage());
+                });
+            }
+        }).start();
     }
 
     @Override
@@ -154,7 +269,8 @@ public class TokensActivity extends BaseCryptoActivity {
 
         new Thread(() -> {
             try {
-                List<Token> tokens = tokenManager.fetchTokensFromAPI("refresh", null);
+                List<Token> tokens = tokenManager.filterHiddenTokens(
+                    tokenManager.fetchTokensFromAPI("refresh", null));
 
                 runOnUiThread(() -> {
                     dismissWaitingDialog();
@@ -200,6 +316,12 @@ public class TokensActivity extends BaseCryptoActivity {
             historyLauncher.launch(intent);
         });
 
+        cardContainer.setOnIssueIconClickListener(token -> {
+            Intent intent = new Intent(this, IssueTokenActivity.class);
+            intent.putExtra(IssueTokenActivity.EXTRA_TOKEN_JSON, token.toJson());
+            issueTokenLauncher.launch(intent);
+        });
+
         Map<String, String> cidMap = cardContainer.getCidMap(tokenList, this);
         for (Token token : tokenList) {
             cardContainer.addTokenCard(token, cidMap);
@@ -243,25 +365,15 @@ public class TokensActivity extends BaseCryptoActivity {
             });
         }
 
-        if (hideButton != null) {
-            hideButton.setOnClickListener(v -> {
-                hideKeyboard();
-                handleHideTokens();
-            });
-        }
-
-        if (homeButton != null) {
-            homeButton.setOnClickListener(v -> {
-                hideKeyboard();
-                toggleHomeMode();
-            });
-        }
-
         if (clearButton != null) {
             clearButton.setOnClickListener(v -> {
                 hideKeyboard();
-                isHomeMode = false;
-                refreshList();
+                boolean wasSearchMode = isSearchMode;
+                clearSearchControls();
+                // clearSearchControls only reloads when exiting search mode
+                if (!wasSearchMode) {
+                    refreshList();
+                }
             });
         }
 
@@ -289,19 +401,28 @@ public class TokensActivity extends BaseCryptoActivity {
 
         popupView.findViewById(R.id.refresh_item).setOnClickListener(v -> {
             popupWindow.dismiss();
-            isHomeMode = false;
             refreshList();
+        });
+
+        popupView.findViewById(R.id.hide_item).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            handleHideTokens();
         });
 
         popupView.findViewById(R.id.hidden_item).setOnClickListener(v -> {
             popupWindow.dismiss();
-            // TODO: Show hidden tokens activity
-            ToastUtils.makeText(this, "Hidden tokens not implemented yet");
+            Intent intent = new Intent(this, HiddenTokenActivity.class);
+            hiddenLauncher.launch(intent);
         });
 
         popupView.findViewById(R.id.close_item).setOnClickListener(v -> {
             popupWindow.dismiss();
             handleCloseTokens();
+        });
+
+        popupView.findViewById(R.id.about_item).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            com.fc.freer.utils.AboutDialog.show(this, R.string.about_token_title, R.string.about_token_message);
         });
 
         popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
@@ -317,13 +438,14 @@ public class TokensActivity extends BaseCryptoActivity {
             return;
         }
 
-        // Save to cached list and remove from display
+        // Persist to the hidden list and remove from display
+        tokenManager.addToHiddenTokenList(selected);
         for (Token token : selected) {
             cardContainer.removeTokenById(token.getId());
             tokenList.remove(token);
         }
 
-        ToastUtils.makeText(this, "Hidden " + selected.size() + " token(s)");
+        ToastUtils.makeText(this, getString(R.string.toast_hidden_tokens, selected.size()));
         updateUI();
     }
 
@@ -335,12 +457,13 @@ public class TokensActivity extends BaseCryptoActivity {
             return;
         }
 
-        // Filter closable tokens (deployer = liveFid AND closable = "true")
+        // Filter closable tokens (deployer = liveFid AND closable AND not closed yet)
         String liveFid = FidManager.getInstance().getLiveFid();
         List<Token> closableTokens = new ArrayList<>();
         for (Token token : selected) {
-            if (liveFid != null && liveFid.equals(token.getDeployer()) 
-                && "true".equalsIgnoreCase(token.getClosable())) {
+            if (liveFid != null && liveFid.equals(token.getDeployer())
+                && Boolean.TRUE.equals(token.getClosable())
+                && !Boolean.TRUE.equals(token.getClosed())) {
                 closableTokens.add(token);
             }
         }
@@ -360,64 +483,17 @@ public class TokensActivity extends BaseCryptoActivity {
         closeTokenLauncher.launch(intent);
     }
 
-    private void toggleHomeMode() {
-        isHomeMode = !isHomeMode;
-        
-        showWaitingDialog(getString(R.string.loading_tokens));
-
-        new Thread(() -> {
-            try {
-                List<Token> tokens;
-                if (isHomeMode) {
-                    tokens = tokenManager.fetchMyTokensFromAPI(null);
-                } else {
-                    tokens = tokenManager.fetchTokensFromAPI("refresh", null);
-                }
-
-                runOnUiThread(() -> {
-                    dismissWaitingDialog();
-                    showItemList(tokens);
-                    ToastUtils.makeText(this, isHomeMode ? 
-                        getString(R.string.home_tokens_mode) : getString(R.string.tokens));
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> {
-                    dismissWaitingDialog();
-                    ToastUtils.makeText(this, "Error: " + e.getMessage());
-                });
-            }
-        }).start();
-    }
-
     private void refreshList() {
         if (cardContainer != null) {
             cardContainer.clearAll();
         }
         tokenList.clear();
-        
+
         if (swipeRefreshLayout != null) {
             swipeRefreshLayout.setRefreshing(false);
         }
 
-        if (isHomeMode) {
-            showWaitingDialog(getString(R.string.loading_tokens));
-            new Thread(() -> {
-                try {
-                    List<Token> tokens = tokenManager.fetchMyTokensFromAPI(null);
-                    runOnUiThread(() -> {
-                        dismissWaitingDialog();
-                        showItemList(tokens);
-                    });
-                } catch (Exception e) {
-                    runOnUiThread(() -> {
-                        dismissWaitingDialog();
-                        ToastUtils.makeText(this, "Error: " + e.getMessage());
-                    });
-                }
-            }).start();
-        } else {
-            loadInitialData();
-        }
+        loadInitialData();
     }
 
     private void updateUI() {

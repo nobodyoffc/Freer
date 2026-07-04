@@ -116,6 +116,7 @@ public class DataActivity extends BaseCryptoActivity {
     private boolean isTransferring = false;
     private boolean isUploadTransfer = false;
     private boolean needsRefreshOnResume = false;
+    private HatFileOpener hatFileOpener;
 
     private final BroadcastReceiver transferReceiver = new BroadcastReceiver() {
         @Override
@@ -147,7 +148,6 @@ public class DataActivity extends BaseCryptoActivity {
     private ActivityResultLauncher<Intent> textEditorLauncher;
     private ActivityResultLauncher<Intent> uploadLauncher;
     private ActivityResultLauncher<Intent> downloadLauncher;
-    private ActivityResultLauncher<Intent> setDiskLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -164,7 +164,6 @@ public class DataActivity extends BaseCryptoActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        checkDiskAvailability();
         // If a transfer just completed while we were in the background, refresh to show updated icons
         if (needsRefreshOnResume) {
             TimberLogger.i(TAG, "DEBUG onResume refreshing data");
@@ -259,14 +258,6 @@ public class DataActivity extends BaseCryptoActivity {
                 }
         );
 
-        setDiskLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(),
-                result -> {
-                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                        handleDiskServiceSelected(result.getData());
-                    }
-                }
-        );
     }
 
     private void initializeManagers() {
@@ -298,152 +289,6 @@ public class DataActivity extends BaseCryptoActivity {
             ToastUtils.showError(this, getString(R.string.initialization_failed));
             finish();
         }
-    }
-
-    private boolean diskCheckDone = false;
-
-    private void checkDiskAvailability() {
-        if (diskCheckDone) return;
-        diskCheckDone = true;
-        new Thread(() -> {
-            com.fc.fc_ajdk.data.fcData.KeyInfo liveKeyInfo =
-                    FidManager.getInstance() != null ? FidManager.getInstance().getLiveKeyInfo() : null;
-            if (liveKeyInfo == null) return;
-
-            if (DiskHomeManager.isConfigured(liveKeyInfo)) {
-                // home.DISK is set: resolve & cache the DISK client from the (encrypted) sid.
-                byte[] prikey = com.fc.freer.utils.SecurePrikeyManager.fetchPrikeySilent(liveKeyInfo.getPrikeyCipher());
-                com.fc.fc_ajdk.fapi.client.FapiClient disk =
-                        DiskHomeManager.resolveAndCacheDiskClient(liveKeyInfo, prikey);
-                if (disk == null) {
-                    runOnUiThread(() -> ToastUtils.showWarning(this, getString(R.string.failed_to_connect_disk)));
-                }
-            } else if (DiskHomeManager.isRegistrationPending(getApplicationContext(), liveKeyInfo.getId())) {
-                // A DISK registration TX is pending confirmation; don't prompt again.
-                TimberLogger.d(TAG, "DISK registration pending; skipping set-disk prompt");
-            } else {
-                // Not configured: prompt the user to set freer.home.DISK.
-                runOnUiThread(this::promptSetDisk);
-            }
-        }).start();
-    }
-
-    /**
-     * Prompt the user to set a DISK service. Suggests the default FAPI server when it has a
-     * "disk" component; otherwise (or on rejection) opens SetDiskActivity to choose one.
-     */
-    private void promptSetDisk() {
-        new Thread(() -> {
-            com.fc.freer.utils.ApiCenter api = com.fc.freer.utils.ApiCenter.getInstance();
-            boolean baseHasDisk = api.baseHasDiskComponent();
-            String baseSid = baseHasDisk ? api.getBaseServiceSid() : null;
-            runOnUiThread(() -> showSetDiskDialog(baseSid));
-        }).start();
-    }
-
-    /**
-     * Always-on confirmation dialog prompting the user to set a DISK service.
-     * When the current default FAPI server provides DISK, it is recommended for one-tap setup;
-     * otherwise the user is sent to choose a DISK service.
-     */
-    private void showSetDiskDialog(String recommendedSid) {
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this)
-                .setTitle(R.string.set_disk);
-        if (recommendedSid != null) {
-            builder.setMessage(R.string.use_default_server_as_disk)
-                    .setPositiveButton(R.string.confirm, (d, w) -> publishDiskSid(recommendedSid))
-                    .setNegativeButton(R.string.choose_another, (d, w) -> launchSetDisk());
-        } else {
-            builder.setMessage(R.string.disk_not_configured_prompt)
-                    .setPositiveButton(R.string.set_disk, (d, w) -> launchSetDisk())
-                    .setNegativeButton(R.string.cancel, null);
-        }
-        builder.show();
-    }
-
-    private void launchSetDisk() {
-        Intent intent = new Intent(this, SetDiskActivity.class);
-        setDiskLauncher.launch(intent);
-    }
-
-    private void handleDiskServiceSelected(Intent data) {
-        String json = data.getStringExtra(SetDiskActivity.EXTRA_SELECTED_SERVICE);
-        if (json == null || json.isEmpty()) return;
-
-        new Thread(() -> {
-            try {
-                com.fc.fc_ajdk.fapi.client.ApiProvider provider =
-                        com.fc.fc_ajdk.data.fcData.FcEntity.fromJson(json, com.fc.fc_ajdk.fapi.client.ApiProvider.class);
-                if (provider == null || provider.getId() == null) {
-                    runOnUiThread(() -> ToastUtils.showError(this, getString(R.string.failed_to_connect_disk)));
-                    return;
-                }
-                // provider.getId() is the service SID. Publish it (encrypted) into home.DISK.
-                String sid = provider.getId();
-                runOnUiThread(() -> publishDiskSid(sid));
-            } catch (Exception e) {
-                TimberLogger.e(TAG, "Error setting DISK service: %s", e.getMessage());
-                runOnUiThread(() -> ToastUtils.showError(this, getString(R.string.failed_to_connect_disk)));
-            }
-        }).start();
-    }
-
-    /**
-     * Encrypt the chosen DISK service SID with the live FID's public key and publish it
-     * into {@code freer.home.DISK} onchain, then resolve & cache the DISK client locally.
-     */
-    private void publishDiskSid(String sid) {
-        com.fc.fc_ajdk.data.fcData.KeyInfo liveKeyInfo =
-                FidManager.getInstance() != null ? FidManager.getInstance().getLiveKeyInfo() : null;
-        if (liveKeyInfo == null) {
-            ToastUtils.showError(this, getString(R.string.error_no_live_fid));
-            return;
-        }
-        final byte[] prikey = com.fc.freer.utils.SecurePrikeyManager.fetchPrikeySilent(liveKeyInfo.getPrikeyCipher());
-        if (prikey == null) {
-            ToastUtils.showError(this, getString(R.string.failed_to_get_private_key));
-            return;
-        }
-        com.fc.fc_ajdk.fapi.client.FapiClient fapiClient =
-                (com.fc.fc_ajdk.fapi.client.FapiClient) com.fc.freer.utils.ApiCenter.getInstance()
-                        .getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.FAPI_No1_NrC7);
-
-        ToastUtils.makeText(this, getString(R.string.publishing_disk_setting));
-        DiskHomeManager.publish(this, liveKeyInfo, sid, prikey, fapiClient, new com.fc.freer.tx.TxSender.TxCallback() {
-            @Override
-            public void onSuccess(String txId) {
-                // Update local home cache so the DISK is usable immediately, and cache the client.
-                java.util.Map<String, String> home = liveKeyInfo.getHome() != null
-                        ? new java.util.HashMap<>(liveKeyInfo.getHome()) : new java.util.HashMap<>();
-                String enc = DiskHomeManager.encryptSid(sid, liveKeyInfo.getPubkey());
-                if (enc != null) home.put(DiskHomeManager.DISK_KEY, enc);
-                liveKeyInfo.setHome(home);
-                DiskHomeManager.resolveAndCacheDiskClient(liveKeyInfo, prikey);
-                // Suppress the set-disk prompt until this TX confirms (KeyInfo.home gets
-                // refreshed from on-chain, which still lacks the unconfirmed DISK).
-                DiskHomeManager.markRegistrationPending(getApplicationContext(), liveKeyInfo.getId());
-                runOnUiThread(() -> ToastUtils.makeText(DataActivity.this,
-                        getString(R.string.disk_service_set_successfully)));
-            }
-
-            @Override
-            public void onError(String errorMessage) {
-                runOnUiThread(() -> ToastUtils.showError(DataActivity.this,
-                        getString(R.string.failed_to_connect_disk) + ": " + errorMessage));
-            }
-
-            @Override
-            public void onUnsignedTx(com.fc.fc_ajdk.core.fch.RawTxInfo rawTxInfo) {
-                runOnUiThread(() -> ToastUtils.showError(DataActivity.this,
-                        getString(R.string.cannot_sign_transaction)));
-            }
-
-            @Override
-            public void onUnbroadcasted(String signedTxHex) {
-                runOnUiThread(() -> ToastUtils.showWarning(DataActivity.this,
-                        getString(R.string.failed_to_register_home)));
-            }
-        });
     }
 
     @Override
@@ -492,7 +337,10 @@ public class DataActivity extends BaseCryptoActivity {
         hatCardContainer.setClearButtonIcon(R.drawable.ic_play, getString(R.string.open));
         hatCardContainer.setOnHatClickListener(this::onHatClick);
         hatCardContainer.setOnHatLongClickListener(this::onHatLongClick);
-        hatCardContainer.setOnHatRemoveListener((hat, position) -> openFile(hat));
+        hatCardContainer.setOnHatRemoveListener((hat, position) -> hatFileOpener.open(hat));
+
+        hatFileOpener = new HatFileOpener(this, hatManager);
+        hatFileOpener.setTextEditorLauncher(textEditorLauncher);
     }
 
     @Override
@@ -900,49 +748,7 @@ public class DataActivity extends BaseCryptoActivity {
     }
 
     private void openFile(Hat hat) {
-        String localPath = findLocalPath(hat);
-        if (localPath == null) {
-            ToastUtils.showError(this, getString(R.string.file_not_available_locally));
-            return;
-        }
-
-        File file = new File(localPath);
-        if (!file.exists()) {
-            ToastUtils.showError(this, getString(R.string.file_not_found));
-            return;
-        }
-
-        String mimeType = null;
-        List<String> types = hat.getTypes();
-        if (types != null && !types.isEmpty()) {
-            mimeType = types.get(0);
-        }
-        if (mimeType == null) {
-            mimeType = FileTypeHandler.getMimeType(hat.getName());
-        }
-
-        if (FileTypeHandler.isEditable(mimeType) || FileTypeHandler.isEditableByExtension(hat.getName())) {
-            Intent intent = new Intent(this, TextEditorActivity.class);
-            intent.putExtra(TextEditorActivity.EXTRA_HAT_ID, hat.getId());
-            textEditorLauncher.launch(intent);
-        } else {
-            try {
-                android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(this,
-                        getPackageName() + ".fileprovider", file);
-                Intent intent = FileTypeHandler.getViewIntent(this, uri, mimeType);
-                if (intent != null) {
-                    startActivity(intent);
-                    hat.setLast(System.currentTimeMillis());
-                    hatManager.updateHat(hat);
-                    hatManager.commit();
-                } else {
-                    ToastUtils.showError(this, getString(R.string.no_app_to_open_file));
-                }
-            } catch (Exception e) {
-                TimberLogger.e(TAG, "Error opening file: " + e.getMessage());
-                ToastUtils.showError(this, getString(R.string.error_opening_file));
-            }
-        }
+        hatFileOpener.open(hat);
     }
 
     private String findLocalPath(Hat hat) {
@@ -1348,12 +1154,6 @@ public class DataActivity extends BaseCryptoActivity {
         popupWindow.setElevation(10f);
         popupWindow.setOutsideTouchable(true);
         popupWindow.setBackgroundDrawable(new ColorDrawable(getResources().getColor(R.color.background_light, null)));
-
-        popupView.findViewById(R.id.menu_set_disk).setOnClickListener(v -> {
-            popupWindow.dismiss();
-            diskCheckDone = false; // Allow re-check after manual set
-            launchSetDisk();
-        });
 
         popupView.findViewById(R.id.menu_import).setOnClickListener(v -> {
             popupWindow.dismiss();

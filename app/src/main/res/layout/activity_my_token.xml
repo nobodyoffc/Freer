@@ -209,12 +209,6 @@
             android:contentDescription="@string/tokens" />
 
         <ImageButton
-            android:id="@+id/hide_button"
-            style="@style/ImageButtonStyle"
-            android:src="@drawable/ic_visibility_off"
-            android:contentDescription="@string/hide" />
-
-        <ImageButton
             android:id="@+id/clear_button"
             style="@style/ImageButtonStyle"
             android:src="@drawable/ic_clear"

@@ -21,7 +21,7 @@ import com.fc.freer.utils.ToolbarUtils;
 
 /**
  * Activity for P2P chat privacy settings (stranger policy, blacklist).
- * These settings are stored locally. For home setup (carved onchain), use SetupHomeActivity.
+ * These settings are stored locally. For home setup (carved onchain), use ServerSetupActivity.
  */
 public class P2pChatSettingsActivity extends BaseCryptoActivity {
 

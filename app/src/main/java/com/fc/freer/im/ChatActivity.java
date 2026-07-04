@@ -14,8 +14,6 @@ import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.text.Editable;
 import android.text.SpannableStringBuilder;
 import android.text.TextWatcher;
@@ -41,6 +39,7 @@ import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.fc.fc_ajdk.constants.Constants;
 import com.fc.fc_ajdk.constants.IndicesNames;
 import com.fc.fc_ajdk.core.fch.RawTxInfo;
 import com.fc.fc_ajdk.core.fch.TxHandler;
@@ -50,6 +49,7 @@ import com.fc.fc_ajdk.data.feipData.SquareOpData;
 import com.fc.fc_ajdk.data.feipData.TeamOpData;
 import com.fc.fc_ajdk.data.fcData.ContentType;
 import com.fc.fc_ajdk.data.fcData.ImMessage;
+import com.fc.fc_ajdk.data.fcData.MessageStatus;
 import com.fc.fc_ajdk.data.fcData.ImType;
 import com.fc.fc_ajdk.data.fcData.Conversation;
 import com.fc.fc_ajdk.data.fchData.Freer;
@@ -72,6 +72,7 @@ import com.fc.freer.mail.CreateMailActivity;
 import com.fc.freer.manager.AvatarManager;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
+import com.fc.freer.data.HatFileOpener;
 import com.fc.freer.manager.HatManager;
 import com.fc.freer.model.Setting;
 import com.fc.freer.tx.TxSender;
@@ -79,6 +80,7 @@ import com.fc.freer.im.dock.DockServiceRegistry;
 import com.fc.freer.ui.DetailActivity;
 import com.fc.freer.ui.WaitingDialog;
 import com.fc.freer.utils.ApiCenter;
+import com.fc.freer.utils.ServicePickerUtils;
 import com.fc.freer.utils.ChooseMode;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ToastUtils;
@@ -132,7 +134,9 @@ public class ChatActivity extends BaseCryptoActivity
     private String targetId;
     private String displayName;
     private boolean groupHasDock = true;
-    private boolean symkeyReceivedShown = false;
+    /** No own DOCK: sending works (direct put to recipient's DOCK), receiving doesn't. */
+    private boolean sendOnlyMode = false;
+    private ImageView toolbarAvatarView;
     private boolean strangerConfirmShown = false;
     private WaitingDialog leaveTeamWaitingDialog;
     private ActivityResultLauncher<Intent> filePickerLauncher;
@@ -144,6 +148,9 @@ public class ChatActivity extends BaseCryptoActivity
     private ActivityResultLauncher<Intent> removeRoomMemberLauncher;
     private ActivityResultLauncher<Intent> shareRoomInfoLauncher;
     private ActivityResultLauncher<Intent> shareRoomSymkeyLauncher;
+    private ActivityResultLauncher<Intent> chooseRoomDockLauncher;
+    /** Dock input of the currently open update-room dialog; target of {@link #chooseRoomDockLauncher}. */
+    private EditText updateRoomDockInput;
 
     // Voice message
     private ImageButton micButton;
@@ -354,7 +361,7 @@ public class ChatActivity extends BaseCryptoActivity
         chatTypeInfo.setVisibility(View.VISIBLE);
         switch (imType) {
             case SQUARE:
-                chatTypeInfo.setText(R.string.chat_info_group);
+                chatTypeInfo.setText(R.string.chat_info_square);
                 chatTypeInfo.setTextColor(Color.RED);
                 break;
             case TEAM:
@@ -488,7 +495,11 @@ public class ChatActivity extends BaseCryptoActivity
             ToastUtils.makeText(this, getString(R.string.fid_added_to_list));
             return true;
         });
-        
+
+        toolbarAvatarView = avatarView;
+        if (NobodyBoard.isKnownNobody(targetId)) {
+            NobodyBoard.applyNobodyMark(avatarView);
+        }
         loadToolbarAvatar(avatarView, targetId);
     }
 
@@ -681,18 +692,63 @@ public class ChatActivity extends BaseCryptoActivity
             TimberLogger.d(TAG, "ImManager ready for fid=%s, target=%s, type=%s",
                     liveFid, targetId, imType);
 
-            if (imType == ImType.P2P
+            // Send-only mode: no own DOCK means replies can't be received,
+            // but sending still works via a direct put into the recipient's
+            // DOCK. Keep the input enabled so newcomers can ask for their
+            // first FCH before they can afford a DOCK registration.
+            sendOnlyMode = imType == ImType.P2P
                     && !imManager.isChannelConfigured()
-                    && !hasChannelInLocalHome()) {
-                disableSending(R.string.im_disabled_no_channel);
-                addSystemMessage(getString(R.string.im_disabled_no_channel));
-            }
+                    && !hasChannelInLocalHome();
 
             // Now that the manager is ready, populate the screen from local data.
             setupGroupState();
             loadMessages();
+            addChatNoticesIfNeeded();
             checkPendingStrangerOnEntry();
         });
+    }
+
+    /**
+     * Notices appended after loadMessages() (which clears the list): the
+     * send-only hint, and the nobody warnings — the request-board education for
+     * the default nobody, a trust warning for any other nobody partner.
+     */
+    private void addChatNoticesIfNeeded() {
+        if (imType != ImType.P2P) return;
+        if (sendOnlyMode) {
+            addSystemMessage(getString(R.string.im_send_only_no_dock));
+        }
+        if (NobodyBoard.isDefaultNobody(targetId)) {
+            addSystemMessage(getString(R.string.nobody_board_education));
+        } else if (NobodyBoard.isKnownNobody(targetId)) {
+            addSystemMessage(getString(R.string.nobody_partner_warning));
+            if (toolbarAvatarView != null) NobodyBoard.applyNobodyMark(toolbarAvatarView);
+        } else {
+            resolvePartnerNobodyAsync();
+        }
+    }
+
+    /** Check on-chain whether the P2P partner is a nobody and mark the UI if so. */
+    private void resolvePartnerNobodyAsync() {
+        final String fid = targetId;
+        new Thread(() -> {
+            try {
+                FapiClient fapiClient = (FapiClient) ApiCenter.getInstance()
+                        .getClient(Service.ServiceType.FAPI_No1_NrC7);
+                if (fapiClient == null) return;
+                Freer freer = fapiClient.getFreer(fid);
+                if (freer == null || !Boolean.TRUE.equals(freer.getNobody())) return;
+                NobodyBoard.markNobody(fid);
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed() || !fid.equals(targetId)) return;
+                    addSystemMessage(getString(R.string.nobody_partner_warning));
+                    if (toolbarAvatarView != null) NobodyBoard.applyNobodyMark(toolbarAvatarView);
+                    adapter.notifyDataSetChanged();
+                });
+            } catch (Exception e) {
+                TimberLogger.w(TAG, "Nobody check failed for %s: %s", fid, e.getMessage());
+            }
+        }).start();
     }
 
     private boolean hasChannelInLocalHome() {
@@ -966,8 +1022,16 @@ public class ChatActivity extends BaseCryptoActivity
             return;
         }
         
+        // Messages to the first-FCH board are always posted as templated requests
+        // so the helpers' viewer (and any spam filter) can parse them.
+        if (imType == ImType.P2P && NobodyBoard.isDefaultNobody(targetId)
+                && !text.startsWith(NobodyBoard.FIRST_FCH_REQUEST_PREFIX)) {
+            text = NobodyBoard.buildFirstFchRequest(liveFid, text);
+            ToastUtils.makeText(this, getString(R.string.first_fch_request_sent_as, liveFid));
+        }
+
         TimberLogger.d(TAG, "Sending message: type=%s, target=%s, text=%s", imType, targetId, text);
-        
+
         ImMessage message = ImMessage.createText(imType, liveFid, targetId, text);
         
         messages.add(message);
@@ -1054,7 +1118,7 @@ public class ChatActivity extends BaseCryptoActivity
         ImMessage message = VoiceMessageHelper.buildVoiceMessage(result, imType, liveFid, targetId);
         if (message == null) {
             // Large file — would need HAT upload; for now show a message
-            ToastUtils.makeText(this, "Voice message too large");
+            ToastUtils.makeText(this, getString(R.string.toast_voice_message_too_large));
             return;
         }
 
@@ -1365,16 +1429,21 @@ public class ChatActivity extends BaseCryptoActivity
     }
 
     @Override
-    public void onSymkeyReceived(String entityId) {
-        if (isSymkeyRequired() && targetId != null && targetId.equals(entityId)) {
-            runOnUiThread(() -> {
-                if (!symkeyReceivedShown) {
-                    symkeyReceivedShown = true;
-                    addSystemMessage(getString(R.string.symkey_received_can_chat));
-                }
-                enableSending();
-            });
-        }
+    public void onSymkeyReceived(String entityId, long version) {
+        if (targetId == null || !targetId.equals(entityId)) return;
+        runOnUiThread(() -> {
+            addSystemMessage(getString(R.string.symkey_received_version, version));
+            if (isSymkeyRequired()) enableSending();
+        });
+    }
+
+    @Override
+    public void onRoomInfoReceived(String roomId, long symkeyVersion) {
+        if (targetId == null || !targetId.equals(roomId)) return;
+        runOnUiThread(() -> {
+            addSystemMessage(getString(R.string.room_info_received_symkey, symkeyVersion));
+            if (isSymkeyRequired()) enableSending();
+        });
     }
 
     @Override
@@ -1447,6 +1516,116 @@ public class ChatActivity extends BaseCryptoActivity
     // ── MessageInteractionListener callbacks ───────────────────────────
 
     @Override
+    public void onOpenHat(com.fc.fc_ajdk.data.fcData.Hat hat) {
+        FidManager fidManager = FidManager.getInstance();
+        String liveFid = fidManager != null ? fidManager.getLiveFid() : null;
+        if (liveFid == null) return;
+        HatManager hm = HatManager.getInstance(this, liveFid);
+        com.fc.fc_ajdk.data.fcData.Hat dbHat = hm.getHatById(hat.getId());
+        if (dbHat == null) {
+            hm.addHat(hat);
+            hm.commit();
+            dbHat = hat;
+        } else {
+            // DB hat has up-to-date local:// locas from previous downloads.
+            // Merge download credentials from the IM hat in case the DB copy predates them.
+            mergeImHatCredentials(hat, dbHat);
+        }
+        new HatFileOpener(this, hm).open(dbHat);
+    }
+
+    private void mergeImHatCredentials(com.fc.fc_ajdk.data.fcData.Hat src,
+                                       com.fc.fc_ajdk.data.fcData.Hat dst) {
+        if (dst.getKey() == null && src.getKey() != null) dst.setKey(src.getKey());
+        if ((dst.getCipherIds() == null || dst.getCipherIds().isEmpty())
+                && src.getCipherIds() != null) dst.setCipherIds(src.getCipherIds());
+        if (src.getLocas() != null) {
+            java.util.List<String> merged = dst.getLocas() != null
+                    ? new java.util.ArrayList<>(dst.getLocas()) : new java.util.ArrayList<>();
+            for (String loca : src.getLocas()) {
+                if (loca != null && !merged.contains(loca)) merged.add(loca);
+            }
+            dst.setLocas(merged);
+        }
+    }
+
+    @Override
+    public void onMessageLongPress(ImMessage message, View anchorView) {
+        View menuView = LayoutInflater.from(this).inflate(R.layout.popup_message_actions, null);
+        PopupWindow popup = new PopupWindow(menuView,
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT, true);
+        popup.setElevation(8f);
+
+        boolean isOutgoing = message.isOutgoing(liveFid);
+        boolean isText = message.getContentType() == ContentType.TEXT;
+        boolean isFailed = message.getStatus() == MessageStatus.FAILED;
+
+        TextView copyItem = menuView.findViewById(R.id.action_copy);
+        TextView resendItem = menuView.findViewById(R.id.action_resend);
+        TextView deleteItem = menuView.findViewById(R.id.action_delete);
+
+        if (isText && message.getContent() != null) {
+            copyItem.setVisibility(View.VISIBLE);
+            copyItem.setOnClickListener(v -> {
+                popup.dismiss();
+                ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                clipboard.setPrimaryClip(ClipData.newPlainText("message", message.getContent()));
+                ToastUtils.makeText(this, getString(R.string.copied_to_clipboard));
+            });
+        } else {
+            copyItem.setVisibility(View.GONE);
+        }
+
+        if (isOutgoing && isFailed) {
+            resendItem.setVisibility(View.VISIBLE);
+            resendItem.setOnClickListener(v -> {
+                popup.dismiss();
+                resendMessage(message);
+            });
+        } else {
+            resendItem.setVisibility(View.GONE);
+        }
+
+        deleteItem.setOnClickListener(v -> {
+            popup.dismiss();
+            new AlertDialog.Builder(this)
+                    .setMessage(R.string.confirm_delete_message)
+                    .setPositiveButton(R.string.delete, (d, w) -> deleteMessageLocally(message))
+                    .setNegativeButton(R.string.cancel, null)
+                    .show();
+        });
+
+        menuView.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        int yOff = -(anchorView.getHeight() + menuView.getMeasuredHeight());
+        popup.showAsDropDown(anchorView, 0, yOff);
+    }
+
+    private void deleteMessageLocally(ImMessage message) {
+        for (int i = 0; i < messages.size(); i++) {
+            ImMessage m = messages.get(i);
+            if (m == message || (message.getId() != null && message.getId().equals(m.getId()))) {
+                messages.remove(i);
+                adapter.notifyItemRemoved(i);
+                return;
+            }
+        }
+    }
+
+    private void resendMessage(ImMessage message) {
+        if (imManager == null) return;
+        message.setStatus(MessageStatus.PENDING);
+        for (int i = 0; i < messages.size(); i++) {
+            if (messages.get(i) == message
+                    || (message.getId() != null && message.getId().equals(messages.get(i).getId()))) {
+                adapter.notifyItemChanged(i);
+                break;
+            }
+        }
+        imManager.send(message);
+    }
+
+    @Override
     public void onSpeakerAvatarClick(String fid) {
         hideKeyboard();
         hideEmojiPanel();
@@ -1486,7 +1665,7 @@ public class ChatActivity extends BaseCryptoActivity
                 if (apiCenter == null) {
                     runOnUiThread(() -> {
                         waitingDialog.dismiss();
-                        ToastUtils.makeText(this, "API center not available");
+                        ToastUtils.makeText(this, getString(R.string.toast_api_center_unavailable));
                     });
                     return;
                 }
@@ -1495,7 +1674,7 @@ public class ChatActivity extends BaseCryptoActivity
                 if (fapiClient == null) {
                     runOnUiThread(() -> {
                         waitingDialog.dismiss();
-                        ToastUtils.makeText(this, "FAPI client not available");
+                        ToastUtils.makeText(this, getString(R.string.toast_fapi_client_unavailable));
                     });
                     return;
                 }
@@ -1661,8 +1840,8 @@ public class ChatActivity extends BaseCryptoActivity
 
     private void showQuitGroupConfirmation() {
         new AlertDialog.Builder(this)
-                .setTitle(R.string.quit_group)
-                .setMessage(R.string.confirm_quit_group)
+                .setTitle(R.string.quit_square)
+                .setMessage(R.string.confirm_quit_square)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
                     hideKeyboard();
                     quitGroupDirectly();
@@ -1701,8 +1880,6 @@ public class ChatActivity extends BaseCryptoActivity
                         public void onSuccess(String txId) {
                             markGroupConversationAsLeft(targetId);
                             runOnUiThread(() -> {
-                                ToastUtils.makeText(ChatActivity.this,
-                                        getString(R.string.squares_quit_successfully));
                                 finish();
                             });
                         }
@@ -1761,6 +1938,7 @@ public class ChatActivity extends BaseCryptoActivity
 
         menuView.findViewById(R.id.menu_ask_room_info).setOnClickListener(v -> {
             popup.dismiss();
+            addSystemMessage(getString(R.string.asking_room_info));
             Intent intent = new Intent(this, AskRoomInfoActivity.class);
             intent.putExtra(AskRoomInfoActivity.EXTRA_ENTITY_ID, targetId);
             startActivity(intent);
@@ -1768,6 +1946,7 @@ public class ChatActivity extends BaseCryptoActivity
 
         menuView.findViewById(R.id.menu_ask_symkey).setOnClickListener(v -> {
             popup.dismiss();
+            addSystemMessage(getString(R.string.asking_symkey));
             Intent intent = new Intent(this, AskSymkeyActivity.class);
             intent.putExtra(AskSymkeyActivity.EXTRA_ENTITY_ID, targetId);
             intent.putExtra(AskSymkeyActivity.EXTRA_ENTITY_TYPE, "room");
@@ -1863,6 +2042,13 @@ public class ChatActivity extends BaseCryptoActivity
             String dockUrl = room.getHome().get("DOCK@No1_NrC7");
             if (dockUrl != null) dockInput.setText(dockUrl);
         }
+
+        updateRoomDockInput = dockInput;
+        dialogView.findViewById(R.id.choose_dock_button).setOnClickListener(v -> {
+            hideKeyboard();
+            chooseRoomDockLauncher.launch(ServicePickerUtils.pickerIntent(this,
+                    Constants.DOCK_NO1_NRC7, getString(R.string.server_setup_dock_label)));
+        });
 
         new AlertDialog.Builder(this)
                 .setTitle(R.string.update_room)
@@ -1984,6 +2170,7 @@ public class ChatActivity extends BaseCryptoActivity
         boolean success = roomHandler.createSymkey(targetId);
         if (success) {
             ToastUtils.makeText(this, getString(R.string.symkey_created_successfully));
+            addSystemMessage(getString(R.string.symkey_created_successfully));
         } else {
             ToastUtils.makeText(this, getString(R.string.failed_to_create_symkey));
         }
@@ -2066,6 +2253,7 @@ public class ChatActivity extends BaseCryptoActivity
 
         menuView.findViewById(R.id.menu_ask_symkey).setOnClickListener(v -> {
             popup.dismiss();
+            addSystemMessage(getString(R.string.asking_symkey));
             Intent intent = new Intent(this, AskSymkeyActivity.class);
             intent.putExtra(AskSymkeyActivity.EXTRA_ENTITY_ID, targetId);
             intent.putExtra(AskSymkeyActivity.EXTRA_ENTITY_TYPE, "team");
@@ -2224,6 +2412,16 @@ public class ChatActivity extends BaseCryptoActivity
     }
 
     private void initRoomOperationLaunchers() {
+        chooseRoomDockLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null
+                            && updateRoomDockInput != null) {
+                        ServicePickerUtils.applySelectedService(this, result.getData(),
+                                updateRoomDockInput);
+                    }
+                });
+
         addRoomMemberLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
@@ -2305,7 +2503,9 @@ public class ChatActivity extends BaseCryptoActivity
                                 int count = imManager.shareRoomSymkeyToMembers(targetId, fids);
                                 runOnUiThread(() -> {
                                     if (count > 0) {
-                                        ToastUtils.makeText(this, getString(R.string.symkey_shared, count));
+                                        String msg = getString(R.string.symkey_shared, count);
+                                        ToastUtils.makeText(this, msg);
+                                        addSystemMessage(msg);
                                     } else {
                                         ToastUtils.makeText(this, getString(R.string.symkey_share_failed));
                                     }
@@ -2363,8 +2563,6 @@ public class ChatActivity extends BaseCryptoActivity
                             markConversationAsLeft();
                             runOnUiThread(() -> {
                                 dismissLeaveTeamDialog();
-                                ToastUtils.makeText(ChatActivity.this,
-                                        getString(R.string.left_team_successfully));
                                 finish();
                             });
                         }
@@ -2519,6 +2717,7 @@ public class ChatActivity extends BaseCryptoActivity
         boolean success = teamHandler.createSymkey(targetId);
         if (success) {
             ToastUtils.makeText(this, getString(R.string.symkey_created_successfully));
+            addSystemMessage(getString(R.string.symkey_created_successfully));
         } else {
             ToastUtils.makeText(this, getString(R.string.failed_to_create_symkey));
         }
@@ -2550,8 +2749,6 @@ public class ChatActivity extends BaseCryptoActivity
                     new TxSender.TxCallback() {
                         @Override
                         public void onSuccess(String txId) {
-                            runOnUiThread(() -> ToastUtils.makeText(ChatActivity.this,
-                                    getString(successMsgId, txId)));
                         }
 
                         @Override
@@ -2597,8 +2794,6 @@ public class ChatActivity extends BaseCryptoActivity
                         @Override
                         public void onSuccess(String txId) {
                             sendTeamTransferNotification(targetFid, txId);
-                            runOnUiThread(() -> ToastUtils.makeText(ChatActivity.this,
-                                    getString(successMsgId, txId)));
                         }
 
                         @Override
@@ -2630,8 +2825,7 @@ public class ChatActivity extends BaseCryptoActivity
                 if (team != null) teamName = team.getStdName();
             }
 
-            imMgr.sendTeamNotification(targetFid, PendingIssue.IssueType.TEAM_TRANSFER,
-                    targetId, teamName, txId);
+            imMgr.sendTeamTransferNotification(targetFid, targetId, teamName);
         } catch (Exception e) {
             TimberLogger.e(TAG, "Failed to send transfer notification: %s", e.getMessage());
         }

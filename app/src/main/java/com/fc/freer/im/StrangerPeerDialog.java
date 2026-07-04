@@ -10,6 +10,7 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AlertDialog;
 
+import com.fc.fc_ajdk.utils.StringUtils;
 import com.fc.freer.R;
 
 /**
@@ -55,7 +56,7 @@ public class StrangerPeerDialog {
 
         String alias = peerFid;
         if (peerFid != null && peerFid.length() > 8) {
-            alias = peerFid.substring(0, 8) + "...";
+            alias = StringUtils.omitMiddle(peerFid,13) ;
         }
 
         PendingIssue.StrangerPeerData data = issue.getDataAs(PendingIssue.StrangerPeerData.class);

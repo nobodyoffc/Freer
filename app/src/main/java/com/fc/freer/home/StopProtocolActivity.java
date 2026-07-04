@@ -256,8 +256,6 @@ public class StopProtocolActivity extends BaseCryptoActivity {
                                 resultIntent.putExtra("stopped_protocol_ids", protocolIds.toArray(new String[0]));
                                 setResult(Activity.RESULT_OK, resultIntent);
 
-                                ToastUtils.makeText(StopProtocolActivity.this, 
-                                    getString(R.string.protocols_stopped_successfully, txId));
                                 finish();
                             });
                         }

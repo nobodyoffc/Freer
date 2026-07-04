@@ -150,7 +150,7 @@ public class AddPrikeyPopupMenuHelper {
             // Extract 32-byte private key from various formats
             byte[] prikey32 = KeyTools.getPrikey32(prikeyInput);
             if (prikey32 == null) {
-                ToastUtils.makeText(homeActivity, "Invalid private key format");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_invalid_prikey_format));
                 return;
             }
 
@@ -158,11 +158,11 @@ public class AddPrikeyPopupMenuHelper {
             if (validatePrikeyForLiveFid(prikey32)) {
                 encryptAndSavePrikey(prikey32);
             } else {
-                ToastUtils.makeText(homeActivity, "Private key does not match current FID");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_prikey_no_match_fid));
             }
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error processing private key input: " + e.getMessage(), e);
-            ToastUtils.makeText(homeActivity, "Error processing private key: " + e.getMessage());
+            ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_error_processing_prikey, e.getMessage()));
         }
     }
 
@@ -196,13 +196,13 @@ public class AddPrikeyPopupMenuHelper {
             CryptoDataByte cryptoDataByte = decryptor.decryptJsonByPassword(cipherInput, password.toCharArray());
 
             if (cryptoDataByte.getCode() != null && cryptoDataByte.getCode() != 0) {
-                ToastUtils.makeText(homeActivity, "Failed to decrypt: " + cryptoDataByte.getMessage());
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_failed_decrypt_detail, cryptoDataByte.getMessage()));
                 return;
             }
 
             byte[] prikey32 = KeyTools.getPrikey32(cryptoDataByte.getData());
             if (prikey32 == null) {
-                ToastUtils.makeText(homeActivity, "Invalid decrypted private key");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_invalid_decrypted_prikey));
                 return;
             }
 
@@ -210,11 +210,11 @@ public class AddPrikeyPopupMenuHelper {
             if (validatePrikeyForLiveFid(prikey32)) {
                 encryptAndSavePrikey(prikey32);
             } else {
-                ToastUtils.makeText(homeActivity, "Decrypted private key does not match current FID");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_decrypted_prikey_mismatch));
             }
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error decrypting private key cipher: " + e.getMessage(), e);
-            ToastUtils.makeText(homeActivity, "Error decrypting private key: " + e.getMessage());
+            ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_error_decrypting_prikey, e.getMessage()));
         }
     }
 
@@ -228,11 +228,11 @@ public class AddPrikeyPopupMenuHelper {
             if (validatePrikeyForLiveFid(prikey32)) {
                 encryptAndSavePrikey(prikey32);
             } else {
-                ToastUtils.makeText(homeActivity, "Phrase does not generate the current FID");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_phrase_no_match_fid));
             }
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error processing phrase input: " + e.getMessage(), e);
-            ToastUtils.makeText(homeActivity, "Error processing phrase: " + e.getMessage());
+            ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_error_processing_phrase, e.getMessage()));
         }
     }
 
@@ -261,13 +261,13 @@ public class AddPrikeyPopupMenuHelper {
         try {
             Configure configure = ConfigureManager.getInstance().getConfigure();
             if (configure == null) {
-                ToastUtils.makeText(homeActivity, "Configuration not available");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_config_unavailable));
                 return;
             }
 
             byte[] symkey = configure.getSymkey();
             if (symkey == null) {
-                ToastUtils.makeText(homeActivity, "Encryption key not available");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_encryption_key_unavailable));
                 return;
             }
 
@@ -276,7 +276,7 @@ public class AddPrikeyPopupMenuHelper {
             CryptoDataByte cryptoDataByte = encryptor.encryptBySymkey(prikey32, symkey);
             
             if (cryptoDataByte.getCode() != null && cryptoDataByte.getCode() != 0) {
-                ToastUtils.makeText(homeActivity, "Failed to encrypt private key: " + cryptoDataByte.getMessage());
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_failed_encrypt_prikey, cryptoDataByte.getMessage()));
                 return;
             }
 
@@ -285,7 +285,7 @@ public class AddPrikeyPopupMenuHelper {
             // Get current live KeyInfo and update with prikeyCipher
             FidManager fidManager = FidManager.getInstance();
             if (fidManager == null) {
-                ToastUtils.makeText(homeActivity, "FidManager not available");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_fid_manager_unavailable));
                 return;
             }
 
@@ -293,7 +293,7 @@ public class AddPrikeyPopupMenuHelper {
             String liveFid = fidManager.getLiveFid();
             
             if (currentLiveKeyInfo == null || liveFid == null) {
-                ToastUtils.makeText(homeActivity, "Live KeyInfo not available");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_live_keyinfo_unavailable));
                 return;
             }
 
@@ -303,17 +303,17 @@ public class AddPrikeyPopupMenuHelper {
             // Save the updated KeyInfo using FidManager
             if (fidManager.updateKeyInfo(homeActivity, liveFid, currentLiveKeyInfo)) {
                 TimberLogger.d(TAG, "Successfully saved private key for FID: %s", liveFid);
-                ToastUtils.makeText(homeActivity, "Private key saved successfully");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_prikey_saved));
                 
                 // Refresh UI to hide the no_prikey icon
                 homeActivity.runOnUiThread(homeActivity::refreshLiveFidCard);
             } else {
-                ToastUtils.makeText(homeActivity, "Failed to save private key");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_failed_save_prikey));
             }
 
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error encrypting and saving private key: " + e.getMessage(), e);
-            ToastUtils.makeText(homeActivity, "Error saving private key: " + e.getMessage());
+            ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_error_saving_prikey, e.getMessage()));
         }
     }
 
@@ -321,20 +321,20 @@ public class AddPrikeyPopupMenuHelper {
         try {
             FidManager fidManager = FidManager.getInstance();
             if (fidManager == null) {
-                ToastUtils.makeText(homeActivity, "FidManager not available");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_fid_manager_unavailable));
                 return;
             }
 
             KeyInfo liveKeyInfo = fidManager.getLiveKeyInfo();
             if (liveKeyInfo == null) {
-                ToastUtils.makeText(homeActivity, "Live KeyInfo not available");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_live_keyinfo_unavailable));
                 return;
             }
 
             // 1. Check if liveKeyInfo.master is null
             String master = liveKeyInfo.getMaster();
             if (master == null || master.trim().isEmpty()) {
-                ToastUtils.makeText(homeActivity, "No master yet");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_no_master_yet));
                 return;
             }
 
@@ -344,14 +344,14 @@ public class AddPrikeyPopupMenuHelper {
             // Get ApiCenter instance
             ApiCenter apiCenter = ApiCenter.getInstance();
             if (apiCenter == null) {
-                ToastUtils.makeText(homeActivity, "API service not available");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_api_service_unavailable));
                 return;
             }
 
             // Get FapiClient
             FapiClient fapiClient = (FapiClient) apiCenter.getClient(Service.ServiceType.FAPI_No1_NrC7);
             if (fapiClient == null) {
-                ToastUtils.makeText(homeActivity, "FAPI client not available");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_fapi_client_unavailable));
                 return;
             }
 
@@ -362,13 +362,13 @@ public class AddPrikeyPopupMenuHelper {
                     
                     homeActivity.runOnUiThread(() -> {
                         if (freerHist == null) {
-                            ToastUtils.makeText(homeActivity, "No master announcement found");
+                            ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_no_master_announcement));
                             return;
                         }
 
                         String cipherPriKey = freerHist.getCipherPrikey();
                         if (cipherPriKey == null || cipherPriKey.trim().isEmpty()) {
-                            ToastUtils.makeText(homeActivity, "No cipher private key found");
+                            ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_no_cipher_prikey));
                             return;
                         }
 
@@ -379,14 +379,14 @@ public class AddPrikeyPopupMenuHelper {
                 } catch (Exception e) {
                     TimberLogger.e(TAG, "Error loading master announcement: " + e.getMessage(), e);
                     homeActivity.runOnUiThread(() -> 
-                        ToastUtils.showError(homeActivity, "Error loading master announcement: " + e.getMessage())
+                        ToastUtils.showError(homeActivity, homeActivity.getString(R.string.toast_error_loading_master_announcement, e.getMessage()))
                     );
                 }
             }).start();
 
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error in handleFromMaster: " + e.getMessage(), e);
-            ToastUtils.makeText(homeActivity, "Error processing master: " + e.getMessage());
+            ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_error_processing_master, e.getMessage()));
         }
     }
 
@@ -394,7 +394,7 @@ public class AddPrikeyPopupMenuHelper {
         try {
             FidManager fidManager = FidManager.getInstance();
             if (fidManager == null) {
-                ToastUtils.makeText(homeActivity, "FidManager not available");
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_fid_manager_unavailable));
                 return;
             }
 
@@ -439,7 +439,7 @@ public class AddPrikeyPopupMenuHelper {
 
                 // Validate that this private key matches the live FID
                 if (!validatePrikeyForLiveFid(decryptedPrikey)) {
-                    ToastUtils.makeText(homeActivity, "Decrypted private key does not match current FID");
+                    ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_decrypted_prikey_mismatch));
                     return;
                 }
 

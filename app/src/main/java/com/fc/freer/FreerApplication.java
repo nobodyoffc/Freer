@@ -16,6 +16,7 @@ import com.fc.freer.manager.FcManager;
 import com.fc.freer.model.Configure;
 import com.orhanobut.hawk.Hawk;
 import com.tencent.mmkv.MMKV;
+import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.BackgroundTimeoutManager;
 import com.fc.freer.config.ApiComponentConfig;
 import com.fc.freer.im.ImManager;
@@ -28,7 +29,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class FreerApplication extends Application {
-    public static final String VER = "v2.7";
+    public static final String VER = "v2.9";
 
     public static final int DEFAULT_PAGE_SIZE = 10;
     public static final int MAX_CONTAINER_SIZE =40;
@@ -65,6 +66,13 @@ public class FreerApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+
+        // Replace Android's stripped-down "BC" provider with the full bundled Bouncy
+        // Castle before any crypto runs. Without this, Cipher.getInstance(..., "BC")
+        // binds to Android's crippled BC and AES/GCM file decryption fails on-device
+        // (while working on the desktop JVM). See FcProviders.ensureFullBouncyCastle().
+        FcProviders.ensureFullBouncyCastle();
+
         // Initialize TimberLogger at the application level
         TimberLogger.init("FreerApp");
 
@@ -143,10 +151,35 @@ public class FreerApplication extends Application {
             ImManager imManager = setting.getImManager();
             if (imManager != null) {
                 imManager.onAppForeground();
+                healImFapiClientIfNeeded(imManager);
             }
         } catch (Exception e) {
             TimberLogger.w("FreerApp", "notifyImForeground failed: " + e.getMessage());
         }
+    }
+
+    /**
+     * If the ImManager was built before the FAPI client finished (re)connecting
+     * (e.g. after waking from a long sleep), its handlers hold no client and every
+     * send fails with "FAPI client not available" until the app is relaunched.
+     * Re-acquire the client off the UI thread and heal the manager in place.
+     */
+    private static void healImFapiClientIfNeeded(ImManager imManager) {
+        if (imManager.hasFapiClient()) return;
+        new Thread(() -> {
+            try {
+                ApiCenter apiCenter = ApiCenter.getInstance();
+                if (apiCenter == null) return;
+                com.fc.fc_ajdk.fapi.client.FapiClient client =
+                        (com.fc.fc_ajdk.fapi.client.FapiClient)
+                                apiCenter.getClient(Service.ServiceType.FAPI_No1_NrC7);
+                if (client != null) {
+                    imManager.ensureFapiClient(client);
+                }
+            } catch (Exception e) {
+                TimberLogger.w("FreerApp", "healImFapiClientIfNeeded failed: " + e.getMessage());
+            }
+        }).start();
     }
 
     /**

@@ -30,7 +30,6 @@ import com.google.android.material.textfield.TextInputEditText;
 
 public class CreateTokenActivity extends BaseCryptoActivity {
 
-    private TextInputEditText tokenIdInput;
     private TextInputEditText tokenNameInput;
     private TextInputEditText descInput;
     private TextInputEditText consensusIdInput;
@@ -85,7 +84,6 @@ public class CreateTokenActivity extends BaseCryptoActivity {
 
     @Override
     protected void initializeViews() {
-        View tokenIdView = findViewById(R.id.tokenIdView);
         View tokenNameView = findViewById(R.id.tokenNameView);
         View descView = findViewById(R.id.descView);
         View consensusIdView = findViewById(R.id.consensusIdView);
@@ -94,9 +92,6 @@ public class CreateTokenActivity extends BaseCryptoActivity {
         View maxAmtPerIssueView = findViewById(R.id.maxAmtPerIssueView);
         View minCddPerIssueView = findViewById(R.id.minCddPerIssueView);
         View maxIssuesPerAddrView = findViewById(R.id.maxIssuesPerAddrView);
-
-        tokenIdInput = tokenIdView.findViewById(R.id.textInput);
-        tokenIdInput.setHint(R.string.enter_token_id);
 
         tokenNameInput = tokenNameView.findViewById(R.id.textInput);
         tokenNameInput.setHint(R.string.enter_token_name);
@@ -126,6 +121,10 @@ public class CreateTokenActivity extends BaseCryptoActivity {
         closableCheckbox = findViewById(R.id.closable_checkbox);
         openIssueCheckbox = findViewById(R.id.open_issue_checkbox);
 
+        // The issue limits are only applied by the parser when openIssue is true
+        openIssueCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> updateOpenIssueFields(isChecked));
+        updateOpenIssueFields(openIssueCheckbox.isChecked());
+
         clearButton = findViewById(R.id.clearButton);
         saveButton = findViewById(R.id.saveButton);
         publishButton = findViewById(R.id.publishButton);
@@ -142,7 +141,7 @@ public class CreateTokenActivity extends BaseCryptoActivity {
         saveButton.setOnClickListener(v -> {
             hideKeyboard();
             // Local save not implemented for tokens - they must be on-chain
-            ToastUtils.makeText(this, "Tokens must be published on-chain");
+            ToastUtils.makeText(this, getString(R.string.toast_tokens_must_publish_onchain));
         });
 
         publishButton.setOnClickListener(v -> {
@@ -156,8 +155,18 @@ public class CreateTokenActivity extends BaseCryptoActivity {
         });
     }
 
+    private void updateOpenIssueFields(boolean enabled) {
+        maxAmtPerIssueInput.setEnabled(enabled);
+        minCddPerIssueInput.setEnabled(enabled);
+        maxIssuesPerAddrInput.setEnabled(enabled);
+        if (!enabled) {
+            maxAmtPerIssueInput.setText("");
+            minCddPerIssueInput.setText("");
+            maxIssuesPerAddrInput.setText("");
+        }
+    }
+
     private void clearInputs() {
-        tokenIdInput.setText("");
         tokenNameInput.setText("");
         descInput.setText("");
         consensusIdInput.setText("");
@@ -172,7 +181,6 @@ public class CreateTokenActivity extends BaseCryptoActivity {
     }
 
     private void publishToken() {
-        String tokenId = getText(tokenIdInput);
         String name = getText(tokenNameInput);
         String desc = getText(descInput);
         String consensusId = getText(consensusIdInput);
@@ -182,19 +190,38 @@ public class CreateTokenActivity extends BaseCryptoActivity {
         String minCddPerIssue = getText(minCddPerIssueInput);
         String maxIssuesPerAddr = getText(maxIssuesPerAddrInput);
 
-        String transferable = transferableCheckbox.isChecked() ? "true" : "false";
-        String closable = closableCheckbox.isChecked() ? "true" : "false";
-        String openIssue = openIssueCheckbox.isChecked() ? "true" : "false";
-
-        // Validate required fields
-        if (tokenId.isEmpty()) {
-            ToastUtils.makeText(this, R.string.enter_token_id);
-            return;
-        }
+        boolean transferable = transferableCheckbox.isChecked();
+        boolean closable = closableCheckbox.isChecked();
+        boolean openIssue = openIssueCheckbox.isChecked();
 
         if (name.isEmpty()) {
             ToastUtils.makeText(this, R.string.enter_token_name);
             return;
+        }
+
+        if (!decimal.isEmpty() && !isNonNegativeInteger(decimal)) {
+            ToastUtils.makeText(this, R.string.decimal_must_be_integer);
+            return;
+        }
+
+        if (!capacity.isEmpty() && !isPositiveNumber(capacity)) {
+            ToastUtils.makeText(this, R.string.invalid_capacity);
+            return;
+        }
+
+        if (openIssue) {
+            if (!maxAmtPerIssue.isEmpty() && !isPositiveNumber(maxAmtPerIssue)) {
+                ToastUtils.makeText(this, R.string.invalid_max_amt_per_issue);
+                return;
+            }
+            if (!minCddPerIssue.isEmpty() && !isNonNegativeInteger(minCddPerIssue)) {
+                ToastUtils.makeText(this, R.string.invalid_min_cdd_per_issue);
+                return;
+            }
+            if (!maxIssuesPerAddr.isEmpty() && !isNonNegativeInteger(maxIssuesPerAddr)) {
+                ToastUtils.makeText(this, R.string.invalid_max_issues_per_addr);
+                return;
+            }
         }
 
         KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
@@ -203,9 +230,8 @@ public class CreateTokenActivity extends BaseCryptoActivity {
             return;
         }
 
-        // Create FEIP data for REGISTER
-        TokenOpData tokenOpData = TokenOpData.makeRegister(
-            tokenId,
+        // The tokenId of the new token will be the id of this deploy TX
+        TokenOpData tokenOpData = TokenOpData.makeDeploy(
             name,
             desc.isEmpty() ? null : desc,
             consensusId.isEmpty() ? null : consensusId,
@@ -214,9 +240,9 @@ public class CreateTokenActivity extends BaseCryptoActivity {
             transferable,
             closable,
             openIssue,
-            maxAmtPerIssue.isEmpty() ? null : maxAmtPerIssue,
-            minCddPerIssue.isEmpty() ? null : minCddPerIssue,
-            maxIssuesPerAddr.isEmpty() ? null : maxIssuesPerAddr
+            openIssue && !maxAmtPerIssue.isEmpty() ? maxAmtPerIssue : null,
+            openIssue && !minCddPerIssue.isEmpty() ? minCddPerIssue : null,
+            openIssue && !maxIssuesPerAddr.isEmpty() ? maxIssuesPerAddr : null
         );
 
         Feip feip = Feip.fromName(TOKEN);
@@ -234,8 +260,6 @@ public class CreateTokenActivity extends BaseCryptoActivity {
                         @Override
                         public void onSuccess(String txId) {
                             runOnUiThread(() -> {
-                                ToastUtils.makeText(CreateTokenActivity.this,
-                                    getString(R.string.token_created_successfully, txId));
                                 setResult(RESULT_OK);
                                 finish();
                             });
@@ -272,6 +296,22 @@ public class CreateTokenActivity extends BaseCryptoActivity {
 
     private String getText(TextInputEditText input) {
         return input.getText() != null ? input.getText().toString().trim() : "";
+    }
+
+    private static boolean isNonNegativeInteger(String value) {
+        try {
+            return Long.parseLong(value) >= 0;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private static boolean isPositiveNumber(String value) {
+        try {
+            return Double.parseDouble(value) > 0;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     @Override

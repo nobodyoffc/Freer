@@ -669,11 +669,6 @@
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize"/>
 
-        <activity
-            android:name="com.fc.freer.im.SetupHomeActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustResize"/>
 
         <activity
             android:name="com.fc.freer.im.BlacklistActivity"
@@ -918,6 +913,24 @@
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize"/>
 
+        <activity
+            android:name="com.fc.freer.home.IssueTokenActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
+            android:name="com.fc.freer.home.HiddenTokenActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
+            android:name="com.fc.freer.home.HiddenTokenHolderActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize"/>
+
         <!-- Messaging Activities -->
         <activity
             android:name="com.fc.freer.im.TalkActivity"
@@ -948,6 +961,8 @@
             android:exported="false"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize"/>
+
+
 
         <activity
             android:name="com.fc.freer.im.DisbandedTeamActivity"
@@ -1041,6 +1056,12 @@
 
         <activity
             android:name="com.fc.freer.im.MessageRequestsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
+            android:name="com.fc.freer.im.NewcomerRequestsActivity"
             android:exported="false"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize"/>

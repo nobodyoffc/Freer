@@ -203,8 +203,6 @@ public class ManageTeamActivity extends BaseCryptoActivity {
                         public void onSuccess(String txId) {
                             sendTeamTransferNotification(targetFid, txId);
                             runOnUiThread(() -> {
-                                ToastUtils.makeText(ManageTeamActivity.this,
-                                        getString(successMsgId, txId));
                                 finish();
                             });
                         }
@@ -238,8 +236,7 @@ public class ManageTeamActivity extends BaseCryptoActivity {
                 if (team != null) teamName = team.getStdName();
             }
 
-            imManager.sendTeamNotification(targetFid, PendingIssue.IssueType.TEAM_TRANSFER,
-                    teamId, teamName, txId);
+            imManager.sendTeamTransferNotification(targetFid, teamId, teamName);
         } catch (Exception e) {
             TimberLogger.e(TAG, "Failed to send transfer notification: %s", e.getMessage());
         }
@@ -297,8 +294,6 @@ public class ManageTeamActivity extends BaseCryptoActivity {
                         @Override
                         public void onSuccess(String txId) {
                             runOnUiThread(() -> {
-                                ToastUtils.makeText(ManageTeamActivity.this,
-                                        getString(successMsgId, txId));
                                 finish();
                             });
                         }

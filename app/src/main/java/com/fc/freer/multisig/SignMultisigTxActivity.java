@@ -185,7 +185,7 @@ public class SignMultisigTxActivity extends BaseCryptoActivity {
                     @Override
                     public void onUnsignedTx(RawTxInfo rawTxInfo) {
                         // This should not be called for broadcast
-                        ToastUtils.showError(SignMultisigTxActivity.this, "Unexpected error");
+                        ToastUtils.showError(SignMultisigTxActivity.this, getString(R.string.toast_unexpected_error));
                     }
 
                     @Override
@@ -216,14 +216,14 @@ public class SignMultisigTxActivity extends BaseCryptoActivity {
                     txHandler.signSchnorrMultiSignTx(rawTxInfo, priKeyBytes);
                     multisigTxDetail = MultisigTxDetail.fromMultiSigData(rawTxInfo, this);
                     refreshFragmentContainer();
-                    if(isFullSigned)ToastUtils.makeText(this,"The TX is well signed! Build it.");
-                    else ToastUtils.makeText(this,"Signed!");
+                    if(isFullSigned)ToastUtils.makeText(this,getString(R.string.toast_tx_well_signed_build));
+                    else ToastUtils.makeText(this,getString(R.string.toast_signed));
                     checkState();
                 } else {
-                    ToastUtils.showError(this, "Failed to get the priKey of " + chosenKeyInfo.getId());
+                    ToastUtils.showError(this, getString(R.string.toast_failed_get_prikey_of, chosenKeyInfo.getId()));
                 }
             } else {
-                ToastUtils.showWarning(this, "Selected key is not part of this multisig transaction");
+                ToastUtils.showWarning(this, getString(R.string.toast_key_not_part_multisig));
             }
         });
     }
@@ -427,12 +427,12 @@ public class SignMultisigTxActivity extends BaseCryptoActivity {
                         txHandler.signSchnorrMultiSignTx(rawTxInfo, priKeyBytes);
                         multisigTxDetail = MultisigTxDetail.fromMultiSigData(rawTxInfo, this);
                         refreshFragmentContainer();
-                        ToastUtils.makeText(this, "Signed!");
+                        ToastUtils.makeText(this, getString(R.string.toast_signed));
                     } else {
-                        ToastUtils.showError(this, "Failed to get the priKey of " + keyInfo.getId());
+                        ToastUtils.showError(this, getString(R.string.toast_failed_get_prikey_of, keyInfo.getId()));
                     }
                 } else {
-                    ToastUtils.showError(this, "Failed to get the key info of " + keyInfo.getId());
+                    ToastUtils.showError(this, getString(R.string.toast_failed_get_key_info_of, keyInfo.getId()));
                 }
             }
         });

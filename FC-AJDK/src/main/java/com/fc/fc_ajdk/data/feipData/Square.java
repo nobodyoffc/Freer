@@ -21,6 +21,7 @@ public class Square extends FcObject {
 	private Long cddToUpdate;
 	private Long tCdd;
 	private Map<String, String> home;
+	private Boolean onChain;
 
 	public String toJson(){
 		return JsonUtils.toJson(this);
@@ -118,5 +119,13 @@ public class Square extends FcObject {
 
 	public void setHome(Map<String, String> home) {
 		this.home = home;
+	}
+
+	public Boolean getOnChain() {
+		return onChain;
+	}
+
+	public void setOnChain(Boolean onChain) {
+		this.onChain = onChain;
 	}
 }

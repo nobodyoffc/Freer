@@ -257,8 +257,6 @@ public class StopAppActivity extends BaseCryptoActivity {
                                 resultIntent.putExtra("stopped_app_ids", appIds.toArray(new String[0]));
                                 setResult(Activity.RESULT_OK, resultIntent);
 
-                                ToastUtils.makeText(StopAppActivity.this, 
-                                    getString(R.string.apps_stopped_successfully, txId));
                                 finish();
                             });
                         }

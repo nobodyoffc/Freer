@@ -147,7 +147,7 @@ public class TxHandler {
 
     public static long getChangeFee(String changeToFid) {
         long changeFee;
-        if(changeToFid.startsWith("3"))
+        if(changeToFid != null && changeToFid.startsWith("3"))
             changeFee = CHANGE_P2SH_OUTPUT_FEE;
         else changeFee = CHANGE_OUTPUT_FEE;
         return changeFee;
@@ -376,6 +376,10 @@ public class TxHandler {
         String changeAddress = rawTxInfo.getChangeTo();
         if (changeAddress == null || changeAddress.isEmpty()) {
             changeAddress = rawTxInfo.getSender();
+        }
+        if ((changeAddress == null || changeAddress.isEmpty())
+                && rawTxInfo.getInputs() != null && !rawTxInfo.getInputs().isEmpty()) {
+            changeAddress = rawTxInfo.getInputs().get(0).getOwner();
         }
 //        long changeOutputSize = Constants.CHANGE_OUTPUT_FEE; // Default to P2PKH
 //        if (changeAddress != null && changeAddress.startsWith("3")) {

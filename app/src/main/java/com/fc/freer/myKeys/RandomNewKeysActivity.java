@@ -73,7 +73,7 @@ public class RandomNewKeysActivity extends BaseCryptoActivity {
         saveButton.setOnClickListener(v -> {
             List<KeyInfo> selectedKeys = keyCardContainer.getSelectedKeys();
             if (selectedKeys.isEmpty()) {
-                ToastUtils.makeText(this, "No keys selected");
+                ToastUtils.makeText(this, getString(R.string.toast_no_keys_selected));
                 return;
             }
             

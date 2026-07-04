@@ -474,7 +474,7 @@ public class CreateContactActivity extends BaseCryptoActivity {
             displayText = keyInfo.getCid() + ": " + displayText;
         }
         fidSearchEditText.setText(displayText);
-        ToastUtils.makeText(this, "FID selected");
+        ToastUtils.makeText(this, getString(R.string.toast_fid_selected));
     }
 
     private void onMenuItemClicked(String menuItemId, KeyInfo keyInfo) {
@@ -633,7 +633,7 @@ public class CreateContactActivity extends BaseCryptoActivity {
 
     private void carveContact() {
         if (selectedFid == null) {
-            ToastUtils.makeText(this, "Please select a FID first");
+            ToastUtils.makeText(this, getString(R.string.toast_please_select_fid));
             return;
         }
 
@@ -695,14 +695,14 @@ public class CreateContactActivity extends BaseCryptoActivity {
                     @Override
                     public void onError(String errorMessage) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(CreateContactActivity.this, "Failed to carve FEIP on-chain: " + errorMessage);
+                            ToastUtils.makeText(CreateContactActivity.this, getString(R.string.toast_failed_carve_feip, errorMessage));
                         });
                     }
 
                     @Override
                     public void onUnsignedTx(RawTxInfo rawTxInfo) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(CreateContactActivity.this, "Cannot sign transaction - showing unsigned TX");
+                            ToastUtils.makeText(CreateContactActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
                             txSender.showUnsignedTxAsQR(CreateContactActivity.this, rawTxInfo);
                         });
                     }

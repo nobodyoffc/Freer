@@ -269,8 +269,6 @@ public class CloseProtocolActivity extends BaseCryptoActivity {
                                 resultIntent.putExtra("closed_protocol_ids", protocolIds.toArray(new String[0]));
                                 setResult(Activity.RESULT_OK, resultIntent);
 
-                                ToastUtils.makeText(CloseProtocolActivity.this, 
-                                    getString(R.string.protocols_closed_successfully, txId));
                                 finish();
                             });
                         }

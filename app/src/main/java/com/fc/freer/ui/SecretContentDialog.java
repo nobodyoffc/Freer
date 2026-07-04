@@ -87,7 +87,7 @@ public class SecretContentDialog {
                 ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
                 ClipData clip = ClipData.newPlainText("Secret Content", content);
                 clipboard.setPrimaryClip(clip);
-                ToastUtils.makeText(context, "Content copied to clipboard");
+                ToastUtils.makeText(context, context.getString(R.string.toast_content_copied));
             }
         });
 

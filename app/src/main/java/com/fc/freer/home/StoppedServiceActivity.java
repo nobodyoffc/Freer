@@ -596,8 +596,6 @@ public class StoppedServiceActivity extends BaseCryptoActivity {
                                 serviceManager.commit();
                                 serviceList.removeAll(servicesToRecover);
 
-                                ToastUtils.makeText(StoppedServiceActivity.this,
-                                    getString(R.string.services_recovered_successfully, txId));
                                 updateUI();
                                 setResult(Activity.RESULT_OK);
                             });

@@ -890,7 +890,7 @@ public class ContactActivity extends BaseCryptoActivity {
 
                 TimberLogger.i(TAG, "Loaded %d contact items, window size: %d/%d",
                     moreItems.size(), contactList.size(), maxWindowSize);
-                ToastUtils.makeText(this, "Loaded " + moreItems.size() + " contacts");
+                ToastUtils.makeText(this, getString(R.string.toast_loaded_contacts, moreItems.size()));
             } else {
                 // No more items in local database - try to fetch from API
                 loadEarlierContacts();
@@ -972,7 +972,7 @@ public class ContactActivity extends BaseCryptoActivity {
 
                 TimberLogger.i(TAG, "Loaded %d newer contact items to container, window size: %d/%d",
                     newerItems.size(), contactList.size(), maxWindowSize);
-                ToastUtils.makeText(this, "Loaded " + newerItems.size() + " newer contacts");
+                ToastUtils.makeText(this, getString(R.string.toast_loaded_newer_contacts, newerItems.size()));
             } else {
                 // No more newer items available
                 hasMoreNewerData = false;
@@ -1093,11 +1093,11 @@ public class ContactActivity extends BaseCryptoActivity {
             }
 
             if (addedCount > 0) {
-                ToastUtils.makeText(this, "Added " + addedCount + " contact FIDs to list");
+                ToastUtils.makeText(this, getString(R.string.toast_added_contact_fids, addedCount));
                 // Clear selections after adding to list
                 contactCardContainer.selectAll(false);
             } else {
-                ToastUtils.makeText(this, "No valid FIDs found in selected contacts");
+                ToastUtils.makeText(this, getString(R.string.toast_no_valid_fids_in_contacts));
             }
         });
 
@@ -1449,6 +1449,11 @@ public class ContactActivity extends BaseCryptoActivity {
             deleteContactLauncher.launch(intent);
         });
 
+        popupView.findViewById(R.id.about_item).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            com.fc.freer.utils.AboutDialog.show(this, R.string.about_contact_title, R.string.about_contact_message);
+        });
+
         // Measure the popup view to get its height
         popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         int popupHeight = popupView.getMeasuredHeight();
@@ -1462,25 +1467,25 @@ public class ContactActivity extends BaseCryptoActivity {
      */
     private void sendContactOnChain(Contact contact) {
         if (contact == null) {
-            ToastUtils.makeText(this, "Invalid contact");
+            ToastUtils.makeText(this, getString(R.string.toast_invalid_contact));
             return;
         }
 
         // Check if contact is already on-chain
         if (Boolean.TRUE.equals(contact.getOnChain())) {
-            ToastUtils.makeText(this, "Contact is already on-chain");
+            ToastUtils.makeText(this, getString(R.string.toast_contact_already_onchain));
             return;
         }
 
         KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
         if (liveKeyInfo == null) {
-            ToastUtils.makeText(this, "No live key available");
+            ToastUtils.makeText(this, getString(R.string.toast_no_live_key));
             return;
         }
 
         String pubkey = liveKeyInfo.getPubkey();
         if (pubkey == null) {
-            ToastUtils.makeText(this, "Invalid public key");
+            ToastUtils.makeText(this, getString(R.string.toast_invalid_public_key));
             return;
         }
 
@@ -1548,7 +1553,7 @@ public class ContactActivity extends BaseCryptoActivity {
             }).start();
 
         } else {
-            ToastUtils.makeText(this, "Failed to get private key for transaction signing");
+            ToastUtils.makeText(this, getString(R.string.toast_failed_get_prikey_signing));
         }
     }
 
@@ -1587,7 +1592,7 @@ public class ContactActivity extends BaseCryptoActivity {
         }
 
         if (contactListForDialog.isEmpty()) {
-            ToastUtils.makeText(this, "No FIDs found in list");
+            ToastUtils.makeText(this, getString(R.string.toast_no_fids_in_list));
             return;
         }
 
@@ -1601,7 +1606,7 @@ public class ContactActivity extends BaseCryptoActivity {
     private void showNextAddContactDialog() {
         if (currentFidIndex >= contactListForDialog.size()) {
             // All dialogs completed
-            ToastUtils.makeText(this, "Completed processing " + contactListForDialog.size() + " FIDs");
+            ToastUtils.makeText(this, getString(R.string.toast_completed_processing_fids, contactListForDialog.size()));
             cleanupDialogState();
             refreshList(); // Refresh the contact list to show any new contacts
             return;
@@ -1612,27 +1617,27 @@ public class ContactActivity extends BaseCryptoActivity {
         currentAddContactDialog = new AddContactDialog(this, currentFid, new AddContactDialog.AddContactDialogCallback() {
             @Override
             public void onStop() {
-                ToastUtils.makeText(ContactActivity.this, "Stopped at FID " + (currentFidIndex + 1) + " of " + contactListForDialog.size());
+                ToastUtils.makeText(ContactActivity.this, getString(R.string.toast_stopped_at_fid, currentFidIndex + 1, contactListForDialog.size()));
                 cleanupDialogState();
             }
 
             @Override
             public void onNext() {
-                ToastUtils.makeText(ContactActivity.this, "Skipped FID " + (currentFidIndex + 1) + " of " + contactListForDialog.size());
+                ToastUtils.makeText(ContactActivity.this, getString(R.string.toast_skipped_fid, currentFidIndex + 1, contactListForDialog.size()));
                 currentFidIndex++;
                 showNextAddContactDialog();
             }
 
             @Override
             public void onCarveSuccess(Contact contact) {
-                ToastUtils.makeText(ContactActivity.this, "Contact carved for FID " + (currentFidIndex + 1) + " of " + contactListForDialog.size());
+                ToastUtils.makeText(ContactActivity.this, getString(R.string.toast_contact_carved_fid, currentFidIndex + 1, contactListForDialog.size()));
                 currentFidIndex++;
                 showNextAddContactDialog();
             }
 
             @Override
             public void onCarveError(String errorMessage) {
-                ToastUtils.makeText(ContactActivity.this, "Error carving contact: " + errorMessage);
+                ToastUtils.makeText(ContactActivity.this, getString(R.string.toast_error_carving_contact, errorMessage));
                 // Continue to next FID on error
                 currentFidIndex++;
                 showNextAddContactDialog();

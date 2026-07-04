@@ -446,13 +446,8 @@ public class UpdateProtocolActivity extends BaseCryptoActivity {
                                         protocolManager.commit();
                                     }
                                     
-                                    ToastUtils.makeText(UpdateProtocolActivity.this,
-                                        getString(R.string.protocol_published_successfully, txId));
-                                } else {
-                                    ToastUtils.makeText(UpdateProtocolActivity.this,
-                                        getString(R.string.protocol_updated_successfully, txId));
                                 }
-                                
+
                                 setResult(RESULT_OK);
                                 finish();
                             });

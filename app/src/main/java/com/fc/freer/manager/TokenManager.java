@@ -19,6 +19,7 @@ import android.content.Context;
 
 import androidx.annotation.NonNull;
 
+import com.fc.fc_ajdk.constants.FieldNames;
 import com.fc.fc_ajdk.data.apipData.Fcdsl;
 import com.fc.fc_ajdk.data.feipData.Token;
 import com.fc.fc_ajdk.data.feipData.TokenHistory;
@@ -31,8 +32,10 @@ import com.fc.fc_ajdk.data.feipData.Service;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A singleton class to manage TokenHolder, Token, and TokenHistory data.
@@ -44,6 +47,7 @@ public class TokenManager extends FcManager<TokenHolder> {
     public static final int MAX_PAGES = 200;
 
     private static final String TOKEN_LIST = "token_list";
+    private static final String HIDDEN_TOKEN_LIST = "hidden_token_list";
     private static final String TOKEN_HISTORY_LIST = "token_history_list";
     private static final String LAST_HEIGHT_OF_TOKEN_HISTORY = "last_height_of_token_history";
 
@@ -153,13 +157,26 @@ public class TokenManager extends FcManager<TokenHolder> {
             return -1;
         }
 
+        // Keep locally hidden holders out of the refreshed table
+        Set<String> hiddenIds = new HashSet<>();
+        for (TokenHolder hidden : getLocalDeletedList()) {
+            if (hidden != null && hidden.getId() != null) {
+                hiddenIds.add(hidden.getId());
+            }
+        }
+
         // Clear existing and add new
         entityDB.clear();
+        int savedCount = 0;
         for (TokenHolder holder : tokenHolders) {
+            if (holder.getId() != null && hiddenIds.contains(holder.getId())) {
+                continue;
+            }
             addTokenHolder(holder);
+            savedCount++;
         }
         commit();
-        return tokenHolders.size();
+        return savedCount;
     }
 
     // ========================================
@@ -181,7 +198,7 @@ public class TokenManager extends FcManager<TokenHolder> {
         }
 
         try {
-            Fcdsl fcdsl = buildTokenFcdsl(operationType, referenceToken, null);
+            Fcdsl fcdsl = buildTokenFcdsl(operationType, referenceToken);
             if (fcdsl == null) return null;
 
             List<Token> tokens = fapiClient.entitySearch(TOKEN, fcdsl, Token.class);
@@ -201,36 +218,141 @@ public class TokenManager extends FcManager<TokenHolder> {
     }
 
     /**
-     * Fetches tokens where deployer = liveFid.
+     * Searches token data from API with custom field, sort, and order parameters.
+     *
+     * @param searchQuery    The search query string to match in the inField
+     * @param inField        The display name of the field to search in, or null to search common fields
+     * @param sortField      The display name of the field to sort by, or null for default sorting
+     * @param order          Sort order (ASC or DESC)
+     * @param referenceToken The reference token for pagination, or null for first page
+     * @return List of tokens matching the search, or null if failed
      */
-    public List<Token> fetchMyTokensFromAPI(Token referenceToken) {
+    public List<Token> searchTokensFromApi(String searchQuery, String inField, String sortField, String order, Token referenceToken) {
         FapiClient fapiClient = loadFapiClient();
         if (fapiClient == null) {
-            TimberLogger.w(TAG, "Cannot fetch my tokens: FapiClient not available");
+            TimberLogger.w(TAG, "Cannot search tokens: FapiClient not available");
             return null;
         }
 
-        try {
-            Fcdsl fcdsl = buildTokenFcdsl("refresh", referenceToken, liveFid);
-            if (fcdsl == null) return null;
+        TimberLogger.i(TAG, "Searching tokens with query: %s in field: %s, sort: %s %s",
+            searchQuery, inField, sortField, order);
 
-            List<Token> tokens = fapiClient.entitySearch(TOKEN, fcdsl, Token.class);
-            
-            if (fapiClient.getLastResponse() != null && fapiClient.getLastResponse().getTotal() != null) {
-                totalTokens = fapiClient.getLastResponse().getTotal();
+        try {
+            Fcdsl fcdsl = new Fcdsl();
+            fcdsl.addSize(FreerApplication.DEFAULT_REQUEST_SIZE);
+            fcdsl.addNewQuery();
+
+            if (inField != null) {
+                String adjustedField = adjustFieldName(Token.getFieldNameByDisplayName(inField), inField);
+                fcdsl.getQuery().addNewMatch().addNewFields(adjustedField).addNewValue(searchQuery);
+            } else {
+                fcdsl.getQuery().addNewMatch()
+                    .addNewFields(FieldNames.NAME, FieldNames.DESC, FieldNames.CONSENSUS_ID, DEPLOYER, ID)
+                    .addNewValue(searchQuery);
             }
 
+            String adjustedSortField = sortField == null ? null
+                : adjustFieldName(Token.getFieldNameByDisplayName(sortField), sortField);
+            addSortingToFcdsl(fcdsl, adjustedSortField, normalizeOrder(order));
+
+            if (referenceToken != null) {
+                fcdsl.addAfter(Arrays.asList(String.valueOf(referenceToken.getLastHeight()), referenceToken.getId()));
+            }
+
+            List<Token> tokens = fapiClient.entitySearch(TOKEN, fcdsl, Token.class);
             if (tokens != null) {
-                TimberLogger.i(TAG, "Fetched %d of my tokens from API", tokens.size());
+                TimberLogger.i(TAG, "Successfully searched %d tokens from API", tokens.size());
             }
             return tokens;
         } catch (Exception e) {
-            TimberLogger.e(TAG, "Error fetching my tokens: %s", e.getMessage());
+            TimberLogger.e(TAG, "Error searching tokens from API: %s", e.getMessage());
             return null;
         }
     }
 
-    private Fcdsl buildTokenFcdsl(String operationType, Token referenceToken, String deployerFilter) {
+    /**
+     * Searches the token holders of the current liveFid from API with custom field, sort, and order parameters.
+     *
+     * @param searchQuery     The search query string to match in the inField
+     * @param inField         The display name of the field to search in, or null to search common fields
+     * @param sortField       The display name of the field to sort by, or null for default sorting
+     * @param order           Sort order (ASC or DESC)
+     * @param referenceHolder The reference token holder for pagination, or null for first page
+     * @return List of token holders matching the search, or null if failed
+     */
+    public List<TokenHolder> searchTokenHoldersFromApi(String searchQuery, String inField, String sortField, String order, TokenHolder referenceHolder) {
+        FapiClient fapiClient = loadFapiClient();
+        if (fapiClient == null) {
+            TimberLogger.w(TAG, "Cannot search token holders: FapiClient not available");
+            return null;
+        }
+
+        TimberLogger.i(TAG, "Searching token holders with query: %s in field: %s, sort: %s %s",
+            searchQuery, inField, sortField, order);
+
+        try {
+            Fcdsl fcdsl = new Fcdsl();
+            fcdsl.addSize(FreerApplication.DEFAULT_REQUEST_SIZE);
+            fcdsl.addNewQuery();
+
+            // Only search within the holders of the current liveFid
+            fcdsl.getQuery().addNewTerms().addNewFields(FID).addNewValues(liveFid);
+
+            if (inField != null) {
+                String adjustedField = adjustFieldName(TokenHolder.getFieldNameByDisplayName(inField), inField);
+                fcdsl.getQuery().addNewMatch().addNewFields(adjustedField).addNewValue(searchQuery);
+            } else {
+                fcdsl.getQuery().addNewMatch().addNewFields(TOKEN_ID, ID).addNewValue(searchQuery);
+            }
+
+            String adjustedSortField = sortField == null ? null
+                : adjustFieldName(TokenHolder.getFieldNameByDisplayName(sortField), sortField);
+            addSortingToFcdsl(fcdsl, adjustedSortField, normalizeOrder(order));
+
+            if (referenceHolder != null) {
+                fcdsl.addAfter(Arrays.asList(String.valueOf(referenceHolder.getLastHeight()), referenceHolder.getId()));
+            }
+
+            List<TokenHolder> tokenHolders = fapiClient.entitySearch(TOKEN_HOLDER, fcdsl, TokenHolder.class);
+            if (tokenHolders != null) {
+                TimberLogger.i(TAG, "Successfully searched %d token holders from API", tokenHolders.size());
+            }
+            return tokenHolders;
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error searching token holders from API: %s", e.getMessage());
+            return null;
+        }
+    }
+
+    @NonNull
+    private static String adjustFieldName(String fieldName, String displayName) {
+        return fieldName != null ? fieldName : displayName;
+    }
+
+    private String normalizeOrder(String order) {
+        if (order == null) {
+            return null;
+        }
+        String lowerOrder = order.toLowerCase();
+        return (lowerOrder.equals(DESC.toLowerCase()) || lowerOrder.equals(ASC.toLowerCase())) ? lowerOrder : null;
+    }
+
+    private void addSortingToFcdsl(Fcdsl fcdsl, String sortField, String order) {
+        if (sortField != null) {
+            String sortOrder = (order != null) ? order : DESC;
+            fcdsl.addSort(sortField, sortOrder);
+            if (!sortField.equals(ID)) {
+                fcdsl.addSort(ID, sortOrder);
+            }
+        } else if (order != null) {
+            fcdsl.addSort(LAST_HEIGHT, order).addSort(ID, order);
+        } else {
+            // Default sort by lastHeight and ID in descending order
+            fcdsl.addSort(LAST_HEIGHT, DESC).addSort(ID, DESC);
+        }
+    }
+
+    private Fcdsl buildTokenFcdsl(String operationType, Token referenceToken) {
         String order;
         List<String> last = null;
 
@@ -257,11 +379,6 @@ public class TokenManager extends FcManager<TokenHolder> {
 
         Fcdsl fcdsl = new Fcdsl();
         fcdsl.addSize(FreerApplication.DEFAULT_REQUEST_SIZE);
-        
-        if (deployerFilter != null) {
-            fcdsl.addNewQuery().addNewTerms().addNewFields(DEPLOYER).addNewValues(deployerFilter);
-        }
-        
         fcdsl.addSort(LAST_HEIGHT, order).addSort(ID, order);
         
         if (last != null) {
@@ -269,6 +386,27 @@ public class TokenManager extends FcManager<TokenHolder> {
         }
 
         return fcdsl;
+    }
+
+    /**
+     * Fetches multiple tokens by ID in one request.
+     */
+    public Map<String, Token> fetchTokensByIds(List<String> tokenIds) {
+        if (tokenIds == null || tokenIds.isEmpty()) {
+            return null;
+        }
+
+        FapiClient fapiClient = loadFapiClient();
+        if (fapiClient == null) {
+            return null;
+        }
+
+        try {
+            return fapiClient.entityByIds(TOKEN, Token.class, tokenIds);
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error fetching tokens by IDs: %s", e.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -336,6 +474,137 @@ public class TokenManager extends FcManager<TokenHolder> {
             TimberLogger.e(TAG, "Error getting cached tokens: %s", e.getMessage());
             return new ArrayList<>();
         }
+    }
+
+    // ========================================
+    // Hidden Token List (client-side hiding of browsed tokens)
+    // ========================================
+
+    /**
+     * Adds tokens to the persistent hidden token list, skipping duplicates.
+     */
+    public synchronized void addToHiddenTokenList(List<Token> tokens) {
+        if (entityDB == null || tokens == null || tokens.isEmpty()) {
+            return;
+        }
+
+        try {
+            entityDB.createList(HIDDEN_TOKEN_LIST, Token.class);
+            Set<String> hiddenIds = new HashSet<>();
+            List<Token> hidden = entityDB.getAllFromList(HIDDEN_TOKEN_LIST);
+            if (hidden != null) {
+                for (Token token : hidden) {
+                    if (token != null && token.getId() != null) {
+                        hiddenIds.add(token.getId());
+                    }
+                }
+            }
+
+            List<Token> toAdd = new ArrayList<>();
+            for (Token token : tokens) {
+                if (token != null && token.getId() != null && !hiddenIds.contains(token.getId())) {
+                    toAdd.add(token);
+                }
+            }
+
+            if (!toAdd.isEmpty()) {
+                entityDB.addAllToList(HIDDEN_TOKEN_LIST, toAdd);
+                commit();
+            }
+            TimberLogger.i(TAG, "Added %d tokens to hidden list", toAdd.size());
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error adding tokens to hidden list: %s", e.getMessage());
+        }
+    }
+
+    /**
+     * Gets the persistent hidden token list.
+     */
+    public synchronized List<Token> getHiddenTokenList() {
+        if (entityDB == null) {
+            return new ArrayList<>();
+        }
+
+        try {
+            entityDB.createList(HIDDEN_TOKEN_LIST, Token.class);
+            List<Token> hidden = entityDB.getAllFromList(HIDDEN_TOKEN_LIST);
+            return hidden != null ? hidden : new ArrayList<>();
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error getting hidden token list: %s", e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Removes tokens from the persistent hidden token list by ID.
+     *
+     * @return Number of tokens removed
+     */
+    public synchronized int removeFromHiddenTokenList(List<Token> tokens) {
+        if (entityDB == null || tokens == null || tokens.isEmpty()) {
+            return 0;
+        }
+
+        try {
+            entityDB.createList(HIDDEN_TOKEN_LIST, Token.class);
+            List<Token> hidden = entityDB.getAllFromList(HIDDEN_TOKEN_LIST);
+            if (hidden == null || hidden.isEmpty()) {
+                return 0;
+            }
+
+            Set<String> idsToRemove = new HashSet<>();
+            for (Token token : tokens) {
+                if (token != null && token.getId() != null) {
+                    idsToRemove.add(token.getId());
+                }
+            }
+
+            List<Long> indices = new ArrayList<>();
+            for (int i = 0; i < hidden.size(); i++) {
+                Token token = hidden.get(i);
+                if (token != null && token.getId() != null && idsToRemove.contains(token.getId())) {
+                    indices.add((long) i);
+                }
+            }
+
+            if (!indices.isEmpty()) {
+                entityDB.removeFromList(HIDDEN_TOKEN_LIST, indices);
+                commit();
+            }
+            return indices.size();
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error removing tokens from hidden list: %s", e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Returns the given tokens without the ones in the hidden token list.
+     */
+    public synchronized List<Token> filterHiddenTokens(List<Token> tokens) {
+        if (tokens == null || tokens.isEmpty()) {
+            return tokens;
+        }
+
+        List<Token> hidden = getHiddenTokenList();
+        if (hidden.isEmpty()) {
+            return tokens;
+        }
+
+        Set<String> hiddenIds = new HashSet<>();
+        for (Token token : hidden) {
+            if (token != null && token.getId() != null) {
+                hiddenIds.add(token.getId());
+            }
+        }
+
+        List<Token> visible = new ArrayList<>();
+        for (Token token : tokens) {
+            if (token == null || token.getId() == null || !hiddenIds.contains(token.getId())) {
+                visible.add(token);
+            }
+        }
+        return visible;
     }
 
     // ========================================

@@ -12,6 +12,7 @@ import com.fc.fc_ajdk.data.fcData.MessageStatus;
 import com.fc.fc_ajdk.data.feipData.Square;
 import com.fc.fc_ajdk.db.LocalDB;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.R;
 import com.fc.freer.im.MessageQueue.SendResult;
 import com.fc.freer.manager.DatabaseManager;
 
@@ -44,6 +45,18 @@ public class SquareHandler extends BaseHandler {
     private void loadSquaresIntoCache() {
         try {
             Map<String, Square> stored = squaresDb.getAll();
+            for (Square square : stored.values()) {
+                // Only promote a pending square to "confirmed on chain" once our own
+                // membership is actually reflected on chain. A *joined* square always
+                // has a birthHeight (it pre-existed), so promoting on birthHeight alone
+                // would prematurely strip its pending status before the join confirms,
+                // hiding it from the list (no conversation yet, no pending card).
+                if (square.getOnChain() == null && square.getBirthHeight() != null
+                        && square.getMembers() != null && square.getMembers().contains(liveFid)) {
+                    square.setOnChain(true);
+                    squaresDb.put(square.getId(), square);
+                }
+            }
             squareCache.putAll(stored);
         } catch (Exception e) {
             TimberLogger.e(TAG, "Failed to load squares from local DB: %s", e.getMessage());
@@ -94,9 +107,13 @@ public class SquareHandler extends BaseHandler {
             // Fallback: resolve square's DOCK URL and forward via user's own DOCK
             String targetDockUrl = null;
             Square cachedSquare = squareCache.get(squareId);
-            if (cachedSquare != null && cachedSquare.getHome() != null) {
+            if (cachedSquare == null) {
+                cachedSquare = loadSquareInfo(squareId);
+            }
+            Map<String, String> squareHome = (cachedSquare != null) ? cachedSquare.getHome() : null;
+            if (squareHome != null) {
                 targetDockUrl = fapiClient.getHomeServiceResolver()
-                        .resolveDockFromHome(cachedSquare.getHome(), fapiClient);
+                        .resolveDockFromHome(squareHome, fapiClient);
             }
             if (targetDockUrl == null) {
                 try {
@@ -106,7 +123,18 @@ public class SquareHandler extends BaseHandler {
                 }
             }
 
-            if (targetDockUrl != null && dockAvailabilityChecker != null
+            // A square's messages must land on the square's own DOCK so every
+            // member fetches them from the same server. If we cannot resolve a
+            // target DOCK, sending via our own DOCK would store the message where
+            // only we can read it and falsely report "sent". Fail loudly instead.
+            if (targetDockUrl == null) {
+                notifyError(context.getString(hasDockConfigured(squareHome)
+                        ? R.string.im_dock_unresolvable
+                        : R.string.im_dock_not_configured));
+                return SendResult.FAIL_PERMANENT;
+            }
+
+            if (dockAvailabilityChecker != null
                     && !dockAvailabilityChecker.isDockReachable(targetDockUrl)) {
                 notifyError("Cannot reach square's DOCK server: " + targetDockUrl);
                 return SendResult.RETRY_TRANSIENT;
@@ -209,6 +237,7 @@ public class SquareHandler extends BaseHandler {
         try {
             Square square = fapiClient.entityById(SQUARE, Square.class, squareId);
             if (square != null) {
+                square.setOnChain(true);
                 saveSquare(square);
             }
             return square;
@@ -224,12 +253,34 @@ public class SquareHandler extends BaseHandler {
     }
     
     /**
-     * Save or update a square from external sync (e.g. SquareSyncManager).
+     * Save or update a square from external sync (confirmed on chain).
      */
     public void saveSquarePublic(Square square) {
-        if (square != null && square.getId() != null) {
-            saveSquare(square);
+        if (square == null || square.getId() == null) return;
+        square.setOnChain(true);
+        saveSquare(square);
+    }
+
+    /**
+     * Save a locally-created pending square (TX broadcast, not yet confirmed).
+     */
+    public void savePendingSquare(Square square) {
+        if (square == null || square.getId() == null) return;
+        square.setOnChain(null);
+        saveSquare(square);
+    }
+
+    /**
+     * Return all squares with onChain==null (TX submitted, awaiting confirmation).
+     */
+    public List<Square> getPendingSquares() {
+        List<Square> pending = new java.util.ArrayList<>();
+        for (Square square : squareCache.values()) {
+            if (square.getOnChain() == null) {
+                pending.add(square);
+            }
         }
+        return pending;
     }
     
     /**

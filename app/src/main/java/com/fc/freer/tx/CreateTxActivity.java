@@ -838,7 +838,7 @@ public class CreateTxActivity extends BaseCryptoActivity {
                             });
                             dialog.setOnDismissListener(d -> currentDialog = null);
                             dialog.show();
-                            ToastUtils.makeText(this, "Creating outputs for " + fidList.size() + " contacts");
+                            ToastUtils.makeText(this, getString(R.string.toast_creating_outputs, fidList.size()));
                         } else {
                             ToastUtils.makeText(this, R.string.contact_has_no_fid);
                         }
@@ -1394,7 +1394,7 @@ public class CreateTxActivity extends BaseCryptoActivity {
                 @Override
                 public void onSuccess(String txId) {
                     runOnUiThread(() -> {
-                        ToastUtils.makeText(CreateTxActivity.this, getString(R.string.tx_sent));
+                        // tx_sent toast is shown by TxSender on broadcast success; don't duplicate it here.
                         finish();
                     });
                 }

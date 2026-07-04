@@ -8,6 +8,7 @@ import com.fc.fc_ajdk.data.fcData.ImMessage;
 import com.fc.fc_ajdk.data.fcData.MessageStatus;
 import com.fc.fc_ajdk.db.LocalDB;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.R;
 import com.fc.freer.manager.DatabaseManager;
 
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ public class MessageQueue {
     private static final long[] RETRY_DELAYS_MS = {5000, 15000, 60000, 300000, 900000}; // 5s, 15s, 1m, 5m, 15m
     
     private LocalDB<QueuedMessage> db;
+    private final Context context;
     private final String liveFid;
     private final ExecutorService executor;
     private final ScheduledExecutorService scheduler;
@@ -70,6 +72,7 @@ public class MessageQueue {
     private QueueListener listener;
     
     public MessageQueue(Context context, String liveFid) {
+        this.context = context.getApplicationContext();
         this.liveFid = liveFid;
         this.executor = Executors.newSingleThreadExecutor();
         this.scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -234,7 +237,7 @@ public class MessageQueue {
                     message.setStatus(MessageStatus.FAILED);
                     TimberLogger.w(TAG, "Message %s permanently failed", message.getId());
                     if (listener != null) {
-                        mainHandler.post(() -> listener.onMessageFailed(message, "Delivery permanently failed"));
+                        mainHandler.post(() -> listener.onMessageFailed(message, context.getString(R.string.mq_delivery_permanently_failed)));
                     }
                 }
                 case RETRY_TRANSIENT -> {
@@ -243,7 +246,7 @@ public class MessageQueue {
                         db.remove(qm.getId());
                         message.setStatus(MessageStatus.FAILED);
                         if (listener != null) {
-                            mainHandler.post(() -> listener.onMessageFailed(message, "Max retries exceeded"));
+                            mainHandler.post(() -> listener.onMessageFailed(message, context.getString(R.string.mq_max_retries_exceeded)));
                         }
                     } else {
                         long delay = RETRY_DELAYS_MS[Math.min(retryCount, RETRY_DELAYS_MS.length - 1)];

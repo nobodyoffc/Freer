@@ -139,7 +139,22 @@
                 android:contentDescription="@string/token_history"
                 android:padding="0dp"
                 android:scaleType="fitCenter"
-                android:src="@drawable/ic_record" />
+                android:src="@drawable/ic_record"
+                app:tint="@color/accent" />
+
+            <!-- Issue button -->
+            <ImageButton
+                android:id="@+id/token_issue_button"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_gravity="center"
+                android:layout_marginTop="4dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/issue_token"
+                android:padding="0dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_plus"
+                android:visibility="gone" />
 
             <!-- Edit button -->
             <ImageButton

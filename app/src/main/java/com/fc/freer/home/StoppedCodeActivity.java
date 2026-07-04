@@ -573,8 +573,6 @@ public class StoppedCodeActivity extends BaseCryptoActivity {
                                 codeManager.commit();
                                 codeList.removeAll(codesToRecover);
 
-                                ToastUtils.makeText(StoppedCodeActivity.this,
-                                    getString(R.string.codes_recovered_successfully, txId));
                                 updateUI();
                                 setResult(Activity.RESULT_OK);
                             });

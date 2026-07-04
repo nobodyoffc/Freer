@@ -32,6 +32,10 @@ import java.util.List;
 public class ReorgCashActivity extends BaseCryptoActivity {
     private static final String TAG = "ReorgCashActivity";
     public static final String EXTRA_SELECTED_CASH = "selected_cash";
+    // The reorg TX may issue at most 20 new cashes (including the change cash
+    // that TxHandler adds automatically), so the user-entered count must stay
+    // below this limit.
+    private static final int MAX_NEW_CASH_COUNT = 20;
     
     // UI elements for spend cash display
     private TextView spendCashCountTextView;
@@ -206,7 +210,17 @@ public class ReorgCashActivity extends BaseCryptoActivity {
         
         boolean isValid = true;
         double calculatedTotal = 0.0;
-        
+
+        if (!countStr.isEmpty()) {
+            try {
+                if (Integer.parseInt(countStr) >= MAX_NEW_CASH_COUNT) {
+                    isValid = false;
+                }
+            } catch (NumberFormatException e) {
+                isValid = false;
+            }
+        }
+
         if (!countStr.isEmpty() && !amountStr.isEmpty()) {
             try {
                 int count = Integer.parseInt(countStr);
@@ -228,6 +242,9 @@ public class ReorgCashActivity extends BaseCryptoActivity {
                     isValid = false;
                 } else {
                     int count = (int) (totalCashAmount / amountSatoshi);
+                    // At most 19 denomination cashes are issued; the rest goes
+                    // to the single change cash (20 new cashes in total).
+                    count = Math.min(count, MAX_NEW_CASH_COUNT - 1);
                     calculatedTotal = count * amount;
 
                     if (FchUtils.coinToSatoshi(calculatedTotal) > totalCashAmount) {
@@ -285,7 +302,14 @@ public class ReorgCashActivity extends BaseCryptoActivity {
         
         String countStr = countEditText.getText() != null ? countEditText.getText().toString().trim() : "";
         String amountStr = amountEditText.getText() != null ? amountEditText.getText().toString().trim() : "";
-        
+
+        // Enforce the new-cash limit on the user-entered count
+        Integer enteredCount = NumberUtils.parsePositiveInteger(countStr);
+        if (enteredCount != null && enteredCount >= MAX_NEW_CASH_COUNT) {
+            ToastUtils.makeText(this, R.string.count_must_be_less_than_20);
+            return;
+        }
+
         try {
             // Get sender FID from first cash
             String senderFid = selectedCashList.get(0).getOwner();
@@ -480,6 +504,11 @@ public class ReorgCashActivity extends BaseCryptoActivity {
         }
 
         int count = (int) (totalCashAmount / amountSatoshi);
+
+        // No more than 20 new cashes may be issued. When the amount alone would
+        // produce more, issue 19 denomination cashes and let all the rest fall
+        // into the single change cash added by TxHandler.
+        count = Math.min(count, MAX_NEW_CASH_COUNT - 1);
 
         // Shrink the count until the bills plus the fee (which already includes the
         // change output) fit within the selected cash.

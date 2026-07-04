@@ -15,6 +15,7 @@ import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.data.feipData.Team;
 import com.fc.fc_ajdk.data.feipData.TeamOpData;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
+import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.FreerApplication;
 import com.fc.freer.R;
@@ -39,6 +40,7 @@ import java.util.Set;
 
 public class InviteTeamMemberActivity extends BaseCryptoActivity {
     public static final String EXTRA_TEAM_ID = "extra_team_id";
+    private static final String TAG = "InviteTeamMember";
 
     private EditText fidsInput;
     private ImageButton inviteButton;
@@ -186,7 +188,13 @@ public class InviteTeamMemberActivity extends BaseCryptoActivity {
         ToastUtils.makeText(this, getString(R.string.added_n_fids, addedCount));
     }
 
-    private void sendTeamInviteNotifications(List<String> fids, String txId) {
+    // Called from background thread (inside TxSender callback).
+    // The consensus document is published at team creation (uploaded to the team's DISK and
+    // committed on-chain via Team.consensusId + Team.home.DISK), so an invitee discovers and
+    // downloads it entirely from the confirmed on-chain team. We therefore only send a
+    // lightweight "you've been invited" notification here — no off-chain HAT, which would
+    // otherwise race ahead of the invite TX's on-chain confirmation.
+    private void sendTeamInviteNotifications(List<String> fids) {
         try {
             Setting setting = SettingManager.getInstance().getCurrentSetting();
             if (setting == null) return;
@@ -198,14 +206,13 @@ public class InviteTeamMemberActivity extends BaseCryptoActivity {
                 Team team = imManager.getTeam(teamId);
                 if (team != null) teamName = team.getStdName();
             }
+            String displayName = teamName != null ? teamName : teamId;
 
             for (String fid : fids) {
-                imManager.sendTeamNotification(fid, PendingIssue.IssueType.TEAM_INVITE,
-                        teamId, teamName, txId);
+                imManager.sendTeamInviteNotification(fid, teamId, displayName);
             }
         } catch (Exception e) {
-            com.fc.fc_ajdk.utils.TimberLogger.e("InviteTeamMember",
-                    "Failed to send invite notifications: %s", e.getMessage());
+            TimberLogger.e(TAG, "Failed to send invite notifications: %s", e.getMessage());
         }
     }
 
@@ -255,10 +262,8 @@ public class InviteTeamMemberActivity extends BaseCryptoActivity {
                     new TxSender.TxCallback() {
                         @Override
                         public void onSuccess(String txId) {
-                            sendTeamInviteNotifications(fidList, txId);
+                            sendTeamInviteNotifications(fidList);
                             runOnUiThread(() -> {
-                                ToastUtils.makeText(InviteTeamMemberActivity.this,
-                                        getString(R.string.invitation_sent_successfully, txId));
                                 finish();
                             });
                         }
@@ -279,6 +284,11 @@ public class InviteTeamMemberActivity extends BaseCryptoActivity {
 
                         @Override
                         public void onUnbroadcasted(String signedTxHex) {
+                            runOnUiThread(() -> inviteButton.setEnabled(true));
+                        }
+
+                        @Override
+                        public void onCancelled() {
                             runOnUiThread(() -> inviteButton.setEnabled(true));
                         }
                     });

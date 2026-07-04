@@ -95,7 +95,7 @@ public class BackupSecretsActivity extends BaseCryptoActivity {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 // Permission granted
             } else {
-                ToastUtils.makeText(this, "Storage permission is required to save backup files");
+                ToastUtils.makeText(this, getString(R.string.toast_storage_permission_required));
             }
         }
     }
@@ -140,7 +140,7 @@ public class BackupSecretsActivity extends BaseCryptoActivity {
             }
             QRCodeGenerator.showQRDialog(this, flattenedBitmaps);
         } else {
-            ToastUtils.makeText(this, "No data to make QR code.");
+            ToastUtils.makeText(this, getString(R.string.toast_no_data_make_qr));
         }
     }
 
@@ -159,9 +159,9 @@ public class BackupSecretsActivity extends BaseCryptoActivity {
                 ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                 ClipData clip = ClipData.newPlainText("Exported Secrets", textToCopy);
                 clipboard.setPrimaryClip(clip);
-                ToastUtils.makeText(this, "Copied to clipboard");
+                ToastUtils.makeText(this, getString(R.string.toast_copied_to_clipboard));
             } else {
-                ToastUtils.makeText(this, "Nothing to copy");
+                ToastUtils.makeText(this, getString(R.string.toast_nothing_to_copy));
             }
         });
     }
@@ -172,7 +172,7 @@ public class BackupSecretsActivity extends BaseCryptoActivity {
             String filePath = saveResultToFile(result);
             if (filePath != null) {
                 displayFilePath(filePath);
-                ToastUtils.makeText(this, "Exported to: " + filePath);
+                ToastUtils.makeText(this, getString(R.string.toast_exported_to, filePath));
             }
         }
         updateButtonStates();
@@ -191,7 +191,7 @@ public class BackupSecretsActivity extends BaseCryptoActivity {
             return file.getAbsolutePath();
         } catch (IOException e) {
             TimberLogger.e(TAG, "Failed to save file: %s", e.getMessage());
-            ToastUtils.makeText(this, "Failed to save file");
+            ToastUtils.makeText(this, getString(R.string.toast_failed_save_file));
             return null;
         }
     }
@@ -251,7 +251,7 @@ public class BackupSecretsActivity extends BaseCryptoActivity {
             secretJson = JsonUtils.toNiceJson(secret);
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error processing secret: %s", secret.getTitle());
-            ToastUtils.makeText(this, "Error processing secret: " + secret.getTitle());
+            ToastUtils.makeText(this, getString(R.string.toast_error_processing_secret, secret.getTitle()));
             return;
         }
 

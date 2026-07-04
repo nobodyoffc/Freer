@@ -251,8 +251,6 @@ public class StopServiceActivity extends BaseCryptoActivity {
                                 resultIntent.putExtra("stopped_service_ids", serviceIds.toArray(new String[0]));
                                 setResult(Activity.RESULT_OK, resultIntent);
 
-                                ToastUtils.makeText(StopServiceActivity.this, 
-                                    getString(R.string.services_stopped_successfully, txId));
                                 finish();
                             });
                         }

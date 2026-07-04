@@ -8,6 +8,18 @@
 
 
     <TextView
+        android:id="@+id/about_item"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/about_proof"
+        android:textSize="16sp"
+        android:textColor="@color/text"
+        android:padding="12dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <TextView
         android:id="@+id/refresh_item"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

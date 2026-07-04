@@ -59,4 +59,13 @@
 
     </LinearLayout>
 
+    <ImageButton
+        android:id="@+id/im_hat_play_btn"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginStart="8dp"
+        android:src="@drawable/ic_play"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/open" />
+
 </LinearLayout>

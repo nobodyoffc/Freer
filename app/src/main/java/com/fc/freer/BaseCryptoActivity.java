@@ -1,5 +1,7 @@
 package com.fc.freer;
 
+import com.fc.freer.R;
+
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -490,7 +492,7 @@ public abstract class BaseCryptoActivity extends AppCompatActivity {
             com.fc.freer.model.Configure configure = configureManager.getConfigure();
             
             if (configure == null) {
-                ToastUtils.makeText(this, "Configuration not found");
+                ToastUtils.makeText(this, getString(R.string.toast_config_not_found));
                 return;
             }
             
@@ -510,7 +512,7 @@ public abstract class BaseCryptoActivity extends AppCompatActivity {
             
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error saving KeyInfo: %s", e.getMessage());
-            ToastUtils.makeText(this, "Error saving key: " + e.getMessage());
+            ToastUtils.makeText(this, getString(R.string.toast_error_saving_key, e.getMessage()));
         }
     }
     
@@ -573,7 +575,7 @@ public abstract class BaseCryptoActivity extends AppCompatActivity {
             
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error saving KeyInfo: %s", e.getMessage());
-            ToastUtils.makeText(this, "Error saving key: " + e.getMessage());
+            ToastUtils.makeText(this, getString(R.string.toast_error_saving_key, e.getMessage()));
         }
     }
 
@@ -584,7 +586,7 @@ public abstract class BaseCryptoActivity extends AppCompatActivity {
             com.fc.freer.model.Configure configure = configureManager.getConfigure();
 
             if (configure == null) {
-                ToastUtils.makeText(this, "Configuration not found");
+                ToastUtils.makeText(this, getString(R.string.toast_config_not_found));
                 return;
             }
 
@@ -610,7 +612,7 @@ public abstract class BaseCryptoActivity extends AppCompatActivity {
             finish();
 
         } catch (Exception e) {
-            ToastUtils.makeText(this, "Error saving key: " + e.getMessage());
+            ToastUtils.makeText(this, getString(R.string.toast_error_saving_key, e.getMessage()));
         }
     }
 
@@ -692,6 +694,12 @@ public abstract class BaseCryptoActivity extends AppCompatActivity {
         CashManager cashManager = CashManager.getInstance();
         TxHandler txHandler = new TxHandler();
         FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
+        if (fapiClient == null) {
+            // No connected FAPI client in the group; fail cleanly instead of NPE-ing in broadcastTx.
+            TimberLogger.w(TAG, "sendTransaction: no FAPI client available, cannot broadcast");
+            callback.onError(getString(R.string.apip_client_not_available));
+            return;
+        }
 
         // Use the TxSender to sign and send the transaction
         TxSender txSender = new TxSender();

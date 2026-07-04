@@ -50,7 +50,7 @@
     <string name="menu_news">新闻</string>
     <string name="menu_data">数据</string>
     <string name="menu_square">广场</string>
-    <string name="menu_team">组</string>
+    <string name="menu_team">团队</string>
     <string name="menu_room">房间</string>
     <string name="menu_app">应用</string>
     <string name="menu_service">服务</string>
@@ -288,6 +288,7 @@
     <string name="failed_to_scan_qr_code">扫描二维码失败</string>
     <string name="no_items_selected">请选择</string>
     <string name="too_many_cash_selected">钞票不能超过200张!</string>
+    <string name="count_must_be_less_than_20">新钞票不能超过20个.</string>
     <string name="deleted">已删除</string>
     <string name="input_value_must_be_greater_than_0">输入金额必须大于0</string>
     <string name="invalid_txid">无效的交易ID</string>
@@ -900,7 +901,6 @@
     <string name="error_creating_transaction">创建交易时出错。%s</string>
     <string name="input_the_name_of_any_used_cid">输入任何已使用的CID名称。</string>
     <string name="no_more_than_4_used_cids_allowed">最多允许4个已使用的CID</string>
-    <string name="cid_carved">CID已上链</string>
     <string name="failed_to_parse_contact">解析联系人失败</string>
     <string name="show_the_payer">显示给付款人</string>
     <string name="loading_more_from_apip">从服务器加载中...</string>
@@ -961,7 +961,7 @@
     <string name="no_mails_to_delete">没有要删除的邮件</string>
     <string name="deleted_off_chain_mails_locally">已本地删除%d封链下邮件</string>
     <string name="deleted_on_chain_mails_locally">已本地删除%d封链上邮件</string>
-    <string name="no_valid_cash_available_for_transaction">没有可用于交易的有效钞票</string>
+    <string name="no_valid_cash_available_for_transaction">没有现钞可用于交易</string>
     <string name="failed_to_create_transaction">创建交易失败</string>
     <string name="mails_deleted_successfully_on_chain">邮件已成功上链删除</string>
     <string name="error_preparing_mail_data_for_deletion">准备邮件删除数据时出错</string>
@@ -1000,7 +1000,9 @@
     <string name="dealer_avatar">掌柜头像</string>
     <string name="owner_avatar">所有者头像</string>
     <string name="api_url">API地址</string>
-    <string name="set_apis">设置API</string>
+    <string name="set_apis">设置基础API</string>
+    <string name="set_dock_disk">设置我的DOCK/DISK</string>
+    <string name="set_my_dock">设置我的DOCK</string>
     <string name="backup_prikey">备份私钥</string>
 
     <string name="loaded_newer_cash_from_local_db">从数据库加载了 %d 个新钞票</string>
@@ -1210,6 +1212,8 @@
     <string name="password_cannot_be_empty">密码不能为空</string>
 
     <string name="found_proofs_count">找到 %d 个凭据</string>
+    <string name="found_tokens_count">找到 %d 个通证</string>
+    <string name="found_token_holders_count">找到 %d 个通证持有</string>
     <string name="error_invalid_symkey">无效的对称密钥</string>
     <string name="error_decryption_failed">解密失败</string>
     <string name="no_private_key">没有私钥</string>
@@ -1509,9 +1513,13 @@
     <string name="no_token_history_found">未找到通证历史</string>
     <string name="enter_token_id">输入通证ID</string>
     <string name="enter_token_name">输入通证名称</string>
-    <string name="home_tokens_mode">主页通证</string>
     <string name="hidden_tokens">隐藏通证</string>
     <string name="hidden_token_holders">隐藏通证持有者</string>
+    <string name="hide_items">隐藏所选项</string>
+    <string name="no_hidden_tokens_found">没有隐藏的通证</string>
+    <string name="no_hidden_token_holders_found">没有隐藏的通证持有者</string>
+    <string name="tokens_revealed_successfully">已显示%1$d个通证</string>
+    <string name="token_holders_revealed_successfully">已显示%1$d个通证持有者</string>
     <string name="loading_tokens">加载通证中…</string>
     <string name="loading_token_holders">加载通证持有者中…</string>
     <string name="loading_token_history">加载通证历史中…</string>
@@ -1528,6 +1536,24 @@
     <string name="signer">签名者</string>
     <string name="no_valid_token_ids">没有有效的通证ID</string>
     <string name="insufficient_balance">余额不足</string>
+    <string name="issue_token">增发通证</string>
+    <string name="amount_to_issue">数量</string>
+    <string name="add_recipient">添加接收者</string>
+    <string name="only_deployer_can_issue">只有部署者可以增发此通证</string>
+    <string name="exceeds_max_amt_per_issue">总量超过单次增发上限（%1$s）</string>
+    <string name="exceeds_capacity">总量超过通证容量</string>
+    <string name="failed_to_issue_token">增发通证失败</string>
+    <string name="burn_token">销毁通证</string>
+    <string name="burn_token_confirm">销毁您持有的全部 %1$s？此操作不可撤销。</string>
+    <string name="failed_to_burn_token">销毁通证失败</string>
+    <string name="no_balance_to_burn">没有可销毁的余额</string>
+    <string name="token_closed">此通证已关闭</string>
+    <string name="too_many_decimal_places">数量最多支持 %1$d 位小数</string>
+    <string name="decimal_must_be_integer">小数位必须是非负整数</string>
+    <string name="invalid_capacity">无效的容量</string>
+    <string name="invalid_max_amt_per_issue">无效的单次增发上限</string>
+    <string name="invalid_min_cdd_per_issue">无效的单次增发最小CDD</string>
+    <string name="invalid_max_issues_per_addr">无效的单地址增发次数上限</string>
     <string name="price_per_kb">每KB价格 (FCH)</string>
     <string name="price_per_kb_in">每KB输入价格 (FCH)</string>
     <string name="price_per_kb_out">每KB输出价格 (FCH)</string>
@@ -1610,7 +1636,7 @@
     <string name="type_message">输入消息…</string>
     <string name="attach">附件</string>
     <string name="new_chat">新建聊天</string>
-    <string name="enter_fid_or_cid_to_chat">输入FID、CID或URL开始聊天</string>
+    <string name="enter_fid_or_cid_to_chat">输入FID或CID搜索对方</string>
     <string name="choose_from_contacts">从联系人中选择</string>
     <string name="please_select_a_fid">请先选择一个FID</string>
 
@@ -1623,6 +1649,8 @@
     <string name="symkey_requests_sent">已向 %d 位成员发送密钥请求</string>
     <string name="owner_no_reachable_channels">所有者没有可达的通信通道 (FUDP/ROAD/DOCK)</string>
     <string name="members_no_reachable_channels">%d 位成员没有可达的通信通道</string>
+    <string name="im_dock_unresolvable">消息服务器 (DOCK) 不存在或无法解析，消息未能送达。</string>
+    <string name="im_dock_not_configured">该会话未配置消息服务器 (DOCK)，无法发送消息。</string>
     <string name="share_symkey">分享密钥</string>
     <string name="create_room">创建房间</string>
     <string name="room_name">房间名称</string>
@@ -1677,15 +1705,15 @@
     <string name="menu_todo">待办</string>
     <string name="pending_issues">待处理事项</string>
     <string name="no_pending_issues">暂无待处理事项</string>
-    <string name="stranger_peer_title">检测到陌生对等方</string>
-    <string name="stranger_peer_message">未知对等方（%s）正在尝试连接。是否接受或拒绝？</string>
-    <string name="stranger_peer_request">陌生对等方请求</string>
+    <string name="stranger_peer_title">检测到陌生通讯方</string>
+    <string name="stranger_peer_message">未知通讯方（%s）正在尝试连接。是否接受或拒绝？</string>
+    <string name="stranger_peer_request">陌生通讯方请求</string>
     <string name="accept">接受</string>
     <string name="reject">拒绝</string>
     <string name="auto_dismiss_countdown">%d 秒后自动关闭</string>
-    <string name="peer_accepted">已接受对等方</string>
-    <string name="peer_rejected">已拒绝对等方</string>
-    <string name="peer_blacklisted">已将对等方加入黑名单</string>
+    <string name="peer_accepted">已接受通讯方</string>
+    <string name="peer_rejected">已拒绝通讯方</string>
+    <string name="peer_blacklisted">已将通讯方加入黑名单</string>
     <string name="add_stranger_to_blacklist">加入黑名单</string>
     <string name="block_all_strangers">拒绝所有陌生人</string>
     <string name="all_strangers_blocked">所有陌生人将被拒绝</string>
@@ -1702,33 +1730,79 @@
     <string name="removed_from_blacklist">已从黑名单中移除</string>
 
     <!-- Group Operations -->
-    <string name="join_group">加入群组</string>
-    <string name="create_group">创建群组</string>
-    <string name="quit_group">退出群组</string>
+    <string name="about_square">关于广场</string>
+    <string name="about_square_title">什么是广场？</string>
+    <string name="about_square_message">广场是一个开放的链上公开社会群体。\n\n• 没有群主或管理员。任何人都可以自由加入或退出，每次加入和退出都会记录在区块链上。\n\n• 它的 ID 就是创建它的那笔交易——没有中心服务器。\n\n• 任何成员都可以修改名称和资料，但每次修改都要销毁一定的币天（CDD），因此刷屏改名需要付出真实的代价。\n\n• 消息是公开且未加密的——所有人都能看到。\n\n广场适合开放社区。若需要受管理的成员制度或私密聊天，请改用团队（Team）。</string>
+
+    <!-- About entities (FEIP protocol explanations) -->
+    <string name="about_team">关于团队</string>
+    <string name="about_team_title">什么是团队？</string>
+    <string name="about_team_message">团队是一个由群主管理的链上组织（协议 FEIP-18）。\n\n• 它是受管理的。与广场不同，团队有群主和管理员。群主可以转让或解散团队，管理员可以邀请或移除成员。\n\n• 成员共享一份共识。加入即表示同意团队的共识（即共同的规则集），并记录在区块链上。\n\n• 角色记录在链上。邀请、加入、退出、任命、罢免、评价和解散都是链上操作。它的 ID 就是创建它的那笔交易。\n\n团队适合需要受管理成员制度的群组。若需要开放、无管理的群组，请改用广场（Square）。</string>
+
+    <string name="about_app">关于应用</string>
+    <string name="about_app_title">什么是应用？</string>
+    <string name="about_app_message">应用是去中心化应用程序的链上登记条目（协议 FEIP-15）。\n\n• 任何人都可以发布。没有应用商店的把关者——你直接把应用元数据登记到区块链上。\n\n• 它记录元数据。名称、类型、主页链接、下载入口，以及它所依赖的协议、服务和代码。\n\n• 它的 ID（aid）就是发布它的那笔交易。\n\n应用让人们无需中心化机构即可发现和验证去中心化软件。</string>
+
+    <string name="about_code">关于代码</string>
+    <string name="about_code_title">什么是代码？</string>
+    <string name="about_code_message">代码是软件构件（库、工具或实现）的链上登记条目（协议 FEIP-2）。\n\n• 任何人都可以发布。对软件的引用无需中心化机构即可记录在链上。\n\n• 它记录元数据。名称、版本、编程语言、主页链接，以及它实现的协议。\n\n• 它的 ID 就是发布它的那笔交易。\n\n代码条目让人们在链上查找和引用各种实现。</string>
+
+    <string name="about_contact">关于联系人</string>
+    <string name="about_contact_title">什么是联系人？</string>
+    <string name="about_contact_message">联系人是存储在链上的加密通讯录条目（协议 FEIP-12）。\n\n• 只有你能读取。链上只保存密文；姓名、备注、偏好等私密字段都经过加密，只有你持有密钥。\n\n• 它存在于区块链上。添加、更新、删除和恢复都是链上操作，因此你的联系人会被备份并在各设备间同步。\n\n即便存储在公开链上，你的联系人依然只属于你。</string>
+
+    <string name="about_mail">关于邮件</string>
+    <string name="about_mail_title">什么是邮件？</string>
+    <string name="about_mail_message">邮件是在链上从一个 FID 发送到另一个 FID 的加密消息（协议 FEIP-7）。\n\n• 端到端加密。消息采用双向加密，只有发件人和收件人能读取。\n\n• 由区块链承载。没有邮件服务器；发送、删除和恢复都是链上操作。\n\n• 以 FID 寻址。没有邮箱地址或服务器——只需收件人的 FID。你不能给自己发邮件。\n\n邮件适合不依赖任何服务器、私密且持久的消息。</string>
+
+    <string name="about_token">关于通证</string>
+    <string name="about_token_title">什么是通证？</string>
+    <string name="about_token_message">通证是一种链上的同质化资产（协议 FEIP-20）。\n\n• 任何人都可以部署。部署时即固定它的规则——小数位数、可选的总量上限，以及发行方式。\n\n• 余额存在链上。发行、转账和销毁会转移或减少余额；部署者可以关闭该通证。\n\n• 它的 ID 就是部署交易。\n\n通证是规则在部署时即固定的简单链上资产。</string>
+
+    <string name="about_proof">关于凭证</string>
+    <string name="about_proof_title">什么是凭证？</string>
+    <string name="about_proof_message">凭证是记录某个事实或约定的链上文档（协议 FEIP-14）。\n\n• 存储在区块链上。它有标题和正文，它的 ID 就是签发它的那笔交易。\n\n• 可选的联署。签发者可以邀请联署人；当所有必需的签名齐备后，凭证即生效。\n\n• 可转让。所有权可以转让，所有者可以销毁它。\n\n凭证适合需要持久、可验证签名的收据、证书或约定。</string>
+
+    <string name="about_protocol">关于协议</string>
+    <string name="about_protocol_title">什么是协议？</string>
+    <string name="about_protocol_message">协议是 Freeverse 生态中正式协议的链上登记条目（协议 FEIP-1）。\n\n• 任何人都可以发布。协议无需中心化把关者即可登记在链上。\n\n• 它的 ID 就是发布它的那笔交易。\n\n协议条目让整个生态可以引用并基于公开发布的共享标准进行构建。</string>
+
+    <string name="about_secret">关于密文</string>
+    <string name="about_secret_title">什么是密文？</string>
+    <string name="about_secret_message">密文是存储在链上的加密个人笔记——密码、密钥或任何敏感文本（协议 FEIP-17）。\n\n• 只有你能读取。链上只保存密文；只有持有解密密钥的人才能还原明文。\n\n• 在区块链上备份。你的密文持久保存在链上，并在各设备间同步。\n\n即便存在于公开链上，密文依然能让敏感信息保持私密。</string>
+
+    <string name="about_service">关于服务</string>
+    <string name="about_service_title">什么是服务？</string>
+    <string name="about_service_message">服务是去中心化服务的链上登记条目——API 端点、存储、中继或其他组件（协议 FEIP-5）。\n\n• 任何人都可以发布。服务无需中心化机构即可登记在链上。\n\n• 它记录元数据。端点、可选的定价，以及它所用到的协议和代码的链接。\n\n• 它的 ID（sid）就是发布它的那笔交易。\n\n服务让应用能够在网络中发现并连接到各个提供者。</string>
+
+    <string name="join_square">加入群组</string>
+    <string name="create_square">创建群组</string>
+    <string name="quit_square">退出广场</string>
     <string name="quit_squares">退出广场</string>
     <string name="squares_quit_successfully">已退出广场</string>
-    <string name="group_joined_successfully">已加入群组</string>
-    <string name="group_name">群组名称</string>
-    <string name="group_description">群组描述</string>
-    <string name="enter_group_name_or_id">输入群组名称或ID</string>
-    <string name="group_name_required">群组名称不能为空</string>
+    <string name="square_joined_successfully">已加入广场</string>
+    <string name="square_name">广场名称</string>
+    <string name="enter_square_name_or_id">输入广场名称或ID</string>
 
     <string name="already_a_member">已经是成员</string>
-    <string name="group_published_successfully">群组已发布: %s</string>
-    <string name="failed_to_publish_group">发布群组失败</string>
+    <string name="square_published_successfully">广场已发布: %s</string>
+    <string name="failed_to_publish_square">发布广场失败</string>
 
 
     <string name="no_conversations_selected">未选择任何会话</string>
     <string name="confirm_delete_conversations">删除已选的 %1$d 个会话？</string>
     <string name="conversations_deleted">已删除 %1$d 个会话</string>
     <!-- Group Chat -->
-    <string name="update_group">更新群组</string>
-    <string name="leave_group">退出群组</string>
-    <string name="group_members">群成员</string>
+    <string name="update_square">更新广场</string>
+    <string name="leave_square">退出广场</string>
+    <string name="square_members">群成员</string>
     <string name="sid_copied_to_clipboard">SID 已复制到剪贴板</string>
-    <string name="cdd_requirement_note">您的总 CD 必须大于 %d 才能更新此群组。</string>
-    <string name="group_updated_successfully">群组已更新: %s</string>
-    <string name="failed_to_update_group">更新群组失败</string>
+    <string name="cdd_requirement_note">您的总 CD 必须大于 %d 才能更新此广场。</string>
+    <string name="cdd_required_title">需要销毁 CD</string>
+    <string name="select_cash_for_cdd">更新此广场需销毁超过 %d 的 CD（币天）。请在下一步选择要花费的钞票。</string>
+    <string name="cdd_not_enough_to_update">所选 CD %1$d 不足，必须大于 %2$d 才能更新此广场。</string>
+    <string name="square_updated_successfully">广场已更新: %s</string>
+    <string name="failed_to_update_square">更新广场失败</string>
 
     <!-- Dock Items -->
     <string name="dock_items">DOCK 项目</string>
@@ -1782,6 +1856,18 @@
     <string name="consensus_id_hint">输入共识 ID（如交易 ID）</string>
     <string name="team_name_required">团队名称不能为空</string>
     <string name="consensus_id_required">共识 ID 不能为空</string>
+    <string name="consensus_document">共识文档</string>
+    <string name="consensus_document_required">共识文档不能为空</string>
+    <string name="team_servers_required">需要 DOCK 和 DISK 服务器</string>
+    <string name="team_disk_must_be_service">DISK 必须是服务（请选择一个或输入服务 ID）</string>
+    <string name="failed_to_read_consensus_document">读取共识文档失败</string>
+    <string name="failed_to_upload_consensus_document">上传共识文档失败</string>
+    <string name="uploading_consensus_document">正在上传共识…</string>
+    <string name="view_consensus_document">查看共识</string>
+    <string name="downloading_consensus_document">正在下载共识…</string>
+    <string name="failed_to_download_consensus_document">下载共识文档失败</string>
+    <string name="consensus_not_text">共识文档不是纯文本，无法在此预览。</string>
+    <string name="accept_and_join">接受并加入</string>
     <string name="team_published_successfully">团队已发布: %s</string>
     <string name="failed_to_publish_team">发布团队失败</string>
     <string name="team_joined_successfully">已加入团队</string>
@@ -1835,7 +1921,7 @@
     <string name="clear_list">清空列表</string>
     <string name="fid_list_empty">FID 列表为空</string>
     <string name="added_n_fids">已添加 %d 个 FID</string>
-    <string name="no_symkey_available">此团队暂无对称密钥</string>
+    <string name="no_symkey_available">无密钥，可向队长索取</string>
     <string name="requesting_symkey_from_owner">正在向团队所有者请求对称密钥…</string>
     <string name="symkey_received_can_chat">已收到对称密钥，现在可以发送消息。</string>
 
@@ -1849,7 +1935,7 @@
     <string name="messages_purged">消息已删除</string>
     <string name="view_all_requests">查看全部</string>
     <string name="stranger_messages_count">%d 条消息</string>
-    <string name="stranger_peer_message_with_preview">未知对等方（%1$s）发送: \"%2$s\"。接受或拒绝？</string>
+    <string name="stranger_peer_message_with_preview">未知通讯方（%1$s）发送: \"%2$s\"。接受或拒绝？</string>
     <string name="emoji">表情</string>
     <string name="smileys_people">表情与人物</string>
     <string name="animals_nature">动物与自然</string>
@@ -1888,7 +1974,6 @@
     <string name="enter_fid_or_cid">输入FID或CID</string>
     <string name="confirm_leave_team">确定要离开此团队吗？</string>
     <string name="confirm_leave_teams">确定要离开所选团队吗？</string>
-    <string name="confirm_quit_group">确定要退出所选群组吗？</string>
     <string name="confirm_quit_square">确定要退出所选广场吗？</string>
     <string name="cannot_leave_own_teams_or_rooms">您不能离开自己的团队或房间，但可以解散它们。</string>
     <string name="leaving_team">正在离开团队…</string>
@@ -1897,8 +1982,10 @@
     <string name="no_candidates">无可用候选人</string>
 
     <!-- Archive Activities -->
-    <string name="left_groups">已退出的群组</string>
     <string name="left_squares">已退出的广场</string>
+    <string name="check_invitation">查看邀请</string>
+    <string name="no_team_invitations">没有待处理的邀请</string>
+    <string name="members_count">成员数: %d</string>
     <string name="disbanded_teams">已退出/解散的团队</string>
     <string name="closed_rooms">已退出/关闭的房间</string>
     <string name="no_left_squares">没有已退出的广场</string>
@@ -1953,7 +2040,7 @@
     <string name="room_owner_menu">房主菜单</string>
     <string name="no_rooms_selected">未选择房间</string>
     <string name="room_no_dock_hint">房间没有 DOCK 服务，请先设置主页。</string>
-    <string name="chat_info_group">广场: 链上成员，公开消息</string>
+    <string name="chat_info_square">广场: 链上成员，公开消息</string>
     <string name="chat_info_team">团队: 链上成员，加密消息</string>
     <string name="chat_info_room">房间: 链下成员，加密消息</string>
     <string name="chat_info_p2p">P2P: 加密消息</string>
@@ -1992,7 +2079,6 @@
     <string name="marked_mails_read">已将 %d 封邮件标为已读</string>
     <string name="no_unread_mails">没有未读邮件</string>
     <string name="square_description">广场描述</string>
-    <string name="square_name">广场名称</string>
 
     <string name="mobile_connected">移动数据已连接</string>
     <string name="fid_selected">已选择FID</string>
@@ -2011,6 +2097,7 @@
 
     <string name="set_disk">设置 DISK</string>
     <string name="searching_disk_services">正在搜索 DISK 服务…</string>
+    <string name="searching_services">正在搜索 %s 服务…</string>
     <string name="no_disk_services_found">未找到 DISK 服务</string>
     <string name="service_has_no_disk">该服务不包含 DISK 组件</string>
     <string name="disk_not_configured_prompt">尚未配置 DISK 服务。请选择一个 DISK 服务用于数据存储。</string>
@@ -2036,6 +2123,7 @@
     <string name="recording_permission_required">语音消息需要麦克风权限</string>
     <string name="dock_service_unavailable">DOCK 服务当前不可用。连接恢复后将发送消息。</string>
     <string name="dock_disconnected">服务已断开连接</string>
+    <string name="pending_tx_confirmation">等待链上确认…</string>
     <string name="role_namer">命名者</string>
 
     <string name="im_disabled_subfid">无私钥用于聊天</string>
@@ -2045,4 +2133,258 @@
     <string name="im_setup_dock">设置DOCK</string>
     <string name="im_setup_fudp">设置FUDP</string>
     <string name="im_setup_cancel">暂不</string>
+
+    <!-- Message actions menu -->
+    <string name="resend">重发</string>
+    <string name="confirm_delete_message">删除这条消息？</string>
+    <string name="copied_to_clipboard">已复制到剪贴板</string>
+
+    <!-- DataSyncManager error messages (surfaced via toast) -->
+    <string name="dsm_raw_file_not_exist">原始文件不存在</string>
+    <string name="dsm_fapi_client_unavailable">磁盘服务不可用</string>
+    <string name="dsm_pubkey_unavailable">公钥不可用</string>
+    <string name="dsm_file_encryption_failed">文件加密失败：%1$s</string>
+    <string name="dsm_symkey_encryption_failed">对称密钥加密失败：%1$s</string>
+    <string name="dsm_upload_to_disk_failed">上传到磁盘失败：%1$s</string>
+    <string name="dsm_upload_to_disk_failed_simple">上传到磁盘失败</string>
+    <string name="dsm_upload_failed">上传失败：%1$s</string>
+    <string name="dsm_download_failed">下载失败：%1$s</string>
+    <string name="dsm_data_is_empty">数据为空</string>
+    <string name="dsm_hat_is_null">HAT 为空</string>
+    <string name="dsm_no_locations">HAT 中无可用位置或密文 ID</string>
+    <string name="dsm_download_all_failed">无法从任何密文来源下载</string>
+    <string name="dsm_file_does_not_exist">文件不存在</string>
+    <string name="dsm_unknown_error">未知错误</string>
+
+    <!-- MessageQueue failure reasons (surfaced via toast) -->
+    <string name="mq_delivery_permanently_failed">发送永久失败</string>
+    <string name="mq_max_retries_exceeded">超过最大重试次数</string>
+
+    <!-- Localized toast messages (auto-added) -->
+    <string name="toast_config_not_found">未找到配置</string>
+    <string name="toast_error_saving_key">保存密钥出错：%1$s</string>
+    <string name="toast_password_changed_restart">密码已修改，请重启应用</string>
+    <string name="toast_error_no_entity_data">错误：没有可用的实体数据</string>
+    <string name="toast_failed_decode_image">图片解码失败</string>
+    <string name="toast_avatar_saved_gallery">头像已保存到相册</string>
+    <string name="toast_error_saving_avatar">保存头像出错：%1$s</string>
+    <string name="toast_failed_save_avatar">保存头像失败</string>
+    <string name="toast_content_copied">内容已复制到剪贴板</string>
+    <string name="toast_error_showing_dialog">显示对话框出错：%1$s</string>
+    <string name="toast_error_copying_fid">复制FID出错</string>
+    <string name="toast_no_proofs_for_destruction">未提供待销毁的证明</string>
+    <string name="toast_no_valid_proofs">未找到有效的证明</string>
+    <string name="toast_error_loading_proof">加载证明数据出错</string>
+    <string name="toast_no_proofs_to_destroy">没有可销毁的证明</string>
+    <string name="toast_deleted_proofs_local">已在本地删除%1$d个链下证明</string>
+    <string name="toast_no_active_key">没有可用的活动密钥</string>
+    <string name="toast_failed_destroy_proofs_onchain">链上销毁证明失败：%1$s</string>
+    <string name="toast_sign_tx_failed_unsigned">无法签名交易 - 显示未签名交易</string>
+    <string name="toast_proofs_deleted_local">证明已在本地删除</string>
+    <string name="toast_fid_added_to_list">FID已添加到列表</string>
+    <string name="toast_no_data_create_qr">没有可用于生成二维码的数据</string>
+    <string name="toast_invalid_fid">无效的FID</string>
+    <string name="toast_api_center_unavailable">API中心不可用</string>
+    <string name="toast_fapi_client_unavailable">FAPI客户端不可用</string>
+    <string name="toast_failed_load_fid_info">加载FID信息失败</string>
+    <string name="toast_error_loading_fid_info">加载FID信息出错：%1$s</string>
+    <string name="toast_tokens_must_publish_onchain">通证必须发布到链上</string>
+    <string name="toast_loaded_proofs">已加载%1$d个证明</string>
+    <string name="toast_loaded_newer_proofs">已加载%1$d个较新的证明</string>
+    <string name="toast_record_to_be_implemented">记录功能待实现</string>
+    <string name="toast_loaded_apps">已加载%1$d个应用</string>
+    <string name="toast_loaded_newer_apps">已加载%1$d个较新的应用</string>
+    <string name="toast_hidden_tokens">已隐藏%1$d个通证</string>
+    <string name="toast_error_detail">错误：%1$s</string>
+    <string name="toast_failed_carve_cid_onchain">链上铸刻CID失败：%1$s</string>
+    <string name="toast_hidden_token_holders">已隐藏%1$d个通证持有者</string>
+    <string name="toast_failed_load_proof_data">加载证明数据失败</string>
+    <string name="toast_failed_carve_feip">链上铸刻FEIP失败：%1$s</string>
+    <string name="toast_failed_add_contacts">添加联系人失败</string>
+    <string name="toast_cosigner_already_added">联署人已添加</string>
+    <string name="toast_cosigner_added">已添加联署人</string>
+    <string name="toast_fid_added_to_input">FID已添加到输入</string>
+    <string name="toast_loaded_contacts">已加载%1$d个联系人</string>
+    <string name="toast_loaded_newer_contacts">已加载%1$d个较新的联系人</string>
+    <string name="toast_added_contact_fids">已添加%1$d个联系人FID到列表</string>
+    <string name="toast_no_valid_fids_in_contacts">所选联系人中未找到有效的FID</string>
+    <string name="toast_invalid_contact">无效的联系人</string>
+    <string name="toast_contact_already_onchain">联系人已在链上</string>
+    <string name="toast_no_live_key">没有可用的活动密钥</string>
+    <string name="toast_invalid_public_key">无效的公钥</string>
+    <string name="toast_failed_get_prikey_signing">无法获取用于交易签名的私钥</string>
+    <string name="toast_no_fids_in_list">列表中未找到FID</string>
+    <string name="toast_completed_processing_fids">已完成处理%1$d个FID</string>
+    <string name="toast_stopped_at_fid">已在第%1$d/%2$d个FID处停止</string>
+    <string name="toast_skipped_fid">已跳过第%1$d/%2$d个FID</string>
+    <string name="toast_contact_carved_fid">已为第%1$d/%2$d个FID铸刻联系人</string>
+    <string name="toast_error_carving_contact">铸刻联系人出错：%1$s</string>
+    <string name="toast_failed_load_newer_deleted_contacts">加载较新的已删除联系人失败</string>
+    <string name="toast_loaded_newer_deleted_contacts">已加载%1$d个较新的已删除联系人</string>
+    <string name="toast_no_newer_deleted_contacts">未找到较新的已删除联系人</string>
+    <string name="toast_error_loading_newer_deleted_contacts">加载较新的已删除联系人出错：%1$s</string>
+    <string name="toast_failed_load_earlier_deleted_contacts">加载较早的已删除联系人失败</string>
+    <string name="toast_loaded_earlier_deleted_contacts">已加载%1$d个较早的已删除联系人</string>
+    <string name="toast_no_more_earlier_deleted_contacts">没有更多较早的已删除联系人</string>
+    <string name="toast_error_loading_earlier_deleted_contacts">加载较早的已删除联系人出错：%1$s</string>
+    <string name="toast_no_contacts_selected_recovery">未选择要恢复的联系人</string>
+    <string name="toast_no_valid_contact_ids_recovery">没有有效的可恢复联系人ID</string>
+    <string name="toast_failed_recover_contacts_onchain">链上恢复联系人失败：%1$s</string>
+    <string name="toast_contacts_recovered_local">联系人已在本地恢复</string>
+    <string name="toast_contacts_recovered_offchain">联系人恢复成功（链下）</string>
+    <string name="toast_failed_recover_contacts">恢复联系人失败：%1$s</string>
+    <string name="toast_invalid_prikey_format">私钥格式无效</string>
+    <string name="toast_prikey_no_match_fid">私钥与当前FID不匹配</string>
+    <string name="toast_error_processing_prikey">处理私钥出错：%1$s</string>
+    <string name="toast_failed_decrypt_detail">解密失败：%1$s</string>
+    <string name="toast_invalid_decrypted_prikey">解密的私钥无效</string>
+    <string name="toast_decrypted_prikey_mismatch">解密的私钥与当前FID不匹配</string>
+    <string name="toast_error_decrypting_prikey">解密私钥出错：%1$s</string>
+    <string name="toast_phrase_no_match_fid">助记词无法生成当前FID</string>
+    <string name="toast_error_processing_phrase">处理助记词出错：%1$s</string>
+    <string name="toast_config_unavailable">配置不可用</string>
+    <string name="toast_encryption_key_unavailable">加密密钥不可用</string>
+    <string name="toast_failed_encrypt_prikey">加密私钥失败：%1$s</string>
+    <string name="toast_fid_manager_unavailable">FidManager不可用</string>
+    <string name="toast_live_keyinfo_unavailable">活动KeyInfo不可用</string>
+    <string name="toast_prikey_saved">私钥保存成功</string>
+    <string name="toast_failed_save_prikey">保存私钥失败</string>
+    <string name="toast_error_saving_prikey">保存私钥出错：%1$s</string>
+    <string name="toast_no_master_yet">尚无主控</string>
+    <string name="toast_api_service_unavailable">API服务不可用</string>
+    <string name="toast_no_master_announcement">未找到主控公告</string>
+    <string name="toast_no_cipher_prikey">未找到私钥密文</string>
+    <string name="toast_error_loading_master_announcement">加载主控公告出错：%1$s</string>
+    <string name="toast_error_processing_master">处理主控出错：%1$s</string>
+    <string name="toast_fid_selected">已选择FID</string>
+    <string name="toast_please_select_fid">请先选择一个FID</string>
+    <string name="toast_no_contact_data">未提供联系人数据</string>
+    <string name="toast_invalid_contact_data">无效的联系人数据</string>
+    <string name="toast_error_loading_contact">加载联系人数据出错</string>
+    <string name="toast_contact_updated">联系人更新成功</string>
+    <string name="toast_contact_updated_local">联系人已在本地更新</string>
+    <string name="toast_no_keys_selected">未选择密钥</string>
+    <string name="toast_no_contacts_for_deletion">未提供待删除的联系人</string>
+    <string name="toast_no_valid_contacts">未找到有效的联系人</string>
+    <string name="toast_no_contacts_to_delete">没有可删除的联系人</string>
+    <string name="toast_deleted_contacts_local">已在本地删除%1$d个链下联系人</string>
+    <string name="toast_failed_delete_contacts_onchain">链上删除联系人失败：%1$s</string>
+    <string name="toast_contacts_deleted_local">联系人已在本地删除</string>
+    <string name="toast_please_enter_public_key">请输入公钥</string>
+    <string name="toast_invalid_private_key">无效的私钥</string>
+    <string name="toast_private_key_empty">私钥为空</string>
+    <string name="toast_prikey_cipher_empty">私钥密文为空</string>
+    <string name="toast_password_empty">密码为空</string>
+    <string name="toast_failed_decrypt_prikey">解密私钥失败</string>
+    <string name="toast_failed_save_key_info">保存密钥信息失败</string>
+    <string name="toast_fid_empty">FID为空</string>
+    <string name="toast_failed_convert_multisig_contact">转换多签为联系人失败</string>
+    <string name="toast_unexpected_error">意外错误</string>
+    <string name="toast_tx_well_signed_build">交易已完成签名！请构建。</string>
+    <string name="toast_signed">已签名！</string>
+    <string name="toast_failed_get_prikey_of">无法获取%1$s的私钥</string>
+    <string name="toast_key_not_part_multisig">所选密钥不属于此多签交易</string>
+    <string name="toast_failed_get_key_info_of">无法获取%1$s的密钥信息</string>
+    <string name="toast_no_active_key_decrypt">没有可用于解密的活动密钥</string>
+    <string name="toast_failed_get_private_key">无法获取私钥</string>
+    <string name="toast_error_showing_content">显示内容出错：%1$s</string>
+    <string name="toast_failed_decrypt_content">解密内容失败</string>
+    <string name="toast_error_decrypting_content">解密内容出错：%1$s</string>
+    <string name="toast_error_initiating_decryption">启动解密出错：%1$s</string>
+    <string name="toast_failed_load_cid_info">加载CID信息失败</string>
+    <string name="toast_no_fapi_client">没有可用的FAPI客户端</string>
+    <string name="toast_cash_db_refreshed">现金数据库已刷新</string>
+    <string name="toast_network_unavailable_broadcast_manual">网络不可用，请手动广播。</string>
+    <string name="toast_network_unavailable_broadcast_qr">网络不可用，请使用二维码手动广播。</string>
+    <string name="toast_error_scanning_qr">扫描二维码出错：%1$s</string>
+    <string name="toast_error_reading_image">读取图片出错：%1$s</string>
+    <string name="toast_unexpected_error_detail">意外错误：%1$s</string>
+    <string name="toast_creating_outputs">正在为%1$d个联系人创建输出</string>
+    <string name="toast_error_launching_delete">启动删除界面出错</string>
+    <string name="toast_please_enter_password">请输入您的密码</string>
+    <string name="toast_no_issue_data">没有议题数据</string>
+    <string name="toast_failed_parse_issue_data">解析议题数据失败</string>
+    <string name="toast_voice_message_too_large">语音消息过大</string>
+    <string name="toast_totp_save_base32">保存失败！TOTP密钥必须是base32编码</string>
+    <string name="toast_storage_permission_required">保存备份文件需要存储权限</string>
+    <string name="toast_no_data_make_qr">没有可用于生成二维码的数据。</string>
+    <string name="toast_copied_to_clipboard">已复制到剪贴板</string>
+    <string name="toast_nothing_to_copy">没有可复制的内容</string>
+    <string name="toast_exported_to">已导出到：%1$s</string>
+    <string name="toast_failed_save_file">保存文件失败</string>
+    <string name="toast_error_processing_secret">处理私密出错：%1$s</string>
+    <string name="toast_imported_cash">已导入%1$d个现金，拒绝%2$d项</string>
+    <string name="toast_loaded_secrets">已加载%1$d个私密</string>
+    <string name="toast_loaded_newer_secrets">已加载%1$d个较新的私密</string>
+    <string name="toast_invalid_secret">无效的私密</string>
+    <string name="toast_secret_already_onchain">私密已在链上</string>
+    <string name="toast_not_offchain_secret">此私密不是链下私密</string>
+    <string name="toast_no_content_send_onchain">没有可发送到链上的内容</string>
+    <string name="toast_failed_carve_secret_onchain">链上铸刻私密失败：%1$s</string>
+    <string name="toast_error_creating_tx">创建交易出错：%1$s</string>
+    <string name="toast_no_secrets_for_deletion">未提供待删除的私密</string>
+    <string name="toast_no_valid_secrets">未找到有效的私密</string>
+    <string name="toast_error_loading_secret">加载私密数据出错</string>
+    <string name="toast_no_secrets_to_delete">没有可删除的私密</string>
+    <string name="toast_deleted_secrets_local">已在本地删除%1$d个链下私密</string>
+    <string name="toast_failed_delete_secrets_onchain">链上删除私密失败：%1$s</string>
+    <string name="toast_secrets_deleted_local">私密已在本地删除</string>
+    <string name="toast_error_generating_qr">生成二维码出错：%1$s</string>
+    <string name="toast_no_secret_data">未提供私密数据</string>
+    <string name="toast_invalid_secret_data">无效的私密数据</string>
+    <string name="toast_totp_update_base32">更新失败！TOTP密钥必须是base32编码</string>
+    <string name="toast_secret_updated">私密更新成功</string>
+    <string name="toast_secret_updated_local">私密已在本地更新</string>
+
+    <!-- Combined DOCK + DISK server setup -->
+    <string name="server_setup_title">设置服务器</string>
+    <string name="server_setup_message">消息（DOCK）和数据（DISK）需要服务器。可对两者使用当前服务器，或分别设置。</string>
+    <string name="server_setup_action">设置</string>
+    <string name="server_setup_dock_label">消息服务器（DOCK）</string>
+    <string name="server_setup_disk_label">数据服务器（DISK）</string>
+    <string name="server_setup_dock_hint">DOCK 中继的服务 ID 或 URL</string>
+    <string name="server_setup_disk_hint">DISK 存储的服务 ID</string>
+    <string name="server_setup_need_one">请至少输入一个要注册的服务器</string>
+    <string name="publishing">发布中…</string>
+    <string name="server_setup_registered">服务器注册成功！TX: %s</string>
+    <string name="server_setup_failed">注册服务器失败</string>
+    <string name="team_invite_plain_message">您已被邀请加入团队 \'%1$s\'（团队 ID：%2$s）。请验证共识文件并查看您的团队邀请。</string>
+    <string name="team_invite_plain_message_no_doc">您已被邀请加入团队 \'%1$s\'（团队 ID：%2$s）。请查看您的团队邀请。</string>
+    <string name="select_consensus_document">选择共识文件</string>
+    <string name="no_consensus_doc">无共识文件（可选）</string>
+    <string name="all_teams">所有团队</string>
+    <string name="including_ignored">包含已忽略</string>
+    <string name="invitations">邀请</string>
+    <string name="pending_transfers">待处理转移</string>
+    <string name="status_pending_transfer">转移待处理</string>
+    <string name="no_pending_transfers">无待处理转移</string>
+    <string name="ignored">已忽略</string>
+    <string name="team_invite_system_message">已邀请您加入团队 \'%1$s\'。交易在链上确认后，打开邀请即可加入。</string>
+    <string name="team_transfer_system_message">团队 \'%1$s\' 正在转移给您。交易在链上确认后，打开待处理转移即可接受。</string>
+
+    <string name="retry">重试</string>
+    <string name="im_connecting">正在连接消息服务…</string>
+    <string name="im_not_ready_retry">消息服务未就绪</string>
+    <string name="asking_symkey">正在请求对称密钥…</string>
+    <string name="symkey_received_version">已收到对称密钥（v%d）</string>
+    <string name="im_channel_ready">消息服务已就绪</string>
+    <string name="asking_room_info">正在请求房间信息…</string>
+    <string name="room_info_received_symkey">已收到房间信息（对称密钥 v%d）</string>
+
+    <!-- First-FCH request board (default nobody freer) -->
+    <string name="first_fch_board_name">首币求助板</string>
+    <string name="nobody_board_education">这是一个建立在 nobody 身份上的公开求助板：它的私钥是公开的，这里的内容任何人都能看到、也能冒名发布。它只用于求取你的第一笔 FCH。领取 FCH 永远不需要付款、点击链接或提供任何信息；唯一的凭证是你自己的余额增加。</string>
+    <string name="nobody_partner_warning">该身份是 nobody：私钥公开，任何人都可以用它发消息，其内容不可信。</string>
+    <string name="nobody_content_hidden">[来自不可验证（nobody）身份的内容已隐藏]</string>
+    <string name="im_send_only_no_dock">只发模式：你还没有接收（DOCK）服务器，可以发送消息但收不到回复。首币求助的回应会以到账的形式出现在你的钱包里。</string>
+    <string name="talk_send_only_banner">只发模式 — 去设置接收服务器</string>
+    <string name="newcomer_requests">查看新人求助</string>
+    <string name="newcomer_requests_empty">暂无待处理的首币求助</string>
+    <string name="newcomer_requests_loading">正在从求助板加载…</string>
+    <string name="newcomer_requests_no_dock">无法连接求助板的 DOCK 服务器</string>
+    <string name="send_fch">发送 FCH</string>
+    <string name="newcomer_requests_none_selected">未选择任何求助</string>
+    <string name="ask_first_fch">去首币求助板求助</string>
+    <string name="first_fch_request_sent_as">你的消息将作为 %1$s 的首币求助公开发布</string>
+
 </resources>

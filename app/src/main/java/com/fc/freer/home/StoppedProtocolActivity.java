@@ -597,8 +597,6 @@ public class StoppedProtocolActivity extends BaseCryptoActivity {
                                 protocolManager.commit();
                                 protocolList.removeAll(protocolsToRecover);
 
-                                ToastUtils.makeText(StoppedProtocolActivity.this,
-                                    getString(R.string.protocols_recovered_successfully, txId));
                                 updateUI();
                                 setResult(Activity.RESULT_OK);
                             });

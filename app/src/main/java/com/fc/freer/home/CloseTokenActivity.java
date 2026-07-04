@@ -118,8 +118,8 @@ public class CloseTokenActivity extends BaseCryptoActivity {
             for (String tokenId : tokenIds) {
                 Token token = tokenManager.fetchTokenById(tokenId);
                 if (token != null && liveFid != null && liveFid.equals(token.getDeployer())
-                    && "true".equalsIgnoreCase(token.getClosable())
-                    && !"true".equalsIgnoreCase(token.getClosed())) {
+                    && Boolean.TRUE.equals(token.getClosable())
+                    && !Boolean.TRUE.equals(token.getClosed())) {
                     tokenList.add(token);
                 }
             }
@@ -253,8 +253,6 @@ public class CloseTokenActivity extends BaseCryptoActivity {
                                 resultIntent.putExtra("closed_token_ids", tokenIds.toArray(new String[0]));
                                 setResult(Activity.RESULT_OK, resultIntent);
 
-                                ToastUtils.makeText(CloseTokenActivity.this, 
-                                    getString(R.string.token_closed_successfully, txId));
                                 finish();
                             });
                         }

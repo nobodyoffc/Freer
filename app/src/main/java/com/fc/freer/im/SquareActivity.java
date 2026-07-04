@@ -43,7 +43,9 @@ import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ToastUtils;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Activity for Square conversations list.
@@ -246,21 +248,86 @@ public class SquareActivity extends BaseCryptoActivity implements ConversationAd
             return;
         }
 
+        SquareHandler squareHandler = imManager.getSquareHandler();
+
+        // Self-heal: the cursor-based sync can permanently skip a member square whose
+        // lastHeight sits below the local sync cursor (e.g. an old square the user just
+        // joined). Create conversations for any cached member square that lacks one so it
+        // shows up regardless of what the cursor sync has discovered.
+        healMissingSquareConversations(squareHandler);
+
         List<Conversation> all = imManager.getConversations();
         conversations.clear();
 
-        SquareHandler squareHandler = imManager.getSquareHandler();
+        Set<String> confirmedSquareIds = new HashSet<>();
         for (Conversation conv : all) {
             if (conv.getType() == ImType.SQUARE) {
                 if (conv.getLeftGroup() != null && conv.getLeftGroup()) continue;
                 resolveSquareInfo(conv, squareHandler);
                 conversations.add(conv);
+                confirmedSquareIds.add(conv.getTargetId());
             }
         }
 
+        // Inject pending squares (TX broadcast but not yet confirmed on chain).
+        Set<String> pendingIds = new HashSet<>();
+        if (squareHandler != null) {
+            for (Square pending : squareHandler.getPendingSquares()) {
+                if (confirmedSquareIds.contains(pending.getId())) continue;
+                Conversation conv = new Conversation();
+                conv.setId("SQUARE_PENDING_" + pending.getId());
+                conv.setType(ImType.SQUARE);
+                conv.setTargetId(pending.getId());
+                conv.setDisplayName(pending.getName());
+                conversations.add(0, conv);
+                pendingIds.add(pending.getId());
+            }
+        }
+
+        adapter.setPendingTargetIds(pendingIds);
         adapter.setUnavailableTargetIds(imManager.getUnavailableTargetIds("square"));
         filterConversations(searchEditText.getText().toString());
         swipeRefreshLayout.setRefreshing(false);
+    }
+
+    /**
+     * Ensure every cached square the live FID is a confirmed member of has a Conversation
+     * row. Compensates for {@link SquareSyncManager}'s forward-only lastHeight cursor, which
+     * can skip squares whose lastHeight is below the cursor (e.g. an old square just joined).
+     * Squares that already have a conversation (including ones marked left) are left untouched.
+     */
+    private void healMissingSquareConversations(SquareHandler squareHandler) {
+        if (squareHandler == null || liveFid == null) return;
+        com.fc.fc_ajdk.db.LocalDB<Conversation> convDb = imManager.getConversationsDb();
+        if (convDb == null) return;
+
+        for (Square square : squareHandler.getAllSquares()) {
+            if (square == null || square.getId() == null) continue;
+            boolean isMember = square.getMembers() != null && square.getMembers().contains(liveFid);
+            if (!isMember) continue;
+
+            String convId = ImType.SQUARE.name() + "_" + square.getId();
+            if (convDb.get(convId) != null) continue;
+
+            Conversation conv = new Conversation();
+            conv.setId(convId);
+            conv.setType(ImType.SQUARE);
+            conv.setTargetId(square.getId());
+            conv.setLeftGroup(false);
+            conv.setCreatedAt(square.getBirthTime());
+            conv.setDisplayName(square.getName());
+            if (square.getNamers() != null && !square.getNamers().isEmpty()) {
+                conv.setAvatarDid(square.getNamers().get(square.getNamers().size() - 1));
+            }
+            conv.setMemberNum(square.getMemberNum());
+            conv.settCdd(square.gettCdd());
+            convDb.put(convId, conv);
+
+            if (imManager.getDockRegistry() != null && imManager.getFapiClient() != null) {
+                imManager.getDockRegistry().registerSquare(square, imManager.getFapiClient());
+            }
+            TimberLogger.i(TAG, "Healed missing conversation for member square: %s", square.getId());
+        }
     }
 
     private void resolveSquareInfo(Conversation conv, SquareHandler squareHandler) {
@@ -419,8 +486,6 @@ public class SquareActivity extends BaseCryptoActivity implements ConversationAd
                         public void onSuccess(String txId) {
                             markGroupConversationsAsLeft(groupIds);
                             runOnUiThread(() -> {
-                                ToastUtils.makeText(SquareActivity.this,
-                                        getString(R.string.squares_quit_successfully));
                                 loadConversations();
                             });
                         }
@@ -471,6 +536,11 @@ public class SquareActivity extends BaseCryptoActivity implements ConversationAd
         popupWindow.setOutsideTouchable(true);
         popupWindow.setBackgroundDrawable(new ColorDrawable(getResources().getColor(R.color.background_light, null)));
 
+        popupView.findViewById(R.id.menu_about_square).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            showAboutSquare();
+        });
+
         popupView.findViewById(R.id.menu_left_groups).setOnClickListener(v -> {
             popupWindow.dismiss();
             startActivity(new Intent(this, LeftSquareActivity.class));
@@ -479,6 +549,14 @@ public class SquareActivity extends BaseCryptoActivity implements ConversationAd
         popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         int popupHeight = popupView.getMeasuredHeight();
         popupWindow.showAsDropDown(anchor, 0, -anchor.getHeight() - popupHeight);
+    }
+
+    private void showAboutSquare() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.about_square_title)
+                .setMessage(R.string.about_square_message)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
     }
 
     // ========== "+" Menu ==========

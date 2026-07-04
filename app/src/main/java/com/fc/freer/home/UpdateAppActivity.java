@@ -468,14 +468,8 @@ public class UpdateAppActivity extends BaseCryptoActivity {
                                         appManager.commit();
                                     }
                                     
-                                    ToastUtils.makeText(UpdateAppActivity.this,
-                                        getString(R.string.app_published_successfully, txId));
-                                } else {
-                                    // For updates: just show success message
-                                    ToastUtils.makeText(UpdateAppActivity.this,
-                                        getString(R.string.app_updated_successfully, txId));
                                 }
-                                
+
                                 setResult(RESULT_OK);
                                 finish();
                             });

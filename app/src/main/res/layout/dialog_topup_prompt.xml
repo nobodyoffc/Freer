@@ -50,6 +50,15 @@
                 android:background="@drawable/bg_input_view"
                 android:padding="12dp" />
 
+            <!-- Ask on the first-FCH request board -->
+            <Button
+                android:id="@+id/topupAskBoardButton"
+                style="@style/ButtonStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ask_first_fch"
+                android:layout_marginBottom="8dp" />
+
         </LinearLayout>
 
     </ScrollView>

@@ -916,7 +916,7 @@ public class AppActivity extends BaseCryptoActivity {
 
                 TimberLogger.i(TAG, "Loaded %d app items, window size: %d/%d",
                     moreItems.size(), appList.size(), maxWindowSize);
-                ToastUtils.makeText(this, "Loaded " + moreItems.size() + " apps");
+                ToastUtils.makeText(this, getString(R.string.toast_loaded_apps, moreItems.size()));
             } else {
                 loadEarlierApps();
             }
@@ -987,7 +987,7 @@ public class AppActivity extends BaseCryptoActivity {
 
                 TimberLogger.i(TAG, "Loaded %d newer app items to container, window size: %d/%d",
                     newerItems.size(), appList.size(), maxWindowSize);
-                ToastUtils.makeText(this, "Loaded " + newerItems.size() + " newer apps");
+                ToastUtils.makeText(this, getString(R.string.toast_loaded_newer_apps, newerItems.size()));
             } else {
                 hasMoreNewerData = false;
                 TimberLogger.i(TAG, "No more newer app items available");
@@ -1179,6 +1179,11 @@ public class AppActivity extends BaseCryptoActivity {
         popupView.findViewById(R.id.my_apps_item).setOnClickListener(v -> {
             popupWindow.dismiss();
             searchMyApps();
+        });
+
+        popupView.findViewById(R.id.about_item).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            com.fc.freer.utils.AboutDialog.show(this, R.string.about_app_title, R.string.about_app_message);
         });
 
         // Measure the popup view to get its height
@@ -1482,9 +1487,6 @@ public class AppActivity extends BaseCryptoActivity {
 
                                 // Refresh the UI to show updated status
                                 refreshList();
-
-                                ToastUtils.makeText(AppActivity.this,
-                                    getString(R.string.app_carved_on_chain, txId));
                             });
                         }
 

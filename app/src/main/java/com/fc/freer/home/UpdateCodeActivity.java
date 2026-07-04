@@ -245,9 +245,6 @@ public class UpdateCodeActivity extends BaseCryptoActivity {
                                         codeManager.addCode(updatedCode);
                                         codeManager.commit();
                                     }
-                                    ToastUtils.makeText(UpdateCodeActivity.this, getString(R.string.code_published_successfully, txId));
-                                } else {
-                                    ToastUtils.makeText(UpdateCodeActivity.this, getString(R.string.code_updated_successfully, txId));
                                 }
                                 setResult(RESULT_OK);
                                 finish();

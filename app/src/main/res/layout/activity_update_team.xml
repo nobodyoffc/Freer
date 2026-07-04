@@ -86,11 +86,26 @@
                 android:textSize="14sp"
                 android:layout_marginBottom="4dp" />
 
-            <include
-                android:id="@+id/dockView"
-                layout="@layout/layout_text_input_with_scan"
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <include
+                    android:id="@+id/dockView"
+                    layout="@layout/layout_text_input_with_scan"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1" />
+
+                <ImageButton
+                    android:id="@+id/choose_dock_button"
+                    style="@style/ImageButtonStyle"
+                    android:layout_marginStart="8dp"
+                    android:src="@drawable/ic_search"
+                    android:contentDescription="@string/choose_another" />
+            </LinearLayout>
 
         </LinearLayout>
 

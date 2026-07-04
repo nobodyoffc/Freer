@@ -417,7 +417,6 @@ public class SetCidActivity extends com.fc.freer.BaseCryptoActivity {
                         @Override
                         public void onSuccess(String txId) {
                             runOnUiThread(() -> {
-                                ToastUtils.makeText(SetCidActivity.this, getString(R.string.cid_carved));
                                 liveKeyInfo.setCid(generatedCid);
 
                                 setResult(RESULT_OK);
@@ -428,14 +427,14 @@ public class SetCidActivity extends com.fc.freer.BaseCryptoActivity {
                         @Override
                         public void onError(String errorMessage) {
                             runOnUiThread(() -> {
-                                ToastUtils.makeText(SetCidActivity.this, "Failed to carve CID on-chain: " + errorMessage);
+                                ToastUtils.makeText(SetCidActivity.this, getString(R.string.toast_failed_carve_cid_onchain, errorMessage));
                             });
                         }
 
                         @Override
                         public void onUnsignedTx(RawTxInfo rawTxInfo) {
                             runOnUiThread(() -> {
-                                ToastUtils.makeText(SetCidActivity.this, "Cannot sign transaction - showing unsigned TX");
+                                ToastUtils.makeText(SetCidActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
                                 txSender.showUnsignedTxAsQR(SetCidActivity.this, rawTxInfo);
                             });
                         }

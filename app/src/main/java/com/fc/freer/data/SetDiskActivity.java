@@ -68,6 +68,11 @@ public class SetDiskActivity extends BaseCryptoActivity {
         return Constants.DISK_NO1_NRC7.equalsIgnoreCase(component());
     }
 
+    /** Short display label for the current component, e.g. "DISK" or "DOCK". */
+    private String componentLabel() {
+        return component().split("@")[0];
+    }
+
     private LinearLayout apiCardsContainer;
     private android.widget.ScrollView scrollView;
     private TextView currentDiskText;
@@ -249,7 +254,7 @@ public class SetDiskActivity extends BaseCryptoActivity {
         hasMore = true;
 
         runOnUiThread(() -> {
-            waitingDialog = new WaitingDialog(this, getString(R.string.searching_disk_services));
+            waitingDialog = new WaitingDialog(this, getString(R.string.searching_services, componentLabel()));
             waitingDialog.show();
         });
 

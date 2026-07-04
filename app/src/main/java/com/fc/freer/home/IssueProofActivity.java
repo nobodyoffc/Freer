@@ -186,7 +186,7 @@ public class IssueProofActivity extends BaseCryptoActivity {
                     populateProofData(proof);
                 } catch (Exception e) {
                     TimberLogger.e(TAG, "Failed to parse proof JSON: %s", e.getMessage());
-                    ToastUtils.makeText(this, "Failed to load proof data");
+                    ToastUtils.makeText(this, getString(R.string.toast_failed_load_proof_data));
                 }
             }
         }
@@ -370,14 +370,14 @@ public class IssueProofActivity extends BaseCryptoActivity {
                     @Override
                     public void onError(String errorMessage) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(IssueProofActivity.this, "Failed to carve FEIP on-chain: " + errorMessage);
+                            ToastUtils.makeText(IssueProofActivity.this, getString(R.string.toast_failed_carve_feip, errorMessage));
                         });
                     }
 
                     @Override
                     public void onUnsignedTx(RawTxInfo rawTxInfo) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(IssueProofActivity.this, "Cannot sign transaction - showing unsigned TX");
+                            ToastUtils.makeText(IssueProofActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
                             txSender.showUnsignedTxAsQR(IssueProofActivity.this, rawTxInfo);
                         });
                     }
@@ -438,7 +438,7 @@ public class IssueProofActivity extends BaseCryptoActivity {
                             }
                         } catch (Exception e) {
                             TimberLogger.e(TAG, "Failed to parse selected contacts: %s", e.getMessage());
-                            ToastUtils.makeText(this, "Failed to add contacts");
+                            ToastUtils.makeText(this, getString(R.string.toast_failed_add_contacts));
                         }
                     }
                 }
@@ -489,7 +489,7 @@ public class IssueProofActivity extends BaseCryptoActivity {
      */
     private void addCosignerFid(String fid) {
         if (fid == null || fid.trim().isEmpty()) {
-            ToastUtils.makeText(this, "Invalid FID");
+            ToastUtils.makeText(this, getString(R.string.toast_invalid_fid));
             return;
         }
 
@@ -497,7 +497,7 @@ public class IssueProofActivity extends BaseCryptoActivity {
 
         // Check if already added
         if (cosignerFids.contains(trimmedFid)) {
-            ToastUtils.makeText(this, "Cosigner already added");
+            ToastUtils.makeText(this, getString(R.string.toast_cosigner_already_added));
             return;
         }
 
@@ -516,7 +516,7 @@ public class IssueProofActivity extends BaseCryptoActivity {
             cosignersInput.setText("");
         }
 
-        ToastUtils.makeText(this, "Cosigner added");
+        ToastUtils.makeText(this, getString(R.string.toast_cosigner_added));
     }
 
     /**

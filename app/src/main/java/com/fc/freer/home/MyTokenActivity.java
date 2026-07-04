@@ -1,5 +1,7 @@
 package com.fc.freer.home;
 
+import static com.fc.fc_ajdk.constants.IndicesNames.TOKEN;
+
 import android.content.Intent;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
@@ -18,21 +20,33 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import com.fc.fc_ajdk.core.fch.RawTxInfo;
+import com.fc.fc_ajdk.core.fch.TxHandler;
+import com.fc.fc_ajdk.data.fcData.KeyInfo;
+import com.fc.fc_ajdk.data.feipData.Feip;
+import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.data.feipData.Token;
 import com.fc.fc_ajdk.data.feipData.TokenHolder;
+import com.fc.fc_ajdk.data.feipData.TokenOpData;
+import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.FreerApplication;
 import com.fc.freer.R;
+import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.manager.TokenManager;
+import com.fc.freer.tx.TxSender;
 import com.fc.freer.ui.WaitingDialog;
+import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.ChooseMode;
+import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.utils.TokenHolderCardContainer;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -45,7 +59,6 @@ public class MyTokenActivity extends BaseCryptoActivity {
 
     private ImageButton moreButton;
     private ImageButton tokensButton;
-    private ImageButton hideButton;
     private ImageButton clearButton;
     private ImageButton historyButton;
     private ImageButton backButton;
@@ -63,6 +76,7 @@ public class MyTokenActivity extends BaseCryptoActivity {
     private ActivityResultLauncher<Intent> tokensLauncher;
     private ActivityResultLauncher<Intent> historyLauncher;
     private ActivityResultLauncher<Intent> sendTokenLauncher;
+    private ActivityResultLauncher<Intent> hiddenLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -115,6 +129,15 @@ public class MyTokenActivity extends BaseCryptoActivity {
                 }
             }
         );
+
+        hiddenLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK) {
+                    refreshList();
+                }
+            }
+        );
     }
 
     @Override
@@ -131,7 +154,6 @@ public class MyTokenActivity extends BaseCryptoActivity {
     protected void initializeViews() {
         moreButton = findViewById(R.id.more_button);
         tokensButton = findViewById(R.id.tokens_button);
-        hideButton = findViewById(R.id.hide_button);
         clearButton = findViewById(R.id.clear_button);
         historyButton = findViewById(R.id.history_button);
         backButton = findViewById(R.id.back_button);
@@ -142,8 +164,138 @@ public class MyTokenActivity extends BaseCryptoActivity {
         scrollView = findViewById(R.id.token_holder_scroll_view);
         statisticsTextView = findViewById(R.id.statistics_text);
 
+        setupSearchControls();
+        setupTokenHolderSpinners();
+
         setupSelectAllCheckBox();
         setupSwipeRefresh();
+    }
+
+    /**
+     * Sets up the spinner dropdowns specific to TokenHolder
+     */
+    private void setupTokenHolderSpinners() {
+        // Determine language for display names
+        boolean useChinese = getResources().getConfiguration().locale.getLanguage().equals("zh");
+
+        // Set up 'Search in' spinner with TokenHolder searchable fields
+        if (searchFieldSpinner != null) {
+            LinkedHashMap<String, Map<String, String>> searchableFields = TokenHolder.getSearchableFields();
+
+            List<String> fieldOptionsList = new ArrayList<>();
+            fieldOptionsList.add(getString(R.string.search_in)); // First item is placeholder
+
+            for (Map.Entry<String, Map<String, String>> entry : searchableFields.entrySet()) {
+                Map<String, String> languages = entry.getValue();
+                String displayName = useChinese ? languages.get("zh") : languages.get("en");
+                fieldOptionsList.add(displayName);
+            }
+
+            setupSpinner(searchFieldSpinner, fieldOptionsList.toArray(new String[0]), R.string.field);
+        }
+
+        // Set up sort spinner with TokenHolder sortable fields
+        if (sortFieldSpinner != null) {
+            LinkedHashMap<String, Map<String, String>> sortableFields = TokenHolder.getSortableFields();
+
+            List<String> sortOptionsList = new ArrayList<>();
+            sortOptionsList.add(getString(R.string.sort_by)); // First item is placeholder
+
+            for (Map.Entry<String, Map<String, String>> entry : sortableFields.entrySet()) {
+                Map<String, String> languages = entry.getValue();
+                String displayName = useChinese ? languages.get("zh") : languages.get("en");
+                sortOptionsList.add(displayName);
+            }
+
+            setupSpinner(sortFieldSpinner, sortOptionsList.toArray(new String[0]), R.string.field);
+        }
+
+        // Set up Order spinner
+        if (sortOrderSpinner != null) {
+            String[] orderOptions = new String[]{"Order", "DESC", "ASC"};
+            setupSpinner(sortOrderSpinner, orderOptions, R.string.order);
+        }
+    }
+
+    @Override
+    protected void onExitSearchMode() {
+        loadFirstPage();
+    }
+
+    @Override
+    protected void onPerformSearch(String query, String searchField, String sortField, String sortOrder) {
+        performSearchFromAPI();
+    }
+
+    /**
+     * Loads the first page of token holders from the local database
+     */
+    private void loadFirstPage() {
+        if (cardContainer != null) {
+            cardContainer.clearAll();
+        }
+        tokenHolderList.clear();
+
+        showWaitingDialog(getString(R.string.loading_token_holders));
+
+        new Thread(() -> {
+            try {
+                List<TokenHolder> holders = tokenManager.getPaginatedTokenHolders(pageSize, null, true);
+                fetchTokenInfo(holders);
+
+                runOnUiThread(() -> {
+                    dismissWaitingDialog();
+                    showItemList(holders);
+                });
+            } catch (Exception e) {
+                TimberLogger.e(TAG, "Error loading data: %s", e.getMessage());
+                runOnUiThread(() -> {
+                    dismissWaitingDialog();
+                    ToastUtils.makeText(this, getString(R.string.no_token_holders_found));
+                });
+            }
+        }).start();
+    }
+
+    /**
+     * Performs the search from API using the current search parameters
+     */
+    private void performSearchFromAPI() {
+        if (tokenManager == null) {
+            return;
+        }
+
+        showWaitingDialog(getString(R.string.searching));
+
+        new Thread(() -> {
+            try {
+                List<TokenHolder> searchResults = tokenManager.searchTokenHoldersFromApi(
+                    currentSearchQuery,
+                    currentSearchField,
+                    currentSortField,
+                    currentSortOrder,
+                    null);
+
+                fetchTokenInfo(searchResults);
+
+                runOnUiThread(() -> {
+                    dismissWaitingDialog();
+                    if (searchResults != null && !searchResults.isEmpty()) {
+                        showItemList(searchResults);
+                        ToastUtils.makeText(this, getString(R.string.found_token_holders_count, searchResults.size()));
+                    } else {
+                        ToastUtils.makeText(this, getString(R.string.no_token_holders_found));
+                        updateUI();
+                    }
+                });
+            } catch (Exception e) {
+                TimberLogger.e(TAG, "Error performing search: %s", e.getMessage());
+                runOnUiThread(() -> {
+                    dismissWaitingDialog();
+                    ToastUtils.makeText(this, getString(R.string.search_failed) + ": " + e.getMessage());
+                });
+            }
+        }).start();
     }
 
     @Override
@@ -178,12 +330,21 @@ public class MyTokenActivity extends BaseCryptoActivity {
 
     private void fetchTokenInfo(List<TokenHolder> holders) {
         if (holders == null || holders.isEmpty()) return;
-        
+
+        List<String> missingIds = new ArrayList<>();
         for (TokenHolder holder : holders) {
-            if (holder.getTokenId() != null && !tokenInfoMap.containsKey(holder.getTokenId())) {
-                Token token = tokenManager.fetchTokenById(holder.getTokenId());
-                if (token != null) {
-                    tokenInfoMap.put(holder.getTokenId(), token);
+            if (holder.getTokenId() != null && !tokenInfoMap.containsKey(holder.getTokenId())
+                && !missingIds.contains(holder.getTokenId())) {
+                missingIds.add(holder.getTokenId());
+            }
+        }
+        if (missingIds.isEmpty()) return;
+
+        Map<String, Token> tokens = tokenManager.fetchTokensByIds(missingIds);
+        if (tokens != null) {
+            for (Map.Entry<String, Token> entry : tokens.entrySet()) {
+                if (entry.getValue() != null) {
+                    tokenInfoMap.put(entry.getKey(), entry.getValue());
                 }
             }
         }
@@ -216,6 +377,8 @@ public class MyTokenActivity extends BaseCryptoActivity {
 
         cardContainer.setOnSendIconClickListener(this::handleSendToken);
 
+        cardContainer.setOnBurnIconClickListener(this::confirmBurnToken);
+
         for (TokenHolder holder : tokenHolderList) {
             cardContainer.addTokenHolderCard(holder);
         }
@@ -227,6 +390,91 @@ public class MyTokenActivity extends BaseCryptoActivity {
         Intent intent = new Intent(this, SendTokenActivity.class);
         intent.putExtra(SendTokenActivity.EXTRA_TOKEN_HOLDER_JSON, tokenHolder.toJson());
         sendTokenLauncher.launch(intent);
+    }
+
+    private void confirmBurnToken(TokenHolder tokenHolder) {
+        if (tokenHolder.getBalance() == null || tokenHolder.getBalance() <= 0) {
+            ToastUtils.makeText(this, R.string.no_balance_to_burn);
+            return;
+        }
+
+        String tokenName = tokenHolder.getTokenId();
+        Token token = tokenInfoMap.get(tokenHolder.getTokenId());
+        if (token != null && token.getName() != null) {
+            tokenName = token.getName();
+        }
+
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.burn_token)
+            .setMessage(getString(R.string.burn_token_confirm, tokenName))
+            .setPositiveButton(R.string.confirm, (dialog, which) -> burnToken(tokenHolder))
+            .setNegativeButton(R.string.cancel, null)
+            .show();
+    }
+
+    private void burnToken(TokenHolder tokenHolder) {
+        KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
+        if (liveKeyInfo == null) {
+            ToastUtils.makeText(this, R.string.no_active_key_available);
+            return;
+        }
+
+        // The destroy op burns the whole balance of the signer
+        TokenOpData tokenOpData = TokenOpData.makeDestroy(tokenHolder.getTokenId());
+
+        Feip feip = Feip.fromName(TOKEN);
+        feip.setData(tokenOpData);
+        String feipJson = feip.toJson();
+
+        byte[] prikey = SecurePrikeyManager.fetchPrikeySilent(liveKeyInfo.getPrikeyCipher());
+        if (prikey == null) {
+            ToastUtils.makeText(this, R.string.failed_to_get_private_key);
+            return;
+        }
+
+        showWaitingDialog(getString(R.string.sending_transaction));
+
+        new Thread(() -> {
+            CashManager cashManager = CashManager.getInstance();
+            TxSender txSender = new TxSender();
+            txSender.carveSimpleFeip(this, liveKeyInfo.getId(), feipJson, prikey, cashManager,
+                new TxHandler(), (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7),
+                new TxSender.TxCallback() {
+                    @Override
+                    public void onSuccess(String txId) {
+                        runOnUiThread(() -> {
+                            dismissWaitingDialog();
+                            refreshList();
+                        });
+                    }
+
+                    @Override
+                    public void onError(String errorMessage) {
+                        runOnUiThread(() -> {
+                            dismissWaitingDialog();
+                            ToastUtils.makeText(MyTokenActivity.this,
+                                getString(R.string.failed_to_burn_token) + ": " + errorMessage);
+                        });
+                    }
+
+                    @Override
+                    public void onUnsignedTx(RawTxInfo rawTxInfo) {
+                        runOnUiThread(() -> {
+                            dismissWaitingDialog();
+                            ToastUtils.makeText(MyTokenActivity.this, R.string.cannot_sign_transaction);
+                            txSender.showUnsignedTxAsQR(MyTokenActivity.this, rawTxInfo);
+                        });
+                    }
+
+                    @Override
+                    public void onUnbroadcasted(String signedTxHex) {
+                        runOnUiThread(() -> {
+                            dismissWaitingDialog();
+                            txSender.showSignedTxAsQR(MyTokenActivity.this, signedTxHex);
+                        });
+                    }
+                });
+        }).start();
     }
 
     private void setupSelectAllCheckBox() {
@@ -264,17 +512,15 @@ public class MyTokenActivity extends BaseCryptoActivity {
             });
         }
 
-        if (hideButton != null) {
-            hideButton.setOnClickListener(v -> {
-                hideKeyboard();
-                handleHideTokenHolders();
-            });
-        }
-
         if (clearButton != null) {
             clearButton.setOnClickListener(v -> {
                 hideKeyboard();
-                refreshList();
+                boolean wasSearchMode = isSearchMode;
+                clearSearchControls();
+                // clearSearchControls only reloads when exiting search mode
+                if (!wasSearchMode) {
+                    refreshList();
+                }
             });
         }
 
@@ -314,10 +560,20 @@ public class MyTokenActivity extends BaseCryptoActivity {
             clearAndReload();
         });
 
+        popupView.findViewById(R.id.hide_item).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            handleHideTokenHolders();
+        });
+
         popupView.findViewById(R.id.hidden_item).setOnClickListener(v -> {
             popupWindow.dismiss();
-            // TODO: Show hidden token holders activity
-            ToastUtils.makeText(this, "Hidden token holders not implemented yet");
+            Intent intent = new Intent(this, HiddenTokenHolderActivity.class);
+            hiddenLauncher.launch(intent);
+        });
+
+        popupView.findViewById(R.id.about_item).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            com.fc.freer.utils.AboutDialog.show(this, R.string.about_token_title, R.string.about_token_message);
         });
 
         popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
@@ -338,7 +594,7 @@ public class MyTokenActivity extends BaseCryptoActivity {
         tokenManager.commit();
 
         refreshList();
-        ToastUtils.makeText(this, "Hidden " + selected.size() + " token holder(s)");
+        ToastUtils.makeText(this, getString(R.string.toast_hidden_token_holders, selected.size()));
     }
 
     private void refreshList() {
@@ -359,7 +615,6 @@ public class MyTokenActivity extends BaseCryptoActivity {
 
         new Thread(() -> {
             try {
-                tokenManager.clearLocalDeletedList();
                 int count = tokenManager.refreshTokenHoldersFromAPI(this);
                 List<TokenHolder> holders = tokenManager.getPaginatedTokenHolders(pageSize, null, true);
                 fetchTokenInfo(holders);
@@ -376,7 +631,7 @@ public class MyTokenActivity extends BaseCryptoActivity {
             } catch (Exception e) {
                 runOnUiThread(() -> {
                     dismissWaitingDialog();
-                    ToastUtils.makeText(this, "Error: " + e.getMessage());
+                    ToastUtils.makeText(this, getString(R.string.toast_error_detail, e.getMessage()));
                 });
             }
         }).start();

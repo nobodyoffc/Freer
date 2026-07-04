@@ -213,7 +213,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         /** A first message from an unknown sender needs user confirmation before the conversation starts. */
         default void onStrangerConfirmationRequired(String senderFid) {}
         default void onTeamNotificationReceived(PendingIssue issue) {}
-        default void onSymkeyReceived(String entityId) {}
+        default void onSymkeyReceived(String entityId, long version) {}
+        default void onRoomInfoReceived(String roomId, long symkeyVersion) {}
         default void onMessagesRedecrypted(String entityId, List<ImMessage> messages) {}
         default void onRoomInviteReceived(PendingIssue issue) {}
         default void onHistoryRequestReceived(String requesterFid, String imType,
@@ -283,9 +284,6 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         
         contactPolicy = new ContactPolicy(context, liveFid);
         
-        pendingIssueManager = new PendingIssueManager(context, liveFid, contactPolicy);
-        pendingIssueManager.setImManager(this);
-        
         // Initialize handlers
         p2pHandler = new P2pHandler(context, liveFid);
         squareHandler = new SquareHandler(context, liveFid);
@@ -301,7 +299,13 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         teamHandler.setMessageListener(this);
         roomHandler.setMessageListener(this);
 
-        BaseHandler.P2pSender p2pSender = message -> p2pHandler.send(message);
+        // Route ROOM_INFO and SYMKEY through the queue so failed deliveries are
+        // retried automatically (e.g. when the recipient's DOCK is temporarily down).
+        // isRoomControlType() covers both types, so send() skips DB/conversation indexing.
+        BaseHandler.P2pSender p2pSender = message -> {
+            send(message);
+            return MessageQueue.SendResult.SUCCESS;
+        };
         teamHandler.setP2pSender(p2pSender);
         roomHandler.setP2pSender(p2pSender);
 
@@ -660,6 +664,53 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         return initialized && messagesDb != null && conversationsDb != null && talkPartnersDb != null;
     }
 
+    /** Whether a FapiClient is currently attached to the handlers. */
+    public boolean hasFapiClient() {
+        return fapiClient != null;
+    }
+
+    /**
+     * Re-attach a FapiClient to all handlers when the current one is missing.
+     * <p>
+     * An ImManager can be built (via {@link #start}) before the FAPI client has
+     * finished (re)connecting — e.g. right after {@code ApiCenter.initiate()} on
+     * waking from a long sleep or a process restore, when
+     * {@code ApiCenter.getClient()} still returns null. Because {@link #isReady()}
+     * does not depend on the FAPI client, that half-built manager is cached and
+     * every send fails with "FAPI client not available" until the app is killed
+     * and relaunched. Calling this once a client is available heals the manager
+     * in place so it never gets stuck in that state.
+     *
+     * @return true if a FapiClient is now attached
+     */
+    public synchronized boolean ensureFapiClient(FapiClient client) {
+        if (fapiClient != null) return true;
+        if (client == null) return false;
+
+        this.fapiClient = client;
+
+        // Whitelist the FAPI server dealer so it never triggers stranger notifications.
+        if (contactPolicy != null) {
+            String dealerFid = client.getServicePeerId();
+            if (dealerFid != null) {
+                contactPolicy.addToWhitelist(dealerFid);
+            }
+        }
+
+        // Re-initialize handlers with the now-available client.
+        p2pHandler.initialize(fudpNode, client, symkeyStore);
+        squareHandler.initialize(fudpNode, client, symkeyStore);
+        teamHandler.initialize(fudpNode, client, symkeyStore);
+        roomHandler.initialize(fudpNode, client, symkeyStore);
+
+        TimberLogger.i(TAG, "Re-attached FapiClient to handlers for %s", liveFid);
+
+        // Populate the DOCK registry now that resolution is possible (no-op if empty).
+        refreshDockRegistry();
+
+        return true;
+    }
+
     /**
      * Stop the messaging service.
      */
@@ -716,6 +767,17 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
     public PendingIssueManager getPendingIssueManager() {
         return pendingIssueManager;
     }
+
+    public void setPendingIssueManager(PendingIssueManager pim) {
+        this.pendingIssueManager = pim;
+        if (pim != null) {
+            pim.setContactPolicy(this.contactPolicy);
+            pim.setImManager(this);
+            if (this.fudpNode != null) {
+                pim.setFudpNode(this.fudpNode);
+            }
+        }
+    }
     
     // ========== Send Messages ==========
     
@@ -741,7 +803,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         
         boolean isReceipt = message.getContentType() == ContentType.RECEIPT;
 
-        if (!isReceipt && !isRoomControlType(message.getContentType())) {
+        if (!isReceipt && !isRoomControlType(message.getContentType())
+                && !isTeamNotification(message)) {
             messagesDb.put(message.getId(), message);
             addToConversationIndex(message);
             updateConversation(message);
@@ -773,82 +836,23 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
 
     // ========== Team Notification ==========
 
-    public static final String TEAM_NOTIFICATION_PREFIX = "[TEAM_NOTIFICATION]";
+    public static final String TEAM_INVITE_PREFIX = "[TEAM_INVITE]";
+    public static final String TEAM_TRANSFER_PREFIX = "[TEAM_TRANSFER]";
 
-    /**
-     * Send a P2P notification to a target FID about a team invite or transfer.
-     */
-    public void sendTeamNotification(String targetFid, PendingIssue.IssueType type,
-                                      String teamId, String teamName, String txId) {
+    /** Send an informational P2P message notifying the recipient they have been invited. */
+    public void sendTeamInviteNotification(String targetFid, String teamId, String teamName) {
         if (targetFid == null || teamId == null) return;
-
-        PendingIssue.TeamNotificationData data = new PendingIssue.TeamNotificationData();
-        data.teamId = teamId;
-        data.teamName = teamName;
-        data.senderFid = liveFid;
-        data.txId = txId;
-
-        String content = TEAM_NOTIFICATION_PREFIX + type.name() + "|" + data.toJson();
-        ImMessage message = ImMessage.createText(ImType.P2P, liveFid, targetFid, content);
-        send(message);
-        TimberLogger.i(TAG, "Sent team notification to %s: type=%s, team=%s", targetFid, type, teamId);
+        String name = (teamName != null && !teamName.isEmpty()) ? teamName : teamId;
+        sendText(ImType.P2P, targetFid, TEAM_INVITE_PREFIX + teamId + "|" + name);
+        TimberLogger.i(TAG, "Sent team invite notification to %s: team=%s", targetFid, teamId);
     }
 
-    /**
-     * Check if an incoming P2P message is a team notification.
-     * If so, parse it, create a PendingIssue, and notify listeners.
-     * @return true if the message was a team notification and was handled
-     */
-    public boolean handleTeamNotificationMessage(ImMessage message) {
-        if (message == null || message.getType() != ImType.P2P) return false;
-        String content = message.getContent();
-        if (content == null || !content.startsWith(TEAM_NOTIFICATION_PREFIX)) return false;
-
-        try {
-            String payload = content.substring(TEAM_NOTIFICATION_PREFIX.length());
-            int pipeIndex = payload.indexOf('|');
-            if (pipeIndex < 0) return false;
-
-            String typeName = payload.substring(0, pipeIndex);
-            String dataJson = payload.substring(pipeIndex + 1);
-
-            PendingIssue.IssueType issueType;
-            try {
-                issueType = PendingIssue.IssueType.valueOf(typeName);
-            } catch (IllegalArgumentException e) {
-                return false;
-            }
-
-            PendingIssue.TeamNotificationData data =
-                    PendingIssue.TeamNotificationData.fromJson(dataJson);
-            if (data == null || data.teamId == null) return false;
-
-            if (pendingIssueManager == null) return false;
-
-            PendingIssue issue;
-            if (issueType == PendingIssue.IssueType.TEAM_INVITE) {
-                pendingIssueManager.addTeamInviteIssue(
-                        data.senderFid, data.teamId, data.teamName, data.txId);
-                issue = PendingIssue.createTeamInvite(
-                        data.senderFid, data.teamId, data.teamName, data.txId);
-            } else if (issueType == PendingIssue.IssueType.TEAM_TRANSFER) {
-                pendingIssueManager.addTeamTransferIssue(
-                        data.senderFid, data.teamId, data.teamName, data.txId);
-                issue = PendingIssue.createTeamTransfer(
-                        data.senderFid, data.teamId, data.teamName, data.txId);
-            } else {
-                return false;
-            }
-
-            mainHandler.post(() -> {
-                for (ImListener l : listeners) l.onTeamNotificationReceived(issue);
-            });
-
-            return true;
-        } catch (Exception e) {
-            TimberLogger.e(TAG, "Failed to parse team notification: %s", e.getMessage());
-            return false;
-        }
+    /** Send an informational P2P message notifying the recipient that a team is being transferred to them. */
+    public void sendTeamTransferNotification(String targetFid, String teamId, String teamName) {
+        if (targetFid == null || teamId == null) return;
+        String name = (teamName != null && !teamName.isEmpty()) ? teamName : teamId;
+        sendText(ImType.P2P, targetFid, TEAM_TRANSFER_PREFIX + teamId + "|" + name);
+        TimberLogger.i(TAG, "Sent team transfer notification to %s: team=%s", targetFid, teamId);
     }
     
     // ========== Symkey Request / Response ==========
@@ -939,8 +943,9 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                     String finalEntityId = symkeyEntityId;
                     symkeyRequestTimestamps.keySet().removeIf(k -> k.startsWith(finalEntityId + ":"));
                     redecryptPendingMessages(finalEntityId);
+                    long symkeyVersion = symkeyStore != null ? symkeyStore.getCurrentVersion(finalEntityId) : 0L;
                     mainHandler.post(() -> {
-                        for (ImListener l : listeners) l.onSymkeyReceived(finalEntityId);
+                        for (ImListener l : listeners) l.onSymkeyReceived(finalEntityId, symkeyVersion);
                     });
                 }
             }
@@ -1052,8 +1057,9 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 if (room != null) {
                     ensureRoomConversation(room);
                     String entityId = room.getId();
+                    long roomSymkeyVersion = symkeyStore != null ? symkeyStore.getCurrentVersion(entityId) : 0L;
                     mainHandler.post(() -> {
-                        for (ImListener l : listeners) l.onSymkeyReceived(entityId);
+                        for (ImListener l : listeners) l.onRoomInfoReceived(entityId, roomSymkeyVersion);
                     });
                 }
                 refreshDockRegistry();
@@ -1173,10 +1179,25 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         return true;
     }
 
-    /** Room control messages are transport-only: never stored as chat messages. */
+    /**
+     * Transport-only messages: never stored as chat messages or shown in conversation lists.
+     * Includes all ROOM control signals plus ROOM_INFO and SYMKEY distribution messages.
+     */
     private static boolean isRoomControlType(ContentType ct) {
         return ct == ContentType.ROOM_LEAVE || ct == ContentType.ROOM_ACCEPT
-                || ct == ContentType.ROOM_DISBAND || ct == ContentType.ROOM_REMOVED;
+                || ct == ContentType.ROOM_DISBAND || ct == ContentType.ROOM_REMOVED
+                || ct == ContentType.ROOM_INFO || ct == ContentType.SYMKEY;
+    }
+
+    /**
+     * Team invite/transfer notifications sent as ephemeral TEXT messages.
+     * They should not be stored on the sender side (the recipient stores them on receipt).
+     */
+    private static boolean isTeamNotification(ImMessage message) {
+        if (message == null || message.getContentType() != ContentType.TEXT) return false;
+        String content = message.getContent();
+        return content != null
+                && (content.startsWith(TEAM_INVITE_PREFIX) || content.startsWith(TEAM_TRANSFER_PREFIX));
     }
 
     /**
@@ -1256,8 +1277,9 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             ensureRoomConversation(room);
             refreshDockRegistry();
             String entityId = room.getId();
+            long inviteSymkeyVersion = symkeyStore != null ? symkeyStore.getCurrentVersion(entityId) : 0L;
             mainHandler.post(() -> {
-                for (ImListener l : listeners) l.onSymkeyReceived(entityId);
+                for (ImListener l : listeners) l.onRoomInfoReceived(entityId, inviteSymkeyVersion);
             });
         }
     }
@@ -1450,10 +1472,6 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 return;
             }
 
-            if (handleTeamNotificationMessage(message)) {
-                return;
-            }
-
             if (handleSymkeyMessage(message)) {
                 return;
             }
@@ -1500,6 +1518,13 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             // Fix 4: Null sender (malformed message) bypasses contact policy
             if (senderId == null) {
                 deliverMessage(message);
+                return;
+            }
+
+            // Dedup: skip messages already in the DB (defence against re-delivery
+            // when the DOCK cursor resets after a transient network error).
+            if (messagesDb.get(message.getId()) != null) {
+                TimberLogger.d(TAG, "Skipping duplicate incoming message: %s", message.getId());
                 return;
             }
 
@@ -1757,6 +1782,10 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         if (isRoomControlType(message.getContentType())) {
             TimberLogger.d(TAG, "Room control message sent silently: type=%s, target=%s",
                     message.getContentType(), message.getTargetId());
+            return;
+        }
+        if (isTeamNotification(message)) {
+            TimberLogger.d(TAG, "Team notification sent silently: target=%s", message.getTargetId());
             return;
         }
         

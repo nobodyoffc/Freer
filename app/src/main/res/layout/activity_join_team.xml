@@ -13,6 +13,29 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+        <!-- Mode toggles -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
+            <CheckBox
+                android:id="@+id/all_teams_checkbox"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/all_teams" />
+
+            <CheckBox
+                android:id="@+id/including_ignored_checkbox"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/including_ignored" />
+
+        </LinearLayout>
+
         <!-- Search Results -->
         <ScrollView
             android:layout_width="match_parent"

@@ -13,6 +13,7 @@ import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.utils.Hex;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.R;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.manager.HatManager;
@@ -89,6 +90,9 @@ public class DataSyncManager {
     private String lastError;
     private long lastCharged;
     private byte[] lastSymkey;
+    // Per-attempt failure reason, set at each early return in the download helpers so
+    // downloadData() can surface exactly why every cipher source was exhausted.
+    private String lastFailDetail;
     
     public DataSyncManager(Context context, HatManager hatManager) {
         this.context = context;
@@ -272,14 +276,14 @@ public class DataSyncManager {
 
     public DiskItem uploadData(File rawFile, Hat hat, boolean permanent, Long dataLifeDays, LongConsumer progressCallback) {
         if (rawFile == null || !rawFile.exists()) {
-            lastError = "Raw file does not exist";
+            lastError = context.getString(R.string.dsm_raw_file_not_exist);
             TimberLogger.w(TAG, "Upload step 0 failed: %s", lastError);
             return null;
         }
         
         FapiClient fapiClient = getFapiClient();
         if (fapiClient == null) {
-            lastError = "FapiClient not available";
+            lastError = context.getString(R.string.dsm_fapi_client_unavailable);
             TimberLogger.w(TAG, "Upload step 0 failed: %s", lastError);
             return null;
         }
@@ -288,7 +292,7 @@ public class DataSyncManager {
         
         String pubkey = getLiveFidPubkey();
         if (pubkey == null) {
-            lastError = "Public key not available";
+            lastError = context.getString(R.string.dsm_pubkey_unavailable);
             TimberLogger.w(TAG, "Upload step 0 failed: %s", lastError);
             return null;
         }
@@ -309,7 +313,7 @@ public class DataSyncManager {
                     rawFile.getAbsolutePath(), cipherTempFile.getAbsolutePath(), symkey);
             
             if (encResult.getCode() != null && encResult.getCode() != 0) {
-                lastError = "File encryption failed: " + encResult.getMessage();
+                lastError = context.getString(R.string.dsm_file_encryption_failed, encResult.getMessage());
                 TimberLogger.w(TAG, "Upload step 2 failed: %s (code=%d)", lastError, encResult.getCode());
                 return null;
             }
@@ -325,7 +329,7 @@ public class DataSyncManager {
             CryptoDataByte kCipherResult = asyEncryptor.encryptByAsyOneWay(symkey, Hex.fromHex(pubkey));
             
             if (kCipherResult.getCode() != null && kCipherResult.getCode() != 0) {
-                lastError = "Symkey encryption failed: " + kCipherResult.getMessage();
+                lastError = context.getString(R.string.dsm_symkey_encryption_failed, kCipherResult.getMessage());
                 TimberLogger.w(TAG, "Upload step 4 failed: %s (code=%d)", lastError, kCipherResult.getCode());
                 return null;
             }
@@ -350,8 +354,8 @@ public class DataSyncManager {
                 lastCharged = fapiClient.getLastCharged();
             }
             if (diskItem == null) {
-                lastError = "Failed to upload to DISK: " + 
-                        (fapiClient.getLastError() != null ? fapiClient.getLastError() : "Unknown error");
+                lastError = context.getString(R.string.dsm_upload_to_disk_failed,
+                        fapiClient.getLastError() != null ? fapiClient.getLastError() : context.getString(R.string.dsm_unknown_error));
                 TimberLogger.w(TAG, "Upload step 5 failed: %s", lastError);
                 return null;
             }
@@ -389,7 +393,7 @@ public class DataSyncManager {
             return diskItem;
             
         } catch (Exception e) {
-            lastError = "Upload failed: " + e.getMessage();
+            lastError = context.getString(R.string.dsm_upload_failed, e.getMessage());
             TimberLogger.e(TAG, "Upload exception: %s", e.getMessage());
             e.printStackTrace();
             return null;
@@ -426,7 +430,7 @@ public class DataSyncManager {
      */
     public DiskItem uploadData(byte[] data, Hat hat, boolean permanent, Long dataLifeDays) {
         if (data == null || data.length == 0) {
-            lastError = "Data is empty";
+            lastError = context.getString(R.string.dsm_data_is_empty);
             return null;
         }
         
@@ -441,7 +445,7 @@ public class DataSyncManager {
             return uploadData(tempRawFile, hat, permanent, dataLifeDays);
             
         } catch (Exception e) {
-            lastError = "Upload failed: " + e.getMessage();
+            lastError = context.getString(R.string.dsm_upload_failed, e.getMessage());
             return null;
         } finally {
             if (tempRawFile != null && tempRawFile.exists()) {
@@ -469,12 +473,12 @@ public class DataSyncManager {
 
     public boolean downloadData(Hat hat, byte[] prikey, File outputFile, LongConsumer progressCallback) {
         if (hat == null) {
-            lastError = "HAT is null";
+            lastError = context.getString(R.string.dsm_hat_is_null);
             return false;
         }
         FapiClient fapiClient = getFapiClient();
         if (fapiClient == null) {
-            lastError = "FapiClient not available";
+            lastError = context.getString(R.string.dsm_fapi_client_unavailable);
             TimberLogger.w(TAG, "downloadData: FapiClient not available");
             return false;
         }
@@ -487,11 +491,24 @@ public class DataSyncManager {
             try {
                 DiskItem downloadResult = clientForLoca.diskGet(did, outputFile, progressCallback);
                 if (downloadResult != null) {
+                    // Direct locations are untrusted (e.g. a public DISK server serving an
+                    // unencrypted, content-addressed document such as a team consensus).
+                    // Verify the downloaded bytes hash back to the raw HAT id (= the DID the
+                    // caller asked for) before trusting them; a mismatch means the server
+                    // returned the wrong/tampered content, so skip this loca.
+                    byte[] outputHash = Hash.sha256x2Bytes(outputFile);
+                    String outputDid = Hex.toHex(outputHash);
+                    if (!did.equalsIgnoreCase(outputDid)) {
+                        TimberLogger.e(TAG, "Direct download integrity check failed: expected %s, got %s",
+                                did, outputDid);
+                        outputFile.delete();
+                        continue;
+                    }
                     if (clientForLoca.getLastCharged() != null) lastCharged = clientForLoca.getLastCharged();
                     hat.setLast(System.currentTimeMillis());
                     hatManager.updateHat(hat);
                     hatManager.commit();
-                    TimberLogger.i(TAG, "Downloaded data directly from raw HAT locations");
+                    TimberLogger.i(TAG, "Downloaded data directly from raw HAT locations (integrity verified)");
                     return true;
                 }
             } catch (Exception e) {
@@ -502,14 +519,39 @@ public class DataSyncManager {
         // Step 2: Try cipherIds
         List<String> cipherIds = hat.getCipherIds();
         if (cipherIds == null || cipherIds.isEmpty()) {
-            lastError = "No locations or cipherIds available in HAT";
+            lastError = context.getString(R.string.dsm_no_locations);
             return false;
         }
+
+        // Accumulate per-attempt failure reasons so the final error is actionable.
+        StringBuilder diag = new StringBuilder();
+        if (remoteLocas.isEmpty()) diag.append("rawLocas=none; ");
 
         // Step 3: Iterate through cipherIds
         for (String cipherId : cipherIds) {
             Hat cipherHat = hatManager.getHatById(cipherId);
-            if (cipherHat != null) {
+            String plainKeyHex = hat.getKey();
+
+            // Plain-key path: try first when available so neither sender nor receiver needs prikey.
+            // This works whether the cipher HAT is in local DB or not.
+            if (plainKeyHex != null && !plainKeyHex.isEmpty()) {
+                lastFailDetail = null;
+                boolean success = downloadCipherWithPlainKey(hat, cipherId, plainKeyHex, outputFile, progressCallback);
+                if (success) {
+                    hat.setLast(System.currentTimeMillis());
+                    hatManager.updateHat(hat);
+                    hatManager.commit();
+                    return true;
+                }
+                diag.append("plainKey[").append(briefId(cipherId)).append("]=")
+                        .append(lastFailDetail != null ? lastFailDetail : "failed").append("; ");
+            }
+
+            // kCipher path: decrypt the encrypted symkey with the user's private key.
+            // Only possible when the cipher HAT (which carries kCipher) is in the local DB
+            // and the caller provided a private key.
+            if (cipherHat != null && prikey != null) {
+                lastFailDetail = null;
                 boolean success = downloadViaCipherHat(hat, cipherId, prikey, outputFile, fapiClient, progressCallback);
                 if (success) {
                     hat.setLast(System.currentTimeMillis());
@@ -517,26 +559,27 @@ public class DataSyncManager {
                     hatManager.commit();
                     return true;
                 }
-            } else {
-                // Cipher HAT not in local DB (received via IM) -- try using plaintext key + raw HAT's locas
-                String plainKeyHex = hat.getKey();
-                if (plainKeyHex != null && !plainKeyHex.isEmpty()) {
-                    boolean success = downloadCipherWithPlainKey(hat, cipherId, plainKeyHex, outputFile, progressCallback);
-                    if (success) {
-                        hat.setLast(System.currentTimeMillis());
-                        hatManager.updateHat(hat);
-                        hatManager.commit();
-                        return true;
-                    }
-                } else {
-                    TimberLogger.w(TAG, "Cipher HAT %s not in local DB and no plaintext key in raw HAT", cipherId);
-                }
+                diag.append("kCipher[").append(briefId(cipherId)).append("]=")
+                        .append(lastFailDetail != null ? lastFailDetail : "failed").append("; ");
+            }
+
+            if (cipherHat == null && (plainKeyHex == null || plainKeyHex.isEmpty())) {
+                TimberLogger.w(TAG, "Cipher HAT %s not in local DB and no plaintext key in raw HAT", cipherId);
+                diag.append("noKeyNoCipherHat[").append(briefId(cipherId)).append("]; ");
             }
         }
 
-        lastError = "Failed to download from any cipher source";
-        TimberLogger.w(TAG, "downloadData: all attempts failed for hatId=%s", hat.getId());
+        String detail = diag.toString().trim();
+        lastError = context.getString(R.string.dsm_download_all_failed)
+                + (detail.isEmpty() ? "" : " (" + detail + ")");
+        TimberLogger.w(TAG, "downloadData: all attempts failed for hatId=%s: %s", hat.getId(), detail);
         return false;
+    }
+
+    /** Short, log/toast-friendly form of a 64-hex DID. */
+    private static String briefId(String id) {
+        if (id == null) return "null";
+        return id.length() > 8 ? id.substring(0, 8) : id;
     }
     
     /**
@@ -557,13 +600,15 @@ public class DataSyncManager {
             Hat cipherHat = hatManager.getHatById(cipherId);
             if (cipherHat == null) {
                 TimberLogger.w(TAG, "Cipher HAT not found: %s", cipherId);
+                lastFailDetail = "cipherHat-not-in-db";
                 return false;
             }
-            
+
             // Verify rawDid matches
             if (!rawHat.getId().equals(cipherHat.getRawDid())) {
-                TimberLogger.w(TAG, "rawDid mismatch: expected %s, got %s", 
+                TimberLogger.w(TAG, "rawDid mismatch: expected %s, got %s",
                         rawHat.getId(), cipherHat.getRawDid());
+                lastFailDetail = "rawDid-mismatch";
                 return false;
             }
             
@@ -582,11 +627,13 @@ public class DataSyncManager {
             if (fapiClient != null && !candidates.contains(fapiClient)) candidates.add(fapiClient);
             if (candidates.isEmpty()) {
                 TimberLogger.w(TAG, "No usable client for cipher HAT: %s", cipherId);
+                lastFailDetail = "no-disk-client(locas=" + findRemoteLocas(cipherHat) + ")";
                 return false;
             }
 
             DiskItem cipherDownloadResult = null;
             FapiClient usedClient = null;
+            String lastDiskErr = null;
             for (FapiClient c : candidates) {
                 cipherDownloadResult = c.diskGet(cipherDid, cipherTempFile, progressCallback);
                 if (cipherDownloadResult != null) {
@@ -594,11 +641,13 @@ public class DataSyncManager {
                     usedClient = c;
                     break;
                 }
+                lastDiskErr = String.valueOf(c.getLastError());
                 TimberLogger.w(TAG, "downloadViaCipherHat: diskGet(%s) failed via %s: %s",
                         cipherDid, c.getServerUrl(), c.getLastError());
             }
             if (cipherDownloadResult == null) {
                 TimberLogger.w(TAG, "Failed to download cipher file: %s", cipherDid);
+                lastFailDetail = "diskGet-failed:" + lastDiskErr;
                 return false;
             }
             TimberLogger.i(TAG, "Downloaded cipher file: %s, size=%d bytes", cipherDid, cipherTempFile.length());
@@ -611,6 +660,7 @@ public class DataSyncManager {
             String kCipherJson = cipherHat.getkCipher();
             if (kCipherJson == null || kCipherJson.isEmpty()) {
                 TimberLogger.w(TAG, "No kCipher in cipher HAT: %s", cipherId);
+                lastFailDetail = "no-kCipher";
                 return false;
             }
             
@@ -637,21 +687,25 @@ public class DataSyncManager {
                     kDecryptResult.getData() != null ? kDecryptResult.getData().length : -1);
             
             if (kDecryptResult.getCode() != null && kDecryptResult.getCode() != 0) {
-                TimberLogger.w(TAG, "Failed to decrypt kCipher: code=%d, message=%s", 
+                TimberLogger.w(TAG, "Failed to decrypt kCipher: code=%d, message=%s",
                         kDecryptResult.getCode(), kDecryptResult.getMessage());
+                lastFailDetail = "kCipher-decrypt:code=" + kDecryptResult.getCode()
+                        + ",msg=" + kDecryptResult.getMessage();
                 return false;
             }
-            
+
             byte[] symkey = kDecryptResult.getData();
             if (symkey == null) {
                 TimberLogger.w(TAG, "Decrypted symkey is null");
+                lastFailDetail = "symkey-null";
                 return false;
             }
-            
+
             if (symkey.length != 32) {
                 TimberLogger.w(TAG, "Decrypted symkey has wrong length: %d (expected 32). " +
                         "kCipher alg=%s, type=%s. This indicates kCipher decryption produced invalid data.",
                         symkey.length, kCipherData.getAlg(), kCipherData.getType());
+                lastFailDetail = "symkey-len=" + symkey.length;
                 return false;
             }
             
@@ -663,28 +717,32 @@ public class DataSyncManager {
                     cipherTempFile.getAbsolutePath(), outputFile.getAbsolutePath(), symkey);
             
             if (decryptResult.getCode() != null && decryptResult.getCode() != 0) {
-                TimberLogger.w(TAG, "File decryption failed: code=%d, message=%s, alg=%s", 
+                TimberLogger.w(TAG, "File decryption failed: code=%d, message=%s, alg=%s",
                         decryptResult.getCode(), decryptResult.getMessage(), decryptResult.getAlg());
+                lastFailDetail = "file-decrypt:code=" + decryptResult.getCode()
+                        + ",msg=" + decryptResult.getMessage() + ",alg=" + decryptResult.getAlg();
                 return false;
             }
-            
+
             // Stream-hash output file to verify DID matches raw HAT ID
             byte[] outputHash = Hash.sha256x2Bytes(outputFile);
             String outputDid = Hex.toHex(outputHash);
-            
+
             if (!rawHat.getId().equalsIgnoreCase(outputDid)) {
-                TimberLogger.e(TAG, "Data integrity check failed: expected %s, got %s", 
+                TimberLogger.e(TAG, "Data integrity check failed: expected %s, got %s",
                         rawHat.getId(), outputDid);
+                lastFailDetail = "integrity-mismatch";
                 // Delete the corrupted output
                 outputFile.delete();
                 return false;
             }
-            
+
             TimberLogger.i(TAG, "Successfully downloaded and decrypted via cipher HAT: %s", cipherId);
             return true;
-            
+
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error downloading via cipher HAT %s: %s", cipherId, e.getMessage());
+            lastFailDetail = "exception:" + e.getClass().getSimpleName() + ":" + e.getMessage();
             return false;
         } finally {
             if (cipherTempFile != null && cipherTempFile.exists()) {
@@ -705,6 +763,7 @@ public class DataSyncManager {
             byte[] symkey = Hex.fromHex(plainKeyHex);
             if (symkey == null || symkey.length != SYM_KEY_SIZE) {
                 TimberLogger.w(TAG, "Invalid plaintext key length: %d", symkey != null ? symkey.length : -1);
+                lastFailDetail = "bad-key-len=" + (symkey != null ? symkey.length : -1);
                 return false;
             }
 
@@ -712,22 +771,29 @@ public class DataSyncManager {
             List<String> remoteLocas = findRemoteLocas(rawHat);
             if (remoteLocas.isEmpty()) {
                 TimberLogger.w(TAG, "No remote locas in raw HAT for cipher download");
+                lastFailDetail = "rawHat-no-remote-locas";
                 return false;
             }
 
             cipherTempFile = File.createTempFile("dl_cipher_", ".tmp", context.getCacheDir());
             DiskItem downloadResult = null;
+            String lastDiskErr = "no-client";
             for (String loca : remoteLocas) {
                 FapiClient clientForLoca = getFapiClientForLoca(loca);
-                if (clientForLoca == null) continue;
+                if (clientForLoca == null) {
+                    lastDiskErr = "no-client-for-loca:" + loca;
+                    continue;
+                }
                 downloadResult = clientForLoca.diskGet(cipherDid, cipherTempFile, progressCallback);
                 if (downloadResult != null) {
                     if (clientForLoca.getLastCharged() != null) lastCharged = clientForLoca.getLastCharged();
                     break;
                 }
+                lastDiskErr = String.valueOf(clientForLoca.getLastError());
             }
             if (downloadResult == null) {
                 TimberLogger.w(TAG, "Failed to download cipher file %s from any loca", cipherDid);
+                lastFailDetail = "diskGet-failed:" + lastDiskErr;
                 return false;
             }
             TimberLogger.i(TAG, "Downloaded cipher file via plain key: %s, size=%d bytes", cipherDid, cipherTempFile.length());
@@ -740,6 +806,8 @@ public class DataSyncManager {
             if (decryptResult.getCode() != null && decryptResult.getCode() != 0) {
                 TimberLogger.w(TAG, "Decryption with plain key failed: code=%d, message=%s",
                         decryptResult.getCode(), decryptResult.getMessage());
+                lastFailDetail = "file-decrypt:code=" + decryptResult.getCode()
+                        + ",msg=" + decryptResult.getMessage() + ",alg=" + decryptResult.getAlg();
                 return false;
             }
 
@@ -749,6 +817,7 @@ public class DataSyncManager {
 
             if (!rawHat.getId().equalsIgnoreCase(outputDid)) {
                 TimberLogger.e(TAG, "Integrity check failed: expected %s, got %s", rawHat.getId(), outputDid);
+                lastFailDetail = "integrity-mismatch";
                 outputFile.delete();
                 return false;
             }
@@ -759,6 +828,7 @@ public class DataSyncManager {
 
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error downloading with plain key: %s", e.getMessage());
+            lastFailDetail = "exception:" + e.getClass().getSimpleName() + ":" + e.getMessage();
             return false;
         } finally {
             if (cipherTempFile != null && cipherTempFile.exists()) {
@@ -797,7 +867,7 @@ public class DataSyncManager {
             return result;
             
         } catch (Exception e) {
-            lastError = "Download failed: " + e.getMessage();
+            lastError = context.getString(R.string.dsm_download_failed, e.getMessage());
             return null;
         } finally {
             if (tempOutputFile != null && tempOutputFile.exists()) {
@@ -806,6 +876,81 @@ public class DataSyncManager {
         }
     }
     
+    /**
+     * Downloads a public, content-addressed document identified by its DID and creates
+     * (or reuses) a raw HAT that references it. Intended for the DID field of any FcEntity:
+     * a detail page can call this to fetch the document behind a DID, then open the returned
+     * HAT in {@link com.fc.freer.data.HatDetailActivity} to view/play the file.
+     * <p>
+     * The document is fetched via {@code diskGet} from the default DISK service and its bytes
+     * are verified to hash back to {@code did} (see {@link #downloadData}). The saved file is
+     * placed under {@code filesDir/data/<did>} and recorded as a {@code local://} location on
+     * the HAT so it can be opened locally afterwards.
+     *
+     * @param did  The document DID (64-hex content hash)
+     * @param name Optional name for the created HAT (e.g. the source object's name)
+     * @param desc Optional description for the created HAT (e.g. the source object type/id)
+     * @return the raw HAT (committed) on success, or null on failure (see {@link #getLastError()})
+     */
+    public Hat downloadByDid(String did, String name, String desc) {
+        if (did == null || did.isEmpty()) {
+            lastError = context.getString(R.string.dsm_hat_is_null);
+            return null;
+        }
+
+        // Reuse an existing HAT for this DID if present; otherwise create a raw HAT that
+        // references the source object's details.
+        Hat hat = hatManager.getHatById(did);
+        if (hat == null) {
+            hat = new Hat();
+            hat.setId(did);
+            hat.setBorn(System.currentTimeMillis());
+            hat.setLast(System.currentTimeMillis());
+            hat.setState(Hat.DataState.ACTIVE);
+            hat.setName(name);
+            hat.setDesc(desc);
+            hatManager.addHat(hat);
+        }
+
+        // Ensure the HAT carries a DISK location so downloadData() can resolve the server.
+        // Prefer a stable (sid) location; fall back to the fudp:// endpoint.
+        String diskLoca;
+        String diskSid = getDefaultDiskServiceSid();
+        if (diskSid != null && !diskSid.isEmpty()) {
+            diskLoca = SID_LOCATION_PREFIX + diskSid;
+        } else {
+            diskLoca = getDefaultDiskEndpointUrl();
+        }
+        if (diskLoca != null) {
+            List<String> locas = hat.getLocas();
+            if (locas == null) locas = new ArrayList<>();
+            if (!locas.contains(diskLoca)) locas.add(diskLoca);
+            hat.setLocas(locas);
+        }
+        hatManager.updateHat(hat);
+        hatManager.commit();
+
+        File outputFile = new File(context.getFilesDir(), "data/" + did);
+        if (outputFile.getParentFile() != null) {
+            outputFile.getParentFile().mkdirs();
+        }
+
+        // Public documents are unencrypted and content-addressed, so no private key is needed;
+        // downloadData() verifies the downloaded bytes hash back to the DID.
+        boolean success = downloadData(hat, null, outputFile);
+        if (!success) {
+            if (outputFile.exists()) outputFile.delete();
+            return null;
+        }
+
+        // Record the local location so HatDetailActivity can open/play the file.
+        hat.setSize(outputFile.length());
+        hatManager.updateHat(hat);
+        hatManager.addHatLocation(hat.getId(), "local://" + outputFile.getAbsolutePath());
+        hatManager.commit();
+        return hat;
+    }
+
     /**
      * Checks if data exists on DISK.
      *
@@ -889,33 +1034,73 @@ public class DataSyncManager {
      * @return DiskItem with upload metadata, or null on failure
      */
     public DiskItem uploadRawData(File file, Hat hat, boolean permanent) {
+        return uploadRawData(file, hat, permanent, null);
+    }
+
+    /**
+     * Uploads a raw file without encryption to a specific DISK service.
+     * <p>
+     * The resulting raw HAT carries a stable {@code (sid)<serviceId>} location so downloads
+     * resolve the DISK via {@code serviceById} regardless of the live server URL. Used for
+     * public, content-addressed documents (e.g. a team consensus) that any peer must be able
+     * to fetch by resolving the DISK SID from an on-chain home map.
+     *
+     * @param file          The file to upload
+     * @param hat           The HAT associated with this data (must already be in HatManager)
+     * @param permanent     Whether to carve (permanent) or put (temporary)
+     * @param targetDiskSid The DISK service SID to upload to; null falls back to the default DISK client
+     * @return DiskItem with upload metadata, or null on failure
+     */
+    public DiskItem uploadRawData(File file, Hat hat, boolean permanent, String targetDiskSid) {
+        return uploadRawData(file, hat, permanent, targetDiskSid, null);
+    }
+
+    public DiskItem uploadRawData(File file, Hat hat, boolean permanent, String targetDiskSid,
+                                  LongConsumer progressCallback) {
         if (file == null || !file.exists()) {
-            lastError = "File does not exist";
+            lastError = context.getString(R.string.dsm_file_does_not_exist);
             return null;
         }
-        
-        FapiClient fapiClient = getFapiClient();
+
+        FapiClient fapiClient;
+        String diskSid;
+        if (targetDiskSid != null && !targetDiskSid.isEmpty()) {
+            fapiClient = getFapiClientForLoca(SID_LOCATION_PREFIX + targetDiskSid);
+            diskSid = targetDiskSid;
+        } else {
+            fapiClient = getFapiClient();
+            diskSid = getDefaultDiskServiceSid();
+        }
         if (fapiClient == null) {
-            lastError = "FapiClient not available";
+            lastError = context.getString(R.string.dsm_fapi_client_unavailable);
             return null;
         }
-        
+
         try {
             DiskItem diskItem;
             if (permanent) {
-                diskItem = fapiClient.diskCarve(file);
+                diskItem = fapiClient.diskCarve(file, progressCallback);
             } else {
-                diskItem = fapiClient.diskPut(file);
+                diskItem = fapiClient.diskPut(file, null, progressCallback);
             }
-            
+            if (diskItem != null && fapiClient.getLastCharged() != null) {
+                lastCharged = fapiClient.getLastCharged();
+            }
+
             if (diskItem == null) {
-                lastError = "Failed to upload to DISK";
+                lastError = context.getString(R.string.dsm_upload_to_disk_failed_simple);
                 return null;
             }
-            
-            // Update HAT with location (fudp://host:port)
-            String location = getDefaultDiskEndpointUrl();
-            if (location == null) location = FUDP_LOCATION_PREFIX + "unknown";
+
+            // Prefer a stable (sid) location; fall back to the fudp:// endpoint only when
+            // the SID is unavailable.
+            String location;
+            if (diskSid != null && !diskSid.isEmpty()) {
+                location = SID_LOCATION_PREFIX + diskSid;
+            } else {
+                location = getDefaultDiskEndpointUrl();
+                if (location == null) location = FUDP_LOCATION_PREFIX + "unknown";
+            }
             List<String> locas = hat.getLocas();
             if (locas == null) {
                 locas = new ArrayList<>();
@@ -932,7 +1117,7 @@ public class DataSyncManager {
             return diskItem;
             
         } catch (Exception e) {
-            lastError = "Upload failed: " + e.getMessage();
+            lastError = context.getString(R.string.dsm_upload_failed, e.getMessage());
             return null;
         }
     }

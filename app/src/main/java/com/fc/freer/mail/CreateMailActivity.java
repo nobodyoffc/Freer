@@ -632,7 +632,6 @@ public class CreateMailActivity extends BaseCryptoActivity {
                             mail.setLastHeight(Constants.MaX_HEIGHT);
                             MailManager mailManager = MailManager.getInstance();
                             mailManager.addMail(mail);
-                            ToastUtils.makeText(CreateMailActivity.this, getString(R.string.mail_sent_successfully));
                             setResult(RESULT_OK);
                             finish();
                         });

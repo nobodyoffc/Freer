@@ -154,7 +154,6 @@ public class CloseCodeActivity extends BaseCryptoActivity {
                             Intent resultIntent = new Intent();
                             resultIntent.putExtra("closed_code_ids", codeIds.toArray(new String[0]));
                             setResult(Activity.RESULT_OK, resultIntent);
-                            ToastUtils.makeText(CloseCodeActivity.this, getString(R.string.codes_closed_successfully, txId));
                             finish();
                         });
                     }

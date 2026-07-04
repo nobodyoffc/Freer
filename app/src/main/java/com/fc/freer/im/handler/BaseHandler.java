@@ -180,6 +180,24 @@ public abstract class BaseHandler {
         return null;
     }
 
+    /**
+     * Whether an entity's (square/team/recipient) home map declares a DOCK
+     * service. A declared-but-unresolvable DOCK (e.g. a non-existent SID) means
+     * the server is broken, which callers report differently from an entity that
+     * has no DOCK configured at all.
+     */
+    protected static boolean hasDockConfigured(java.util.Map<String, String> home) {
+        if (home == null) return false;
+        for (java.util.Map.Entry<String, String> e : home.entrySet()) {
+            String key = e.getKey();
+            String val = e.getValue();
+            if (key != null && key.startsWith("DOCK") && val != null && !val.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     protected static class OrgDockInfo {
         public final FapiClient client;
         public final String targetDockUrl; // null = direct send; non-null = forward

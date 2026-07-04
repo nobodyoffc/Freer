@@ -20,19 +20,24 @@ import android.widget.TextView;
 
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.fc_ajdk.data.apipData.Fcdsl;
+import com.fc.fc_ajdk.data.fcData.Conversation;
 import com.fc.fc_ajdk.data.fcData.ImType;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.data.feipData.Feip;
 import com.fc.fc_ajdk.data.feipData.Square;
 import com.fc.fc_ajdk.data.feipData.SquareOpData;
 import com.fc.fc_ajdk.data.feipData.Service;
+import com.fc.fc_ajdk.db.LocalDB;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
+import com.fc.freer.im.handler.SquareHandler;
+import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.AvatarManager;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
+import com.fc.freer.model.Setting;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.SecurePrikeyManager;
@@ -61,7 +66,7 @@ public class JoinSquareActivity extends BaseCryptoActivity {
 
     @Override
     protected String getActivityTitle() {
-        return getString(R.string.join_group);
+        return getString(R.string.join_square);
     }
 
     @Override
@@ -346,11 +351,20 @@ public class JoinSquareActivity extends BaseCryptoActivity {
                     new TxSender.TxCallback() {
                         @Override
                         public void onSuccess(String txId) {
-                            runOnUiThread(() -> {
-                                ToastUtils.makeText(JoinSquareActivity.this, getString(R.string.group_joined_successfully));
-                                openChat(square.getId(), square.getName());
-                                finish();
-                            });
+                            Setting setting = SettingManager.getInstance().getCurrentSetting();
+                            if (setting != null && setting.getImManager() != null) {
+                                ImManager im = setting.getImManager();
+                                SquareHandler squareHandler = im.getSquareHandler();
+                                if (squareHandler != null) {
+                                    squareHandler.savePendingSquare(square);
+                                }
+                                // Create the conversation immediately so the joined square is
+                                // visible right away, independent of the cursor-based sync
+                                // rediscovering it (which can permanently skip squares whose
+                                // lastHeight sits below the local sync cursor).
+                                createSquareConversation(im, square);
+                            }
+                            runOnUiThread(() -> finish());
                         }
 
                         @Override
@@ -365,6 +379,37 @@ public class JoinSquareActivity extends BaseCryptoActivity {
                         public void onUnbroadcasted(String signedTxHex) {}
                     });
         }).start();
+    }
+
+    /**
+     * Persist a Conversation row for a freshly-joined square so it appears in the
+     * Square list without waiting for {@link SquareSyncManager} to rediscover it.
+     */
+    private void createSquareConversation(ImManager im, Square square) {
+        if (im == null || square == null || square.getId() == null) return;
+        LocalDB<Conversation> convDb = im.getConversationsDb();
+        if (convDb == null) return;
+
+        String convId = ImType.SQUARE.name() + "_" + square.getId();
+        if (convDb.get(convId) != null) return;
+
+        Conversation conv = new Conversation();
+        conv.setId(convId);
+        conv.setType(ImType.SQUARE);
+        conv.setTargetId(square.getId());
+        conv.setLeftGroup(false);
+        conv.setCreatedAt(square.getBirthTime());
+        conv.setDisplayName(square.getName());
+        if (square.getNamers() != null && !square.getNamers().isEmpty()) {
+            conv.setAvatarDid(square.getNamers().get(square.getNamers().size() - 1));
+        }
+        conv.setMemberNum(square.getMemberNum());
+        conv.settCdd(square.gettCdd());
+        convDb.put(convId, conv);
+
+        if (im.getDockRegistry() != null && im.getFapiClient() != null) {
+            im.getDockRegistry().registerSquare(square, im.getFapiClient());
+        }
     }
 
     private void openChat(String groupId, String displayName) {

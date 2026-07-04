@@ -863,7 +863,6 @@ public class MailDeletedActivity extends BaseCryptoActivity {
                             mailList.removeAll(mailsToRecover);
 
                             updateUI();
-                            ToastUtils.makeText(MailDeletedActivity.this, getString(R.string.mails_recovered_successfully_on_chain));
                         });
                     }
 

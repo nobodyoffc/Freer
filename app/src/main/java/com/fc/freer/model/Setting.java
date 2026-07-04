@@ -222,6 +222,12 @@ public class Setting extends BaseSetting implements ClientConfig {
                                           com.fc.fc_ajdk.fapi.client.FapiClient fapiClient) {
         if (imManager != null) {
             if (imManager.isReady()) {
+                // The manager may have been built before the FAPI client finished
+                // (re)connecting (e.g. after waking from a long sleep), leaving its
+                // handlers without a client. Heal it in place if we now have one.
+                if (fapiClient != null) {
+                    imManager.ensureFapiClient(fapiClient);
+                }
                 return imManager;
             }
             TimberLogger.w(TAG, "Discarding incomplete ImManager for %s", mainFid);

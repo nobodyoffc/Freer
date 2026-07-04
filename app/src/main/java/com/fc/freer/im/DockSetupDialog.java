@@ -108,9 +108,6 @@ public class DockSetupDialog {
                                 // Enter the pending state: keep IM disabled and suppress the
                                 // setup dialog until the registration TX confirms on-chain.
                                 notifyRegistrationTxSent(txId);
-                                activity.runOnUiThread(() ->
-                                        ToastUtils.makeText(activity,
-                                                activity.getString(R.string.dock_registered_successfully, txId)));
                             }
 
                             @Override

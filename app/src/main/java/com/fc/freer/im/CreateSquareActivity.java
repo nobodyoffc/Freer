@@ -2,31 +2,43 @@ package com.fc.freer.im;
 
 import static com.fc.fc_ajdk.constants.FieldNames.SQUARE;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ImageButton;
 
 import androidx.activity.OnBackPressedCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 
+import com.fc.fc_ajdk.constants.Constants;
 import com.fc.fc_ajdk.core.fch.RawTxInfo;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.data.feipData.Feip;
+import com.fc.fc_ajdk.data.feipData.Square;
 import com.fc.fc_ajdk.data.feipData.SquareOpData;
 import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
+import com.fc.freer.im.handler.SquareHandler;
+import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
+import com.fc.freer.model.Setting;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.SecurePrikeyManager;
+import com.fc.freer.utils.ServicePickerUtils;
 import com.fc.freer.utils.TextIconsUtils;
 import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.utils.ToolbarUtils;
 import com.google.android.material.textfield.TextInputEditText;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -40,6 +52,9 @@ public class CreateSquareActivity extends BaseCryptoActivity {
     private ImageButton clearButton;
     private ImageButton publishButton;
     private ImageButton backButton;
+    private ImageButton chooseDockButton;
+
+    private ActivityResultLauncher<Intent> chooseDockLauncher;
 
     private static final int QR_SCAN_NAME = 1001;
     private static final int QR_SCAN_DESC = 1002;
@@ -52,7 +67,7 @@ public class CreateSquareActivity extends BaseCryptoActivity {
 
     @Override
     protected String getActivityTitle() {
-        return getString(R.string.create_group);
+        return getString(R.string.create_square);
     }
 
     @Override
@@ -90,10 +105,10 @@ public class CreateSquareActivity extends BaseCryptoActivity {
         View dockView = findViewById(R.id.dockView);
 
         nameInput = nameView.findViewById(R.id.textInput);
-        nameInput.setHint(R.string.group_name);
+        nameInput.setHint(R.string.square_name);
 
         descInput = descView.findViewById(R.id.textInput);
-        descInput.setHint(R.string.group_description);
+        descInput.setHint(R.string.square_description);
 
         dockInput = dockView.findViewById(R.id.textInput);
         dockInput.setHint(R.string.home_dock_hint);
@@ -101,6 +116,15 @@ public class CreateSquareActivity extends BaseCryptoActivity {
         clearButton = findViewById(R.id.clearButton);
         publishButton = findViewById(R.id.publishButton);
         backButton = findViewById(R.id.back_button);
+        chooseDockButton = findViewById(R.id.choose_dock_button);
+
+        chooseDockLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        ServicePickerUtils.applySelectedService(this, result.getData(), dockInput);
+                    }
+                });
     }
 
     @Override
@@ -118,6 +142,12 @@ public class CreateSquareActivity extends BaseCryptoActivity {
         backButton.setOnClickListener(v -> {
             hideKeyboard();
             finish();
+        });
+
+        chooseDockButton.setOnClickListener(v -> {
+            hideKeyboard();
+            chooseDockLauncher.launch(ServicePickerUtils.pickerIntent(this,
+                    Constants.DOCK_NO1_NRC7, getString(R.string.server_setup_dock_label)));
         });
     }
 
@@ -144,7 +174,7 @@ public class CreateSquareActivity extends BaseCryptoActivity {
         String desc = getText(descInput);
 
         if (name.isEmpty()) {
-            ToastUtils.makeText(this, R.string.group_name_required);
+            ToastUtils.makeText(this, R.string.square_name_required);
             return;
         }
 
@@ -181,9 +211,22 @@ public class CreateSquareActivity extends BaseCryptoActivity {
                     new TxSender.TxCallback() {
                         @Override
                         public void onSuccess(String txId) {
+                            Setting setting = SettingManager.getInstance().getCurrentSetting();
+                            if (setting != null && setting.getImManager() != null) {
+                                SquareHandler squareHandler = setting.getImManager().getSquareHandler();
+                                if (squareHandler != null) {
+                                    Square pending = new Square();
+                                    pending.setId(txId);
+                                    pending.setName(name);
+                                    if (!desc.isEmpty()) pending.setDesc(desc);
+                                    List<String> members = new ArrayList<>();
+                                    members.add(liveKeyInfo.getId());
+                                    pending.setMembers(members);
+                                    pending.setLastTime(System.currentTimeMillis());
+                                    squareHandler.savePendingSquare(pending);
+                                }
+                            }
                             runOnUiThread(() -> {
-                                ToastUtils.makeText(CreateSquareActivity.this,
-                                        getString(R.string.group_published_successfully, txId));
                                 setResult(RESULT_OK);
                                 finish();
                             });
@@ -194,7 +237,7 @@ public class CreateSquareActivity extends BaseCryptoActivity {
                             runOnUiThread(() -> {
                                 publishButton.setEnabled(true);
                                 ToastUtils.makeText(CreateSquareActivity.this,
-                                        getString(R.string.failed_to_publish_group) + ": " + errorMessage);
+                                        getString(R.string.failed_to_publish_square) + ": " + errorMessage);
                             });
                         }
 
@@ -214,6 +257,11 @@ public class CreateSquareActivity extends BaseCryptoActivity {
                                 publishButton.setEnabled(true);
                                 txSender.showSignedTxAsQR(CreateSquareActivity.this, signedTxHex);
                             });
+                        }
+
+                        @Override
+                        public void onCancelled() {
+                            runOnUiThread(() -> publishButton.setEnabled(true));
                         }
                     });
         }).start();

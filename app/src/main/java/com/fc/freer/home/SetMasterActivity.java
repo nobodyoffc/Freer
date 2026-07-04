@@ -513,9 +513,6 @@ public class SetMasterActivity extends BaseCryptoActivity {
                                             TimberLogger.e(TAG, "Error updating mainKeyInfo.master: %s", e.getMessage());
                                         }
                                         
-                                        ToastUtils.makeText(SetMasterActivity.this,
-                                            getString(R.string.master_set_successfully, txId)
-                                        );
                                         setResult(RESULT_OK);
                                         SecurePrikeyManager.erasePrikey(prikey);
                                         
@@ -558,6 +555,14 @@ public class SetMasterActivity extends BaseCryptoActivity {
                                         confirmButton.setEnabled(true);
                                         confirmButton.setAlpha(1.0f);
                                         SecurePrikeyManager.erasePrikey(prikey);
+                                    });
+                                }
+
+                                @Override
+                                public void onCancelled() {
+                                    runOnUiThread(() -> {
+                                        confirmButton.setEnabled(true);
+                                        confirmButton.setAlpha(1.0f);
                                     });
                                 }
                             });

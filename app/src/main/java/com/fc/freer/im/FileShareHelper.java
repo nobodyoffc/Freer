@@ -148,7 +148,9 @@ public class FileShareHelper {
             DiskItem diskItem = dataSyncManager.uploadData(file, rawHat, false, null, progress);
 
             if (diskItem == null) {
-                lastError = "Upload failed: " + dataSyncManager.getLastError();
+                // DataSyncManager already returns a descriptive, localized error
+                // (e.g. "上传到磁盘失败：…"), so don't wrap it with another prefix.
+                lastError = dataSyncManager.getLastError();
                 TimberLogger.e(TAG, lastError);
                 return null;
             }

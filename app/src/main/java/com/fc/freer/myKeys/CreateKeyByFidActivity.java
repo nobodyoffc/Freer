@@ -106,7 +106,7 @@ public class CreateKeyByFidActivity extends BaseCryptoActivity {
     private void previewKeyInfo() {
         String fid = fidInput.getText() != null ? fidInput.getText().toString() : "";
         if(!KeyTools.isGoodFid(fid)){
-            ToastUtils.makeText(this, "Invalid FID");
+            ToastUtils.makeText(this, getString(R.string.toast_invalid_fid));
             return;
         }
         String label = labelInput.getText() != null ? labelInput.getText().toString() : "";
@@ -146,7 +146,7 @@ public class CreateKeyByFidActivity extends BaseCryptoActivity {
             // Use the previewed KeyInfo
             KeyInfo keyInfo = (KeyInfo) detailFragment.getCurrentEntity();
             if (keyInfo == null) {
-                ToastUtils.makeText(this, "Failed to save key info");
+                ToastUtils.makeText(this, getString(R.string.toast_failed_save_key_info));
                 return;
             }
             saveAndFinishWithKeyInfo(keyInfo);
@@ -156,13 +156,13 @@ public class CreateKeyByFidActivity extends BaseCryptoActivity {
     private KeyInfo createKeyInfoFromInputs() {
         String fid = fidInput.getText() != null ? fidInput.getText().toString() : "";
         if(!KeyTools.isGoodFid(fid)){
-            ToastUtils.makeText(this, "Invalid FID");
+            ToastUtils.makeText(this, getString(R.string.toast_invalid_fid));
             return null;
         }
         String label = labelInput.getText() != null ? labelInput.getText().toString() : "";
 
         if (fid.isEmpty()) {
-            ToastUtils.makeText(this, "FID is empty");
+            ToastUtils.makeText(this, getString(R.string.toast_fid_empty));
             return null;
         }
 

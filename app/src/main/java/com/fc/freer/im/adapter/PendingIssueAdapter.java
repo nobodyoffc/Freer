@@ -106,12 +106,6 @@ public class PendingIssueAdapter extends RecyclerView.Adapter<PendingIssueAdapte
                 case STRANGER_PEER:
                     typeLabel = itemView.getContext().getString(R.string.stranger_peer_request);
                     break;
-                case TEAM_INVITE:
-                    typeLabel = itemView.getContext().getString(R.string.team_invite_request);
-                    break;
-                case TEAM_TRANSFER:
-                    typeLabel = itemView.getContext().getString(R.string.team_transfer_request);
-                    break;
                 case ROOM_INVITE:
                     typeLabel = itemView.getContext().getString(R.string.room_invite_request);
                     break;

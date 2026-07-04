@@ -1009,6 +1009,11 @@ public class ProtocolActivity extends BaseCryptoActivity {
             searchMyProtocols();
         });
 
+        popupView.findViewById(R.id.about_item).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            com.fc.freer.utils.AboutDialog.show(this, R.string.about_protocol_title, R.string.about_protocol_message);
+        });
+
         popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         int popupHeight = popupView.getMeasuredHeight();
 

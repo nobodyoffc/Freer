@@ -249,8 +249,6 @@ public class RecoverAppActivity extends BaseCryptoActivity {
                                 }
                                 appManager.commit();
 
-                                ToastUtils.makeText(RecoverAppActivity.this, 
-                                    getString(R.string.apps_recovered_successfully, txId));
                                 setResult(Activity.RESULT_OK);
                                 finish();
                             });

@@ -121,7 +121,7 @@ public class ChangePasswordActivity extends AppCompatActivity {
 
                             runOnUiThread(() -> {
                                 dismissWaitingDialog();
-                                ToastUtils.makeText(this, "Password changed. Restart the APP");
+                                ToastUtils.makeText(this, getString(R.string.toast_password_changed_restart));
 
                                 // Post exit to avoid IllegalStateException during result delivery
                                 new android.os.Handler().postDelayed(() -> {

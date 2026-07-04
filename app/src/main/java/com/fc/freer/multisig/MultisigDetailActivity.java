@@ -146,7 +146,7 @@ public class MultisigDetailActivity extends BaseCryptoActivity {
 
                 ToastUtils.makeText(this, getString(R.string.entity_saved_successfully, "Contact"));
             } else {
-                ToastUtils.makeText(this, "Failed to convert multisig to contact");
+                ToastUtils.makeText(this, getString(R.string.toast_failed_convert_multisig_contact));
             }
         });
 

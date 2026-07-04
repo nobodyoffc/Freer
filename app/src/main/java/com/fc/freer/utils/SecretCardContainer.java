@@ -123,7 +123,7 @@ public class SecretCardContainer {
         try {
             FidManager fidManager = FidManager.getInstance();
             if (fidManager == null || fidManager.getLiveKeyInfo() == null) {
-                ToastUtils.makeText(context, "No active key available for decryption");
+                ToastUtils.makeText(context, context.getString(R.string.toast_no_active_key_decrypt));
                 return;
             }
 
@@ -137,7 +137,7 @@ public class SecretCardContainer {
 
                     if (prikey == null) {
                         if (context instanceof android.app.Activity) {
-                            ((android.app.Activity) context).runOnUiThread(() -> ToastUtils.makeText(context, "Failed to get private key"));
+                            ((android.app.Activity) context).runOnUiThread(() -> ToastUtils.makeText(context, context.getString(R.string.toast_failed_get_private_key)));
                         }
                         return;
                     }
@@ -159,10 +159,10 @@ public class SecretCardContainer {
                                     dialog.show();
                                 } catch (Exception e) {
                                     TimberLogger.e(TAG, "Error showing dialog: %s", e.getMessage());
-                                    ToastUtils.makeText(context, "Error showing content: " + e.getMessage());
+                                    ToastUtils.makeText(context, context.getString(R.string.toast_error_showing_content, e.getMessage()));
                                 }
                             } else {
-                                ToastUtils.makeText(context, "Failed to decrypt content");
+                                ToastUtils.makeText(context, context.getString(R.string.toast_failed_decrypt_content));
                             }
                         });
                     }
@@ -170,14 +170,14 @@ public class SecretCardContainer {
                 } catch (Exception e) {
                     TimberLogger.e(TAG, "Error decrypting content: %s", e.getMessage());
                     if (context instanceof android.app.Activity) {
-                        ((android.app.Activity) context).runOnUiThread(() -> ToastUtils.makeText(context, "Error decrypting content: " + e.getMessage()));
+                        ((android.app.Activity) context).runOnUiThread(() -> ToastUtils.makeText(context, context.getString(R.string.toast_error_decrypting_content, e.getMessage())));
                     }
                 }
             }).start();
 
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error initiating content decryption: %s", e.getMessage());
-            ToastUtils.makeText(context, "Error initiating decryption: " + e.getMessage());
+            ToastUtils.makeText(context, context.getString(R.string.toast_error_initiating_decryption, e.getMessage()));
         }
     }
 

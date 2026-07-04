@@ -1,12 +1,16 @@
 package com.fc.freer.im;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ImageButton;
 
 import androidx.activity.OnBackPressedCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 
+import com.fc.fc_ajdk.constants.Constants;
 import com.fc.fc_ajdk.core.fch.RawTxInfo;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
@@ -24,6 +28,7 @@ import com.fc.freer.model.Setting;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.SecurePrikeyManager;
+import com.fc.freer.utils.ServicePickerUtils;
 import com.fc.freer.utils.TextIconsUtils;
 import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.utils.ToolbarUtils;
@@ -44,6 +49,9 @@ public class UpdateTeamActivity extends BaseCryptoActivity {
     private ImageButton clearButton;
     private ImageButton publishButton;
     private ImageButton backButton;
+    private ImageButton chooseDockButton;
+
+    private ActivityResultLauncher<Intent> chooseDockLauncher;
 
     private String teamId;
 
@@ -115,6 +123,15 @@ public class UpdateTeamActivity extends BaseCryptoActivity {
         clearButton = findViewById(R.id.clearButton);
         publishButton = findViewById(R.id.publishButton);
         backButton = findViewById(R.id.back_button);
+        chooseDockButton = findViewById(R.id.choose_dock_button);
+
+        chooseDockLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        ServicePickerUtils.applySelectedService(this, result.getData(), dockInput);
+                    }
+                });
 
         teamId = getIntent().getStringExtra(EXTRA_TEAM_ID);
         if (teamId == null) {
@@ -141,6 +158,12 @@ public class UpdateTeamActivity extends BaseCryptoActivity {
         backButton.setOnClickListener(v -> {
             hideKeyboard();
             finish();
+        });
+
+        chooseDockButton.setOnClickListener(v -> {
+            hideKeyboard();
+            chooseDockLauncher.launch(ServicePickerUtils.pickerIntent(this,
+                    Constants.DOCK_NO1_NRC7, getString(R.string.server_setup_dock_label)));
         });
     }
 
@@ -235,8 +258,6 @@ public class UpdateTeamActivity extends BaseCryptoActivity {
                         @Override
                         public void onSuccess(String txId) {
                             runOnUiThread(() -> {
-                                ToastUtils.makeText(UpdateTeamActivity.this,
-                                        getString(R.string.team_updated_successfully, txId));
                                 setResult(RESULT_OK);
                                 finish();
                             });
@@ -265,6 +286,11 @@ public class UpdateTeamActivity extends BaseCryptoActivity {
                                 publishButton.setEnabled(true);
                                 txSender.showSignedTxAsQR(UpdateTeamActivity.this, signedTxHex);
                             });
+                        }
+
+                        @Override
+                        public void onCancelled() {
+                            runOnUiThread(() -> publishButton.setEnabled(true));
                         }
                     });
         }).start();

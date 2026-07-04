@@ -267,7 +267,7 @@ public class ReceiveActivity extends BaseCryptoActivity {
             }
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error generating QR code: %s", e.getMessage(), e);
-            ToastUtils.showError(this, "Error generating QR code: " + e.getMessage());
+            ToastUtils.showError(this, getString(R.string.toast_error_generating_qr, e.getMessage()));
         }
     }
 }

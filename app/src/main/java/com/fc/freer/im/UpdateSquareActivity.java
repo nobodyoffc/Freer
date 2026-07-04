@@ -1,5 +1,6 @@
 package com.fc.freer.im;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.View;
@@ -7,18 +8,23 @@ import android.widget.ImageButton;
 import android.widget.TextView;
 
 import androidx.activity.OnBackPressedCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
 
+import com.fc.fc_ajdk.constants.Constants;
 import com.fc.fc_ajdk.core.fch.RawTxInfo;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
+import com.fc.fc_ajdk.data.fchData.Cash;
 import com.fc.fc_ajdk.data.feipData.Feip;
 import com.fc.fc_ajdk.data.feipData.Square;
 import com.fc.fc_ajdk.data.feipData.SquareOpData;
 import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
-import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
+import com.fc.freer.account.CashActivity;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
@@ -26,12 +32,15 @@ import com.fc.freer.model.Setting;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.SecurePrikeyManager;
+import com.fc.freer.utils.ServicePickerUtils;
 import com.fc.freer.utils.TextIconsUtils;
 import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.utils.ToolbarUtils;
 import com.google.android.material.textfield.TextInputEditText;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class UpdateSquareActivity extends BaseCryptoActivity {
@@ -46,12 +55,19 @@ public class UpdateSquareActivity extends BaseCryptoActivity {
     private ImageButton clearButton;
     private ImageButton publishButton;
     private ImageButton backButton;
+    private ImageButton chooseDockButton;
+
+    private ActivityResultLauncher<Intent> chooseDockLauncher;
 
     private String groupId;
+
+    private String pendingFeipJson;
+    private long pendingCddToUpdate;
 
     private static final int QR_SCAN_NAME = 1001;
     private static final int QR_SCAN_DESC = 1002;
     private static final int QR_SCAN_DOCK = 1006;
+    private static final int REQUEST_SELECT_CASH = 2001;
 
     @Override
     protected int getLayoutId() {
@@ -60,7 +76,7 @@ public class UpdateSquareActivity extends BaseCryptoActivity {
 
     @Override
     protected String getActivityTitle() {
-        return getString(R.string.update_group);
+        return getString(R.string.update_square);
     }
 
     @Override
@@ -113,6 +129,15 @@ public class UpdateSquareActivity extends BaseCryptoActivity {
         clearButton = findViewById(R.id.clearButton);
         publishButton = findViewById(R.id.publishButton);
         backButton = findViewById(R.id.back_button);
+        chooseDockButton = findViewById(R.id.choose_dock_button);
+
+        chooseDockLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        ServicePickerUtils.applySelectedService(this, result.getData(), dockInput);
+                    }
+                });
 
         groupId = getIntent().getStringExtra(EXTRA_SQUARE_ID);
         if (groupId == null) {
@@ -138,6 +163,12 @@ public class UpdateSquareActivity extends BaseCryptoActivity {
         backButton.setOnClickListener(v -> {
             hideKeyboard();
             finish();
+        });
+
+        chooseDockButton.setOnClickListener(v -> {
+            hideKeyboard();
+            chooseDockLauncher.launch(ServicePickerUtils.pickerIntent(this,
+                    Constants.DOCK_NO1_NRC7, getString(R.string.server_setup_dock_label)));
         });
     }
 
@@ -197,27 +228,125 @@ public class UpdateSquareActivity extends BaseCryptoActivity {
         SquareOpData opData = SquareOpData.makeUpdate(groupId, name, desc.isEmpty() ? null : desc, homeMap);
         Feip feip = Feip.fromName("Square");
         feip.setData(opData);
-        String feipJson = feip.toJson();
+        pendingFeipJson = feip.toJson();
+        pendingCddToUpdate = resolveCddToUpdate();
+
+        // The update tx must destroy more CD than cddToUpdate. Let the user pick which
+        // cashes to spend so we never consume cashes they want to keep automatically.
+        publishButton.setEnabled(false);
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.cdd_required_title)
+                .setMessage(getString(R.string.select_cash_for_cdd, pendingCddToUpdate))
+                .setPositiveButton(R.string.select_cash, (dialog, which) -> {
+                    Intent intent = new Intent(this, CashActivity.class);
+                    intent.putExtra(CashActivity.EXTRA_SELECT_MODE, true);
+                    startActivityForResult(intent, REQUEST_SELECT_CASH);
+                })
+                .setNegativeButton(android.R.string.cancel, (dialog, which) -> publishButton.setEnabled(true))
+                .setOnCancelListener(dialog -> publishButton.setEnabled(true))
+                .show();
+    }
+
+    private long resolveCddToUpdate() {
+        Setting setting = SettingManager.getInstance().getCurrentSetting();
+        if (setting != null && setting.getImManager() != null) {
+            Square square = setting.getImManager().getSquare(groupId);
+            if (square != null && square.getCddToUpdate() != null) {
+                return square.getCddToUpdate();
+            }
+        }
+        return 0L;
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode != REQUEST_SELECT_CASH) return;
+
+        if (resultCode != RESULT_OK || data == null) {
+            publishButton.setEnabled(true);
+            return;
+        }
+
+        ArrayList<String> cashJsonList = data.getStringArrayListExtra(CashActivity.EXTRA_SELECTED_CASH);
+        if (cashJsonList == null || cashJsonList.isEmpty()) {
+            publishButton.setEnabled(true);
+            ToastUtils.makeText(this, R.string.no_items_selected);
+            return;
+        }
+
+        List<Cash> selectedCashes = new ArrayList<>();
+        for (String json : cashJsonList) {
+            Cash cash = Cash.fromJson(json);
+            if (cash != null) selectedCashes.add(cash);
+        }
+
+        if (selectedCashes.isEmpty()) {
+            publishButton.setEnabled(true);
+            ToastUtils.makeText(this, R.string.no_items_selected);
+            return;
+        }
+
+        sendUpdateWithCashes(selectedCashes);
+    }
+
+    private void sendUpdateWithCashes(List<Cash> selectedCashes) {
+        if (pendingFeipJson == null) {
+            publishButton.setEnabled(true);
+            return;
+        }
+
+        KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
+        if (liveKeyInfo == null) {
+            publishButton.setEnabled(true);
+            ToastUtils.makeText(this, R.string.no_active_fid);
+            return;
+        }
 
         byte[] prikey = SecurePrikeyManager.fetchPrikeySilent(liveKeyInfo.getPrikeyCipher());
         if (prikey == null) {
+            publishButton.setEnabled(true);
             ToastUtils.makeText(this, R.string.failed_to_get_private_key);
             return;
         }
 
-        publishButton.setEnabled(false);
+        final String sender = liveKeyInfo.getId();
+        final String feipJson = pendingFeipJson;
+        final long cddToUpdate = pendingCddToUpdate;
 
         new Thread(() -> {
+            FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
+            Long bestHeight = (fapiClient != null) ? fapiClient.getBestHeight() : null;
+
+            // Verify the chosen cashes destroy strictly more CD than required before sending.
+            long totalCd = 0;
+            for (Cash cash : selectedCashes) {
+                Long cd = (bestHeight != null) ? cash.makeCd(bestHeight) : cash.getCd();
+                if (cd != null && cd > 0) totalCd += cd;
+            }
+
+            if (totalCd <= cddToUpdate) {
+                final long finalTotalCd = totalCd;
+                runOnUiThread(() -> {
+                    publishButton.setEnabled(true);
+                    ToastUtils.makeText(UpdateSquareActivity.this,
+                            getString(R.string.cdd_not_enough_to_update, finalTotalCd, cddToUpdate));
+                });
+                return;
+            }
+
             CashManager cashManager = CashManager.getInstance();
             TxSender txSender = new TxSender();
-            txSender.carveSimpleFeip(this, liveKeyInfo.getId(), feipJson, prikey, cashManager,
-                    new TxHandler(), (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7),
+            RawTxInfo rawTxInfo = new RawTxInfo(sender, selectedCashes, null, feipJson, cddToUpdate,
+                    TxHandler.DEFAULT_FEE_RATE, null, RawTxInfo.VERSION_2);
+
+            txSender.sendTx(this, rawTxInfo, prikey, cashManager, new TxHandler(), fapiClient,
                     new TxSender.TxCallback() {
                         @Override
                         public void onSuccess(String txId) {
                             runOnUiThread(() -> {
-                                ToastUtils.makeText(UpdateSquareActivity.this,
-                                        getString(R.string.group_updated_successfully, txId));
                                 setResult(RESULT_OK);
                                 finish();
                             });
@@ -228,7 +357,7 @@ public class UpdateSquareActivity extends BaseCryptoActivity {
                             runOnUiThread(() -> {
                                 publishButton.setEnabled(true);
                                 ToastUtils.makeText(UpdateSquareActivity.this,
-                                        getString(R.string.failed_to_update_group) + ": " + errorMessage);
+                                        getString(R.string.failed_to_update_square) + ": " + errorMessage);
                             });
                         }
 
@@ -249,7 +378,12 @@ public class UpdateSquareActivity extends BaseCryptoActivity {
                                 txSender.showSignedTxAsQR(UpdateSquareActivity.this, signedTxHex);
                             });
                         }
-                    });
+
+                        @Override
+                        public void onCancelled() {
+                            runOnUiThread(() -> publishButton.setEnabled(true));
+                        }
+                    }, true);
         }).start();
     }
 

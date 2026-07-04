@@ -343,8 +343,6 @@ public class CreateProtocolActivity extends BaseCryptoActivity {
                                     protocolManager.commit();
                                 }
 
-                                ToastUtils.makeText(CreateProtocolActivity.this, 
-                                    getString(R.string.protocol_published_successfully, txId));
                                 setResult(RESULT_OK);
                                 finish();
                             });

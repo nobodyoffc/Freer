@@ -70,7 +70,7 @@ public class DeleteContactActivity extends BaseCryptoActivity {
         // Get the contact details from intent
         String contactListJson = getIntent().getStringExtra("contactList");
         if (contactListJson == null || contactListJson.isEmpty()) {
-            ToastUtils.makeText(this, "No contacts provided for deletion");
+            ToastUtils.makeText(this, getString(R.string.toast_no_contacts_for_deletion));
             finish();
             return;
         }
@@ -81,13 +81,13 @@ public class DeleteContactActivity extends BaseCryptoActivity {
         try {
             contactList = JsonUtils.listFromJson(contactListJson, Contact.class);
             if (contactList.isEmpty()) {
-                ToastUtils.makeText(this, "No valid contacts found");
+                ToastUtils.makeText(this, getString(R.string.toast_no_valid_contacts));
                 finish();
                 return;
             }
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error parsing contact list: %s", e.getMessage());
-            ToastUtils.makeText(this, "Error loading contact data");
+            ToastUtils.makeText(this, getString(R.string.toast_error_loading_contact));
             finish();
             return;
         }
@@ -207,7 +207,7 @@ public class DeleteContactActivity extends BaseCryptoActivity {
             if (contactCardContainer == null) return;
             List<Contact> contactsToDelete = new ArrayList<>(contactCardContainer.getContactList());
             if (contactsToDelete.isEmpty()) {
-                ToastUtils.makeText(this, "No contacts to delete");
+                ToastUtils.makeText(this, getString(R.string.toast_no_contacts_to_delete));
                 return;
             }
             performDeleteOperation(contactsToDelete);
@@ -224,7 +224,7 @@ public class DeleteContactActivity extends BaseCryptoActivity {
         // Remove deleted off-chain contacts from the UI
         if (remainingOnChainContacts.size() < contactsToDelete.size()) {
             int deletedCount = contactsToDelete.size() - remainingOnChainContacts.size();
-            ToastUtils.makeText(this, "Deleted " + deletedCount + " off-chain contacts locally");
+            ToastUtils.makeText(this, getString(R.string.toast_deleted_contacts_local, deletedCount));
         }
 
         // If there are no on-chain contacts to delete, we're done
@@ -237,7 +237,7 @@ public class DeleteContactActivity extends BaseCryptoActivity {
         // For remaining on-chain contacts, proceed with blockchain deletion
         KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
         if (liveKeyInfo == null) {
-            ToastUtils.makeText(this, "No active key available");
+            ToastUtils.makeText(this, getString(R.string.toast_no_active_key));
             return;
         }
 
@@ -272,7 +272,6 @@ public class DeleteContactActivity extends BaseCryptoActivity {
 
                             contactManager.commit();
 
-                            ToastUtils.makeText(DeleteContactActivity.this, "Contacts deleted successfully on-chain");
                             setResult(Activity.RESULT_OK);
                             finish();
                         });
@@ -281,14 +280,14 @@ public class DeleteContactActivity extends BaseCryptoActivity {
                     @Override
                     public void onError(String errorMessage) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(DeleteContactActivity.this, "Failed to delete contacts on-chain: " + errorMessage);
+                            ToastUtils.makeText(DeleteContactActivity.this, getString(R.string.toast_failed_delete_contacts_onchain, errorMessage));
                         });
                     }
 
                     @Override
                     public void onUnsignedTx(RawTxInfo rawTxInfo) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(DeleteContactActivity.this, "Cannot sign transaction - showing unsigned TX");
+                            ToastUtils.makeText(DeleteContactActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
                             txSender.showUnsignedTxAsQR(DeleteContactActivity.this, rawTxInfo);
                         });
                     }
@@ -309,7 +308,7 @@ public class DeleteContactActivity extends BaseCryptoActivity {
 
             contactManager.commit();
 
-            ToastUtils.makeText(this, "Contacts deleted locally");
+            ToastUtils.makeText(this, getString(R.string.toast_contacts_deleted_local));
             setResult(Activity.RESULT_OK);
             finish();
         }

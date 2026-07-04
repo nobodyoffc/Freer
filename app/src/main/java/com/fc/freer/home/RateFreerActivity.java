@@ -368,8 +368,6 @@ public class RateFreerActivity extends BaseCryptoActivity {
                 @Override
                 public void onSuccess(String txId) {
                     runOnUiThread(() -> {
-                        ToastUtils.makeText(RateFreerActivity.this,
-                            getString(R.string.rating_submitted, txId));
                         finish();
                     });
                 }

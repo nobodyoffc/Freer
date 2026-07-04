@@ -77,6 +77,11 @@ public class HomeActivity extends AppCompatActivity {
     private View talkView;
     private View dataView;
     private boolean serverSetupPrompted = false;
+    // Set once the live FID's on-chain info (incl. home.DISK) has been fetched at least once.
+    // Until then the DISK setup prompt is suppressed: a freshly-added FID's local KeyInfo has
+    // no home entries yet, so isDiskReady() would be a false negative and pop the dialog even
+    // for a FID that already has its servers configured on-chain.
+    private volatile boolean liveFidInfoRefreshed = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,7 +90,11 @@ public class HomeActivity extends AppCompatActivity {
         // Guard against process death while backgrounded: if the in-memory
         // session was lost, redirect to re-authentication before touching any
         // session-dependent state (which would otherwise NPE on resume).
-        if (!com.fc.freer.utils.SessionGuard.ensureSession(this)) {
+        // HomeActivity is a post-CID screen and cannot function without a current
+        // setting. Require both the symkey AND a current setting here, otherwise the
+        // FID card renders stuck on "Loading..." after a process-death restore where
+        // only the symkey was restored (see SessionGuard.ensureSessionWithSetting).
+        if (!com.fc.freer.utils.SessionGuard.ensureSessionWithSetting(this)) {
             return;
         }
 
@@ -1241,6 +1250,17 @@ public class HomeActivity extends AppCompatActivity {
             TimberLogger.e(TAG, "Setting object not found in ConfigureManager");
             return;
         }
+        // Initialize PendingIssueManager early from local DB so the badge is
+        // available immediately, before any network calls complete.
+        String mainFid = setting.getFid();
+        com.fc.freer.im.PendingIssueManager earlyPim =
+                new com.fc.freer.im.PendingIssueManager(this, mainFid, null);
+        // Attach the badge listener immediately so issues created by the initial IM sync
+        // (which runs after this point) refresh the Todo badge without waiting for an onResume.
+        earlyPim.setCountChangeListener(newCount -> runOnUiThread(this::updateBadges));
+        FidManager.getInstance().setPendingIssueManager(earlyPim);
+        runOnUiThread(this::updateBadges);
+
         // Check network connectivity before initializing API services
         boolean isNetworkAvailable = NetworkUtils.isNetworkAvailable(this);
         if (!isNetworkAvailable) {
@@ -1282,6 +1302,9 @@ public class HomeActivity extends AppCompatActivity {
         FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
         ImManager imManager = setting.getOrCreateImManager(this, fapiClient);
         if (imManager != null) {
+            // Wire the already-created PendingIssueManager into ImManager so it gains
+            // ContactPolicy, ImManager back-reference, and FudpNode for full functionality.
+            imManager.setPendingIssueManager(earlyPim);
             FidManager.getInstance().setImManager(imManager);
             imManager.setChannelSetupCallback(suggestedUrl ->
                     runOnUiThread(() -> maybeShowServerSetupPrompt(true)));
@@ -1385,8 +1408,19 @@ public class HomeActivity extends AppCompatActivity {
     private void refreshLiveFidInfoFromApi() {
         FidManager fidManager = FidManager.getInstance();
         if (fidManager != null) {
-            fidManager.refreshLiveFidCidInfoAsync(this, this::refreshLiveFidCard);
+            fidManager.refreshLiveFidCidInfoAsync(this, this::onLiveFidInfoRefreshed);
         }
+    }
+
+    /**
+     * Invoked on the UI thread once the live FID's on-chain info (incl. home.DISK) has been
+     * fetched. The KeyInfo home map is now authoritative, so it's safe to evaluate the DISK
+     * server-setup prompt without a false positive for a FID already configured on-chain.
+     */
+    private void onLiveFidInfoRefreshed() {
+        liveFidInfoRefreshed = true;
+        refreshLiveFidCard();
+        maybeShowServerSetupPrompt(false);
     }
     
     @Override
@@ -1674,15 +1708,15 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     /**
-     * Grey out and disable the Talk tile until home.DOCK is usable — i.e. it is
-     * present in the local home, or confirmed on-chain. A pending (unconfirmed)
-     * registration keeps the tile disabled.
+     * The Talk tile stays enabled even without home.DOCK: P2P chat runs in
+     * send-only mode (direct put into the recipient's DOCK), which is what lets
+     * a zero-balance newcomer ask for their first FCH. The send-only banner in
+     * TalkActivity explains the receive limitation.
      */
     private void updateTalkTileState() {
         if (talkView == null) return;
-        boolean ready = isImChannelReady();
-        talkView.setEnabled(ready);
-        talkView.setAlpha(ready ? 1f : 0.4f);
+        talkView.setEnabled(true);
+        talkView.setAlpha(1f);
     }
 
     /** Grey out and disable the Data tile until home.DISK is configured. */
@@ -1711,7 +1745,9 @@ public class HomeActivity extends AppCompatActivity {
         // DISK config is a reliable local-home check; DOCK is only considered when the
         // caller knows the on-chain check ran (the ImManager callback), to avoid a
         // spurious prompt before ImManager has determined the DOCK state.
-        boolean needDisk = !isDiskReady() && !isDiskRegistrationPending();
+        // The DISK check is only trustworthy once the on-chain home has been fetched; before
+        // that a missing home.DISK entry just means "not loaded yet", not "not configured".
+        boolean needDisk = liveFidInfoRefreshed && !isDiskReady() && !isDiskRegistrationPending();
         boolean needDock = includeDock && !isImChannelReady() && !isImRegistrationPending();
         if (!needDisk && !needDock) return;
 
@@ -1756,16 +1792,12 @@ public class HomeActivity extends AppCompatActivity {
         try {
             Setting setting = SettingManager.getInstance().getCurrentSetting();
 
-            // TODO badge: pending issues count
+            // TODO badge: pending issues count — read from FidManager directly so
+            // the badge works as soon as the local DB is loaded (before ImManager).
             int todoCount = 0;
-            if (setting != null) {
-                ImManager imManager = setting.getImManager();
-                if (imManager != null) {
-                    PendingIssueManager mgr = imManager.getPendingIssueManager();
-                    if (mgr != null) {
-                        todoCount = mgr.getPendingCount();
-                    }
-                }
+            PendingIssueManager pendingMgrForBadge = FidManager.getInstance().getPendingIssueManager();
+            if (pendingMgrForBadge != null) {
+                todoCount = pendingMgrForBadge.getPendingCount();
             }
             setBadgeCount(badgeTodo, todoCount);
 
@@ -1895,14 +1927,6 @@ public class HomeActivity extends AppCompatActivity {
         }
 
         @Override
-        public void onTeamNotificationReceived(com.fc.freer.im.PendingIssue issue) {
-            runOnUiThread(() -> {
-                updateBadges();
-                showTeamNotificationDialog(issue);
-            });
-        }
-
-        @Override
         public void onRoomInviteReceived(com.fc.freer.im.PendingIssue issue) {
             runOnUiThread(() -> {
                 updateBadges();
@@ -1930,40 +1954,7 @@ public class HomeActivity extends AppCompatActivity {
         }
     };
 
-    private void showTeamNotificationDialog(com.fc.freer.im.PendingIssue issue) {
-        if (isFinishing() || isDestroyed()) return;
 
-        Setting setting = SettingManager.getInstance().getCurrentSetting();
-        if (setting == null) return;
-        ImManager imManager = setting.getImManager();
-        if (imManager == null) return;
-
-        com.fc.freer.im.TeamNotificationDialog.show(HomeActivity.this, issue,
-                new com.fc.freer.im.TeamNotificationDialog.DialogCallback() {
-                    @Override
-                    public void onAccepted(com.fc.freer.im.PendingIssue issue) {
-                        com.fc.freer.im.PendingIssueManager m = imManager.getPendingIssueManager();
-                        if (m != null && issue.getId() != null) {
-                            m.acceptTeamIssue(issue.getId());
-                        }
-                        ToastUtils.showInfo(HomeActivity.this, getString(R.string.team_notification_accepted));
-                    }
-
-                    @Override
-                    public void onRejected(com.fc.freer.im.PendingIssue issue) {
-                        com.fc.freer.im.PendingIssueManager m = imManager.getPendingIssueManager();
-                        if (m != null && issue.getId() != null) {
-                            m.rejectTeamIssue(issue.getId());
-                        }
-                        ToastUtils.showInfo(HomeActivity.this, getString(R.string.team_notification_rejected));
-                    }
-
-                    @Override
-                    public void onDeferred(com.fc.freer.im.PendingIssue issue) {
-                        TimberLogger.d(TAG, "Team notification deferred: %s", issue.getId());
-                    }
-                });
-    }
 
     private void showRoomInviteDialog(com.fc.freer.im.PendingIssue issue) {
         if (isFinishing() || isDestroyed()) return;
@@ -2005,15 +1996,22 @@ public class HomeActivity extends AppCompatActivity {
         try {
             Setting setting = SettingManager.getInstance().getCurrentSetting();
             if (setting == null) return;
+
+            // Always attach the badge listener to the PendingIssueManager held in
+            // FidManager — it is available even before ImManager is fully started, so this
+            // must run before the imManager null-check below. Otherwise, on a freshly-loaded
+            // FID whose ImManager isn't ready yet, the listener never attaches and pending
+            // issues that arrive from the initial IM sync don't refresh the Todo badge until
+            // the next onResume.
+            PendingIssueManager pendingMgr = FidManager.getInstance().getPendingIssueManager();
+            if (pendingMgr != null) {
+                pendingMgr.setCountChangeListener(newCount -> runOnUiThread(() -> updateBadges()));
+            }
+
             ImManager imManager = setting.getImManager();
             if (imManager == null) return;
 
             imManager.addListener(teamNotificationListener);
-
-            PendingIssueManager pendingMgr = imManager.getPendingIssueManager();
-            if (pendingMgr != null) {
-                pendingMgr.setCountChangeListener(newCount -> runOnUiThread(() -> updateBadges()));
-            }
 
             FidManager fidMgr = FidManager.getInstance();
             if (fidMgr != null) {
@@ -2104,7 +2102,7 @@ public class HomeActivity extends AppCompatActivity {
                 imManager.setChannelSetupCallback(null);
                 imManager.removeListener(teamNotificationListener);
 
-                PendingIssueManager pendingMgr = imManager.getPendingIssueManager();
+                PendingIssueManager pendingMgr = FidManager.getInstance().getPendingIssueManager();
                 if (pendingMgr != null) {
                     pendingMgr.setCountChangeListener(null);
                 }

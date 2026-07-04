@@ -11,6 +11,7 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 
+import com.fc.fc_ajdk.constants.Constants;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.data.fcData.Room;
 import com.fc.freer.BaseCryptoActivity;
@@ -21,6 +22,7 @@ import com.fc.freer.ui.MenuItem;
 import com.fc.freer.utils.ChooseMode;
 import com.fc.freer.utils.KeyCardContainer;
 import com.fc.freer.ui.WaitingDialog;
+import com.fc.freer.utils.ServicePickerUtils;
 import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.utils.ToolbarUtils;
 import com.google.android.material.textfield.TextInputEditText;
@@ -44,9 +46,11 @@ public class CreateRoomActivity extends BaseCryptoActivity {
     private ImageButton clearButton;
     private ImageButton createButton;
     private ImageButton backButton;
+    private ImageButton chooseDockButton;
 
     private ImManager imManager;
     private ActivityResultLauncher<Intent> addMemberLauncher;
+    private ActivityResultLauncher<Intent> chooseDockLauncher;
     private WaitingDialog waitingDialog;
 
     @Override
@@ -101,6 +105,15 @@ public class CreateRoomActivity extends BaseCryptoActivity {
         clearButton = findViewById(R.id.clearButton);
         createButton = findViewById(R.id.createButton);
         backButton = findViewById(R.id.back_button);
+        chooseDockButton = findViewById(R.id.choose_dock_button);
+
+        chooseDockLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        ServicePickerUtils.applySelectedService(this, result.getData(), dockInput);
+                    }
+                });
 
         initAddMemberLauncher();
         initManager();
@@ -126,6 +139,12 @@ public class CreateRoomActivity extends BaseCryptoActivity {
         backButton.setOnClickListener(v -> {
             hideKeyboard();
             finish();
+        });
+
+        chooseDockButton.setOnClickListener(v -> {
+            hideKeyboard();
+            chooseDockLauncher.launch(ServicePickerUtils.pickerIntent(this,
+                    Constants.DOCK_NO1_NRC7, getString(R.string.server_setup_dock_label)));
         });
     }
 

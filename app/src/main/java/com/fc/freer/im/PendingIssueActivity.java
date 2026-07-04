@@ -26,6 +26,7 @@ public class PendingIssueActivity extends BaseCryptoActivity {
     private TextView emptyText;
     private PendingIssueAdapter adapter;
     private PendingIssueManager pendingIssueManager;
+    private ImManager imManager;
 
     @Override
     protected int getLayoutId() {
@@ -56,21 +57,16 @@ public class PendingIssueActivity extends BaseCryptoActivity {
             @Override
             public void onAccept(PendingIssue issue) {
                 hideKeyboard();
-                if (pendingIssueManager != null && issue.getId() != null) {
-                    if (issue.getIssueType() == PendingIssue.IssueType.TEAM_INVITE
-                            || issue.getIssueType() == PendingIssue.IssueType.TEAM_TRANSFER) {
-                        pendingIssueManager.acceptTeamIssue(issue.getId());
-                        ToastUtils.showInfo(PendingIssueActivity.this,
-                                getString(R.string.team_notification_accepted));
-                    } else if (issue.getIssueType() == PendingIssue.IssueType.ROOM_INVITE) {
-                        pendingIssueManager.acceptRoomInvite(issue.getId());
-                        ToastUtils.showInfo(PendingIssueActivity.this,
-                                getString(R.string.room_invite_accepted));
-                    } else {
-                        pendingIssueManager.accept(issue.getId());
-                        ToastUtils.showInfo(PendingIssueActivity.this,
-                                getString(R.string.peer_accepted));
-                    }
+                if (pendingIssueManager == null || issue.getId() == null) return;
+                if (issue.getIssueType() == PendingIssue.IssueType.ROOM_INVITE) {
+                    pendingIssueManager.acceptRoomInvite(issue.getId());
+                    ToastUtils.showInfo(PendingIssueActivity.this,
+                            getString(R.string.room_invite_accepted));
+                    loadIssues();
+                } else {
+                    pendingIssueManager.accept(issue.getId());
+                    ToastUtils.showInfo(PendingIssueActivity.this,
+                            getString(R.string.peer_accepted));
                     loadIssues();
                 }
             }
@@ -79,12 +75,7 @@ public class PendingIssueActivity extends BaseCryptoActivity {
             public void onReject(PendingIssue issue) {
                 hideKeyboard();
                 if (pendingIssueManager != null && issue.getId() != null) {
-                    if (issue.getIssueType() == PendingIssue.IssueType.TEAM_INVITE
-                            || issue.getIssueType() == PendingIssue.IssueType.TEAM_TRANSFER) {
-                        pendingIssueManager.rejectTeamIssue(issue.getId());
-                        ToastUtils.showInfo(PendingIssueActivity.this,
-                                getString(R.string.team_notification_rejected));
-                    } else if (issue.getIssueType() == PendingIssue.IssueType.ROOM_INVITE) {
+                    if (issue.getIssueType() == PendingIssue.IssueType.ROOM_INVITE) {
                         pendingIssueManager.rejectRoomInvite(issue.getId());
                         ToastUtils.showInfo(PendingIssueActivity.this,
                                 getString(R.string.room_invite_rejected));
@@ -120,7 +111,7 @@ public class PendingIssueActivity extends BaseCryptoActivity {
             Setting setting = SettingManager.getInstance().getCurrentSetting();
             if (setting == null) return;
 
-            ImManager imManager = setting.getImManager();
+            imManager = setting.getImManager();
             if (imManager != null) {
                 pendingIssueManager = imManager.getPendingIssueManager();
             }

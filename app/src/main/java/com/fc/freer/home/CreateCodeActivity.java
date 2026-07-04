@@ -274,8 +274,6 @@ public class CreateCodeActivity extends BaseCryptoActivity {
                                     codeManager.commit();
                                 }
 
-                                ToastUtils.makeText(CreateCodeActivity.this, 
-                                    getString(R.string.code_published_successfully, txId));
                                 setResult(RESULT_OK);
                                 finish();
                             });

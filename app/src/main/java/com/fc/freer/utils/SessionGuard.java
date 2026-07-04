@@ -5,6 +5,7 @@ import android.content.Intent;
 
 import com.fc.freer.MainActivity;
 import com.fc.freer.initiate.ConfigureManager;
+import com.fc.freer.initiate.SettingManager;
 import com.fc.fc_ajdk.utils.TimberLogger;
 
 /**
@@ -43,6 +44,44 @@ public final class SessionGuard {
     }
 
     /**
+     * @return true when BOTH the in-memory symkey ({@link ConfigureManager}) and a
+     *         current {@link com.fc.freer.model.Setting} ({@code SettingManager}) are
+     *         present. This is the requirement for post-CID screens such as
+     *         {@code HomeActivity} that need a selected identity.
+     *
+     *         <p>It is possible for the symkey to be present while the current
+     *         setting is null: after a long background sleep the auto-lock
+     *         ({@code BackgroundTimeoutManager}) pushes CheckPasswordActivity, and if
+     *         the process is then killed and restored, re-entering the password
+     *         restores only the symkey via its "resume existing activity" fast-path -
+     *         the current setting (and FidManager) are never re-established. A guard
+     *         that only checks the symkey would let HomeActivity render with no
+     *         setting, leaving the FID card stuck on "Loading...".
+     */
+    public static boolean isSessionWithSettingValid() {
+        return isSessionValid()
+                && SettingManager.getInstance().getCurrentSetting() != null;
+    }
+
+    /**
+     * Like {@link #ensureSession(Activity)}, but also requires a current setting.
+     * Use this for post-CID screens that cannot function without a selected identity
+     * (e.g. {@code HomeActivity}). When the setting is missing, the user is routed
+     * back through the full authentication + identity-selection flow.
+     *
+     * @param activity the activity to guard
+     * @return true if a valid session with a current setting exists; false if the
+     *         caller was redirected and should return from onCreate immediately.
+     */
+    public static boolean ensureSessionWithSetting(Activity activity) {
+        if (isSessionWithSettingValid()) {
+            return true;
+        }
+        return redirectToAuth(activity, "session or current setting lost "
+                + "(likely process death in background)");
+    }
+
+    /**
      * Ensures a valid in-memory session exists. If it does not (typically after
      * the process was killed in the background), the user is redirected to the
      * authentication flow and the calling activity is finished.
@@ -56,9 +95,12 @@ public final class SessionGuard {
         if (isSessionValid()) {
             return true;
         }
+        return redirectToAuth(activity, "session lost (likely process death in background)");
+    }
 
-        TimberLogger.w(TAG, "Session lost (likely process death in background); "
-                + "redirecting %s to re-authentication", activity.getClass().getSimpleName());
+    private static boolean redirectToAuth(Activity activity, String reason) {
+        TimberLogger.w(TAG, "%s; redirecting %s to re-authentication",
+                reason, activity.getClass().getSimpleName());
 
         Intent intent = new Intent(activity, MainActivity.class);
         // Start a fresh task and clear the restored (stale) back stack so the

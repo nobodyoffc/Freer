@@ -224,6 +224,7 @@ public class ToastActivity extends BaseCryptoActivity {
             ClipboardManager clipboardManager = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             ClipData clipData = ClipData.newPlainText("Toast Message", text);
             clipboardManager.setPrimaryClip(clipData);
+            Toast.makeText(this, getString(R.string.copied), Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error copying to clipboard: " + e.getMessage(), e);
             Toast.makeText(this, getString(R.string.failed), Toast.LENGTH_SHORT).show();

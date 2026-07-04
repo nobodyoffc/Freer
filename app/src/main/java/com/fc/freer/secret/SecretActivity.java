@@ -869,7 +869,7 @@ public class SecretActivity extends BaseCryptoActivity {
 
                 TimberLogger.i(TAG, "Loaded %d secret items, window size: %d/%d",
                     moreItems.size(), secretList.size(), maxWindowSize);
-                ToastUtils.makeText(this, "Loaded " + moreItems.size() + " secrets");
+                ToastUtils.makeText(this, getString(R.string.toast_loaded_secrets, moreItems.size()));
             } else {
                 // No more items in local database - try to fetch from API
                 ToastUtils.makeText(this, getString(R.string.loading_more_from_apip));
@@ -952,7 +952,7 @@ public class SecretActivity extends BaseCryptoActivity {
 
                 TimberLogger.i(TAG, "Loaded %d newer secret items to container, window size: %d/%d",
                     newerItems.size(), secretList.size(), maxWindowSize);
-                ToastUtils.makeText(this, "Loaded " + newerItems.size() + " newer secrets");
+                ToastUtils.makeText(this, getString(R.string.toast_loaded_newer_secrets, newerItems.size()));
             } else {
                 // No more newer items available
                 hasMoreNewerData = false;
@@ -1434,6 +1434,11 @@ public class SecretActivity extends BaseCryptoActivity {
             startActivity(intent);
         });
 
+        popupView.findViewById(R.id.about_item).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            com.fc.freer.utils.AboutDialog.show(this, R.string.about_secret_title, R.string.about_secret_message);
+        });
+
         // Measure the popup view to get its height
         popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         int popupHeight = popupView.getMeasuredHeight();
@@ -1448,32 +1453,32 @@ public class SecretActivity extends BaseCryptoActivity {
      */
     private void sendSecretOnChain(Secret secret) {
         if (secret == null) {
-            ToastUtils.makeText(this, "Invalid secret");
+            ToastUtils.makeText(this, getString(R.string.toast_invalid_secret));
             return;
         }
 
         // Check if secret is already on-chain
         Boolean onChain = secret.getOnChain();
         if (onChain != null && onChain) {
-            ToastUtils.makeText(this, "Secret is already on-chain");
+            ToastUtils.makeText(this, getString(R.string.toast_secret_already_onchain));
             return;
         }
 
         // Only allow carving if secret is explicitly marked as off-chain (false)
         if (onChain == null || onChain) {
-            ToastUtils.makeText(this, "This secret is not an off-chain secret");
+            ToastUtils.makeText(this, getString(R.string.toast_not_offchain_secret));
             return;
         }
 
         KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
         if (liveKeyInfo == null) {
-            ToastUtils.makeText(this, "No live key available");
+            ToastUtils.makeText(this, getString(R.string.toast_no_live_key));
             return;
         }
 
         String pubkey = liveKeyInfo.getPubkey();
         if (pubkey == null) {
-            ToastUtils.makeText(this, "Invalid public key");
+            ToastUtils.makeText(this, getString(R.string.toast_invalid_public_key));
             return;
         }
 
@@ -1494,7 +1499,7 @@ public class SecretActivity extends BaseCryptoActivity {
         }
 
         if (content == null || content.isEmpty()) {
-            ToastUtils.makeText(this, "No content available to send on-chain");
+            ToastUtils.makeText(this, getString(R.string.toast_no_content_send_onchain));
             return;
         }
 
@@ -1522,7 +1527,7 @@ public class SecretActivity extends BaseCryptoActivity {
         if (prikey == null) {
             // User cancelled or failed to get private key - dismiss dialog
             dismissWaitingDialog();
-            ToastUtils.makeText(this, "Failed to get private key for transaction signing");
+            ToastUtils.makeText(this, getString(R.string.toast_failed_get_prikey_signing));
             return;
         }
 
@@ -1554,7 +1559,6 @@ public class SecretActivity extends BaseCryptoActivity {
                             // Refresh the UI to show updated status
                             refreshList();
 
-                            ToastUtils.makeText(SecretActivity.this, "Secret carved on-chain successfully! TxID: " + txId);
                         });
                     }
 
@@ -1562,7 +1566,7 @@ public class SecretActivity extends BaseCryptoActivity {
                     public void onError(String errorMessage) {
                         runOnUiThread(() -> {
                             dismissWaitingDialog();
-                            ToastUtils.makeText(SecretActivity.this, "Failed to carve secret on-chain: " + errorMessage);
+                            ToastUtils.makeText(SecretActivity.this, getString(R.string.toast_failed_carve_secret_onchain, errorMessage));
                         });
                     }
 
@@ -1570,7 +1574,7 @@ public class SecretActivity extends BaseCryptoActivity {
                     public void onUnsignedTx(RawTxInfo rawTxInfo) {
                         runOnUiThread(() -> {
                             dismissWaitingDialog();
-                            ToastUtils.makeText(SecretActivity.this, "Cannot sign transaction - showing unsigned TX");
+                            ToastUtils.makeText(SecretActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
                             txSender.showUnsignedTxAsQR(SecretActivity.this, rawTxInfo);
                         });
                     }
@@ -1588,7 +1592,7 @@ public class SecretActivity extends BaseCryptoActivity {
                 // Handle any unexpected errors during transaction creation
                 runOnUiThread(() -> {
                     dismissWaitingDialog();
-                    ToastUtils.makeText(SecretActivity.this, "Error creating transaction: " + e.getMessage());
+                    ToastUtils.makeText(SecretActivity.this, getString(R.string.toast_error_creating_tx, e.getMessage()));
                 });
             } finally {
                 // Clear the private key from memory

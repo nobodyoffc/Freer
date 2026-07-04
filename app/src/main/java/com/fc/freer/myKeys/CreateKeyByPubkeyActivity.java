@@ -160,7 +160,7 @@ public class CreateKeyByPubkeyActivity extends BaseCryptoActivity {
         }
 
         if(!KeyTools.isPubkey(pubkey)){
-            ToastUtils.makeText(this, "Invalid public key");
+            ToastUtils.makeText(this, getString(R.string.toast_invalid_public_key));
             return;
         }
 
@@ -188,12 +188,12 @@ public class CreateKeyByPubkeyActivity extends BaseCryptoActivity {
         String label = labelInput.getText() != null ? labelInput.getText().toString() : "";
 
         if (pubkey.isEmpty()) {
-            ToastUtils.makeText(this, "Please enter a public key");
+            ToastUtils.makeText(this, getString(R.string.toast_please_enter_public_key));
             return;
         }
 
         if (!KeyTools.isPubkey(pubkey)) {
-            ToastUtils.makeText(this, "Invalid public key");
+            ToastUtils.makeText(this, getString(R.string.toast_invalid_public_key));
             return;
         }
 

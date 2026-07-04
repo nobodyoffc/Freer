@@ -906,7 +906,7 @@ public class ProofActivity extends BaseCryptoActivity {
 
                 TimberLogger.i(TAG, "Loaded %d proof items, window size: %d/%d",
                     moreItems.size(), proofList.size(), maxWindowSize);
-                ToastUtils.makeText(this, "Loaded " + moreItems.size() + " proofs");
+                ToastUtils.makeText(this, getString(R.string.toast_loaded_proofs, moreItems.size()));
             } else {
                 // No more items in local database - try to fetch from API
                 loadEarlierProofs();
@@ -983,7 +983,7 @@ public class ProofActivity extends BaseCryptoActivity {
 
                 TimberLogger.i(TAG, "Loaded %d newer proof items to container, window size: %d/%d",
                     newerItems.size(), proofList.size(), maxWindowSize);
-                ToastUtils.makeText(this, "Loaded " + newerItems.size() + " newer proofs");
+                ToastUtils.makeText(this, getString(R.string.toast_loaded_newer_proofs, newerItems.size()));
             } else {
                 // No more newer items available
                 hasMoreNewerData = false;
@@ -1570,7 +1570,6 @@ public class ProofActivity extends BaseCryptoActivity {
                                 proofCardContainer.addProofCardsToBeginning(java.util.Collections.singletonList(newProof));
                             }
 
-                            showSuccessMessage("Proof carved on-chain successfully with txId: " + txId);
                         });
                     }
 
@@ -1586,7 +1585,7 @@ public class ProofActivity extends BaseCryptoActivity {
                     public void onUnsignedTx(com.fc.fc_ajdk.core.fch.RawTxInfo rawTxInfo) {
                         runOnUiThread(() -> {
                             dismissWaitingDialog();
-                            ToastUtils.makeText(ProofActivity.this, "Cannot sign transaction - showing unsigned TX");
+                            ToastUtils.makeText(ProofActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
                             txSender.showUnsignedTxAsQR(ProofActivity.this, rawTxInfo);
                         });
                     }
@@ -1653,7 +1652,6 @@ public class ProofActivity extends BaseCryptoActivity {
                             proof.setOnChain(null);
                             proofCardContainer.removeProofById(proof.getId());
                             proofManager.removeProof(proof);
-                            showSuccessMessage("Proof transferred successfully to " + contact.getFid());
                         });
                     }
 
@@ -1669,7 +1667,7 @@ public class ProofActivity extends BaseCryptoActivity {
                     public void onUnsignedTx(com.fc.fc_ajdk.core.fch.RawTxInfo rawTxInfo) {
                         runOnUiThread(() -> {
                             dismissWaitingDialog();
-                            ToastUtils.makeText(ProofActivity.this, "Cannot sign transaction - showing unsigned TX");
+                            ToastUtils.makeText(ProofActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
                             txSender.showUnsignedTxAsQR(ProofActivity.this, rawTxInfo);
                         });
                     }
@@ -1731,7 +1729,6 @@ public class ProofActivity extends BaseCryptoActivity {
                                 proofCardContainer.updateProofCard(proof);
                             }
 
-                            showSuccessMessage("Proof signed successfully");
                         });
                     }
 
@@ -1747,7 +1744,7 @@ public class ProofActivity extends BaseCryptoActivity {
                     public void onUnsignedTx(com.fc.fc_ajdk.core.fch.RawTxInfo rawTxInfo) {
                         runOnUiThread(() -> {
                             dismissWaitingDialog();
-                            ToastUtils.makeText(ProofActivity.this, "Cannot sign transaction - showing unsigned TX");
+                            ToastUtils.makeText(ProofActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
                             txSender.showUnsignedTxAsQR(ProofActivity.this, rawTxInfo);
                         });
                     }
@@ -1783,7 +1780,7 @@ public class ProofActivity extends BaseCryptoActivity {
         recordItem.setOnClickListener(v -> {
             popupWindow.dismiss();
             // TODO: Implement record functionality
-            ToastUtils.makeText(this, "Record functionality to be implemented");
+            ToastUtils.makeText(this, getString(R.string.toast_record_to_be_implemented));
         });
 
         destroyItem.setOnClickListener(v -> {
@@ -1819,6 +1816,11 @@ public class ProofActivity extends BaseCryptoActivity {
         refreshItem.setOnClickListener(v -> {
             popupWindow.dismiss();
             clearAndReload();
+        });
+
+        popupView.findViewById(R.id.about_item).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            com.fc.freer.utils.AboutDialog.show(this, R.string.about_proof_title, R.string.about_proof_message);
         });
 
         // Measure the popup view to get its height

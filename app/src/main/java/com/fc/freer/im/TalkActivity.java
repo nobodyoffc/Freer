@@ -54,6 +54,9 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
     // Message Requests banner
     private View messageRequestsBanner;
     private TextView messageRequestsBadge;
+
+    // Send-only mode banner (no DOCK registered)
+    private View sendOnlyBanner;
     
     private ConversationAdapter adapter;
     private List<Conversation> conversations = new ArrayList<>();
@@ -97,7 +100,10 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
         public void onChannelConfigured() {
             // home.DOCK confirmed on-chain (e.g. a pending registration landed);
             // refresh so the IM UI reflects the now-enabled channel.
-            runOnUiThread(() -> loadConversations());
+            runOnUiThread(() -> {
+                checkDockSetup();
+                loadConversations();
+            });
         }
 
         @Override
@@ -129,6 +135,7 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
         
         messageRequestsBanner = findViewById(R.id.message_requests_banner);
         messageRequestsBadge = findViewById(R.id.message_requests_badge);
+        sendOnlyBanner = findViewById(R.id.send_only_banner);
         
         adapter = new ConversationAdapter(filteredConversations, this);
         conversationsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -159,6 +166,11 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
         messageRequestsBanner.setOnClickListener(v -> {
             hideKeyboard();
             startActivity(new Intent(this, MessageRequestsActivity.class));
+        });
+
+        sendOnlyBanner.setOnClickListener(v -> {
+            hideKeyboard();
+            startActivity(new Intent(this, com.fc.freer.data.ServerSetupActivity.class));
         });
         
         selectionBackCallback = new OnBackPressedCallback(false) {
@@ -229,7 +241,7 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
         
         List<Conversation> all = imManager.getConversations();
         conversations.clear();
-        
+
         List<String> fidsToResolve = new ArrayList<>();
         for (Conversation conv : all) {
             if (conv.getType() == ImType.P2P) {
@@ -240,7 +252,8 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
                 }
             }
         }
-        
+
+        ensureNobodyBoardConversation();
         resolveCidsForConversations(fidsToResolve);
         
         filterConversations(searchEditText.getText().toString());
@@ -251,6 +264,29 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
     
     private void refreshConversations() {
         loadConversations();
+    }
+
+    /**
+     * The default nobody freer is preinstalled as the "First FCH Board" so a
+     * newcomer always has somewhere to ask for their first coins. The entry is
+     * synthesized on each load (not persisted) until a real message creates the
+     * conversation in the DB.
+     */
+    private void ensureNobodyBoardConversation() {
+        for (Conversation conv : conversations) {
+            if (NobodyBoard.isDefaultNobody(conv.getTargetId())) {
+                if (conv.getDisplayName() == null || conv.getDisplayName().isEmpty()) {
+                    conv.setDisplayName(getString(R.string.first_fch_board_name));
+                }
+                return;
+            }
+        }
+        Conversation board = new Conversation();
+        board.setId(ImType.P2P.name() + "_" + NobodyBoard.DEFAULT_NOBODY_FID);
+        board.setType(ImType.P2P);
+        board.setTargetId(NobodyBoard.DEFAULT_NOBODY_FID);
+        board.setDisplayName(getString(R.string.first_fch_board_name));
+        conversations.add(board);
     }
     
     private void filterConversations(String query) {
@@ -438,6 +474,11 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
             startActivity(new Intent(this, BlacklistActivity.class));
         });
 
+        popupView.findViewById(R.id.menu_newcomer_requests).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            startActivity(new Intent(this, NewcomerRequestsActivity.class));
+        });
+
         popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         int popupHeight = popupView.getMeasuredHeight();
 
@@ -445,7 +486,7 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
     }
 
     private void setupHome() {
-        startActivity(new Intent(this, SetupHomeActivity.class));
+        startActivity(new Intent(this, com.fc.freer.data.ServerSetupActivity.class));
     }
     
     @Override
@@ -464,13 +505,16 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
     }
 
     private void checkDockSetup() {
-        // ImManager checks the on-chain home asynchronously; avoid a false popup
-        // during startup by honoring an already-known local DOCK first. Also
-        // suppress while a registration TX is pending confirmation on-chain.
-        if (imManager != null && !hasDockInLocalHome()
+        // Without a DOCK the chat still works in send-only mode (P2pHandler puts
+        // directly into the recipient's DOCK), so no blocking dialog here — just
+        // a banner explaining that replies can't be received until a DOCK is set.
+        // Honor an already-known local DOCK first and suppress while a
+        // registration TX is pending confirmation on-chain.
+        boolean sendOnly = imManager != null && !hasDockInLocalHome()
                 && !imManager.isChannelConfigured()
-                && !imManager.isRegistrationPending()) {
-            ChannelSetupDialog.show(this, null);
+                && !imManager.isRegistrationPending();
+        if (sendOnlyBanner != null) {
+            sendOnlyBanner.setVisibility(sendOnly ? View.VISIBLE : View.GONE);
         }
     }
 

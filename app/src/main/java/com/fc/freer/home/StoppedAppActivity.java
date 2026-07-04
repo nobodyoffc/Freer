@@ -608,8 +608,6 @@ public class StoppedAppActivity extends BaseCryptoActivity {
                                 appManager.commit();
                                 appList.removeAll(appsToRecover);
 
-                                ToastUtils.makeText(StoppedAppActivity.this,
-                                    getString(R.string.apps_recovered_successfully, txId));
                                 updateUI();
                                 setResult(Activity.RESULT_OK);
                             });

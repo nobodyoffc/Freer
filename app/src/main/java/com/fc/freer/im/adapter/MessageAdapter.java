@@ -27,6 +27,9 @@ import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.freer.R;
 import com.fc.freer.im.FileShareHelper;
+import com.fc.freer.im.ImManager;
+import com.fc.freer.im.JoinTeamActivity;
+import com.fc.freer.im.NobodyBoard;
 import com.fc.freer.im.voice.VoiceMessageHelper;
 import com.fc.freer.im.voice.VoicePlayer;
 import com.fc.freer.manager.AvatarManager;
@@ -47,6 +50,8 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         void onSpeakerAvatarClick(String fid);
         void onSpeakerNameClick(String fid);
         void onSpeakerNameLongClick(String fid);
+        void onOpenHat(Hat hat);
+        void onMessageLongPress(ImMessage message, View anchorView);
     }
 
     private final List<ImMessage> messages;
@@ -151,6 +156,29 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                 return;
             }
 
+            String content = message.getContent();
+
+            // Content authored by a nobody FID (public private key — anyone can
+            // have written it) must never render as actionable.
+            boolean senderIsNobody = !isOutgoing && NobodyBoard.isKnownNobody(senderId);
+
+            // Team invite / transfer notifications render as tappable system messages
+            if (content != null && (content.startsWith(ImManager.TEAM_INVITE_PREFIX)
+                    || content.startsWith(ImManager.TEAM_TRANSFER_PREFIX))) {
+                if (senderIsNobody) {
+                    incomingContainer.setVisibility(View.GONE);
+                    outgoingContainer.setVisibility(View.GONE);
+                    systemMessage.setVisibility(View.VISIBLE);
+                    systemMessage.setText(itemView.getContext().getString(R.string.nobody_content_hidden));
+                    systemMessage.setClickable(false);
+                    systemMessage.setOnClickListener(null);
+                    systemMessage.setBackground(null);
+                } else {
+                    bindTeamNotification(content);
+                }
+                return;
+            }
+
             systemMessage.setVisibility(View.GONE);
 
             ContentType ct = message.getContentType();
@@ -159,7 +187,16 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
             boolean isVoice = ct == ContentType.VOICE;
             boolean isFileCard = isHat || isStream;
 
-            String content = message.getContent();
+            // Interactive cards (files, streams, voice) from a nobody are
+            // replaced by an inert placeholder.
+            if (senderIsNobody && (isHat || isStream || isVoice)) {
+                isHat = false;
+                isStream = false;
+                isVoice = false;
+                isFileCard = false;
+                content = itemView.getContext().getString(R.string.nobody_content_hidden);
+            }
+
             if (content == null) {
                 content = message.getCipher() != null ? "[Encrypted]" : "";
             }
@@ -175,14 +212,14 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                 if (isVoice) {
                     outgoingContent.setVisibility(View.GONE);
                     outgoingHatContainer.setVisibility(View.VISIBLE);
-                    bindVoiceCard(outgoingHatContainer, message, true);
+                    bindVoiceCard(outgoingHatContainer, message, true, listener);
                 } else if (isFileCard) {
                     outgoingContent.setVisibility(View.GONE);
                     outgoingHatContainer.setVisibility(View.VISIBLE);
                     if (isHat) {
-                        bindHatCard(outgoingHatContainer, content, true);
+                        bindHatCard(outgoingHatContainer, message, true, listener);
                     } else {
-                        bindStreamCard(outgoingHatContainer, content, true);
+                        bindStreamCard(outgoingHatContainer, message, true, listener);
                     }
                 } else {
                     outgoingContent.setVisibility(View.VISIBLE);
@@ -224,14 +261,14 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                 if (isVoice) {
                     incomingContent.setVisibility(View.GONE);
                     incomingHatContainer.setVisibility(View.VISIBLE);
-                    bindVoiceCard(incomingHatContainer, message, false);
+                    bindVoiceCard(incomingHatContainer, message, false, listener);
                 } else if (isFileCard) {
                     incomingContent.setVisibility(View.GONE);
                     incomingHatContainer.setVisibility(View.VISIBLE);
                     if (isHat) {
-                        bindHatCard(incomingHatContainer, content, false);
+                        bindHatCard(incomingHatContainer, message, false, listener);
                     } else {
-                        bindStreamCard(incomingHatContainer, content, false);
+                        bindStreamCard(incomingHatContainer, message, false, listener);
                     }
                 } else {
                     incomingContent.setVisibility(View.VISIBLE);
@@ -268,9 +305,44 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                     }
                 }
             }
+
+            if (listener != null) {
+                View bubble = isOutgoing ? outgoingContainer : incomingContainer;
+                bubble.setOnLongClickListener(v -> {
+                    listener.onMessageLongPress(message, v);
+                    return true;
+                });
+            }
         }
 
-        private void bindVoiceCard(FrameLayout container, ImMessage message, boolean isOutgoing) {
+        private void bindTeamNotification(String content) {
+            incomingContainer.setVisibility(View.GONE);
+            outgoingContainer.setVisibility(View.GONE);
+            systemMessage.setVisibility(View.VISIBLE);
+
+            boolean isInvite = content.startsWith(ImManager.TEAM_INVITE_PREFIX);
+            String rest = content.substring(isInvite
+                    ? ImManager.TEAM_INVITE_PREFIX.length()
+                    : ImManager.TEAM_TRANSFER_PREFIX.length());
+            int pipe = rest.indexOf('|');
+            String teamName = (pipe > 0) ? rest.substring(pipe + 1) : rest;
+            if (teamName.isEmpty()) teamName = (pipe > 0) ? rest.substring(0, pipe) : rest;
+
+            Context ctx = itemView.getContext();
+            String text = isInvite
+                    ? ctx.getString(R.string.team_invite_system_message, teamName)
+                    : ctx.getString(R.string.team_transfer_system_message, teamName);
+            systemMessage.setText(text);
+            systemMessage.setClickable(true);
+            android.util.TypedValue tv = new android.util.TypedValue();
+            ctx.getTheme().resolveAttribute(android.R.attr.selectableItemBackground, tv, true);
+            systemMessage.setBackgroundResource(tv.resourceId);
+            systemMessage.setOnClickListener(v ->
+                    ctx.startActivity(new Intent(ctx, JoinTeamActivity.class)));
+        }
+
+        private void bindVoiceCard(FrameLayout container, ImMessage message, boolean isOutgoing,
+                                   MessageInteractionListener listener) {
             container.removeAllViews();
             Context ctx = container.getContext();
             View card = LayoutInflater.from(ctx).inflate(R.layout.item_im_voice_card, container, false);
@@ -354,13 +426,22 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                 public void onStopTrackingTouch(SeekBar seekBar) {}
             });
 
+            if (listener != null) {
+                card.setOnLongClickListener(v -> {
+                    listener.onMessageLongPress(message, v);
+                    return true;
+                });
+            }
+
             container.addView(card);
         }
 
-        private void bindHatCard(FrameLayout container, String hatJson, boolean isOutgoing) {
+        private void bindHatCard(FrameLayout container, ImMessage message, boolean isOutgoing,
+                                 MessageInteractionListener listener) {
             container.removeAllViews();
             Context ctx = container.getContext();
 
+            String hatJson = message.getContent();
             Hat hat = null;
             try {
                 hat = Hat.fromJson(hatJson, Hat.class);
@@ -409,16 +490,32 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
             Hat finalHat = hat;
             card.setOnClickListener(v -> openHatDetail(ctx, finalHat));
 
+            ImageButton playBtn = card.findViewById(R.id.im_hat_play_btn);
+            playBtn.setImageTintList(android.content.res.ColorStateList.valueOf(
+                    ctx.getColor(R.color.white)));
+            playBtn.setOnClickListener(v -> {
+                if (listener != null) listener.onOpenHat(finalHat);
+            });
+
+            if (listener != null) {
+                card.setOnLongClickListener(v -> {
+                    listener.onMessageLongPress(message, v);
+                    return true;
+                });
+            }
+
             container.addView(card);
         }
 
         /**
          * Render a STREAM file card from metadata JSON: {"name":"...", "size":..., "type":"..."}
          */
-        private void bindStreamCard(FrameLayout container, String metaJson, boolean isOutgoing) {
+        private void bindStreamCard(FrameLayout container, ImMessage message, boolean isOutgoing,
+                                    MessageInteractionListener listener) {
             container.removeAllViews();
             Context ctx = container.getContext();
 
+            String metaJson = message.getContent();
             String fileName = null;
             long fileSize = 0;
             String mimeType = null;
@@ -458,6 +555,13 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                 sizeView.setText(FileShareHelper.formatSize(fileSize));
             }
             descView.setVisibility(View.GONE);
+
+            if (listener != null) {
+                card.setOnLongClickListener(v -> {
+                    listener.onMessageLongPress(message, v);
+                    return true;
+                });
+            }
 
             container.addView(card);
         }
@@ -507,6 +611,11 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                             senderAvatar.setImageTintList(null);
                             senderAvatar.setPadding(0, 0, 0, 0);
                         }
+                        if (NobodyBoard.isKnownNobody(fid)) {
+                            NobodyBoard.applyNobodyMark(senderAvatar);
+                        } else {
+                            NobodyBoard.clearNobodyMark(senderAvatar);
+                        }
                         if (resolveName && finalCid != null && !finalCid.isEmpty()) {
                             senderName.setText(finalCid);
                         }
@@ -535,6 +644,9 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                 if (fapiClient == null) return null;
 
                 Freer freer = fapiClient.getFreer(fid);
+                if (freer != null && Boolean.TRUE.equals(freer.getNobody())) {
+                    NobodyBoard.markNobody(fid);
+                }
                 if (freer != null && freer.getCid() != null && !freer.getCid().isEmpty()) {
                     if (cidFidManager != null) {
                         cidFidManager.add(fid, freer.getCid());

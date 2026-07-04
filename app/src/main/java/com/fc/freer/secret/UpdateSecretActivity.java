@@ -82,7 +82,7 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
         // Get the secret detail from intent
         String secretJson = getIntent().getStringExtra("secret");
         if (secretJson == null || secretJson.isEmpty()) {
-            ToastUtils.makeText(this, "No secret data provided");
+            ToastUtils.makeText(this, getString(R.string.toast_no_secret_data));
             finish();
             return;
         }
@@ -90,13 +90,13 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
         try {
             originalSecret = Secret.fromJson(secretJson, Secret.class);
             if (originalSecret == null) {
-                ToastUtils.makeText(this, "Invalid secret data");
+                ToastUtils.makeText(this, getString(R.string.toast_invalid_secret_data));
                 finish();
                 return;
             }
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error parsing secret data: %s", e.getMessage());
-            ToastUtils.makeText(this, "Error loading secret data");
+            ToastUtils.makeText(this, getString(R.string.toast_error_loading_secret));
             finish();
             return;
         }
@@ -217,7 +217,7 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
         try {
             FidManager fidManager = FidManager.getInstance();
             if (fidManager == null || fidManager.getLiveKeyInfo() == null) {
-                ToastUtils.makeText(this, "No active key available for decryption");
+                ToastUtils.makeText(this, getString(R.string.toast_no_active_key_decrypt));
                 return;
             }
 
@@ -231,7 +231,7 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
 
                     if (prikey == null) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(this, "Failed to get private key");
+                            ToastUtils.makeText(this, getString(R.string.toast_failed_get_private_key));
                         });
                         return;
                     }
@@ -247,21 +247,21 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
                         if (decryptedContent != null && !decryptedContent.isEmpty()) {
                             contentInput.setText(decryptedContent);
                         } else {
-                            ToastUtils.makeText(this, "Failed to decrypt content");
+                            ToastUtils.makeText(this, getString(R.string.toast_failed_decrypt_content));
                         }
                     });
 
                 } catch (Exception e) {
                     TimberLogger.e(TAG, "Error decrypting content: %s", e.getMessage());
                     runOnUiThread(() -> {
-                        ToastUtils.makeText(this, "Error decrypting content: " + e.getMessage());
+                        ToastUtils.makeText(this, getString(R.string.toast_error_decrypting_content, e.getMessage()));
                     });
                 }
             }).start();
 
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error initiating content decryption: %s", e.getMessage());
-            ToastUtils.makeText(this, "Error initiating decryption: " + e.getMessage());
+            ToastUtils.makeText(this, getString(R.string.toast_error_initiating_decryption, e.getMessage()));
         }
     }
 
@@ -280,7 +280,7 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
 
         if(typeDisplay.equals("TOTP" )) {
             if(!Base32.isBase32(content)) {
-                ToastUtils.makeText(this, "Failed to update! TOTP key have to be base32 encoded");
+                ToastUtils.makeText(this, getString(R.string.toast_totp_update_base32));
                 return;
             }
         }
@@ -326,7 +326,7 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
         secretManager.updateSecret(updatedSecret);
         secretManager.commit();
 
-        ToastUtils.makeText(this, "Secret updated successfully");
+        ToastUtils.makeText(this, getString(R.string.toast_secret_updated));
         setResult(Activity.RESULT_OK);
         finish();
     }
@@ -339,7 +339,7 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
 
         if(typeDisplay.equals("TOTP" )) {
             if(!Base32.isBase32(content)) {
-                ToastUtils.makeText(this, "Failed to update! TOTP key have to be base32 encoded");
+                ToastUtils.makeText(this, getString(R.string.toast_totp_update_base32));
                 return;
             }
         }
@@ -398,7 +398,6 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
                             secretManager.updateSecret(updatedSecret);
                             secretManager.commit();
 
-                            ToastUtils.makeText(UpdateSecretActivity.this, "Secret updated successfully");
                             setResult(Activity.RESULT_OK);
                             finish();
                         });
@@ -407,14 +406,14 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
                     @Override
                     public void onError(String errorMessage) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(UpdateSecretActivity.this, "Failed to carve FEIP on-chain: " + errorMessage);
+                            ToastUtils.makeText(UpdateSecretActivity.this, getString(R.string.toast_failed_carve_feip, errorMessage));
                         });
                     }
 
                     @Override
                     public void onUnsignedTx(RawTxInfo rawTxInfo) {
                         runOnUiThread(() -> {
-                            ToastUtils.makeText(UpdateSecretActivity.this, "Cannot sign transaction - showing unsigned TX");
+                            ToastUtils.makeText(UpdateSecretActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
                             txSender.showUnsignedTxAsQR(UpdateSecretActivity.this, rawTxInfo);
                         });
                     }
@@ -439,7 +438,7 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
             secretManager.updateSecret(updatedSecret);
             secretManager.commit();
 
-            ToastUtils.makeText(this, "Secret updated locally");
+            ToastUtils.makeText(this, getString(R.string.toast_secret_updated_local));
             setResult(Activity.RESULT_OK);
             finish();
         }
