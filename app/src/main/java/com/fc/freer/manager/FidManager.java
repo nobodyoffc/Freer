@@ -20,6 +20,7 @@ import com.fc.freer.utils.ApiCenter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * FidManager - Manages mainFid and liveFid runtime state
@@ -541,11 +542,16 @@ public class FidManager {
     }
     
     /**
-     * Refresh cidInfo from API for the live FID and update KeyInfo
+     * Refresh cidInfo from API for the live FID and update KeyInfo.
+     *
+     * @param onComplete invoked on the main thread with {@code true} when the refresh
+     *                   succeeded and KeyInfo was updated, or {@code false} on any failure
+     *                   (no live FID, API unavailable, fetch/update failed). May be null.
      */
-    public void refreshLiveFidCidInfoAsync(Context context, Runnable onComplete) {
+    public void refreshLiveFidCidInfoAsync(Context context, Consumer<Boolean> onComplete) {
         if (liveFid == null) {
             TimberLogger.w(TAG, "No live FID available for cidInfo refresh");
+            postRefreshResult(context, onComplete, false);
             return;
         }
 
@@ -555,6 +561,7 @@ public class FidManager {
                 if (apiCenter == null) {
                     TimberLogger.w(TAG, "ApiCenter not available for freerInfo refresh");
                     // Do not show topUp dialog: we don't know if liveFid has zero balance without API
+                    postRefreshResult(context, onComplete, false);
                     return;
                 }
 
@@ -564,6 +571,7 @@ public class FidManager {
                             fapiClient != null ? "exists" : "null",
                             fapiClient != null ? fapiClient.isConnected() : "N/A");
                     // Do not show topUp dialog: network/default fapiClient not ready, we don't know balance
+                    postRefreshResult(context, onComplete, false);
                     return;
                 }
 
@@ -613,30 +621,39 @@ public class FidManager {
                             // Check if CID needs to be set (after we have fresh API data)
                             checkSetCidIfNeeded(context, freerInfo);
 
-                            // Call completion callback on main thread if provided
-                            if (onComplete != null) {
-                                if (context instanceof android.app.Activity) {
-                                    ((android.app.Activity) context).runOnUiThread(onComplete);
-                                } else {
-                                    // For non-Activity contexts, use Handler to post to main thread
-                                    android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
-                                    mainHandler.post(onComplete);
-                                }
-                            }
+                            // Refresh succeeded and KeyInfo was updated
+                            postRefreshResult(context, onComplete, true);
                         } else {
                             TimberLogger.w(TAG, "Failed to update KeyInfo for FID: %s", liveFid);
+                            postRefreshResult(context, onComplete, false);
                         }
                     } else {
                         TimberLogger.w(TAG, "Current KeyInfo is null, cannot update");
+                        postRefreshResult(context, onComplete, false);
                     }
                 } else {
                     TimberLogger.w(TAG, "Failed to fetch freerInfo for live FID: %s", liveFid);
                     checkTopUpIfNeeded(context);
+                    postRefreshResult(context, onComplete, false);
                 }
             } catch (Exception e) {
                 TimberLogger.e(TAG, "Error refreshing cidInfo for live FID %s: %s", liveFid, e.getMessage());
+                postRefreshResult(context, onComplete, false);
             }
         }).start();
+    }
+
+    /**
+     * Deliver the refresh result to {@code onComplete} on the main thread, if provided.
+     */
+    private void postRefreshResult(Context context, Consumer<Boolean> onComplete, boolean success) {
+        if (onComplete == null) return;
+        Runnable deliver = () -> onComplete.accept(success);
+        if (context instanceof Activity) {
+            ((Activity) context).runOnUiThread(deliver);
+        } else {
+            new Handler(Looper.getMainLooper()).post(deliver);
+        }
     }
 
     /** FIDs already prompted for DOCK setup after funding, once per app run. */

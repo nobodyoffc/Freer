@@ -340,6 +340,8 @@ public class ContactCardContainer {
                         }
                     }
                 }
+                // Notify so the confirm (tick) button enables/disables with the selection.
+                notifyContactListChanged();
             });
         } else {
             checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> notifyContactListChanged());

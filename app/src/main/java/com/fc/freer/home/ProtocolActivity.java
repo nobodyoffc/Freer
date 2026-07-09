@@ -28,6 +28,7 @@ import com.fc.freer.manager.FidManager;
 import com.fc.freer.manager.ProtocolManager;
 import com.fc.freer.ui.WaitingDialog;
 import com.fc.freer.utils.ChooseMode;
+import com.fc.freer.utils.EntityChooser;
 import com.fc.freer.utils.ProtocolCardContainer;
 import com.fc.freer.utils.ToastUtils;
 
@@ -53,9 +54,14 @@ public class ProtocolActivity extends BaseCryptoActivity {
     private ImageButton createButton;
     private ImageButton hideButton;
     private ImageButton clearButton;
+    private ImageButton confirmButton;
     private ImageButton backButton;
     private CheckBox selectAllCheckBox;
     private Button loadMoreButton;
+
+    // Picker mode: set from the caller's EXTRA_CHOOSE_MODE so this list can return chosen PID(s).
+    private ChooseMode callerChooseMode = ChooseMode.WITHOUT_CHOOSE;
+    private ChooseMode containerChooseMode = ChooseMode.CHOOSE_MULTI;
 
     private SwipeRefreshLayout swipeRefreshLayout;
     private ScrollView protocolScrollView;
@@ -101,6 +107,12 @@ public class ProtocolActivity extends BaseCryptoActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Read the picker mode before super.onCreate so setupButtons/initializeViews and the card
+        // container can be configured accordingly.
+        callerChooseMode = EntityChooser.parseChooseMode(getIntent().getStringExtra(EntityChooser.EXTRA_CHOOSE_MODE));
+        containerChooseMode = (callerChooseMode == ChooseMode.CHOOSE_ONE)
+                ? ChooseMode.CHOOSE_ONE : ChooseMode.CHOOSE_MULTI;
+
         super.onCreate(savedInstanceState);
 
         initializeActivityResultLaunchers();
@@ -279,6 +291,7 @@ public class ProtocolActivity extends BaseCryptoActivity {
         createButton = findViewById(R.id.create_button);
         hideButton = findViewById(R.id.hide_button);
         clearButton = findViewById(R.id.clear_button);
+        confirmButton = findViewById(R.id.confirm_button);
         backButton = findViewById(R.id.back_button);
         loadMoreButton = findViewById(R.id.protocol_more_button);
 
@@ -374,7 +387,7 @@ public class ProtocolActivity extends BaseCryptoActivity {
             protocolCardContainer.clearAll();
         }
 
-        protocolCardContainer = new ProtocolCardContainer(this, protocolListContainer, ChooseMode.CHOOSE_MULTI);
+        protocolCardContainer = new ProtocolCardContainer(this, protocolListContainer, containerChooseMode);
         
         protocolCardContainer.setHideEditButton(false);
         protocolCardContainer.setShowClearButton(false);
@@ -930,12 +943,57 @@ public class ProtocolActivity extends BaseCryptoActivity {
             });
         }
 
+        if (confirmButton != null) {
+            confirmButton.setOnClickListener(v -> confirmChosen());
+        }
+
         if (backButton != null) {
             backButton.setOnClickListener(v -> {
                 hideKeyboard();
                 finish();
             });
         }
+
+        configureForChooseMode();
+    }
+
+    /**
+     * When launched as a picker, reveal the confirm (tick) button and hide the management actions
+     * that don't apply while choosing.
+     */
+    private void configureForChooseMode() {
+        boolean choosing = callerChooseMode == ChooseMode.CHOOSE_ONE
+                || callerChooseMode == ChooseMode.CHOOSE_MULTI;
+        if (confirmButton != null) {
+            confirmButton.setVisibility(choosing ? View.VISIBLE : View.GONE);
+        }
+        if (choosing) {
+            if (createButton != null) createButton.setVisibility(View.GONE);
+            if (hideButton != null) hideButton.setVisibility(View.GONE);
+            if (moreButton != null) moreButton.setVisibility(View.GONE);
+        }
+    }
+
+    /** Returns the selected protocol id(s) to the caller and finishes (picker modes). */
+    private void confirmChosen() {
+        if (protocolCardContainer == null) return;
+        List<Protocol> selected = protocolCardContainer.getSelectedProtocols();
+        if (selected.isEmpty()) {
+            ToastUtils.makeText(this, R.string.no_items_selected);
+            return;
+        }
+        Intent result = new Intent();
+        if (callerChooseMode == ChooseMode.CHOOSE_ONE) {
+            result.putExtra(EntityChooser.EXTRA_SELECTED_ID, selected.get(0).getId());
+        } else {
+            ArrayList<String> ids = new ArrayList<>();
+            for (Protocol p : selected) {
+                if (p.getId() != null) ids.add(p.getId());
+            }
+            result.putStringArrayListExtra(EntityChooser.EXTRA_SELECTED_IDS, ids);
+        }
+        setResult(RESULT_OK, result);
+        finish();
     }
 
     private void searchMyProtocols() {

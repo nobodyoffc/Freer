@@ -193,6 +193,23 @@ public class IoIconsView extends LinearLayout {
     public void setOnFileClickListener(OnFileClickListener listener) {
         this.fileClickListener = listener;
     }
+
+    /**
+     * Override the drawable shown on the file button. Useful when the file slot is repurposed as a
+     * generic chooser trigger (e.g. a search icon for picking an entity from a list).
+     */
+    public void setFileIcon(int drawableRes) {
+        if (fileButton != null) {
+            fileButton.setImageResource(drawableRes);
+        }
+    }
+
+    /** Tint the file button (used when the file slot is repurposed as a chooser trigger). */
+    public void setFileIconTint(int color) {
+        if (fileButton != null) {
+            fileButton.setColorFilter(color);
+        }
+    }
     
     /**
      * Helper method to launch the QR scanner activity

@@ -34,7 +34,7 @@ import com.fc.freer.account.CashActivity;
 import com.fc.freer.multisig.SignMultisigTxActivity;
 import com.fc.freer.utils.ChooseMode;
 import com.fc.freer.utils.ToastUtils;
-import com.fc.freer.contact.ChooseContactActivity;
+import com.fc.freer.im.SearchFidsOnChainActivity;
 import com.fc.fc_ajdk.data.feipData.Contact;
 import com.fc.fc_ajdk.utils.JsonUtils;
 
@@ -764,8 +764,8 @@ public class CreateTxActivity extends BaseCryptoActivity {
         // Set up people icon click listener
         iconsView.setOnPeopleClickListener(isSingleChoice -> {
             TimberLogger.i(TAG, "People icon clicked for outputFidInput");
-            Intent intent = new Intent(this, ChooseContactActivity.class);
-            intent.putExtra(ChooseContactActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_MULTI.name());
+            Intent intent = new Intent(this, SearchFidsOnChainActivity.class);
+            intent.putExtra(SearchFidsOnChainActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_MULTI.name());
             chooseContactLauncher.launch(intent);
         });
 
@@ -777,25 +777,24 @@ public class CreateTxActivity extends BaseCryptoActivity {
     }
 
     private void handleContactSelectionResult(Intent data) {
-        String selectedContactsJson = data.getStringExtra(ChooseContactActivity.EXTRA_SELECTED_CONTACTS);
-        if (selectedContactsJson != null) {
+        List<String> selectedFids = data.getStringArrayListExtra(SearchFidsOnChainActivity.EXTRA_SELECTED_FIDS);
+        if (selectedFids != null) {
             try {
-                List<Contact> selectedContacts = JsonUtils.listFromJson(selectedContactsJson, Contact.class);
-                if (!selectedContacts.isEmpty()) {
-                    if (selectedContacts.size() == 1) {
-                        // Single contact selected - put FID in the input field
-                        Contact contact = selectedContacts.get(0);
-                        if (contact.getFid() != null && !contact.getFid().isEmpty()) {
-                            outputFidInput.setText(contact.getFid());
+                if (!selectedFids.isEmpty()) {
+                    if (selectedFids.size() == 1) {
+                        // Single FID selected - put it in the input field
+                        String fid = selectedFids.get(0);
+                        if (fid != null && !fid.isEmpty()) {
+                            outputFidInput.setText(fid);
                         } else {
                             ToastUtils.makeText(this, R.string.contact_has_no_fid);
                         }
                     } else {
-                        // Multiple contacts selected - create batch outputs using AddOutputFromFidListDialog
+                        // Multiple FIDs selected - create batch outputs using AddOutputFromFidListDialog
                         List<String> fidList = new ArrayList<>();
-                        for (Contact contact : selectedContacts) {
-                            if (contact.getFid() != null && !contact.getFid().isEmpty()) {
-                                fidList.add(contact.getFid());
+                        for (String fid : selectedFids) {
+                            if (fid != null && !fid.isEmpty()) {
+                                fidList.add(fid);
                             }
                         }
 

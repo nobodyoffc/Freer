@@ -2,6 +2,7 @@ package com.fc.freer;
 
 import android.app.Activity;
 import android.app.Application;
+import android.content.Context;
 import android.os.Bundle;
 
 import com.fc.fc_ajdk.android.FcProviders;
@@ -35,7 +36,7 @@ public class FreerApplication extends Application {
     public static final int MAX_CONTAINER_SIZE =40;
     public static final int DEFAULT_REQUEST_SIZE = 10;
     public static final int DEFAULT_REQUEST_PAGE_COUNT = 1;
-    public static final String FREER_APP_DEALER = "FJjw8CiHEezwvVHFDY1z7n5sbwejm4reer";
+    public static final String FREER_APP_DEALER = "FKHyN5PCw5LEEL1tS8grpTCGZVGyYoreer";
 
     public static final FcManager.ManagerType[] managers = new FcManager.ManagerType[]{
             FcManager.ManagerType.APP,
@@ -63,9 +64,16 @@ public class FreerApplication extends Application {
 
     private static final List<String> fidList = new ArrayList<>();
     private static Activity currentActivity;
+    private static Context appContext;
+
+    public static Context getAppContext() {
+        return appContext;
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
+        appContext = this;
 
         // Replace Android's stripped-down "BC" provider with the full bundled Bouncy
         // Castle before any crypto runs. Without this, Cipher.getInstance(..., "BC")

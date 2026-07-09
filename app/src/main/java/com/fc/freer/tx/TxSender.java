@@ -247,15 +247,15 @@ public class TxSender {
                 return;
             }
 
-            Long bestHeight = fapiClient.getBestHeight();
-
-            if(requiredCd>0 && bestHeight!=null && bestHeight<Feip.CDD_CHECK_HEIGHT) {
-                requiredCd = 0L;
-            }
-            Long finalRequiredCd = requiredCd;
+            Long requestedCd = requiredCd;
 
             new Thread(() -> {
                 try {
+                    // Resolve the effective CD on the worker thread: getBestHeight()
+                    // is a network call and returns null when invoked on the main
+                    // thread, which used to skip the below-CDD_CHECK_HEIGHT waiver
+                    // and fail fresh FIDs with "No enough CD".
+                    Long finalRequiredCd = Feip.getRequiredCd(fapiClient.getBestHeight(), requestedCd);
                     sendTxInternal(context, sender, outputs, opReturn, finalRequiredCd, feeRate,
                             multisig, ver, lockTime, prikey, cashManager, txHandler, fapiClient, callback, false, withConfirm);
                 } catch (Exception e) {
@@ -405,21 +405,21 @@ public class TxSender {
                             // Refresh cash DB and retry
                             if (!isRetry) {
                                 String errorType = message.contains("-25") ? "missing inputs" : "mempool conflict";
-                                TimberLogger.w("TxSender", "Transaction failed due to " + errorType + ", refreshing cash DB and retrying");
+                                TimberLogger.w("TxSender", "Transaction failed due to " + errorType + ", reconciling cash DB and retrying");
 
-                                // Refresh cash database (already on background thread)
-                                int count = cashManager.freshValidCashDB(context);
-
-                                // For -26 errors, also update conflicted status
-                                if (message.contains("-26")) {
-                                    int conflictedCount = cashManager.updateConflictedCashes(context);
-                                    TimberLogger.i("TxSender", "Marked %d cashes as conflicted in mempool", conflictedCount);
+                                // The conflicting spend sits in the mempool right now, so the
+                                // RPC-backed overlay sees it immediately, while the ES-backed
+                                // full refresh lags by seconds and can re-introduce the very
+                                // cash that just conflicted. Fall back to the full refresh
+                                // (which re-applies the overlay) for -25, where the input may
+                                // be confirmed-spent or unknown to the node, or when the
+                                // overlay call itself failed. (Already on background thread.)
+                                int changed = cashManager.applyMempoolOverlay(context);
+                                if (message.contains("-25") || changed < 0) {
+                                    cashManager.freshValidCashDB(context);
                                 }
 
-                                if(count>0)
-                                    ToastUtils.makeText(context, context.getString(R.string.cash_refreshed_and_saved, count));
-                                else
-                                    ToastUtils.makeText(context, context.getString(R.string.toast_cash_db_refreshed));
+                                ToastUtils.makeText(context, context.getString(R.string.toast_cash_db_refreshed));
 
                                 sendTxInternal(context, sender, outputs, opReturn, cdRequired,
                                         feeRate, multisig, ver, lockTime, prikey, cashManager, txHandler,
@@ -681,22 +681,17 @@ public class TxSender {
                             // Refresh cash DB and retry
                             if (!isRetry) {
                                 String errorType = message.contains("-25") ? "missing inputs" : "mempool conflict";
-                                TimberLogger.w("TxSender", "Transaction failed due to " + errorType + ", refreshing cash DB and retrying");
+                                TimberLogger.w("TxSender", "Transaction failed due to " + errorType + ", reconciling cash DB and retrying");
 
-                                // Refresh cash database (already on background thread)
-                                int count = cashManager.freshValidCashDB(context);
-
-                                // For -26 errors, also update conflicted status
-                                if (message.contains("-26")) {
-                                    int conflictedCount = cashManager.updateConflictedCashes(context);
-                                    TimberLogger.i("TxSender", "Marked %d cashes as conflicted in mempool", conflictedCount);
+                                // See sendTxInternal: overlay first (RPC mempool, no ES lag);
+                                // full refresh only for -25 or if the overlay call failed.
+                                // (Already on background thread.)
+                                int changed = cashManager.applyMempoolOverlay(context);
+                                if (message.contains("-25") || changed < 0) {
+                                    cashManager.freshValidCashDB(context);
                                 }
 
-                                if (count > 0) {
-                                    ToastUtils.makeText(context, context.getString(R.string.cash_refreshed_and_saved, count));
-                                } else {
-                                    ToastUtils.makeText(context, context.getString(R.string.toast_cash_db_refreshed));
-                                }
+                                ToastUtils.makeText(context, context.getString(R.string.toast_cash_db_refreshed));
                                 // The original rawTxInfo has the conflicting inputs baked in; re-selecting
                                 // them from the just-refreshed (mempool-aware) DB is required, otherwise the
                                 // retry rebroadcasts the identical TX and hits the same -26. Mirror the input

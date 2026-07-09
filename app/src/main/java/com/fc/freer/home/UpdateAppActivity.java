@@ -25,12 +25,14 @@ import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
+import com.fc.freer.utils.EntityFieldPickers;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.TextIconsUtils;
 import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.utils.ToolbarUtils;
 import com.fc.freer.manager.AppManager;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -58,6 +60,8 @@ public class UpdateAppActivity extends BaseCryptoActivity {
     private ImageButton saveButton;
     private ImageButton updateButton;
     private ImageButton backButton;
+
+    private EntityFieldPickers pickers;
 
     // QR scan request codes
     private static final int QR_SCAN_STD_NAME = 1001;
@@ -120,6 +124,8 @@ public class UpdateAppActivity extends BaseCryptoActivity {
         setupButtons();
         populateFields();
 
+        pickers = new EntityFieldPickers(this);
+
         // Setup scan icons for input fields
         TextIconsUtils.setupTextIcons(this, R.id.stdNameView, R.id.scanIcon, QR_SCAN_STD_NAME);
         TextIconsUtils.setupTextIcons(this, R.id.localNamesView, R.id.scanIcon, QR_SCAN_LOCAL_NAMES);
@@ -127,10 +133,12 @@ public class UpdateAppActivity extends BaseCryptoActivity {
         TextIconsUtils.setupTextIcons(this, R.id.descView, R.id.scanIcon, QR_SCAN_DESC);
         TextIconsUtils.setupTextIcons(this, R.id.verView, R.id.scanIcon, QR_SCAN_VER);
         TextIconsUtils.setupTextIcons(this, R.id.urlsView, R.id.scanIcon, QR_SCAN_URLS);
-        TextIconsUtils.setupTextIcons(this, R.id.waitersView, R.id.scanIcon, QR_SCAN_WAITERS);
-        TextIconsUtils.setupTextIcons(this, R.id.protocolsView, R.id.scanIcon, QR_SCAN_PROTOCOLS);
-        TextIconsUtils.setupTextIcons(this, R.id.codesView, R.id.scanIcon, QR_SCAN_CODES);
-        TextIconsUtils.setupTextIcons(this, R.id.servicesView, R.id.scanIcon, QR_SCAN_SERVICES);
+        // Waiters are FIDs: search them on chain (or pick from contacts) via the people icon.
+        pickers.bindFidField(R.id.waitersView, R.id.scanIcon, QR_SCAN_WAITERS, waitersInput, true);
+        // Protocols/codes/services are entity ids: pick them from their list via the file icon.
+        pickers.bindEntityIdField(R.id.protocolsView, R.id.scanIcon, QR_SCAN_PROTOCOLS, protocolsInput, true, ProtocolActivity.class);
+        pickers.bindEntityIdField(R.id.codesView, R.id.scanIcon, QR_SCAN_CODES, codesInput, true, CodeActivity.class);
+        pickers.bindEntityIdField(R.id.servicesView, R.id.scanIcon, QR_SCAN_SERVICES, servicesInput, true, ServiceActivity.class);
     }
 
     @Override
@@ -149,34 +157,34 @@ public class UpdateAppActivity extends BaseCryptoActivity {
         View servicesView = findViewById(R.id.servicesView);
 
         stdNameInput = stdNameView.findViewById(R.id.textInput);
-        stdNameInput.setHint(R.string.standard_name_required);
+        setLabel(stdNameView, R.string.standard_name_required);
 
         localNamesInput = localNamesView.findViewById(R.id.textInput);
-        localNamesInput.setHint(R.string.local_names_comma_separated);
+        setLabel(localNamesView, R.string.local_names_comma_separated);
 
         typesInput = typesView.findViewById(R.id.textInput);
-        typesInput.setHint(R.string.types_comma_separated);
+        setLabel(typesView, R.string.types_comma_separated);
 
         descInput = descView.findViewById(R.id.textInput);
-        descInput.setHint(R.string.description);
+        setLabel(descView, R.string.description);
 
         verInput = verView.findViewById(R.id.textInput);
-        verInput.setHint(R.string.version);
+        setLabel(verView, R.string.version);
 
         urlsInput = urlsView.findViewById(R.id.textInput);
-        urlsInput.setHint(R.string.urls_comma_separated);
+        setLabel(urlsView, R.string.urls_comma_separated);
 
         waitersInput = waitersView.findViewById(R.id.textInput);
-        waitersInput.setHint(R.string.waiters_comma_separated);
+        setLabel(waitersView, R.string.waiters_comma_separated);
 
         protocolsInput = protocolsView.findViewById(R.id.textInput);
-        protocolsInput.setHint(R.string.protocols_comma_separated);
+        setLabel(protocolsView, R.string.protocols_comma_separated);
 
         codesInput = codesView.findViewById(R.id.textInput);
-        codesInput.setHint(R.string.codes_comma_separated);
+        setLabel(codesView, R.string.codes_comma_separated);
 
         servicesInput = servicesView.findViewById(R.id.textInput);
-        servicesInput.setHint(R.string.services_comma_separated);
+        setLabel(servicesView, R.string.services_comma_separated);
 
         clearButton = findViewById(R.id.clearButton);
         saveButton = findViewById(R.id.saveButton);
@@ -507,6 +515,17 @@ public class UpdateAppActivity extends BaseCryptoActivity {
 
     private String getText(TextInputEditText input) {
         return input.getText() != null ? input.getText().toString().trim() : "";
+    }
+
+    /**
+     * Set a persistent floating label on the field's TextInputLayout so it stays visible above the
+     * pre-populated content when editing an existing entity.
+     */
+    private void setLabel(View container, int hintRes) {
+        TextInputLayout layout = container.findViewById(R.id.textInputWithScanLayout);
+        if (layout != null) {
+            layout.setHint(getString(hintRes));
+        }
     }
 
     private String formatStringMap(Map<String, String> map) {

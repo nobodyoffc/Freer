@@ -292,6 +292,9 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         
         // Wire TalkPartner lookup into P2P handler
         p2pHandler.setTalkPartnerProvider(this::getTalkPartner);
+        // Let the P2P handler write a freshly-fetched recipient home back so a
+        // just-registered (or moved) DOCK is persisted, not re-fetched every send.
+        p2pHandler.setTalkPartnerHomeUpdater(this::updateTalkPartnerHome);
         
         // Set up handler listeners
         p2pHandler.setMessageListener(this);

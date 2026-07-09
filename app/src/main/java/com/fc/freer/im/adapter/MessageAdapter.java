@@ -59,6 +59,9 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
     private ImType imType;
     private MessageInteractionListener listener;
 
+    /** Live HAT download progress per hatId: [bytesReceived, totalBytes]. */
+    private final java.util.Map<String, long[]> hatDownloads = new java.util.HashMap<>();
+
     private static final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("HH:mm", Locale.getDefault());
 
     public MessageAdapter(List<ImMessage> messages, String liveFid, ImType imType) {
@@ -86,6 +89,37 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         this.listener = listener;
     }
 
+    /**
+     * Marks a HAT download active or updates its byte count. Monotonic: a lower byte
+     * count than already recorded is ignored (receive progress may interleave with
+     * smaller per-stream values).
+     */
+    public void setHatDownloadProgress(String hatId, long bytes, long total) {
+        long[] cur = hatDownloads.get(hatId);
+        if (cur == null) {
+            hatDownloads.put(hatId, new long[]{bytes, total});
+        } else {
+            if (bytes > cur[0]) cur[0] = bytes;
+            if (total > cur[1]) cur[1] = total;
+        }
+    }
+
+    public void clearHatDownload(String hatId) {
+        hatDownloads.remove(hatId);
+    }
+
+    /** Rebinds every message row that renders the given HAT. */
+    public void notifyHatChanged(String hatId) {
+        if (hatId == null) return;
+        for (int i = 0; i < messages.size(); i++) {
+            ImMessage m = messages.get(i);
+            if (m.getContentType() == ContentType.HAT
+                    && m.getContent() != null && m.getContent().contains(hatId)) {
+                notifyItemChanged(i);
+            }
+        }
+    }
+
     @NonNull
     @Override
     public MessageViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -105,7 +139,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         boolean showSender = !isP2P && !isOutgoing && currentSender != null &&
                 (position == 0 || !currentSender.equals(prevSender));
 
-        holder.bind(message, isOutgoing, showSender, isP2P, listener);
+        holder.bind(message, isOutgoing, showSender, isP2P, listener, hatDownloads);
     }
 
     @Override
@@ -144,7 +178,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         }
 
         void bind(ImMessage message, boolean isOutgoing, boolean showSender, boolean isP2P,
-                  MessageInteractionListener listener) {
+                  MessageInteractionListener listener, java.util.Map<String, long[]> hatDownloads) {
             String senderId = message.getSenderId();
             boolean isSystemMessage = senderId == null || senderId.isEmpty();
 
@@ -217,7 +251,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                     outgoingContent.setVisibility(View.GONE);
                     outgoingHatContainer.setVisibility(View.VISIBLE);
                     if (isHat) {
-                        bindHatCard(outgoingHatContainer, message, true, listener);
+                        bindHatCard(outgoingHatContainer, message, true, listener, hatDownloads);
                     } else {
                         bindStreamCard(outgoingHatContainer, message, true, listener);
                     }
@@ -266,7 +300,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                     incomingContent.setVisibility(View.GONE);
                     incomingHatContainer.setVisibility(View.VISIBLE);
                     if (isHat) {
-                        bindHatCard(incomingHatContainer, message, false, listener);
+                        bindHatCard(incomingHatContainer, message, false, listener, hatDownloads);
                     } else {
                         bindStreamCard(incomingHatContainer, message, false, listener);
                     }
@@ -437,7 +471,8 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         }
 
         private void bindHatCard(FrameLayout container, ImMessage message, boolean isOutgoing,
-                                 MessageInteractionListener listener) {
+                                 MessageInteractionListener listener,
+                                 java.util.Map<String, long[]> hatDownloads) {
             container.removeAllViews();
             Context ctx = container.getContext();
 
@@ -496,6 +531,32 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
             playBtn.setOnClickListener(v -> {
                 if (listener != null) listener.onOpenHat(finalHat);
             });
+
+            com.google.android.material.progressindicator.CircularProgressIndicator downloadProgress =
+                    card.findViewById(R.id.im_hat_download_progress);
+            long[] dl = hatDownloads != null ? hatDownloads.get(hat.getId()) : null;
+            if (dl != null) {
+                playBtn.setVisibility(View.INVISIBLE);
+                int indicatorColor = ctx.getColor(isOutgoing ? R.color.white : R.color.accent);
+                downloadProgress.setIndicatorColor(indicatorColor);
+                long total = dl[1];
+                if (total > 0) {
+                    // Received bytes include protocol framing overhead; clamp below 100%
+                    // so the ring only completes when the download actually finishes.
+                    downloadProgress.setProgress((int) Math.min(99, dl[0] * 100 / total));
+                } else {
+                    downloadProgress.setIndeterminate(true);
+                }
+                downloadProgress.setVisibility(View.VISIBLE);
+                // Tapping the ring asks whether to cancel (handled by the listener,
+                // which knows this HAT is downloading).
+                downloadProgress.setOnClickListener(v -> {
+                    if (listener != null) listener.onOpenHat(finalHat);
+                });
+            } else {
+                downloadProgress.setVisibility(View.GONE);
+                playBtn.setVisibility(View.VISIBLE);
+            }
 
             if (listener != null) {
                 card.setOnLongClickListener(v -> {

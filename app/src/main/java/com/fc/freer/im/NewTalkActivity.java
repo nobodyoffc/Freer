@@ -32,7 +32,7 @@ import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.FreerApplication;
 import com.fc.freer.R;
-import com.fc.freer.contact.ChooseContactActivity;
+import com.fc.freer.im.SearchFidsOnChainActivity;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.model.Setting;
 import com.fc.freer.ui.WaitingDialog;
@@ -163,34 +163,28 @@ public class NewTalkActivity extends BaseCryptoActivity {
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                        String contactJson = result.getData().getStringExtra(ChooseContactActivity.EXTRA_SELECTED_CONTACT);
-                        if (contactJson != null) {
-                            handleContactSelected(contactJson);
+                        java.util.List<String> fids = result.getData()
+                                .getStringArrayListExtra(SearchFidsOnChainActivity.EXTRA_SELECTED_FIDS);
+                        if (fids != null && !fids.isEmpty()) {
+                            openChatWithFid(fids.get(0));
                         }
                     }
                 }
         );
     }
 
-    private void handleContactSelected(String contactJson) {
+    private void openChatWithFid(String fid) {
+        if (fid == null || fid.isEmpty()) return;
         try {
-            Contact contact = Contact.fromJson(contactJson, Contact.class);
-            if (contact != null && contact.getFid() != null) {
-                ensureTalkPartner(contact.getFid(), contact.getPubkey(), contact.getCid(),
-                        contact.getHome(), TalkPartner.SOURCE_CONTACT);
+            ensureTalkPartner(fid, null, null, null, TalkPartner.SOURCE_CONTACT);
 
-                String displayName = contact.getCid();
-                Intent intent = new Intent(this, ChatActivity.class);
-                intent.putExtra(ChatActivity.EXTRA_TYPE, ImType.P2P.name());
-                intent.putExtra(ChatActivity.EXTRA_TARGET_ID, contact.getFid());
-                if (displayName != null) {
-                    intent.putExtra(ChatActivity.EXTRA_DISPLAY_NAME, displayName);
-                }
-                startActivity(intent);
-                finish();
-            }
+            Intent intent = new Intent(this, ChatActivity.class);
+            intent.putExtra(ChatActivity.EXTRA_TYPE, ImType.P2P.name());
+            intent.putExtra(ChatActivity.EXTRA_TARGET_ID, fid);
+            startActivity(intent);
+            finish();
         } catch (Exception e) {
-            TimberLogger.e(TAG, "Error handling contact selection: %s", e.getMessage());
+            TimberLogger.e(TAG, "Error opening chat: %s", e.getMessage());
             ToastUtils.makeText(this, getString(R.string.error_showing_detail));
         }
     }
@@ -237,8 +231,8 @@ public class NewTalkActivity extends BaseCryptoActivity {
     }
 
     private void openContactPicker() {
-        Intent intent = new Intent(this, ChooseContactActivity.class);
-        intent.putExtra(ChooseContactActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_ONE_RETURN.name());
+        Intent intent = new Intent(this, SearchFidsOnChainActivity.class);
+        intent.putExtra(SearchFidsOnChainActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_ONE_RETURN.name());
         chooseContactLauncher.launch(intent);
     }
 

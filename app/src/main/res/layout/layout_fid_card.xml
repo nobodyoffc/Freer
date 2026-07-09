@@ -136,18 +136,6 @@
                         android:visibility="gone"
                         android:scaleType="centerInside" />
 
-                    <!-- Dead Icon (shown when isNobody is true) -->
-                    <ImageView
-                        android:id="@+id/fidDeadIcon"
-                        android:layout_width="34dp"
-                        android:layout_height="34dp"
-                        android:layout_marginStart="8dp"
-                        android:layout_marginBottom="8dp"
-                        android:src="@drawable/ic_dead"
-                        android:visibility="gone"
-                        android:scaleType="centerInside"
-                        android:contentDescription="@string/nobody" />
-
                 </LinearLayout>
 
             </LinearLayout>

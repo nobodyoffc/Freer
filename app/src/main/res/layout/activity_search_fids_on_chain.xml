@@ -167,6 +167,12 @@
                     android:contentDescription="@string/clear_all" />
 
                 <ImageButton
+                    android:id="@+id/fromListButton"
+                    style="@style/ImageButtonStyle"
+                    android:src="@drawable/ic_list"
+                    android:contentDescription="@string/add_from_fid_list" />
+
+                <ImageButton
                     android:id="@+id/contactButton"
                     style="@style/ImageButtonStyle"
                     android:src="@drawable/ic_contact"

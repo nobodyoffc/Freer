@@ -27,7 +27,7 @@ import com.fc.fc_ajdk.utils.JsonUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
-import com.fc.freer.contact.ChooseContactActivity;
+import com.fc.freer.im.SearchFidsOnChainActivity;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.manager.ProofManager;
@@ -429,16 +429,11 @@ public class IssueProofActivity extends BaseCryptoActivity {
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                    String contactsJson = result.getData().getStringExtra(ChooseContactActivity.EXTRA_SELECTED_CONTACTS);
-                    if (contactsJson != null) {
-                        try {
-                            List<Contact> selectedContacts = JsonUtils.listFromJson(contactsJson, Contact.class);
-                            for (Contact contact : selectedContacts) {
-                                addCosignerFid(contact.getFid());
-                            }
-                        } catch (Exception e) {
-                            TimberLogger.e(TAG, "Failed to parse selected contacts: %s", e.getMessage());
-                            ToastUtils.makeText(this, getString(R.string.toast_failed_add_contacts));
+                    java.util.List<String> fids = result.getData()
+                            .getStringArrayListExtra(SearchFidsOnChainActivity.EXTRA_SELECTED_FIDS);
+                    if (fids != null) {
+                        for (String fid : fids) {
+                            addCosignerFid(fid);
                         }
                     }
                 }
@@ -472,8 +467,8 @@ public class IssueProofActivity extends BaseCryptoActivity {
 
             // Set up people icon click listener
             cosignersIoIcons.setOnPeopleClickListener(isSingleChoice -> {
-                Intent intent = new Intent(IssueProofActivity.this, ChooseContactActivity.class);
-                intent.putExtra(ChooseContactActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_MULTI.name());
+                Intent intent = new Intent(IssueProofActivity.this, SearchFidsOnChainActivity.class);
+                intent.putExtra(SearchFidsOnChainActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_MULTI.name());
                 chooseContactLauncher.launch(intent);
             });
 

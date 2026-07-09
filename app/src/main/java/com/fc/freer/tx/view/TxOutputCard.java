@@ -35,7 +35,6 @@ public class TxOutputCard extends CardView {
     private TextView fidText;
     private TextView amountText;
     private ImageButton deleteButton;
-    private ImageView deadIcon;
     private android.widget.LinearLayout lockTimeContainer;
     private ImageView lockTimeIcon;
     private android.widget.TextView lockTimeDaysText;
@@ -76,7 +75,6 @@ public class TxOutputCard extends CardView {
         fidText = findViewById(R.id.fidText);
         amountText = findViewById(R.id.amountText);
         deleteButton = findViewById(R.id.deleteButton);
-        deadIcon = findViewById(R.id.deadIcon);
         lockTimeContainer = findViewById(R.id.lockTimeContainer);
         lockTimeIcon = findViewById(R.id.lockTimeIcon);
         lockTimeDaysText = findViewById(R.id.lockTimeDaysText);
@@ -149,14 +147,6 @@ public class TxOutputCard extends CardView {
             if (onDeleteListener != null) {
                 onDeleteListener.onDelete(this);
             }
-        });
-
-        // Setup tooltip for dead icon
-        deadIcon.setTooltipText(context.getString(R.string.prikey_leaked_tooltip));
-
-        // Also show tooltip on click
-        deadIcon.setOnClickListener(v -> {
-            v.performLongClick();
         });
 
         // Setup click listener for avatar to show big image
@@ -266,19 +256,25 @@ public class TxOutputCard extends CardView {
         amountText.setText(NumberUtils.formatAmount(cash.getAmount()) + " F");
         deleteButton.setVisibility(withDelete ? View.VISIBLE : View.GONE);
 
-        // Show dead icon if fid has leaked prikey (nobody is true)
-        deadIcon.setVisibility(nobody ? View.VISIBLE : View.GONE);
-
         fidText.setEnabled(editable);
         amountText.setEnabled(editable);
 
-        // Load avatar
+        // Load avatar (grayscale marks a nobody FID: leaked/public prikey)
         try {
             byte[] avatarBytes = AvatarMaker.makeAvatar(cash.getOwner(),context);
             Bitmap avatar = BitmapFactory.decodeByteArray(avatarBytes, 0, avatarBytes.length);
             avatarImage.setImageBitmap(avatar);
         } catch (IOException e) {
             ToastUtils.makeText(context, R.string.failed_to_load_avatar);
+        }
+        // Grey the avatar if the recipient is a nobody: either flagged by the
+        // caller (e.g. SendTx's on-chain checkNobodies) or already known to be a
+        // nobody app-wide (default nobody board, contacts marked nobody, etc.).
+        boolean isNobodyFid = nobody || com.fc.freer.im.NobodyBoard.isKnownNobody(cash.getOwner());
+        if (isNobodyFid) {
+            com.fc.freer.im.NobodyBoard.applyNobodyMark(avatarImage);
+        } else {
+            com.fc.freer.im.NobodyBoard.clearNobodyMark(avatarImage);
         }
     }
 

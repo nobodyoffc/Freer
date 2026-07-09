@@ -50,6 +50,8 @@ public class SearchFidsOnChainActivity extends BaseCryptoActivity {
     public static final String EXTRA_CHOOSE_MODE = "extra_choose_mode";
     public static final String EXTRA_TITLE = "extra_title";
     public static final String EXTRA_SELECTED_FIDS = "extra_selected_fids";
+    // Pubkeys aligned by index with EXTRA_SELECTED_FIDS; an entry may be null when the pubkey is unknown.
+    public static final String EXTRA_SELECTED_PUBKEYS = "extra_selected_pubkeys";
     public static final String EXTRA_FID_LIST = "extra_fid_list";
 
     private TextView searchResultsHint;
@@ -57,6 +59,7 @@ public class SearchFidsOnChainActivity extends BaseCryptoActivity {
     private View searchIcon;
     private View clearSearchIcon;
     private ImageButton contactButton;
+    private ImageButton fromListButton;
     private LinearLayout searchResultsLayout;
     private ImageButton confirmButton;
     private ImageButton moreButton;
@@ -99,6 +102,7 @@ public class SearchFidsOnChainActivity extends BaseCryptoActivity {
         searchIcon = findViewById(R.id.search_icon);
         clearSearchIcon = findViewById(R.id.clear_search_icon);
         contactButton = findViewById(R.id.contactButton);
+        fromListButton = findViewById(R.id.fromListButton);
         searchResultsLayout = findViewById(R.id.searchResultsLayout);
         confirmButton = findViewById(R.id.confirmButton);
         moreButton = findViewById(R.id.moreButton);
@@ -122,12 +126,15 @@ public class SearchFidsOnChainActivity extends BaseCryptoActivity {
         if (chooseMode == ChooseMode.CHOOSE_ONE_RETURN) {
             confirmButton.setVisibility(View.GONE);
             addToSelectedButton.setVisibility(View.GONE);
+            // Adding the whole FID list only makes sense when multiple picks are allowed.
+            fromListButton.setVisibility(View.GONE);
         }
 
         ArrayList<String> fidList = getIntent().getStringArrayListExtra(EXTRA_FID_LIST);
         hasFidListParam = fidList != null && !fidList.isEmpty();
         if (hasFidListParam) {
             contactButton.setVisibility(View.GONE);
+            fromListButton.setVisibility(View.GONE);
         }
 
         initializeActivityResultLaunchers();
@@ -267,6 +274,10 @@ public class SearchFidsOnChainActivity extends BaseCryptoActivity {
             hideKeyboard();
             openContactPicker();
         });
+        fromListButton.setOnClickListener(v -> {
+            hideKeyboard();
+            addFromFidList();
+        });
         confirmButton.setOnClickListener(v -> {
             hideKeyboard();
             confirmSelection();
@@ -344,7 +355,7 @@ public class SearchFidsOnChainActivity extends BaseCryptoActivity {
             if (contactJson != null) {
                 Contact contact = Contact.fromJson(contactJson, Contact.class);
                 if (contact != null && contact.getFid() != null) {
-                    returnSingleFid(contact.getFid());
+                    returnSingleFid(contact.getFid(), contact.getPubkey());
                 }
             }
         }
@@ -650,14 +661,17 @@ public class SearchFidsOnChainActivity extends BaseCryptoActivity {
     }
 
     private void onSingleFidSelected(KeyInfo keyInfo) {
-        returnSingleFid(keyInfo.getId());
+        returnSingleFid(keyInfo.getId(), keyInfo.getPubkey());
     }
 
-    private void returnSingleFid(String fid) {
+    private void returnSingleFid(String fid, String pubkey) {
         ArrayList<String> result = new ArrayList<>();
         result.add(fid);
+        ArrayList<String> pubkeys = new ArrayList<>();
+        pubkeys.add(pubkey);
         Intent data = new Intent();
         data.putStringArrayListExtra(EXTRA_SELECTED_FIDS, result);
+        data.putStringArrayListExtra(EXTRA_SELECTED_PUBKEYS, pubkeys);
         setResult(RESULT_OK, data);
         finish();
     }
@@ -669,12 +683,15 @@ public class SearchFidsOnChainActivity extends BaseCryptoActivity {
         }
 
         ArrayList<String> selectedFids = new ArrayList<>();
+        ArrayList<String> selectedPubkeys = new ArrayList<>();
         for (KeyInfo ki : selectedKeyInfoList) {
             selectedFids.add(ki.getId());
+            selectedPubkeys.add(ki.getPubkey());
         }
 
         Intent data = new Intent();
         data.putStringArrayListExtra(EXTRA_SELECTED_FIDS, selectedFids);
+        data.putStringArrayListExtra(EXTRA_SELECTED_PUBKEYS, selectedPubkeys);
         setResult(RESULT_OK, data);
         finish();
     }
@@ -682,6 +699,16 @@ public class SearchFidsOnChainActivity extends BaseCryptoActivity {
     // ================================
     // FID LIST PARAMETER HANDLING
     // ================================
+
+    private void addFromFidList() {
+        if (!isMultiSelectMode()) return;
+        List<String> globalFidList = FreerApplication.getFidList();
+        if (globalFidList == null || globalFidList.isEmpty()) {
+            ToastUtils.makeText(this, getString(R.string.fid_list_empty));
+            return;
+        }
+        loadFidListIntoSelected(new ArrayList<>(globalFidList));
+    }
 
     private void loadFidListIntoSelected(ArrayList<String> fidList) {
         if (fidList == null || fidList.isEmpty()) return;

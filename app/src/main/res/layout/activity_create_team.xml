@@ -34,7 +34,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
 
-            <!-- Consensus Document (public; uploaded to DISK, consensusId = its hash) -->
+            <!-- Consensus Document: a data DID (sha256x2 of the doc). Pick a local data hat,
+                 or type/scan its DID; the doc is uploaded (unencrypted) to the DISK on publish. -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -44,39 +45,11 @@
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="4dp" />
 
-            <LinearLayout
+            <include
+                android:id="@+id/consensusView"
+                layout="@layout/layout_text_input_with_scan"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:background="@drawable/container_outline"
-                android:padding="4dp">
-
-                <TextView
-                    android:id="@+id/consensus_doc_name"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/no_consensus_doc"
-                    android:textColor="@color/hint"
-                    android:textSize="13sp"
-                    android:maxLines="1"
-                    android:ellipsize="middle"
-                    android:paddingStart="8dp" />
-
-                <ImageButton
-                    android:id="@+id/clear_doc_button"
-                    style="@style/ImageButtonStyle"
-                    android:src="@drawable/ic_clear"
-                    android:contentDescription="@string/clear"
-                    android:visibility="gone" />
-
-                <ImageButton
-                    android:id="@+id/attach_doc_button"
-                    style="@style/ImageButtonStyle"
-                    android:src="@drawable/ic_attach"
-                    android:contentDescription="@string/select_consensus_document" />
-            </LinearLayout>
+                android:layout_height="wrap_content" />
 
             <!-- Description -->
             <TextView

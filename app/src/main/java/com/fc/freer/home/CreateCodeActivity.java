@@ -24,11 +24,13 @@ import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
+import com.fc.freer.utils.EntityFieldPickers;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.TextIconsUtils;
 import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.utils.ToolbarUtils;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -48,6 +50,8 @@ public class CreateCodeActivity extends BaseCryptoActivity {
     private ImageButton saveButton;
     private ImageButton publishButton;
     private ImageButton backButton;
+
+    private EntityFieldPickers pickers;
 
     private static final int QR_SCAN_NAME = 1001;
     private static final int QR_SCAN_VER = 1002;
@@ -91,14 +95,19 @@ public class CreateCodeActivity extends BaseCryptoActivity {
 
         setupButtons();
 
+        pickers = new EntityFieldPickers(this);
+
         TextIconsUtils.setupTextIcons(this, R.id.nameView, R.id.scanIcon, QR_SCAN_NAME);
         TextIconsUtils.setupTextIcons(this, R.id.verView, R.id.scanIcon, QR_SCAN_VER);
-        TextIconsUtils.setupTextIcons(this, R.id.didView, R.id.scanIcon, QR_SCAN_DID);
+        // DID field: pick a local data DID via the file icon, or enter it manually.
+        pickers.bindDidField(R.id.didView, R.id.scanIcon, QR_SCAN_DID, didInput);
         TextIconsUtils.setupTextIcons(this, R.id.descView, R.id.scanIcon, QR_SCAN_DESC);
         TextIconsUtils.setupTextIcons(this, R.id.langsView, R.id.scanIcon, QR_SCAN_LANGS);
         TextIconsUtils.setupTextIcons(this, R.id.urlsView, R.id.scanIcon, QR_SCAN_URLS);
-        TextIconsUtils.setupTextIcons(this, R.id.protocolsView, R.id.scanIcon, QR_SCAN_PROTOCOLS);
-        TextIconsUtils.setupTextIcons(this, R.id.waitersView, R.id.scanIcon, QR_SCAN_WAITERS);
+        // Protocols are entity ids: pick them from the protocol list via the file icon.
+        pickers.bindEntityIdField(R.id.protocolsView, R.id.scanIcon, QR_SCAN_PROTOCOLS, protocolsInput, true, ProtocolActivity.class);
+        // Waiters are FIDs: search them on chain (or pick from contacts) via the people icon.
+        pickers.bindFidField(R.id.waitersView, R.id.scanIcon, QR_SCAN_WAITERS, waitersInput, true);
     }
 
     @Override
@@ -113,28 +122,28 @@ public class CreateCodeActivity extends BaseCryptoActivity {
         View waitersView = findViewById(R.id.waitersView);
 
         nameInput = nameView.findViewById(R.id.textInput);
-        nameInput.setHint(R.string.name_required);
+        setLabel(nameView, R.string.name_required);
 
         verInput = verView.findViewById(R.id.textInput);
-        verInput.setHint(R.string.version);
+        setLabel(verView, R.string.version);
 
         didInput = didView.findViewById(R.id.textInput);
-        didInput.setHint(R.string.did);
+        setLabel(didView, R.string.did);
 
         descInput = descView.findViewById(R.id.textInput);
-        descInput.setHint(R.string.description);
+        setLabel(descView, R.string.description);
 
         langsInput = langsView.findViewById(R.id.textInput);
-        langsInput.setHint(R.string.languages_comma_separated);
+        setLabel(langsView, R.string.languages_comma_separated);
 
         urlsInput = urlsView.findViewById(R.id.textInput);
-        urlsInput.setHint(R.string.urls_comma_separated);
+        setLabel(urlsView, R.string.urls_comma_separated);
 
         protocolsInput = protocolsView.findViewById(R.id.textInput);
-        protocolsInput.setHint(R.string.protocols_comma_separated);
+        setLabel(protocolsView, R.string.protocols_comma_separated);
 
         waitersInput = waitersView.findViewById(R.id.textInput);
-        waitersInput.setHint(R.string.waiters_comma_separated);
+        setLabel(waitersView, R.string.waiters_comma_separated);
 
         clearButton = findViewById(R.id.clearButton);
         saveButton = findViewById(R.id.saveButton);
@@ -306,6 +315,17 @@ public class CreateCodeActivity extends BaseCryptoActivity {
 
     private String getText(TextInputEditText input) {
         return input.getText() != null ? input.getText().toString().trim() : "";
+    }
+
+    /**
+     * Set a persistent floating label on the field's TextInputLayout so it stays visible above the
+     * content once the user starts typing.
+     */
+    private void setLabel(View container, int hintRes) {
+        TextInputLayout layout = container.findViewById(R.id.textInputWithScanLayout);
+        if (layout != null) {
+            layout.setHint(getString(hintRes));
+        }
     }
 
     private java.util.List<String> parseCommaSeparated(String input) {

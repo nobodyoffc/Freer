@@ -316,31 +316,45 @@ public class AutoRechargeManager {
         }
         
         // 3. 获取可用 UTXOs
-        // Prefer server-provided cashes from the PAYMENT_REQUIRED response
+        // The wallet's UtxoProvider is authoritative when present: it selects from the
+        // local mempool-aware cash DB, so this background TX cannot double-spend a cash
+        // the wallet is about to use (or vice versa). Server-side selection (cashes from
+        // the PAYMENT_REQUIRED response or the cashValid API) knows nothing about the
+        // wallet's local bookkeeping and is only a fallback for provider-less SDK users.
         double amountFch = FchUtils.satoshiToCoin(paymentSatoshi);
         List<Cash> cashList = null;
 
-        FapiResponse lastResp = fapiClient.getLastResponse();
-        if (lastResp != null && lastResp.getCode() != null
-                && lastResp.getCode() == FapiCode.PAYMENT_REQUIRED
-                && lastResp.getData() != null) {
-            try {
-                cashList = ObjectUtils.objectToList(lastResp.getData(), Cash.class);
-                TimberLogger.i(TAG, "Using %d server-provided cashes from PAYMENT_REQUIRED response",
-                        cashList != null ? cashList.size() : 0);
-            } catch (Exception e) {
-                TimberLogger.w(TAG, "Failed to parse cashes from PAYMENT_REQUIRED response: %s", e.getMessage());
+        FapiClient.UtxoProvider utxoProvider = fapiClient.getUtxoProvider();
+        if (utxoProvider != null) {
+            cashList = utxoProvider.selectInputs(myFid, amountFch);
+            if (cashList == null || cashList.isEmpty()) {
+                return RechargeResult.failure("No valid UTXOs available from wallet. Insufficient balance?");
             }
-        }
+            TimberLogger.i(TAG, "Using %d wallet-selected cashes for recharge", cashList.size());
+        } else {
+            // Prefer server-provided cashes from the PAYMENT_REQUIRED response
+            FapiResponse lastResp = fapiClient.getLastResponse();
+            if (lastResp != null && lastResp.getCode() != null
+                    && lastResp.getCode() == FapiCode.PAYMENT_REQUIRED
+                    && lastResp.getData() != null) {
+                try {
+                    cashList = ObjectUtils.objectToList(lastResp.getData(), Cash.class);
+                    TimberLogger.i(TAG, "Using %d server-provided cashes from PAYMENT_REQUIRED response",
+                            cashList != null ? cashList.size() : 0);
+                } catch (Exception e) {
+                    TimberLogger.w(TAG, "Failed to parse cashes from PAYMENT_REQUIRED response: %s", e.getMessage());
+                }
+            }
 
-        // Fallback to API call if no server-provided cashes
-        if (cashList == null || cashList.isEmpty()) {
-            TimberLogger.d(TAG, "No server-provided cashes, trying cashValid API for %.8f FCH", amountFch);
-            cashList = fapiClient.cashValid(myFid, amountFch, null, null, 1, 0);
-        }
+            // Fallback to API call if no server-provided cashes
+            if (cashList == null || cashList.isEmpty()) {
+                TimberLogger.d(TAG, "No server-provided cashes, trying cashValid API for %.8f FCH", amountFch);
+                cashList = fapiClient.cashValid(myFid, amountFch, null, null, 1, 0);
+            }
 
-        if (cashList == null || cashList.isEmpty()) {
-            return RechargeResult.failure("No valid UTXOs available. Insufficient balance?");
+            if (cashList == null || cashList.isEmpty()) {
+                return RechargeResult.failure("No valid UTXOs available. Insufficient balance?");
+            }
         }
         
         TimberLogger.d(TAG, "Found {} valid UTXOs for recharge", cashList.size());
@@ -372,8 +386,17 @@ public class AutoRechargeManager {
         
         // 6. 广播交易
         String txId = fapiClient.broadcastTx(signedTx);
-        
+
         if (txId != null && Hex.isHex32(txId)) {
+            // 让钱包立即记账（移除已花费输入、登记找零），
+            // 否则钱包的下一笔交易会重复选中这些输入而遭遇 -26 冲突。
+            if (utxoProvider != null) {
+                try {
+                    utxoProvider.onTxSent(myFid, signedTx);
+                } catch (Exception e) {
+                    TimberLogger.e(TAG, "UtxoProvider bookkeeping failed after recharge: %s", e.getMessage());
+                }
+            }
             return RechargeResult.success(txId, paymentSatoshi, dealer);
         } else {
             String errorMsg = "Failed to broadcast transaction";

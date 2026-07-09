@@ -3,7 +3,6 @@ package com.fc.freer.mail;
 import static com.fc.fc_ajdk.constants.IndicesNames.MAIL;
 
 import android.app.Activity;
-import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -16,16 +15,19 @@ import androidx.activity.OnBackPressedCallback;
 
 import com.fc.fc_ajdk.core.fch.RawTxInfo;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
-import com.fc.fc_ajdk.data.fchData.Cash;
 import com.fc.fc_ajdk.data.feipData.Mail;
 import com.fc.fc_ajdk.data.feipData.Feip;
 import com.fc.fc_ajdk.data.feipData.MailOpData;
+import com.fc.fc_ajdk.data.feipData.Service;
+import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.utils.JsonUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.fc_ajdk.core.fch.TxHandler;
-import com.fc.freer.tx.SendTxActivity;
+import com.fc.freer.tx.TxSender;
+import com.fc.freer.utils.ApiCenter;
+import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.R;
 import com.fc.freer.BaseCryptoActivity;
@@ -40,7 +42,6 @@ import java.util.List;
 
 public class DeleteMailActivity extends BaseCryptoActivity {
     private static final String TAG = "DeleteMailActivity";
-    private static final int REQUEST_SEND_TX = 1001;
 
     private MailCardContainer mailCardContainer;
     private LinearLayout mailListContainer;
@@ -309,46 +310,67 @@ public class DeleteMailActivity extends BaseCryptoActivity {
         // Create FEIP for delete operation
         String feipJson = makeDeleteMailFeip(mailIds);
 
-        // Create RawTxInfo for the deletion transaction
-        new Thread(() -> {
-            try {
-                CashManager cashManager = CashManager.getInstance();
-                TxHandler txHandler = new TxHandler();
+        // Carve the FEIP through the shared TxSender path so the CD rule
+        // (no CD required below Feip.CDD_CHECK_HEIGHT) is applied consistently.
+        try {
+            FapiClient fapiClient = (FapiClient) ApiCenter.getInstance()
+                .getClient(Service.ServiceType.FAPI_No1_NrC7);
+            String prikeyCipher = liveKeyInfo.getPrikeyCipher();
+            byte[] prikey = prikeyCipher != null
+                ? SecurePrikeyManager.fetchPrikeySilent(prikeyCipher) : null;
 
-                // Get valid cash for the transaction (FEIP transactions need minimum CD and fee)
-                List<Cash> validCashList = cashManager.getValidCashes(0.0, Feip.CD_REQUIRED, 0,
-                    feipJson.getBytes().length, TxHandler.DEFAULT_FEE_RATE, null, this);
+            TxSender txSender = new TxSender();
+            txSender.carveSimpleFeip(this, liveKeyInfo.getId(), feipJson, prikey,
+                CashManager.getInstance(), new TxHandler(), fapiClient,
+                new TxSender.TxCallback() {
+                    @Override
+                    public void onSuccess(String txId) {
+                        runOnUiThread(() -> {
+                            // Remove deleted mails from database
+                            List<Mail> mailsToDelete = new ArrayList<>(mailCardContainer.getMailList());
+                            mailManager.removeMails(mailsToDelete);
+                            mailManager.commit();
+                            SecurePrikeyManager.erasePrikey(prikey);
 
-                if (validCashList == null || validCashList.isEmpty()) {
-                    runOnUiThread(() -> {
-                        ToastUtils.makeText(DeleteMailActivity.this, getString(R.string.no_valid_cash_available_for_transaction));
-                    });
-                    return;
-                }
+                            ToastUtils.makeText(DeleteMailActivity.this, getString(R.string.mails_deleted_successfully_on_chain));
+                            setResult(Activity.RESULT_OK);
+                            finish();
+                        });
+                    }
 
-                // Create RawTxInfo for the FEIP transaction
-                RawTxInfo rawTxInfo = new RawTxInfo(liveKeyInfo.getId(), validCashList, null, feipJson,
-                    Feip.CD_REQUIRED, TxHandler.DEFAULT_FEE_RATE, null, RawTxInfo.VERSION_2);
+                    @Override
+                    public void onError(String errorMessage) {
+                        runOnUiThread(() -> {
+                            SecurePrikeyManager.erasePrikey(prikey);
+                            ToastUtils.makeText(DeleteMailActivity.this, getString(R.string.failed_to_send_tx, errorMessage));
+                        });
+                    }
 
-                if (rawTxInfo != null) {
-                    runOnUiThread(() -> {
-                        // Launch SendTxActivity with the transaction
-                        Intent sendTxIntent = new Intent(DeleteMailActivity.this, SendTxActivity.class);
-                        sendTxIntent.putExtra(SendTxActivity.EXTRA_TX_INFO_JSON, rawTxInfo.toNiceJson());
-                        startActivityForResult(sendTxIntent, REQUEST_SEND_TX);
-                    });
-                } else {
-                    runOnUiThread(() -> {
-                        ToastUtils.makeText(DeleteMailActivity.this, getString(R.string.failed_to_create_transaction));
-                    });
-                }
-            } catch (Exception e) {
-                TimberLogger.e(TAG, "Error creating delete transaction: " + e.getMessage());
-                runOnUiThread(() -> {
-                    ToastUtils.makeText(DeleteMailActivity.this, getString(R.string.error_creating_transaction, e.getMessage()));
+                    @Override
+                    public void onUnsignedTx(RawTxInfo rawTxInfo) {
+                        runOnUiThread(() -> {
+                            txSender.showUnsignedTxAsQR(DeleteMailActivity.this, rawTxInfo);
+                            SecurePrikeyManager.erasePrikey(prikey);
+                        });
+                    }
+
+                    @Override
+                    public void onUnbroadcasted(String signedTxHex) {
+                        runOnUiThread(() -> {
+                            txSender.showSignedTxAsQR(DeleteMailActivity.this, signedTxHex);
+                            SecurePrikeyManager.erasePrikey(prikey);
+                        });
+                    }
+
+                    @Override
+                    public void onCancelled() {
+                        runOnUiThread(() -> SecurePrikeyManager.erasePrikey(prikey));
+                    }
                 });
-            }
-        }).start();
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error creating delete transaction: " + e.getMessage());
+            ToastUtils.makeText(this, getString(R.string.error_creating_transaction, e.getMessage()));
+        }
     }
 
     private static String makeDeleteMailFeip(List<String> mailIds) {
@@ -358,30 +380,4 @@ public class DeleteMailActivity extends BaseCryptoActivity {
         return feip.toJson();
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        if (requestCode == REQUEST_SEND_TX) {
-            if (resultCode == SendTxActivity.RESULT_SIGNED && data != null) {
-                String txId = data.getStringExtra(SendTxActivity.EXTRA_RESULT_TXID);
-                if (txId != null && !txId.isEmpty()) {
-                    // Transaction was successfully sent
-                    // Remove deleted mails from database
-                    List<Mail> mailsToDelete = new ArrayList<>(mailCardContainer.getMailList());
-                    mailManager.removeMails(mailsToDelete);
-                    mailManager.commit();
-
-                    ToastUtils.makeText(DeleteMailActivity.this, getString(R.string.mails_deleted_successfully_on_chain));
-                    setResult(Activity.RESULT_OK);
-                    finish();
-                } else {
-                    ToastUtils.makeText(DeleteMailActivity.this, getString(R.string.invalid_txid));
-                }
-            } else {
-                // Transaction was cancelled or failed
-                ToastUtils.makeText(DeleteMailActivity.this, getString(R.string.failed));
-            }
-        }
-    }
 }

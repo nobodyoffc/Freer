@@ -52,6 +52,19 @@ public class TextIconsUtils {
 
 
     public static void setupTextIcons(Activity activity, int textView, int textIcons, int QR_SCAN_TEXT_REQUEST_CODE) {
+        setupTextIcons(activity, textView, textIcons, QR_SCAN_TEXT_REQUEST_CODE, false, false, null, null);
+    }
+
+    /**
+     * Sets up the scan and paste icons like {@link #setupTextIcons(Activity, int, int, int)} and,
+     * in addition, optionally shows the people icon (for FID fields) and/or the file icon (for DID
+     * fields) with the supplied click listeners. The people and file icons stay hidden when their
+     * listener is not requested, so a field only exposes what its content actually supports.
+     */
+    public static void setupTextIcons(Activity activity, int textView, int textIcons, int QR_SCAN_TEXT_REQUEST_CODE,
+                                      boolean showPeople, boolean showFile,
+                                      IoIconsView.OnPeopleClickListener peopleListener,
+                                      IoIconsView.OnFileClickListener fileListener) {
         TimberLogger.i(TAG, "setupTextIcons for Activity called with requestCode: " + QR_SCAN_TEXT_REQUEST_CODE);
 
         // Find the EditText within the container for paste functionality
@@ -69,12 +82,12 @@ public class TextIconsUtils {
         if (activity instanceof BaseCryptoActivity) {
             setupIoIconsView(activity, textView, textIcons,
                     false,  // showMakeQr
-                    false,  // showPeople
+                    showPeople,
                     true,   // showScan
                     true,   // showPaste
-                    false,  // showFile
+                    showFile,
                     null,
-                    null,
+                    peopleListener,
                     () -> {
                         TimberLogger.i(TAG, "Scan icon clicked in BaseCryptoActivity");
                         ((BaseCryptoActivity) activity).startQrScan(QR_SCAN_TEXT_REQUEST_CODE);
@@ -85,16 +98,16 @@ public class TextIconsUtils {
                             ((BaseCryptoActivity) activity).pasteFromClipboard(finalEditText);
                         }
                     },
-                    null);
+                    fileListener);
         } else {
             setupIoIconsView(activity, textView, textIcons,
                     false,  // showMakeQr
-                    false,  // showPeople
+                    showPeople,
                     true,   // showScan
                     true,   // showPaste
-                    false,  // showFile
+                    showFile,
                     null,
-                    null,
+                    peopleListener,
                     () -> {
                         TimberLogger.i(TAG, "Scan icon clicked in Activity");
                         startQrScan(activity, QR_SCAN_TEXT_REQUEST_CODE);
@@ -105,7 +118,7 @@ public class TextIconsUtils {
                             pasteFromClipboard(activity, finalEditText);
                         }
                     },
-                    null);
+                    fileListener);
         }
     }
 

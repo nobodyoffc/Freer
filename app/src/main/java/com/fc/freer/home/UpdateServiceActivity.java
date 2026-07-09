@@ -24,12 +24,14 @@ import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
+import com.fc.freer.utils.EntityFieldPickers;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.TextIconsUtils;
 import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.utils.ToolbarUtils;
 import com.fc.freer.manager.ServiceManager;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -71,6 +73,8 @@ public class UpdateServiceActivity extends BaseCryptoActivity {
     private ImageButton updateButton;
     private ImageButton backButton;
 
+    private EntityFieldPickers pickers;
+
     // QR scan request codes
     private static final int QR_SCAN_STD_NAME = 1001;
     private static final int QR_SCAN_LOCAL_NAMES = 1002;
@@ -83,6 +87,18 @@ public class UpdateServiceActivity extends BaseCryptoActivity {
     private static final int QR_SCAN_PROTOCOLS = 1009;
     private static final int QR_SCAN_CODES = 1010;
     private static final int QR_SCAN_SERVICES = 1011;
+    private static final int QR_SCAN_PRICE_PER_KB = 1012;
+    private static final int QR_SCAN_PRICE_PER_KB_IN = 1013;
+    private static final int QR_SCAN_PRICE_PER_KB_OUT = 1014;
+    private static final int QR_SCAN_PRICE_PER_DAY_KB = 1015;
+    private static final int QR_SCAN_MIN_PAYMENT = 1016;
+    private static final int QR_SCAN_PRICE_PER_REQUEST = 1017;
+    private static final int QR_SCAN_SESSION_DAYS = 1018;
+    private static final int QR_SCAN_CONSUME_VIA_SHARE = 1019;
+    private static final int QR_SCAN_ORDER_VIA_SHARE = 1020;
+    private static final int QR_SCAN_CURRENCY = 1021;
+    private static final int QR_SCAN_MAX_DATA_SIZE = 1022;
+    private static final int QR_SCAN_DATA_EXPIRE = 1023;
 
     @Override
     protected int getLayoutId() {
@@ -133,6 +149,8 @@ public class UpdateServiceActivity extends BaseCryptoActivity {
         setupButtons();
         populateFields();
 
+        pickers = new EntityFieldPickers(this);
+
         // Setup scan icons for input fields
         TextIconsUtils.setupTextIcons(this, R.id.stdNameView, R.id.scanIcon, QR_SCAN_STD_NAME);
         TextIconsUtils.setupTextIcons(this, R.id.localNamesView, R.id.scanIcon, QR_SCAN_LOCAL_NAMES);
@@ -141,10 +159,25 @@ public class UpdateServiceActivity extends BaseCryptoActivity {
         TextIconsUtils.setupTextIcons(this, R.id.verView, R.id.scanIcon, QR_SCAN_VER);
         TextIconsUtils.setupTextIcons(this, R.id.componentsView, R.id.scanIcon, QR_SCAN_API_GROUPS);
         TextIconsUtils.setupTextIcons(this, R.id.urlsView, R.id.scanIcon, QR_SCAN_URLS);
-        TextIconsUtils.setupTextIcons(this, R.id.waitersView, R.id.scanIcon, QR_SCAN_WAITERS);
-        TextIconsUtils.setupTextIcons(this, R.id.protocolsView, R.id.scanIcon, QR_SCAN_PROTOCOLS);
-        TextIconsUtils.setupTextIcons(this, R.id.codesView, R.id.scanIcon, QR_SCAN_CODES);
-        TextIconsUtils.setupTextIcons(this, R.id.servicesView, R.id.scanIcon, QR_SCAN_SERVICES);
+        // Waiters are FIDs: search them on chain (or pick from contacts) via the people icon.
+        pickers.bindFidField(R.id.waitersView, R.id.scanIcon, QR_SCAN_WAITERS, waitersInput, true);
+        // Protocols/codes/services are entity ids: pick them from their list via the file icon.
+        pickers.bindEntityIdField(R.id.protocolsView, R.id.scanIcon, QR_SCAN_PROTOCOLS, protocolsInput, true, ProtocolActivity.class);
+        pickers.bindEntityIdField(R.id.codesView, R.id.scanIcon, QR_SCAN_CODES, codesInput, true, CodeActivity.class);
+        pickers.bindEntityIdField(R.id.servicesView, R.id.scanIcon, QR_SCAN_SERVICES, servicesInput, true, ServiceActivity.class);
+        // Remaining fields from Price Per KB onward are plain values: keep scan/paste only.
+        TextIconsUtils.setupTextIcons(this, R.id.pricePerKBView, R.id.scanIcon, QR_SCAN_PRICE_PER_KB);
+        TextIconsUtils.setupTextIcons(this, R.id.pricePerKBInView, R.id.scanIcon, QR_SCAN_PRICE_PER_KB_IN);
+        TextIconsUtils.setupTextIcons(this, R.id.pricePerKBOutView, R.id.scanIcon, QR_SCAN_PRICE_PER_KB_OUT);
+        TextIconsUtils.setupTextIcons(this, R.id.pricePerDayKBView, R.id.scanIcon, QR_SCAN_PRICE_PER_DAY_KB);
+        TextIconsUtils.setupTextIcons(this, R.id.minPaymentView, R.id.scanIcon, QR_SCAN_MIN_PAYMENT);
+        TextIconsUtils.setupTextIcons(this, R.id.pricePerRequestView, R.id.scanIcon, QR_SCAN_PRICE_PER_REQUEST);
+        TextIconsUtils.setupTextIcons(this, R.id.sessionDaysView, R.id.scanIcon, QR_SCAN_SESSION_DAYS);
+        TextIconsUtils.setupTextIcons(this, R.id.consumeViaShareView, R.id.scanIcon, QR_SCAN_CONSUME_VIA_SHARE);
+        TextIconsUtils.setupTextIcons(this, R.id.orderViaShareView, R.id.scanIcon, QR_SCAN_ORDER_VIA_SHARE);
+        TextIconsUtils.setupTextIcons(this, R.id.currencyView, R.id.scanIcon, QR_SCAN_CURRENCY);
+        TextIconsUtils.setupTextIcons(this, R.id.maxDataSizeView, R.id.scanIcon, QR_SCAN_MAX_DATA_SIZE);
+        TextIconsUtils.setupTextIcons(this, R.id.dataExpireView, R.id.scanIcon, QR_SCAN_DATA_EXPIRE);
     }
 
     @Override
@@ -176,73 +209,73 @@ public class UpdateServiceActivity extends BaseCryptoActivity {
         View dataExpireView = findViewById(R.id.dataExpireView);
 
         stdNameInput = stdNameView.findViewById(R.id.textInput);
-        stdNameInput.setHint(R.string.standard_name_required);
+        setLabel(stdNameView, R.string.standard_name_required);
 
         localNamesInput = localNamesView.findViewById(R.id.textInput);
-        localNamesInput.setHint(R.string.local_names_comma_separated);
+        setLabel(localNamesView, R.string.local_names_comma_separated);
 
         typeInput = typeView.findViewById(R.id.textInput);
-        typeInput.setHint(R.string.type);
+        setLabel(typeView, R.string.type);
 
         descInput = descView.findViewById(R.id.textInput);
-        descInput.setHint(R.string.description);
+        setLabel(descView, R.string.description);
 
         verInput = verView.findViewById(R.id.textInput);
-        verInput.setHint(R.string.version);
+        setLabel(verView, R.string.version);
 
         componentsInput = componentsView.findViewById(R.id.textInput);
-        componentsInput.setHint(R.string.api_groups_comma_separated);
+        setLabel(componentsView, R.string.api_groups_comma_separated);
 
         urlsInput = urlsView.findViewById(R.id.textInput);
-        urlsInput.setHint(R.string.urls_comma_separated);
+        setLabel(urlsView, R.string.urls_comma_separated);
 
         waitersInput = waitersView.findViewById(R.id.textInput);
-        waitersInput.setHint(R.string.waiters_comma_separated);
+        setLabel(waitersView, R.string.waiters_comma_separated);
 
         protocolsInput = protocolsView.findViewById(R.id.textInput);
-        protocolsInput.setHint(R.string.protocols_comma_separated);
+        setLabel(protocolsView, R.string.protocols_comma_separated);
 
         codesInput = codesView.findViewById(R.id.textInput);
-        codesInput.setHint(R.string.codes_comma_separated);
+        setLabel(codesView, R.string.codes_comma_separated);
 
         servicesInput = servicesView.findViewById(R.id.textInput);
-        servicesInput.setHint(R.string.services_comma_separated);
+        setLabel(servicesView, R.string.services_comma_separated);
 
         pricePerKBInput = pricePerKBView.findViewById(R.id.textInput);
-        pricePerKBInput.setHint(R.string.price_per_kb);
+        setLabel(pricePerKBView, R.string.price_per_kb);
 
         pricePerKBInInput = pricePerKBInView.findViewById(R.id.textInput);
-        pricePerKBInInput.setHint(R.string.price_per_kb_in);
+        setLabel(pricePerKBInView, R.string.price_per_kb_in);
 
         pricePerKBOutInput = pricePerKBOutView.findViewById(R.id.textInput);
-        pricePerKBOutInput.setHint(R.string.price_per_kb_out);
+        setLabel(pricePerKBOutView, R.string.price_per_kb_out);
 
         pricePerDayKBInput = pricePerDayKBView.findViewById(R.id.textInput);
-        pricePerDayKBInput.setHint(R.string.price_per_day_kb);
+        setLabel(pricePerDayKBView, R.string.price_per_day_kb);
 
         minPaymentInput = minPaymentView.findViewById(R.id.textInput);
-        minPaymentInput.setHint(R.string.min_payment);
+        setLabel(minPaymentView, R.string.min_payment);
 
         pricePerRequestInput = pricePerRequestView.findViewById(R.id.textInput);
-        pricePerRequestInput.setHint(R.string.price_per_request);
+        setLabel(pricePerRequestView, R.string.price_per_request);
 
         sessionDaysInput = sessionDaysView.findViewById(R.id.textInput);
-        sessionDaysInput.setHint(R.string.session_days);
+        setLabel(sessionDaysView, R.string.session_days);
 
         consumeViaShareInput = consumeViaShareView.findViewById(R.id.textInput);
-        consumeViaShareInput.setHint(R.string.consume_via_share);
+        setLabel(consumeViaShareView, R.string.consume_via_share);
 
         orderViaShareInput = orderViaShareView.findViewById(R.id.textInput);
-        orderViaShareInput.setHint(R.string.order_via_share);
+        setLabel(orderViaShareView, R.string.order_via_share);
 
         currencyInput = currencyView.findViewById(R.id.textInput);
-        currencyInput.setHint(R.string.currency);
+        setLabel(currencyView, R.string.currency);
 
         maxDataSizeInput = maxDataSizeView.findViewById(R.id.textInput);
-        maxDataSizeInput.setHint(R.string.max_data_size);
+        setLabel(maxDataSizeView, R.string.max_data_size);
 
         dataExpireInput = dataExpireView.findViewById(R.id.textInput);
-        dataExpireInput.setHint(R.string.data_expires_in_days);
+        setLabel(dataExpireView, R.string.data_expires_in_days);
 
         clearButton = findViewById(R.id.clearButton);
         saveButton = findViewById(R.id.saveButton);
@@ -693,6 +726,17 @@ public class UpdateServiceActivity extends BaseCryptoActivity {
         return input.getText() != null ? input.getText().toString().trim() : "";
     }
 
+    /**
+     * Set a persistent floating label on the field's TextInputLayout so it stays visible above the
+     * pre-populated content when editing an existing entity.
+     */
+    private void setLabel(View container, int hintRes) {
+        TextInputLayout layout = container.findViewById(R.id.textInputWithScanLayout);
+        if (layout != null) {
+            layout.setHint(getString(hintRes));
+        }
+    }
+
     private String formatStringMap(Map<String, String> map) {
         if (map == null || map.isEmpty()) {
             return "";
@@ -815,6 +859,42 @@ public class UpdateServiceActivity extends BaseCryptoActivity {
                 break;
             case QR_SCAN_SERVICES:
                 servicesInput.setText(qrContent);
+                break;
+            case QR_SCAN_PRICE_PER_KB:
+                pricePerKBInput.setText(qrContent);
+                break;
+            case QR_SCAN_PRICE_PER_KB_IN:
+                pricePerKBInInput.setText(qrContent);
+                break;
+            case QR_SCAN_PRICE_PER_KB_OUT:
+                pricePerKBOutInput.setText(qrContent);
+                break;
+            case QR_SCAN_PRICE_PER_DAY_KB:
+                pricePerDayKBInput.setText(qrContent);
+                break;
+            case QR_SCAN_MIN_PAYMENT:
+                minPaymentInput.setText(qrContent);
+                break;
+            case QR_SCAN_PRICE_PER_REQUEST:
+                pricePerRequestInput.setText(qrContent);
+                break;
+            case QR_SCAN_SESSION_DAYS:
+                sessionDaysInput.setText(qrContent);
+                break;
+            case QR_SCAN_CONSUME_VIA_SHARE:
+                consumeViaShareInput.setText(qrContent);
+                break;
+            case QR_SCAN_ORDER_VIA_SHARE:
+                orderViaShareInput.setText(qrContent);
+                break;
+            case QR_SCAN_CURRENCY:
+                currencyInput.setText(qrContent);
+                break;
+            case QR_SCAN_MAX_DATA_SIZE:
+                maxDataSizeInput.setText(qrContent);
+                break;
+            case QR_SCAN_DATA_EXPIRE:
+                dataExpireInput.setText(qrContent);
                 break;
         }
     }

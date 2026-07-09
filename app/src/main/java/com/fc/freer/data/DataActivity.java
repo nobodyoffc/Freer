@@ -65,6 +65,22 @@ public class DataActivity extends BaseCryptoActivity {
     private static final String TAG = "DataActivity";
     private static final int PAGE_SIZE = Math.min(FreerApplication.DEFAULT_PAGE_SIZE, FreerApplication.MAX_CONTAINER_SIZE);
 
+    /**
+     * Controls how the activity behaves as a picker. The value is a {@link ChooseMode} name:
+     * <ul>
+     *     <li>{@link ChooseMode#WITHOUT_CHOOSE} (or absent) — normal management, returns nothing;</li>
+     *     <li>{@link ChooseMode#CHOOSE_ONE} — tapping a card returns its DID immediately;</li>
+     *     <li>{@link ChooseMode#CHOOSE_MULTI} — check several cards, then confirm to return the DIDs.</li>
+     * </ul>
+     */
+    public static final String EXTRA_CHOOSE_MODE = "extra_choose_mode";
+    /** Result extra holding the single chosen DID (for {@link ChooseMode#CHOOSE_ONE}). */
+    public static final String EXTRA_SELECTED_DID = "extra_selected_did";
+    /** Result extra ({@code ArrayList<String>}) holding the chosen DIDs (for {@link ChooseMode#CHOOSE_MULTI}). */
+    public static final String EXTRA_SELECTED_DIDS = "extra_selected_dids";
+
+    private ChooseMode chooseMode = ChooseMode.WITHOUT_CHOOSE;
+
     // Core components
     private HatCardContainer hatCardContainer;
     private HatManager hatManager;
@@ -94,6 +110,7 @@ public class DataActivity extends BaseCryptoActivity {
     private ImageButton uploadButton;
     private ImageButton downloadButton;
     private ImageButton addButton;
+    private ImageButton confirmButton;
     private CheckBox selectAllCheckBox;
 
     // State
@@ -151,6 +168,7 @@ public class DataActivity extends BaseCryptoActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        chooseMode = parseChooseMode(getIntent().getStringExtra(EXTRA_CHOOSE_MODE));
         initializeActivityResultLaunchers();
         initializeManagers();
         super.onCreate(savedInstanceState);
@@ -329,6 +347,7 @@ public class DataActivity extends BaseCryptoActivity {
         uploadButton = findViewById(R.id.upload_button);
         downloadButton = findViewById(R.id.download_button);
         addButton = findViewById(R.id.add_button);
+        confirmButton = findViewById(R.id.confirm_button);
         selectAllCheckBox = findViewById(R.id.select_all_checkbox);
 
         // Initialize card container
@@ -351,7 +370,35 @@ public class DataActivity extends BaseCryptoActivity {
         uploadButton.setOnClickListener(v -> launchUploadDataActivity());
         downloadButton.setOnClickListener(v -> launchDownloadDataActivity());
         addButton.setOnClickListener(v -> addNewFile());
+        confirmButton.setOnClickListener(v -> confirmChosen());
         loadMoreButton.setOnClickListener(v -> loadMoreData());
+
+        configureForChooseMode();
+    }
+
+    /**
+     * When acting as a picker, hide the management actions that don't apply (more/upload/download)
+     * but keep the add button so a missing file can still be imported, and reveal the confirm (tick)
+     * button. Single-choice turns the checkboxes into radios and hides the "select all" control.
+     */
+    private void configureForChooseMode() {
+        boolean choosing = chooseMode == ChooseMode.CHOOSE_ONE || chooseMode == ChooseMode.CHOOSE_MULTI;
+
+        int managementVisibility = choosing ? View.GONE : View.VISIBLE;
+        moreButton.setVisibility(managementVisibility);
+        uploadButton.setVisibility(managementVisibility);
+        downloadButton.setVisibility(managementVisibility);
+        // addButton stays visible so the user can add the wanted file if it isn't in Data yet.
+
+        confirmButton.setVisibility(choosing ? View.VISIBLE : View.GONE);
+
+        if (chooseMode == ChooseMode.CHOOSE_ONE) {
+            hatCardContainer.setSingleSelect(true);
+            // "Select all" makes no sense for a single choice.
+            selectAllCheckBox.setVisibility(View.GONE);
+            View selectAllLabel = findViewById(R.id.selectAllLabel);
+            if (selectAllLabel != null) selectAllLabel.setVisibility(View.GONE);
+        }
     }
 
     @Override
@@ -682,7 +729,43 @@ public class DataActivity extends BaseCryptoActivity {
     }
 
     private void onHatClick(Hat hat, int position) {
-        openHatDetail(hat);
+        // While picking, selection is driven by the checkbox/radio and confirmed with the tick
+        // button, so a card tap only opens the detail view in normal management mode.
+        if (chooseMode == ChooseMode.WITHOUT_CHOOSE) {
+            openHatDetail(hat);
+        }
+    }
+
+    private static ChooseMode parseChooseMode(String modeStr) {
+        if (modeStr == null) return ChooseMode.WITHOUT_CHOOSE;
+        try {
+            return ChooseMode.valueOf(modeStr);
+        } catch (IllegalArgumentException e) {
+            return ChooseMode.WITHOUT_CHOOSE;
+        }
+    }
+
+    /** Returns the checked HATs' DIDs to the caller and finishes (picker modes). */
+    private void confirmChosen() {
+        List<Hat> selected = hatCardContainer.getSelectedHats();
+        if (selected == null || selected.isEmpty()) {
+            ToastUtils.makeText(this, getString(R.string.no_items_selected));
+            return;
+        }
+        Intent result = new Intent();
+        if (chooseMode == ChooseMode.CHOOSE_ONE) {
+            result.putExtra(EXTRA_SELECTED_DID, selected.get(0).getId());
+        } else {
+            ArrayList<String> dids = new ArrayList<>();
+            for (Hat hat : selected) {
+                if (hat != null && hat.getId() != null) {
+                    dids.add(hat.getId());
+                }
+            }
+            result.putStringArrayListExtra(EXTRA_SELECTED_DIDS, dids);
+        }
+        setResult(RESULT_OK, result);
+        finish();
     }
 
     private boolean onHatLongClick(Hat hat, int position) {

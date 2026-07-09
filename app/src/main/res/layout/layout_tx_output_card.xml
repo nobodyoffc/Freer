@@ -110,16 +110,6 @@
 
         </LinearLayout>
 
-        <ImageView
-            android:id="@+id/deadIcon"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_marginStart="4dp"
-            android:src="@drawable/ic_dead"
-            android:visibility="gone"
-            android:contentDescription="@string/nobody" />
-
-
         <!-- Right side: Delete Button -->
         <ImageButton
             android:id="@+id/deleteButton"

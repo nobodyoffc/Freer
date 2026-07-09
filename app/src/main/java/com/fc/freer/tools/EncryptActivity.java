@@ -19,7 +19,7 @@ import com.fc.fc_ajdk.data.feipData.Contact;
 import com.fc.fc_ajdk.utils.Hex;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
-import com.fc.freer.contact.ChooseContactActivity;
+import com.fc.freer.im.SearchFidsOnChainActivity;
 import com.fc.freer.ui.IoIconsView;
 import com.google.android.material.textfield.TextInputEditText;
 import android.widget.ImageButton;
@@ -145,8 +145,8 @@ public class EncryptActivity extends BaseCryptoActivity {
     }
 
     private void launchContactSelection() {
-        Intent intent = new Intent(this, ChooseContactActivity.class);
-        intent.putExtra(ChooseContactActivity.EXTRA_CHOOSE_MODE, com.fc.freer.utils.ChooseMode.CHOOSE_ONE_RETURN.name());
+        Intent intent = new Intent(this, SearchFidsOnChainActivity.class);
+        intent.putExtra(SearchFidsOnChainActivity.EXTRA_CHOOSE_MODE, com.fc.freer.utils.ChooseMode.CHOOSE_ONE_RETURN.name());
         contactSelectionLauncher.launch(intent);
     }
 
@@ -157,35 +157,28 @@ public class EncryptActivity extends BaseCryptoActivity {
     }
 
     private void handleContactSelectionResult(Intent data) {
-        String contactJson = data.getStringExtra(ChooseContactActivity.EXTRA_SELECTED_CONTACT);
-        if (contactJson != null) {
-            try {
-                selectedContact = Contact.fromJson(contactJson, Contact.class);
-                if (selectedContact != null) {
-                    // Set contact name in key input field
+        java.util.List<String> fids = data.getStringArrayListExtra(SearchFidsOnChainActivity.EXTRA_SELECTED_FIDS);
+        java.util.List<String> pubkeys = data.getStringArrayListExtra(SearchFidsOnChainActivity.EXTRA_SELECTED_PUBKEYS);
+        if (fids == null || fids.isEmpty()) return;
+        String fid = fids.get(0);
+        String pubkey = (pubkeys != null && !pubkeys.isEmpty()) ? pubkeys.get(0) : null;
 
-                    // Store the public key for encryption
-                    if(selectedContact.getPubkey() == null){
-                        showToast(getString(R.string.failed_to_get_pubkey_of, selectedContact.getName()));
-                        return;
-                    }
-
-                    keyInput.setText(selectedContact.getName());
-
-                    keyInput.setTag(selectedContact.getPubkey());
-
-                    // Automatically switch to public key encryption mode
-                    optionContainer.check(R.id.pubKeyOption);
-
-                    // Disable key input since we're using the contact's pubkey
-                    keyInput.setEnabled(false);
-
-                    showToast("Selected contact: " + selectedContact.getName());
-                }
-            } catch (Exception e) {
-                showToast("Error processing selected contact: " + e.getMessage());
-            }
+        // Public-key encryption needs the recipient's pubkey.
+        if (pubkey == null) {
+            showToast(getString(R.string.failed_to_get_pubkey_of, fid));
+            return;
         }
+
+        keyInput.setText(fid);
+        keyInput.setTag(pubkey);
+
+        // Automatically switch to public key encryption mode
+        optionContainer.check(R.id.pubKeyOption);
+
+        // Disable key input since we're using the recipient's pubkey
+        keyInput.setEnabled(false);
+
+        showToast("Selected: " + fid);
     }
 
     private void handleEncryption() {

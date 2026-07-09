@@ -87,9 +87,28 @@ public class FapiClient implements ApiClient {
     public interface PrikeyProvider {
         byte[] decryptPrikey();
     }
-    
+
+    /**
+     * 钱包UTXO提供者。让库内的自动花费（如自动充值）与钱包共用同一个
+     * 本地、mempool感知的cash数据库，避免与钱包自建的交易双花冲突
+     * （-26 txn-mempool-conflict）。
+     */
+    public interface UtxoProvider {
+        /**
+         * 从钱包本地cash库中选取足以覆盖amountFch加手续费的可花费cash。
+         * fid不匹配当前钱包身份或余额不足时返回null。
+         */
+        List<Cash> selectInputs(String fid, double amountFch);
+
+        /**
+         * 交易广播成功后的记账回调：从本地库移除已花费的输入并登记找零。
+         */
+        void onTxSent(String fid, String signedTxHex);
+    }
+
     // 用于自动充值的回调接口
     private PrikeyProvider prikeyProvider;
+    private UtxoProvider utxoProvider;
     private String mainFid;
     
     private FapiResponse lastResponse;
@@ -100,6 +119,7 @@ public class FapiClient implements ApiClient {
     private Long lastBalanceTimestampMillis;
     private Long lastCharged;
     private Long lastSuccessfulRequestTimestampMillis;
+    private volatile Long cachedBestHeight;
     private Long maxDataSize;
     private static final long CONNECTION_STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
     private static final ThreadLocal<Boolean> inAutoRechargeFlow = ThreadLocal.withInitial(() -> false);
@@ -461,12 +481,17 @@ public class FapiClient implements ApiClient {
     
     public Long getBestHeight() {
         Block block = bestBlock();
-        return block != null ? block.getHeight() : null;
+        if (block != null && block.getHeight() != null) {
+            cachedBestHeight = block.getHeight();
+            return block.getHeight();
+        }
+        // The fresh query failed (e.g. transient network error or a call from
+        // the main thread); fall back to the height carried by earlier responses.
+        return cachedBestHeight;
     }
-    
+
     public Long bestHeight() {
-        Block block = bestBlock();
-        return block != null ? block.getHeight() : null;
+        return getBestHeight();
     }
 
     /**
@@ -985,21 +1010,18 @@ public class FapiClient implements ApiClient {
      * @param fids FID 列表（可选）
      * @return Map<FID, List<Cash>>
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public Map<String, List<Cash>> unconfirmedCashes(List<String> fids) {
         Fcdsl fcdsl = new Fcdsl();
         if (fids != null && !fids.isEmpty()) {
             fcdsl.addIds(fids);
         }
-        
+
         FapiResponse response = query("base.unconfirmedCashes", fcdsl);
         if (response == null || response.getCode() != 0 || response.getData() == null) {
             return null;
         }
-        
-        // 类型安全转换：实际返回的是 Map<String, List<Map>>，需要后续客户端自行转换
-        Map rawMap = ObjectUtils.objectToMap(response.getData(), String.class, List.class);
-        return (Map<String, List<Cash>>) rawMap;
+
+        return ObjectUtils.objectToMapWithListValues(response.getData(), String.class, Cash.class);
     }
     
     
@@ -1052,7 +1074,12 @@ public class FapiClient implements ApiClient {
 
     private void updateBalanceFromResponse(FapiResponse response) {
         if (response == null) return;
-        
+
+        // 每个成功响应都携带 bestHeight，缓存它作为 getBestHeight() 的兜底
+        if (response.getBestHeight() != null) {
+            cachedBestHeight = response.getBestHeight();
+        }
+
         // 跟踪本次请求收费金额
         if (response.getCharged() != null) {
             lastCharged = response.getCharged();
@@ -1134,7 +1161,18 @@ public class FapiClient implements ApiClient {
     public PrikeyProvider getPrikeyProvider() {
         return prikeyProvider;
     }
-    
+
+    public UtxoProvider getUtxoProvider() {
+        return utxoProvider;
+    }
+
+    /**
+     * 注入钱包的UTXO提供者，使自动充值从钱包本地cash库选币并回写记账。
+     */
+    public void setUtxoProvider(UtxoProvider utxoProvider) {
+        this.utxoProvider = utxoProvider;
+    }
+
     /**
      * 设置自动充值所需的信息
      */
@@ -2499,14 +2537,15 @@ public class FapiClient implements ApiClient {
     /**
      * Download a file from DISK by DID with progress tracking.
      * <p>
-     * The progress callback receives cumulative bytes written to the output file.
-     * Note: Due to FUDP transport reassembling the entire response in memory first,
-     * the progress reflects the file-write phase. For large transfers the network
-     * receive phase dominates; a spinner is recommended while waiting for the response.
+     * The progress callback receives cumulative response bytes assembled from the
+     * network as they arrive (may run slightly past the file size due to protocol
+     * framing overhead — consumers displaying a percentage should clamp). The wait
+     * is idle-based: it fails only after {@code requestTimeoutSeconds} of silence,
+     * never while data is still arriving, so large files on slow links complete.
      *
      * @param did              SHA256x2 hash of content (64 hex chars)
      * @param outputFile       The file to write the downloaded content to
-     * @param progressCallback Optional: callback receiving cumulative bytes written
+     * @param progressCallback Optional: callback receiving cumulative bytes received
      * @return DiskItem metadata if successful, or null on failure
      */
     public DiskItem diskGet(String did, java.io.File outputFile,
@@ -2524,8 +2563,9 @@ public class FapiClient implements ApiClient {
 
             FapiRequest fapiRequest = FapiRequest.operation("disk.get", params);
 
-            // Send request and get unified response
-            UnifiedCodec.UnifiedResponse unified = requestWithBinaryData(fapiRequest, null);
+            // Send request and get unified response, reporting receive progress
+            UnifiedCodec.UnifiedResponse unified = requestWithBinaryData(
+                    fapiRequest, null, requestTimeoutSeconds, null, progressCallback);
 
             if (unified == null || unified.response() == null) {
                 lastError = new RuntimeException("No response from server");
@@ -2545,30 +2585,13 @@ public class FapiClient implements ApiClient {
             DiskItem metadata = ObjectUtils.objectToClass(
                     unified.response().getData(), DiskItem.class);
 
-            // Write binary data to output file with progress reporting
+            // Write binary data to output file (progress was reported during receive)
             byte[] content = unified.binaryData();
             if (content != null && content.length > 0) {
                 if (outputFile.getParentFile() != null) {
                     outputFile.getParentFile().mkdirs();
                 }
-                
-                if (progressCallback != null) {
-                    // Write in chunks and report progress
-                    try (java.io.FileOutputStream fos = new java.io.FileOutputStream(outputFile)) {
-                        int chunkSize = 64 * 1024; // 64KB chunks
-                        long written = 0;
-                        int offset = 0;
-                        while (offset < content.length) {
-                            int len = Math.min(chunkSize, content.length - offset);
-                            fos.write(content, offset, len);
-                            written += len;
-                            offset += len;
-                            progressCallback.accept(written);
-                        }
-                    }
-                } else {
-                    java.nio.file.Files.write(outputFile.toPath(), content);
-                }
+                java.nio.file.Files.write(outputFile.toPath(), content);
             }
 
             return metadata;
@@ -2608,6 +2631,24 @@ public class FapiClient implements ApiClient {
      */
     public UnifiedCodec.UnifiedResponse requestWithBinaryData(FapiRequest fapiRequest, byte[] binaryData,
             long timeoutSeconds, java.util.function.BiConsumer<Long, Long> sendProgress) {
+        return requestWithBinaryData(fapiRequest, binaryData, timeoutSeconds, sendProgress, null);
+    }
+
+    /**
+     * Send a request with binary data, custom timeout, send-progress and receive-progress callbacks.
+     * The timeout is idle-based: it expires only after {@code timeoutSeconds} with no response
+     * bytes arriving, so a large download on a slow link is never killed while still progressing.
+     *
+     * @param fapiRequest     FAPI request
+     * @param binaryData      binary data
+     * @param timeoutSeconds  idle timeout in seconds
+     * @param sendProgress    callback receiving (bytesSent, totalBytes) — may be null
+     * @param receiveProgress callback receiving cumulative response bytes assembled — may be null
+     * @return UnifiedResponse containing response and optional binary data
+     */
+    public UnifiedCodec.UnifiedResponse requestWithBinaryData(FapiRequest fapiRequest, byte[] binaryData,
+            long timeoutSeconds, java.util.function.BiConsumer<Long, Long> sendProgress,
+            java.util.function.LongConsumer receiveProgress) {
         try {
             if (balanceVerifier != null && balanceVerifier.isStopped()) {
                 lastError = new IllegalStateException("Balance verification stopped due to drift");
@@ -2623,10 +2664,18 @@ public class FapiClient implements ApiClient {
 
             // 使用统一编码格式编码请求（包含二进制数据）
             byte[] requestData = UnifiedCodec.encodeRequest(fapiRequest, binaryData);
+            java.util.concurrent.atomic.AtomicLong lastActivityMs =
+                    new java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis());
+            java.util.function.LongConsumer activityTracker = bytes -> {
+                lastActivityMs.set(System.currentTimeMillis());
+                if (receiveProgress != null) {
+                    receiveProgress.accept(bytes);
+                }
+            };
             CompletableFuture<ResponseMessage> future = fudpNode.request(
-                    servicePeerId, serviceSid, requestData, sendProgress);
+                    servicePeerId, serviceSid, requestData, sendProgress, activityTracker);
 
-            ResponseMessage response = future.get(timeoutSeconds, TimeUnit.SECONDS);
+            ResponseMessage response = awaitWithIdleTimeout(future, timeoutSeconds, lastActivityMs);
 
             // Parse response body
             UnifiedCodec.UnifiedResponse unifiedResponse = null;
@@ -2665,18 +2714,49 @@ public class FapiClient implements ApiClient {
 
         } catch (TimeoutException e) {
             this.lastError = e;
-            FapiResponse errorResp = buildErrorResponse(408, "Request timeout after " + timeoutSeconds + "s");
+            FapiResponse errorResp = buildErrorResponse(408, "Request idle timeout after " + timeoutSeconds + "s without response data");
             this.lastResponse = errorResp;
-            TimberLogger.w(TAG, "FAPI binary request timeout (" + timeoutSeconds + "s): api=" +
+            TimberLogger.w(TAG, "FAPI binary request idle timeout (" + timeoutSeconds + "s): api=" +
                     (fapiRequest != null ? fapiRequest.getApi() : "null"));
             return new UnifiedCodec.UnifiedResponse(errorResp, null);
         } catch (Exception e) {
+            // The transport's own idle timer surfaces as ExecutionException(TimeoutException)
+            if (e instanceof java.util.concurrent.ExecutionException
+                    && e.getCause() instanceof TimeoutException) {
+                this.lastError = (TimeoutException) e.getCause();
+                FapiResponse errorResp = buildErrorResponse(408, e.getCause().getMessage());
+                this.lastResponse = errorResp;
+                TimberLogger.w(TAG, "FAPI binary request transport idle timeout: api=" +
+                        (fapiRequest != null ? fapiRequest.getApi() : "null"));
+                return new UnifiedCodec.UnifiedResponse(errorResp, null);
+            }
             this.lastError = e;
             FapiResponse errorResp = buildErrorResponse(500, e.getMessage());
             this.lastResponse = errorResp;
             TimberLogger.e(TAG, "Error sending FAPI request with binary data: api=" +
                     (fapiRequest != null ? fapiRequest.getApi() : "null"), e);
             return new UnifiedCodec.UnifiedResponse(errorResp, null);
+        }
+    }
+
+    /**
+     * Waits for a response with an idle-based deadline: gives up only after
+     * {@code idleTimeoutSeconds} with no response bytes arriving ({@code lastActivityMs}
+     * is refreshed by the transport's receive-progress callback). A small grace period
+     * lets the transport's own idle timer, which applies the same rule, fire first.
+     */
+    private ResponseMessage awaitWithIdleTimeout(CompletableFuture<ResponseMessage> future,
+            long idleTimeoutSeconds, java.util.concurrent.atomic.AtomicLong lastActivityMs)
+            throws InterruptedException, java.util.concurrent.ExecutionException, TimeoutException {
+        long idleMs = idleTimeoutSeconds * 1000L + 2000L;
+        while (true) {
+            try {
+                return future.get(1, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
+                if (System.currentTimeMillis() - lastActivityMs.get() >= idleMs) {
+                    throw e;
+                }
+            }
         }
     }
 

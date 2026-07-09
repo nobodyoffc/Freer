@@ -127,7 +127,14 @@ public class ChatActivity extends BaseCryptoActivity
     
     private MessageAdapter adapter;
     private List<ImMessage> messages = new ArrayList<>();
-    
+
+    /** Active HAT file downloads by hatId, for card progress state and cancellation. */
+    private final java.util.Map<String, HatFileOpener.DownloadHandle> activeHatDownloads = new java.util.HashMap<>();
+    /** Last UI refresh time per downloading hatId, to throttle progress rebinds. */
+    private final java.util.Map<String, Long> hatProgressUiUpdate = new java.util.HashMap<>();
+    private AlertDialog cancelDownloadDialog;
+    private String cancelDownloadHatId;
+
     private ImManager imManager;
     private String liveFid;
     private ImType imType;
@@ -1517,6 +1524,11 @@ public class ChatActivity extends BaseCryptoActivity
 
     @Override
     public void onOpenHat(com.fc.fc_ajdk.data.fcData.Hat hat) {
+        String hatId = hat.getId();
+        if (activeHatDownloads.containsKey(hatId)) {
+            showCancelDownloadDialog(hatId);
+            return;
+        }
         FidManager fidManager = FidManager.getInstance();
         String liveFid = fidManager != null ? fidManager.getLiveFid() : null;
         if (liveFid == null) return;
@@ -1531,7 +1543,61 @@ public class ChatActivity extends BaseCryptoActivity
             // Merge download credentials from the IM hat in case the DB copy predates them.
             mergeImHatCredentials(hat, dbHat);
         }
-        new HatFileOpener(this, hm).open(dbHat);
+        new HatFileOpener(this, hm).open(dbHat, new HatFileOpener.DownloadObserver() {
+            @Override
+            public void onDownloadStarted(HatFileOpener.DownloadHandle handle, long totalBytes) {
+                activeHatDownloads.put(hatId, handle);
+                adapter.setHatDownloadProgress(hatId, 0, totalBytes);
+                adapter.notifyHatChanged(hatId);
+            }
+
+            @Override
+            public void onProgress(long bytes) {
+                if (!activeHatDownloads.containsKey(hatId)) return; // cancelled
+                adapter.setHatDownloadProgress(hatId, bytes, 0);
+                long now = System.currentTimeMillis();
+                Long last = hatProgressUiUpdate.get(hatId);
+                if (last == null || now - last >= 200) {
+                    hatProgressUiUpdate.put(hatId, now);
+                    adapter.notifyHatChanged(hatId);
+                }
+            }
+
+            @Override
+            public void onFinished(boolean success, String error) {
+                activeHatDownloads.remove(hatId);
+                hatProgressUiUpdate.remove(hatId);
+                adapter.clearHatDownload(hatId);
+                adapter.notifyHatChanged(hatId);
+                if (cancelDownloadDialog != null && hatId.equals(cancelDownloadHatId)) {
+                    cancelDownloadDialog.dismiss();
+                }
+                if (!success) {
+                    ToastUtils.showError(ChatActivity.this,
+                            getString(R.string.download_failed, error));
+                }
+            }
+        });
+    }
+
+    private void showCancelDownloadDialog(String hatId) {
+        cancelDownloadHatId = hatId;
+        cancelDownloadDialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.cancel_download_title)
+                .setMessage(R.string.cancel_download_message)
+                .setPositiveButton(R.string.keep_downloading, null)
+                .setNegativeButton(R.string.cancel_download, (d, w) -> {
+                    HatFileOpener.DownloadHandle handle = activeHatDownloads.remove(hatId);
+                    if (handle != null) handle.cancel();
+                    hatProgressUiUpdate.remove(hatId);
+                    adapter.clearHatDownload(hatId);
+                    adapter.notifyHatChanged(hatId);
+                })
+                .setOnDismissListener(d -> {
+                    cancelDownloadDialog = null;
+                    cancelDownloadHatId = null;
+                })
+                .show();
     }
 
     private void mergeImHatCredentials(com.fc.fc_ajdk.data.fcData.Hat src,

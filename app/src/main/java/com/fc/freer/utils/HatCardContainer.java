@@ -49,6 +49,8 @@ public class HatCardContainer {
     private ChooseMode chooseMode = ChooseMode.WITHOUT_CHOOSE;
     private boolean showCheckboxes = false;
     private boolean alwaysShowCheckboxes = false;
+    private boolean singleSelect = false;
+    private boolean updatingSelection = false;
     private boolean hideEditButton = false;
     private int clearButtonIconRes = 0;
     private String clearButtonContentDescription = null;
@@ -104,6 +106,14 @@ public class HatCardContainer {
      */
     public void setOnHatEditListener(OnHatEditListener listener) {
         this.editListener = listener;
+    }
+
+    /**
+     * When enabled, the checkboxes behave like radio buttons: checking one clears any other
+     * selection so at most one hat is selected at a time.
+     */
+    public void setSingleSelect(boolean singleSelect) {
+        this.singleSelect = singleSelect;
     }
 
     /**
@@ -377,7 +387,20 @@ public class HatCardContainer {
         checkBox.setVisibility(showCheckboxes ? View.VISIBLE : View.GONE);
         checkBox.setChecked(selectedHats.contains(hat));
         checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (updatingSelection) return;
             if (isChecked) {
+                if (singleSelect) {
+                    // Radio behaviour: clear any previous selection and uncheck the other cards.
+                    updatingSelection = true;
+                    selectedHats.clear();
+                    for (View cv : cardViews) {
+                        CheckBox other = cv.findViewById(R.id.hat_checkbox);
+                        if (other != null && other != buttonView && other.isChecked()) {
+                            other.setChecked(false);
+                        }
+                    }
+                    updatingSelection = false;
+                }
                 if (!selectedHats.contains(hat)) {
                     selectedHats.add(hat);
                 }

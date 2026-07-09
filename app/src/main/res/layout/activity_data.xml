@@ -332,6 +332,13 @@
             android:contentDescription="@string/add" />
 
         <ImageButton
+            android:id="@+id/confirm_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_tick"
+            android:contentDescription="@string/ok"
+            android:visibility="gone" />
+
+        <ImageButton
             android:id="@+id/back_button"
             style="@style/ImageButtonStyle"
             android:src="@drawable/ic_back"

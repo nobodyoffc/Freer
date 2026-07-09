@@ -6,6 +6,20 @@ public class Feip {
 	public static Long CD_REQUIRED = 1L;
 	public static long CDD_CHECK_HEIGHT=4000000;
 
+	/**
+	 * Effective CD required for a FEIP carving TX per FEIP0 §9 (CDD):
+	 * before block height {@link #CDD_CHECK_HEIGHT} no CD is required for any
+	 * FEIP operation; from that height on the requested CD applies (individual
+	 * protocols may request more than {@link #CD_REQUIRED}). When the best
+	 * height is unknown the requested CD is kept, so callers should obtain the
+	 * height from a source with a cached fallback.
+	 */
+	public static Long getRequiredCd(Long bestHeight, Long requestedCd) {
+		if (requestedCd == null) return 0L;
+		if (requestedCd > 0 && bestHeight != null && bestHeight < CDD_CHECK_HEIGHT) return 0L;
+		return requestedCd;
+	}
+
 	private String type;
 	private String sn;
 	private String ver;

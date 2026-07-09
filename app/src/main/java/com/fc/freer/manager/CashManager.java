@@ -154,6 +154,41 @@ public class CashManager {
         }
     }
 
+    /**
+     * UtxoProvider backed by this wallet's local, mempool-aware cash DB. Injected into
+     * every FapiClient so background spenders inside FC-AJDK (auto-recharge) select
+     * inputs from the same source of truth as TxSender and book their spends back,
+     * instead of double-spending via server-side cash selection (-26 mempool conflict).
+     */
+    public static final FapiClient.UtxoProvider UTXO_PROVIDER = new FapiClient.UtxoProvider() {
+        @Override
+        public List<Cash> selectInputs(String fid, double amountFch) {
+            CashManager cashManager = getInstance();
+            if (cashManager == null || fid == null || !fid.equals(cashManager.getLiveFid())) {
+                TimberLogger.w(TAG, "UtxoProvider: no CashManager for fid %s", fid);
+                return null;
+            }
+            // Small margin on top of the payload: the fee estimate inside
+            // getValidCashesForAmount assumes one output, while the recharge TX
+            // adds a change output and an OP_RETURN.
+            return cashManager.getValidCashesForAmount(amountFch + 0.001);
+        }
+
+        @Override
+        public void onTxSent(String fid, String signedTxHex) {
+            CashManager cashManager = getInstance();
+            if (cashManager == null || fid == null || !fid.equals(cashManager.getLiveFid())) {
+                TimberLogger.w(TAG, "UtxoProvider: no CashManager for fid %s, bookkeeping skipped", fid);
+                return;
+            }
+            boolean updated = new TxSender().updateCashOfTx(signedTxHex, fid,
+                    FreerApplication.getAppContext(), cashManager);
+            if (!updated) {
+                TimberLogger.w(TAG, "UtxoProvider: failed to update cash DB after background TX");
+            }
+        }
+    };
+
     public static void updateCashOfTx(String signedTxHex, Context context) {
         try {
             TxSender txSender = new TxSender();
@@ -985,6 +1020,9 @@ public class CashManager {
             }
 
             if (validCashList.isEmpty()) {
+                // ES may know nothing yet while the mempool already holds fresh income
+                // for this FID (e.g. a newcomer's first unconfirmed FCH).
+                applyMempoolOverlay(context);
                 return 0;
             }
 
@@ -1012,7 +1050,11 @@ public class CashManager {
 
             // 4. Commit the changes
             cashDB.commit();
-            
+
+            // The ES snapshot we just installed lags the mempool: it can contain
+            // cashes already spent by unconfirmed TXs and lack their change outputs.
+            applyMempoolOverlay(context);
+
             TimberLogger.i(TAG, "Successfully refreshed valid cash database: %d items", savedCount);
             return savedCount;
 
@@ -1651,6 +1693,9 @@ public class CashManager {
 
         } else {
             added = loadEarlierCashFromAPI(context);
+            // First load (fresh identity/DB): ES carries no mempool data, so pick up
+            // unconfirmed income and mark mempool-spent cashes before any spending.
+            applyMempoolOverlay(context);
         }
 
         if(added>0) {
@@ -1709,6 +1754,9 @@ public class CashManager {
 
             if (changedCashList.isEmpty()) {
                 TimberLogger.i(TAG, "No newer cash changes fetched");
+                // ES has nothing newer, but the mempool may still have spent or
+                // created cashes of ours (e.g. a background auto-recharge TX).
+                applyMempoolOverlay(context);
                 return 0;
             }
             updateTotal(context);
@@ -1724,6 +1772,11 @@ public class CashManager {
             // Add the fetched cash to database
             int added = updateToDBForNewer(changedCashList);
             commit();
+
+            // The raw cashSearch sync can re-add a cash that is already spent in an
+            // unconfirmed mempool TX (ES still reports it valid=true); the overlay
+            // marks such cashes conflicted before they can be selected as inputs.
+            applyMempoolOverlay(context);
 
             if (added > 0) {
                 notifyNewCashChanged();
@@ -2291,41 +2344,48 @@ public class CashManager {
     }
 
     /**
-     * Updates conflicted status of cashes by checking unconfirmed transactions in mempool.
-     * This marks cashes that are spent in unconfirmed transactions as conflicted.
+     * Reconciles the local cash DB with the node's live mempool via base.unconfirmedCashes:
+     * marks cashes spent by unconfirmed TXs as conflicted, and adds unconfirmed outputs
+     * owned by liveFid that the DB is missing. This is the authority on mempool state —
+     * the ES-backed cashSearch/cashValid queries lag the mempool by seconds and can
+     * report a mempool-spent cash as valid.
      *
      * IMPORTANT: This method performs network I/O and must be called from a background thread!
      *
      * @param context Activity context for API operations
-     * @return Number of cashes marked as conflicted, or -1 if failed
+     * @return Number of cashes changed (marked conflicted + added), or -1 if failed
      */
-    public int updateConflictedCashes(Context context) {
+    public int applyMempoolOverlay(Context context) {
         FapiClient fapiClient = loadFapiClient();
         if (fapiClient == null) {
-            TimberLogger.w(TAG, "Cannot update conflicted cashes: FapiClient not available");
+            TimberLogger.w(TAG, "Cannot apply mempool overlay: FapiClient not available");
             return -1;
         }
 
         if (liveFid == null || liveFid.isEmpty()) {
-            TimberLogger.w(TAG, "Cannot update conflicted cashes: liveFid not set");
+            TimberLogger.w(TAG, "Cannot apply mempool overlay: liveFid not set");
+            return -1;
+        }
+
+        if (cashDB == null) {
+            TimberLogger.w(TAG, "Cannot apply mempool overlay: Cash database not available");
             return -1;
         }
 
         try {
-            // Call unconfirmedCashes API to get all unconfirmed transactions
+            // base.unconfirmedCashes reads the node mempool over RPC, so unlike
+            // cashSearch/cashValid it carries no ES indexing lag.
             // WARNING: This is a blocking network call!
             Map<String, List<Cash>> unconfirmedMap = fapiClient.unconfirmedCashes(
                     Collections.singletonList(liveFid)
             );
 
-            if (unconfirmedMap == null || unconfirmedMap.isEmpty()) {
-                TimberLogger.i(TAG, "No unconfirmed cashes found");
-                // Clear all conflicted flags since there are no unconfirmed txs
-                clearAllConflictedFlags();
-                return 0;
+            // null means the API call failed; don't touch local flags on failure.
+            if (unconfirmedMap == null) {
+                TimberLogger.w(TAG, "Failed to fetch unconfirmed cashes");
+                return -1;
             }
 
-            // Get the list of cashes for this FID
             List<Cash> unconfirmedCashes = unconfirmedMap.get(liveFid);
             if (unconfirmedCashes == null || unconfirmedCashes.isEmpty()) {
                 TimberLogger.i(TAG, "No unconfirmed cashes found for FID: %s", liveFid);
@@ -2333,41 +2393,57 @@ public class CashManager {
                 return 0;
             }
 
-            int conflictedCount = 0;
-            List<Cash> cashesToUpdate = new ArrayList<>();
+            int changed = 0;
 
-            // Find cashes that are marked as invalid (spent in mempool)
+            // 1. Cashes spent by mempool TXs (valid=false): mark conflicted so
+            // getValidCashes never selects them.
+            java.util.Set<String> mempoolSpentIds = new java.util.HashSet<>();
+            List<Cash> cashesToUpdate = new ArrayList<>();
             for (Cash unconfirmedCash : unconfirmedCashes) {
-                if (Boolean.FALSE.equals(unconfirmedCash.isValid())) {
-                    // This cash is spent in mempool - check if it exists in our DB
-                    String cashId = unconfirmedCash.getId();
-                    if (cashId != null) {
-                        Cash existingCash = cashDB.get(cashId);
-                        if (existingCash != null && Boolean.TRUE.equals(existingCash.isValid())) {
-                            // Mark as conflicted
-                            existingCash.setConflicted(true);
-                            cashesToUpdate.add(existingCash);
-                            conflictedCount++;
-                            TimberLogger.d(TAG, "Marked cash as conflicted: %s", cashId);
-                        }
+                if (Boolean.FALSE.equals(unconfirmedCash.isValid()) && unconfirmedCash.getId() != null) {
+                    mempoolSpentIds.add(unconfirmedCash.getId());
+                    Cash existingCash = cashDB.get(unconfirmedCash.getId());
+                    if (existingCash != null && Boolean.TRUE.equals(existingCash.isValid())
+                            && !Boolean.TRUE.equals(existingCash.getConflicted())) {
+                        existingCash.setConflicted(true);
+                        cashesToUpdate.add(existingCash);
+                        TimberLogger.d(TAG, "Marked cash as conflicted: %s", unconfirmedCash.getId());
                     }
                 }
             }
-
-            // Update all conflicted cashes in database
             if (!cashesToUpdate.isEmpty()) {
                 updateCash(cashesToUpdate);
                 commit();
-                TimberLogger.i(TAG, "Updated %d conflicted cashes", conflictedCount);
+                changed += cashesToUpdate.size();
+                TimberLogger.i(TAG, "Marked %d conflicted cashes", cashesToUpdate.size());
             }
 
-            // Clear conflicted flag for cashes that are no longer in mempool
+            // 2. Unconfirmed outputs owned by liveFid (valid=true): add the ones the
+            // DB is missing (change of our own TXs, fresh income, cashes spent behind
+            // our back and replaced), unless another mempool TX already spends them.
+            List<Cash> cashesToAdd = new ArrayList<>();
+            for (Cash unconfirmedCash : unconfirmedCashes) {
+                if (!Boolean.TRUE.equals(unconfirmedCash.isValid())) continue;
+                if (!liveFid.equals(unconfirmedCash.getOwner())) continue;
+                if (unconfirmedCash.getId() == null) unconfirmedCash.makeId();
+                String id = unconfirmedCash.getId();
+                if (id == null || mempoolSpentIds.contains(id) || cashDB.get(id) != null) continue;
+                cashesToAdd.add(unconfirmedCash);
+            }
+            if (!cashesToAdd.isEmpty()) {
+                updateValidToDB(cashesToAdd, true);
+                commit();
+                changed += cashesToAdd.size();
+                TimberLogger.i(TAG, "Added %d unconfirmed cashes from mempool", cashesToAdd.size());
+            }
+
+            // Clear conflicted flag for cashes that are no longer spent in mempool
             clearNonConflictedCashes(unconfirmedCashes);
 
-            return conflictedCount;
+            return changed;
 
         } catch (Exception e) {
-            TimberLogger.e(TAG, "Error updating conflicted cashes: %s", e.getMessage());
+            TimberLogger.e(TAG, "Error applying mempool overlay: %s", e.getMessage());
             return -1;
         }
     }
@@ -2382,7 +2458,7 @@ public class CashManager {
     public void updateConflictedCashesAsync(Context context, ConflictUpdateCallback callback) {
         new Thread(() -> {
             try {
-                int count = updateConflictedCashes(context);
+                int count = applyMempoolOverlay(context);
                 if (callback != null) {
                     callback.onComplete(count);
                 }

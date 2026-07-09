@@ -23,7 +23,9 @@ import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
+import com.fc.freer.utils.EntityFieldPickers;
 import com.fc.freer.utils.SecurePrikeyManager;
+import com.fc.freer.utils.TextIconsUtils;
 import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.utils.ToolbarUtils;
 import com.google.android.material.textfield.TextInputEditText;
@@ -47,6 +49,18 @@ public class CreateTokenActivity extends BaseCryptoActivity {
     private ImageButton saveButton;
     private ImageButton publishButton;
     private ImageButton backButton;
+
+    private EntityFieldPickers pickers;
+
+    // QR scan request codes
+    private static final int QR_SCAN_TOKEN_NAME = 1001;
+    private static final int QR_SCAN_DESC = 1002;
+    private static final int QR_SCAN_CONSENSUS_ID = 1003;
+    private static final int QR_SCAN_CAPACITY = 1004;
+    private static final int QR_SCAN_DECIMAL = 1005;
+    private static final int QR_SCAN_MAX_AMT_PER_ISSUE = 1006;
+    private static final int QR_SCAN_MIN_CDD_PER_ISSUE = 1007;
+    private static final int QR_SCAN_MAX_ISSUES_PER_ADDR = 1008;
 
     @Override
     protected int getLayoutId() {
@@ -80,6 +94,19 @@ public class CreateTokenActivity extends BaseCryptoActivity {
         });
 
         setupButtons();
+
+        // Only the Consensus ID holds a DID, so it gets the file icon that opens the Data page to
+        // pick a local data DID; every other field just offers scan/paste (this also hides the
+        // people/file icons the IoIconsView would otherwise show by default).
+        pickers = new EntityFieldPickers(this);
+        TextIconsUtils.setupTextIcons(this, R.id.tokenNameView, R.id.scanIcon, QR_SCAN_TOKEN_NAME);
+        TextIconsUtils.setupTextIcons(this, R.id.descView, R.id.scanIcon, QR_SCAN_DESC);
+        pickers.bindDidField(R.id.consensusIdView, R.id.scanIcon, QR_SCAN_CONSENSUS_ID, consensusIdInput);
+        TextIconsUtils.setupTextIcons(this, R.id.capacityView, R.id.scanIcon, QR_SCAN_CAPACITY);
+        TextIconsUtils.setupTextIcons(this, R.id.decimalView, R.id.scanIcon, QR_SCAN_DECIMAL);
+        TextIconsUtils.setupTextIcons(this, R.id.maxAmtPerIssueView, R.id.scanIcon, QR_SCAN_MAX_AMT_PER_ISSUE);
+        TextIconsUtils.setupTextIcons(this, R.id.minCddPerIssueView, R.id.scanIcon, QR_SCAN_MIN_CDD_PER_ISSUE);
+        TextIconsUtils.setupTextIcons(this, R.id.maxIssuesPerAddrView, R.id.scanIcon, QR_SCAN_MAX_ISSUES_PER_ADDR);
     }
 
     @Override
@@ -316,6 +343,15 @@ public class CreateTokenActivity extends BaseCryptoActivity {
 
     @Override
     protected void handleQrScanResult(int requestCode, String qrContent) {
-        // Not used
+        switch (requestCode) {
+            case QR_SCAN_TOKEN_NAME: tokenNameInput.setText(qrContent); break;
+            case QR_SCAN_DESC: descInput.setText(qrContent); break;
+            case QR_SCAN_CONSENSUS_ID: consensusIdInput.setText(qrContent); break;
+            case QR_SCAN_CAPACITY: capacityInput.setText(qrContent); break;
+            case QR_SCAN_DECIMAL: decimalInput.setText(qrContent); break;
+            case QR_SCAN_MAX_AMT_PER_ISSUE: maxAmtPerIssueInput.setText(qrContent); break;
+            case QR_SCAN_MIN_CDD_PER_ISSUE: minCddPerIssueInput.setText(qrContent); break;
+            case QR_SCAN_MAX_ISSUES_PER_ADDR: maxIssuesPerAddrInput.setText(qrContent); break;
+        }
     }
 }

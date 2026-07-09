@@ -59,13 +59,34 @@
 
     </LinearLayout>
 
-    <ImageButton
-        android:id="@+id/im_hat_play_btn"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:layout_marginStart="8dp"
-        android:src="@drawable/ic_play"
-        android:background="?android:attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/open" />
+    <FrameLayout
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginStart="8dp">
+
+        <ImageButton
+            android:id="@+id/im_hat_play_btn"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_play"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/open" />
+
+        <com.google.android.material.progressindicator.CircularProgressIndicator
+            android:id="@+id/im_hat_download_progress"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="center"
+            android:visibility="gone"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/cancel_download"
+            app:indicatorSize="30dp"
+            app:trackThickness="3dp"
+            app:indicatorColor="@color/accent"
+            app:trackColor="@color/hint" />
+
+    </FrameLayout>
 
 </LinearLayout>

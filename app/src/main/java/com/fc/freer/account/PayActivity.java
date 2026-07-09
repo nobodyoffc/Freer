@@ -20,7 +20,7 @@ import com.fc.fc_ajdk.utils.FchUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
-import com.fc.freer.contact.ChooseContactActivity;
+import com.fc.freer.im.SearchFidsOnChainActivity;
 import com.fc.freer.manager.AvatarManager;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
@@ -320,49 +320,20 @@ public class PayActivity extends BaseCryptoActivity {
             imm.hideSoftInputFromWindow(currentFocus.getWindowToken(), 0);
         }
 
-        // Launch ChooseContactActivity to choose a recipient
-        Intent intent = new Intent(this, ChooseContactActivity.class);
-        intent.putExtra(ChooseContactActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_ONE_RETURN.name());
+        // Launch on-chain FID search (also lets the user pick from contacts) to choose a recipient
+        Intent intent = new Intent(this, SearchFidsOnChainActivity.class);
+        intent.putExtra(SearchFidsOnChainActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_ONE_RETURN.name());
         chooseContactLauncher.launch(intent);
     }
 
     private void handleChooseContactResult(Intent data) {
         if (data == null) return;
 
-        // Try single contact first
-        String contactJson = data.getStringExtra(ChooseContactActivity.EXTRA_SELECTED_CONTACT);
-        if (contactJson != null && !contactJson.isEmpty()) {
-            try {
-                Contact contact = JsonUtils.fromJson(contactJson, Contact.class);
-                if (contact != null && contact.getFid() != null && !contact.getFid().isEmpty()) {
-                    recipientInput.setText(contact.getFid());
-                } else {
-                    ToastUtils.makeText(this, R.string.contact_has_no_fid);
-                }
-            } catch (Exception e) {
-                TimberLogger.e(TAG, "Error parsing contact JSON: %s", e.getMessage());
-                ToastUtils.showError(this, getString(R.string.failed_to_parse_contact));
-            }
-            return;
-        }
-
-        // Try multiple contacts (fallback)
-        String selectedContactsJson = data.getStringExtra(ChooseContactActivity.EXTRA_SELECTED_CONTACTS);
-        if (selectedContactsJson != null && !selectedContactsJson.isEmpty()) {
-            try {
-                List<Contact> selectedContacts = JsonUtils.listFromJson(selectedContactsJson, Contact.class);
-                if (!selectedContacts.isEmpty()) {
-                    Contact firstContact = selectedContacts.get(0);
-                    if (firstContact.getFid() != null && !firstContact.getFid().isEmpty()) {
-                        recipientInput.setText(firstContact.getFid());
-                    } else {
-                        ToastUtils.makeText(this, R.string.contact_has_no_fid);
-                    }
-                }
-            } catch (Exception e) {
-                TimberLogger.e(TAG, "Error parsing contacts JSON: %s", e.getMessage());
-                ToastUtils.showError(this, getString(R.string.failed_to_parse_contact));
-            }
+        List<String> fids = data.getStringArrayListExtra(SearchFidsOnChainActivity.EXTRA_SELECTED_FIDS);
+        if (fids != null && !fids.isEmpty()) {
+            recipientInput.setText(fids.get(0));
+        } else {
+            ToastUtils.makeText(this, R.string.contact_has_no_fid);
         }
     }
 

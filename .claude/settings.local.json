@@ -50,7 +50,12 @@
       "Read(//Users/liuchangyong/Desktop/Freeverse/APIP/ApipServer/src/main/java/**)",
       "Bash(echo \"grep exit: $?\")",
       "Bash(perl -i -pe 's|\\(    <string name=\"found_proofs_count\">Found %d proofs</string>\\\\n\\)|$1    <string name=\"found_tokens_count\">Found %d tokens</string>\\\\n    <string name=\"found_token_holders_count\">Found %d token holders</string>\\\\n|' app/src/main/res/values/strings.xml)",
-      "Bash(perl -i -pe 's|\\(    <string name=\"found_proofs_count\">找到 %d 个凭据</string>\\\\n\\)|$1    <string name=\"found_tokens_count\">找到 %d 个通证</string>\\\\n    <string name=\"found_token_holders_count\">找到 %d 个通证持有</string>\\\\n|' app/src/main/res/values-zh/strings.xml)"
+      "Bash(perl -i -pe 's|\\(    <string name=\"found_proofs_count\">找到 %d 个凭据</string>\\\\n\\)|$1    <string name=\"found_tokens_count\">找到 %d 个通证</string>\\\\n    <string name=\"found_token_holders_count\">找到 %d 个通证持有</string>\\\\n|' app/src/main/res/values-zh/strings.xml)",
+      "Bash(javap -p FC-AJDK/bin/main/com/fc/fc_ajdk/app/HomeApp.class)",
+      "Bash(awk -F: '{print $1}')",
+      "Bash(perl -i -pe 's{^\\(\\\\s*\\)\\(fapiClient|homeClient|client\\)\\\\.setAutoRechargeInfo\\\\\\(\\(mainFid|fid\\), \\(currentSetting|setting\\)::decryptPrikey\\\\\\);$}{$1$2.setAutoRechargeInfo\\($3, $4::decryptPrikey\\);\\\\n$1$2.setUtxoProvider\\(CashManager.UTXO_PROVIDER\\);}' app/src/main/java/com/fc/freer/utils/ApiCenter.java app/src/main/java/com/fc/freer/initiate/ClientGroup.java)",
+      "Bash(awk '/private \\(static \\)?void bindHatCard/,/^        \\\\}/' /Users/liuchangyong/AndroidStudioProjects/Freer/app/src/main/java/com/fc/freer/im/adapter/MessageAdapter.java)",
+      "Bash(git *)"
     ],
     "deny": [],
     "ask": []

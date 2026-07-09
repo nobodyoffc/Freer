@@ -62,7 +62,7 @@ public class FidCardHelper {
         TextView cdTextView = cardView.findViewById(R.id.fidCd);
         ImageView noPrikeyIconView = cardView.findViewById(R.id.multisigIcon);
 
-        // Set avatar
+        // Set avatar (grayscale marks a nobody FID: leaked/public prikey)
         if (avatar != null) {
             try {
                 byte[] avatarBytes = AvatarMaker.createAvatar(keyInfo.getId(), context);
@@ -74,6 +74,11 @@ public class FidCardHelper {
                 }
             } catch (Exception e) {
                 avatar.setImageResource(R.drawable.ic_person);
+            }
+            if (Boolean.TRUE.equals(keyInfo.getIsNobody())) {
+                com.fc.freer.im.NobodyBoard.applyNobodyMark(avatar);
+            } else {
+                com.fc.freer.im.NobodyBoard.clearNobodyMark(avatar);
             }
         }
 

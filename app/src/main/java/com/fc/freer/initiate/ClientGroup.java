@@ -9,6 +9,7 @@ import com.fc.fc_ajdk.fudp.node.FudpNode;
 import com.fc.fc_ajdk.fapi.client.ApiAccount;
 import com.fc.fc_ajdk.fapi.client.ApiProvider;
 import com.fc.freer.FreerApplication;
+import com.fc.freer.manager.CashManager;
 import com.fc.freer.model.Configure;
 import com.fc.freer.model.Setting;
 import com.fc.fc_ajdk.utils.TimberLogger;
@@ -186,6 +187,7 @@ public class ClientGroup extends BaseClientGroup {
             String mainFid = setting.getMainFid();
             if (mainFid != null) {
                 client.setAutoRechargeInfo(mainFid, setting::decryptPrikey);
+                client.setUtxoProvider(CashManager.UTXO_PROVIDER);
                 client.setAutoRechargeVia(FreerApplication.FREER_APP_DEALER);
             }
             

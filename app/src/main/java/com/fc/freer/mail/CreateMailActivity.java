@@ -35,7 +35,7 @@ import com.fc.fc_ajdk.utils.StringUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
-import com.fc.freer.contact.ChooseContactActivity;
+import com.fc.freer.im.SearchFidsOnChainActivity;
 import com.fc.freer.manager.AvatarManager;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.CidFidManager;
@@ -237,8 +237,8 @@ public class CreateMailActivity extends BaseCryptoActivity {
 
             // Set up people icon click listener
             recipientIcons.setOnPeopleClickListener(isSingleChoice -> {
-                Intent intent = new Intent(this, ChooseContactActivity.class);
-                intent.putExtra(ChooseContactActivity.EXTRA_CHOOSE_MODE, com.fc.freer.utils.ChooseMode.CHOOSE_ONE_RETURN.name());
+                Intent intent = new Intent(this, SearchFidsOnChainActivity.class);
+                intent.putExtra(SearchFidsOnChainActivity.EXTRA_CHOOSE_MODE, com.fc.freer.utils.ChooseMode.CHOOSE_ONE_RETURN.name());
                 startActivityForResult(intent, CHOOSE_CONTACT_REQUEST_CODE);
             });
 
@@ -264,15 +264,10 @@ public class CreateMailActivity extends BaseCryptoActivity {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (requestCode == CHOOSE_CONTACT_REQUEST_CODE && resultCode == RESULT_OK && data != null) {
-            String contactJson = data.getStringExtra(ChooseContactActivity.EXTRA_SELECTED_CONTACT);
-            if (contactJson != null) {
-                try {
-                    selectedContact = Contact.fromJson(contactJson, Contact.class);
-                    displaySelectedContact();
-                } catch (Exception e) {
-                    TimberLogger.e(TAG, "Error parsing selected contact: %s", e.getMessage());
-                    ToastUtils.makeText(this, getString(R.string.error_selecting_contact));
-                }
+            java.util.List<String> fids = data.getStringArrayListExtra(SearchFidsOnChainActivity.EXTRA_SELECTED_FIDS);
+            if (fids != null && !fids.isEmpty()) {
+                // Resolve the picked FID into a Contact (local or fetched from chain) and display it.
+                makeContactFromInput(fids.get(0));
             }
         }
     }

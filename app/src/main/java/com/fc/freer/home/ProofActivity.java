@@ -22,6 +22,7 @@ import com.fc.fc_ajdk.data.feipData.Feip;
 import com.fc.fc_ajdk.data.feipData.Proof;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.freer.BaseCryptoActivity;
+import com.fc.freer.im.SearchFidsOnChainActivity;
 import com.fc.freer.manager.CashManager;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.core.fch.TxHandler;
@@ -238,25 +239,18 @@ public class ProofActivity extends BaseCryptoActivity {
             }
         );
 
-        // Initialize choose contact launcher for transferring proofs
+        // Initialize FID search launcher for transferring proofs (also lets the user pick from contacts)
         chooseContactLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                    String contactJson = result.getData().getStringExtra(com.fc.freer.contact.ChooseContactActivity.EXTRA_SELECTED_CONTACT);
-                    if (contactJson != null ) {
-                        try {
-                            com.fc.fc_ajdk.data.feipData.Contact contact = com.fc.fc_ajdk.utils.JsonUtils.fromJson(contactJson, com.fc.fc_ajdk.data.feipData.Contact.class);
-
-                            transferProofToContact(proofBeingTransferred, contact);
-                            proofBeingTransferred = null;
-                        } catch (Exception e) {
-                            TimberLogger.e(TAG, "Failed to parse contact or proof: %s", e.getMessage());
-                            showErrorMessage("Failed to transfer proof");
-                            proofBeingTransferred = null;
-                        }
+                    java.util.List<String> fids = result.getData()
+                            .getStringArrayListExtra(SearchFidsOnChainActivity.EXTRA_SELECTED_FIDS);
+                    if (fids != null && !fids.isEmpty()) {
+                        transferProofToFid(proofBeingTransferred, fids.get(0));
                     }
-                }else proofBeingTransferred = null;
+                    proofBeingTransferred = null;
+                } else proofBeingTransferred = null;
             }
         );
     }
@@ -1485,9 +1479,9 @@ public class ProofActivity extends BaseCryptoActivity {
      * Handles pay icon click to transfer proofs to contacts
      */
     private void handlePayIconClick(Proof proof) {
-        // Launch ChooseContactActivity with CHOOSE_ONE_RETURN mode
-        Intent intent = new Intent(this, com.fc.freer.contact.ChooseContactActivity.class);
-        intent.putExtra(com.fc.freer.contact.ChooseContactActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_ONE_RETURN.name());
+        // Launch on-chain FID search (also lets the user pick from contacts) in single-return mode
+        Intent intent = new Intent(this, SearchFidsOnChainActivity.class);
+        intent.putExtra(SearchFidsOnChainActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_ONE_RETURN.name());
         proofBeingTransferred = proof;
         chooseContactLauncher.launch(intent);
     }
@@ -1618,9 +1612,9 @@ public class ProofActivity extends BaseCryptoActivity {
     /**
      * Transfers a proof to a contact
      */
-    private void transferProofToContact(Proof proof, com.fc.fc_ajdk.data.feipData.Contact contact) {
-        if (contact == null || contact.getFid() == null) {
-            showErrorMessage("Invalid contact");
+    private void transferProofToFid(Proof proof, String recipientFid) {
+        if (proof == null || recipientFid == null || recipientFid.isEmpty()) {
+            showErrorMessage("Invalid recipient");
             return;
         }
 
@@ -1644,7 +1638,7 @@ public class ProofActivity extends BaseCryptoActivity {
             new Thread(() -> {
                 CashManager cashManager = CashManager.getInstance();
                 TxSender txSender = new TxSender();
-                txSender.carveFeipWithRecipient(this, liveKeyInfo.getId(), contact.getFid(), null, feipJson, prikey, cashManager, new TxHandler(), (FapiClient) ApiCenter.getInstance().getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.FAPI_No1_NrC7), new TxSender.TxCallback() {
+                txSender.carveFeipWithRecipient(this, liveKeyInfo.getId(), recipientFid, null, feipJson, prikey, cashManager, new TxHandler(), (FapiClient) ApiCenter.getInstance().getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.FAPI_No1_NrC7), new TxSender.TxCallback() {
                     @Override
                     public void onSuccess(String txId) {
                         runOnUiThread(() -> {

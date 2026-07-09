@@ -25,12 +25,14 @@ import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
+import com.fc.freer.utils.EntityFieldPickers;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.TextIconsUtils;
 import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.utils.ToolbarUtils;
 import com.fc.freer.manager.CodeManager;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -46,6 +48,8 @@ public class UpdateCodeActivity extends BaseCryptoActivity {
     private TextInputEditText nameInput, verInput, didInput, descInput;
     private TextInputEditText langsInput, urlsInput, protocolsInput, waitersInput;
     private ImageButton clearButton, saveButton, updateButton, backButton;
+
+    private EntityFieldPickers pickers;
 
     private static final int QR_SCAN_NAME = 1001;
     private static final int QR_SCAN_VER = 1002;
@@ -89,35 +93,50 @@ public class UpdateCodeActivity extends BaseCryptoActivity {
         setupButtons();
         populateFields();
 
+        pickers = new EntityFieldPickers(this);
+
         TextIconsUtils.setupTextIcons(this, R.id.nameView, R.id.scanIcon, QR_SCAN_NAME);
         TextIconsUtils.setupTextIcons(this, R.id.verView, R.id.scanIcon, QR_SCAN_VER);
-        TextIconsUtils.setupTextIcons(this, R.id.didView, R.id.scanIcon, QR_SCAN_DID);
+        // DID field: pick a local data DID via the file icon, or enter it manually.
+        pickers.bindDidField(R.id.didView, R.id.scanIcon, QR_SCAN_DID, didInput);
         TextIconsUtils.setupTextIcons(this, R.id.descView, R.id.scanIcon, QR_SCAN_DESC);
         TextIconsUtils.setupTextIcons(this, R.id.langsView, R.id.scanIcon, QR_SCAN_LANGS);
         TextIconsUtils.setupTextIcons(this, R.id.urlsView, R.id.scanIcon, QR_SCAN_URLS);
-        TextIconsUtils.setupTextIcons(this, R.id.protocolsView, R.id.scanIcon, QR_SCAN_PROTOCOLS);
-        TextIconsUtils.setupTextIcons(this, R.id.waitersView, R.id.scanIcon, QR_SCAN_WAITERS);
+        // Protocols are entity ids: pick them from the protocol list via the file icon.
+        pickers.bindEntityIdField(R.id.protocolsView, R.id.scanIcon, QR_SCAN_PROTOCOLS, protocolsInput, true, ProtocolActivity.class);
+        // Waiters are FIDs: search them on chain (or pick from contacts) via the people icon.
+        pickers.bindFidField(R.id.waitersView, R.id.scanIcon, QR_SCAN_WAITERS, waitersInput, true);
     }
 
     @Override
     protected void initializeViews() {
         codeIdValue = findViewById(R.id.codeIdValue);
-        nameInput = ((View) findViewById(R.id.nameView)).findViewById(R.id.textInput);
-        nameInput.setHint(R.string.name_required);
-        verInput = ((View) findViewById(R.id.verView)).findViewById(R.id.textInput);
-        verInput.setHint(R.string.version);
-        didInput = ((View) findViewById(R.id.didView)).findViewById(R.id.textInput);
-        didInput.setHint(R.string.did);
-        descInput = ((View) findViewById(R.id.descView)).findViewById(R.id.textInput);
-        descInput.setHint(R.string.description);
-        langsInput = ((View) findViewById(R.id.langsView)).findViewById(R.id.textInput);
-        langsInput.setHint(R.string.languages_comma_separated);
-        urlsInput = ((View) findViewById(R.id.urlsView)).findViewById(R.id.textInput);
-        urlsInput.setHint(R.string.urls_comma_separated);
-        protocolsInput = ((View) findViewById(R.id.protocolsView)).findViewById(R.id.textInput);
-        protocolsInput.setHint(R.string.protocols_comma_separated);
-        waitersInput = ((View) findViewById(R.id.waitersView)).findViewById(R.id.textInput);
-        waitersInput.setHint(R.string.waiters_comma_separated);
+
+        View nameView = findViewById(R.id.nameView);
+        View verView = findViewById(R.id.verView);
+        View didView = findViewById(R.id.didView);
+        View descView = findViewById(R.id.descView);
+        View langsView = findViewById(R.id.langsView);
+        View urlsView = findViewById(R.id.urlsView);
+        View protocolsView = findViewById(R.id.protocolsView);
+        View waitersView = findViewById(R.id.waitersView);
+
+        nameInput = nameView.findViewById(R.id.textInput);
+        setLabel(nameView, R.string.name_required);
+        verInput = verView.findViewById(R.id.textInput);
+        setLabel(verView, R.string.version);
+        didInput = didView.findViewById(R.id.textInput);
+        setLabel(didView, R.string.did);
+        descInput = descView.findViewById(R.id.textInput);
+        setLabel(descView, R.string.description);
+        langsInput = langsView.findViewById(R.id.textInput);
+        setLabel(langsView, R.string.languages_comma_separated);
+        urlsInput = urlsView.findViewById(R.id.textInput);
+        setLabel(urlsView, R.string.urls_comma_separated);
+        protocolsInput = protocolsView.findViewById(R.id.textInput);
+        setLabel(protocolsView, R.string.protocols_comma_separated);
+        waitersInput = waitersView.findViewById(R.id.textInput);
+        setLabel(waitersView, R.string.waiters_comma_separated);
         clearButton = findViewById(R.id.clearButton);
         saveButton = findViewById(R.id.saveButton);
         updateButton = findViewById(R.id.updateButton);
@@ -273,6 +292,17 @@ public class UpdateCodeActivity extends BaseCryptoActivity {
     }
 
     private String getText(TextInputEditText input) { return input.getText() != null ? input.getText().toString().trim() : ""; }
+
+    /**
+     * Set a persistent floating label on the field's TextInputLayout so it stays visible above the
+     * pre-populated content when editing an existing entity.
+     */
+    private void setLabel(View container, int hintRes) {
+        TextInputLayout layout = container.findViewById(R.id.textInputWithScanLayout);
+        if (layout != null) {
+            layout.setHint(getString(hintRes));
+        }
+    }
 
     private java.util.List<String> parseCommaSeparated(String input) {
         if (input == null || input.isEmpty()) return null;

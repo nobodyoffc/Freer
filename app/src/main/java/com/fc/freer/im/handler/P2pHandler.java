@@ -56,9 +56,15 @@ public class P2pHandler extends BaseHandler {
             });
 
     private TalkPartnerProvider talkPartnerProvider;
+    private TalkPartnerHomeUpdater talkPartnerHomeUpdater;
 
     public interface TalkPartnerProvider {
         TalkPartner getTalkPartner(String fid);
+    }
+
+    /** Persists a freshly-fetched recipient home back onto the stored TalkPartner. */
+    public interface TalkPartnerHomeUpdater {
+        void updateTalkPartnerHome(String fid, Map<String, String> home);
     }
 
     public P2pHandler(Context context, String liveFid) {
@@ -67,6 +73,10 @@ public class P2pHandler extends BaseHandler {
 
     public void setTalkPartnerProvider(TalkPartnerProvider provider) {
         this.talkPartnerProvider = provider;
+    }
+
+    public void setTalkPartnerHomeUpdater(TalkPartnerHomeUpdater updater) {
+        this.talkPartnerHomeUpdater = updater;
     }
 
     @Override
@@ -120,6 +130,7 @@ public class P2pHandler extends BaseHandler {
         String targetDockUrl = null;
         String targetRoadUrl = null;
         Map<String, String> recipientHome = null;
+        Map<String, String> freshHome = null; // set when we fetch a fresh freer from chain
         TalkPartner partner = (talkPartnerProvider != null) ? talkPartnerProvider.getTalkPartner(targetFid) : null;
         if (partner != null && partner.getHome() != null && fapiClient != null) {
             recipientHome = partner.getHome();
@@ -135,6 +146,10 @@ public class P2pHandler extends BaseHandler {
                 com.fc.fc_ajdk.data.fchData.Freer freer = fapiClient.getFreer(targetFid);
                 if (freer != null && freer.getHome() != null) {
                     recipientHome = freer.getHome();
+                    freshHome = freer.getHome();
+                    // Write the fresh home back so a just-registered DOCK is not
+                    // re-fetched on every send and the partner list/registry update.
+                    persistFreshHome(targetFid, freshHome);
                     HomeServiceResolver resolver = fapiClient.getHomeServiceResolver();
                     if (useRoad && targetRoadUrl == null) {
                         targetRoadUrl = resolver.resolveFromHome(freer.getHome(), ROAD_NO1_NRC7, fapiClient);
@@ -181,34 +196,37 @@ public class P2pHandler extends BaseHandler {
         FapiClient ownDockClient = ApiCenter.getInstance().getClient(ApiCenter.ConnectionRole.DOCK);
 
         if (targetDockUrl != null) {
-            FapiClient directClient = (dockRegistry != null && !dockRegistry.isFailed(targetDockUrl))
-                    ? dockRegistry.getClientForDock(targetDockUrl) : null;
-            if (directClient == null && dockRegistry != null) {
-                // No cached client for the target DOCK — bootstrap one so a direct
-                // put can be attempted regardless of whether an own DOCK exists.
-                directClient = dockRegistry.retryBootstrap(targetDockUrl);
+            if (deliverToDock(targetDockUrl, envelope, message, targetFid, ownDockClient)) {
+                return SendResult.SUCCESS;
             }
 
-            if (directClient != null && directClient != ownDockClient) {
-                Boolean direct = putToDock(directClient, envelope, message, targetFid, null,
-                        "directly in target DOCK " + targetDockUrl);
-                if (Boolean.TRUE.equals(direct)) return SendResult.SUCCESS;
-                if (direct == null) {
-                    // Connection-level failure — drop the dead client so a later
-                    // attempt re-bootstraps instead of reusing it.
-                    dockRegistry.invalidateClient(targetDockUrl);
+            // Delivery to the resolved DOCK failed. When that DOCK came from the
+            // stored (possibly stale) TalkPartner home, the FID may have moved or
+            // retired it. Refresh the freer once; if it now resolves a *different*
+            // DOCK, persist the fresh home and retry against it before giving up.
+            if (fapiClient != null) {
+                Map<String, String> refreshed = freshHome;
+                if (refreshed == null) {
+                    try {
+                        com.fc.fc_ajdk.data.fchData.Freer freer = fapiClient.getFreer(targetFid);
+                        if (freer != null) refreshed = freer.getHome();
+                    } catch (Exception e) {
+                        TimberLogger.w(TAG, "Failed to refresh target home on DOCK failure: %s", e.getMessage());
+                    }
                 }
-            }
-
-            // b. Ask our own DOCK to forward to the target DOCK. Runs as a recovery
-            //    path when the direct attempt failed, and is also the path taken when
-            //    the target IS our own DOCK (directClient == ownDockClient, so the
-            //    direct branch is skipped): dockPut drops TARGET_DOCK_URL when it
-            //    equals the server URL, making this a plain local store.
-            if (ownDockClient != null) {
-                Boolean forwarded = putToDock(ownDockClient, envelope, message, targetFid, targetDockUrl,
-                        "in target DOCK " + targetDockUrl + " via own DOCK forward");
-                if (Boolean.TRUE.equals(forwarded)) return SendResult.SUCCESS;
+                if (refreshed != null) {
+                    persistFreshHome(targetFid, refreshed);
+                    String freshDock = fapiClient.getHomeServiceResolver()
+                            .resolveDockFromHome(refreshed, fapiClient);
+                    if (freshDock != null && !freshDock.equals(targetDockUrl)) {
+                        TimberLogger.i(TAG, "Target DOCK changed for %s; retrying with %s", targetFid, freshDock);
+                        recipientHome = refreshed;
+                        targetDockUrl = freshDock;
+                        if (deliverToDock(freshDock, envelope, message, targetFid, ownDockClient)) {
+                            return SendResult.SUCCESS;
+                        }
+                    }
+                }
             }
         }
 
@@ -228,6 +246,62 @@ public class P2pHandler extends BaseHandler {
             return SendResult.FAIL_PERMANENT;
         }
         return SendResult.RETRY_TRANSIENT;
+    }
+
+    /**
+     * Deliver the envelope to {@code targetDockUrl}, trying a direct put to the
+     * recipient's own DOCK first and falling back to an own-DOCK forward.
+     * See the preference-order note at the call site.
+     *
+     * @return true if the item was stored (direct or forwarded)
+     */
+    private boolean deliverToDock(String targetDockUrl, byte[] envelope, ImMessage message,
+                                  String targetFid, FapiClient ownDockClient) {
+        // a. Direct put to the recipient's own DOCK.
+        FapiClient directClient = (dockRegistry != null && !dockRegistry.isFailed(targetDockUrl))
+                ? dockRegistry.getClientForDock(targetDockUrl) : null;
+        if (directClient == null && dockRegistry != null) {
+            // No cached client for the target DOCK — bootstrap one so a direct
+            // put can be attempted regardless of whether an own DOCK exists.
+            directClient = dockRegistry.retryBootstrap(targetDockUrl);
+        }
+
+        if (directClient != null && directClient != ownDockClient) {
+            Boolean direct = putToDock(directClient, envelope, message, targetFid, null,
+                    "directly in target DOCK " + targetDockUrl);
+            if (Boolean.TRUE.equals(direct)) return true;
+            if (direct == null && dockRegistry != null) {
+                // Connection-level failure — drop the dead client so a later
+                // attempt re-bootstraps instead of reusing it.
+                dockRegistry.invalidateClient(targetDockUrl);
+            }
+        }
+
+        // b. Ask our own DOCK to forward to the target DOCK. Runs as a recovery
+        //    path when the direct attempt failed, and is also the path taken when
+        //    the target IS our own DOCK (directClient == ownDockClient, so the
+        //    direct branch is skipped): dockPut drops TARGET_DOCK_URL when it
+        //    equals the server URL, making this a plain local store.
+        if (ownDockClient != null) {
+            Boolean forwarded = putToDock(ownDockClient, envelope, message, targetFid, targetDockUrl,
+                    "in target DOCK " + targetDockUrl + " via own DOCK forward");
+            if (Boolean.TRUE.equals(forwarded)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Persist a freshly-fetched recipient home onto the stored TalkPartner, but
+     * only when it actually differs from what is stored (avoids redundant writes).
+     */
+    private void persistFreshHome(String targetFid, Map<String, String> freshHome) {
+        if (talkPartnerHomeUpdater == null || freshHome == null) return;
+        TalkPartner partner = (talkPartnerProvider != null)
+                ? talkPartnerProvider.getTalkPartner(targetFid) : null;
+        Map<String, String> stored = (partner != null) ? partner.getHome() : null;
+        if (!freshHome.equals(stored)) {
+            talkPartnerHomeUpdater.updateTalkPartnerHome(targetFid, freshHome);
+        }
     }
 
     /**

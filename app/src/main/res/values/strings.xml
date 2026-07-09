@@ -680,6 +680,8 @@
     <string name="all">All</string>
 
     <string name="refresh">Refresh</string>
+    <string name="refreshed">Refreshed</string>
+    <string name="failed_to_refresh">Failed to refresh</string>
     <string name="edit">Edit</string>
     <string name="share">Share\n</string>
     <string name="reorg">Reorg</string>
@@ -1085,6 +1087,9 @@
     <string name="fc_time_tooltip">Time of Freevers, since 2020-01-01 00:00 and in format: year.day.hour.minute</string>
     <string name="height_info_format">Height: %d\nApproximate time: %s</string>
     <string name="nobody">Nobody</string>
+    <string name="warning">Warning</string>
+    <string name="send_anyway">Send Anyway</string>
+    <string name="nobody_recipient_warning">The private key of the following recipient(s) has been made public on chain. Any funds sent there can be taken by anyone:\n\n%1$s\n\nSend anyway?</string>
     <string name="invalid_sender">Invalid sender</string>
     <string name="copy_fid">Copy FID</string>
 
@@ -1909,6 +1914,8 @@
     <string name="downloading_consensus_document">Downloading consensus…</string>
     <string name="failed_to_download_consensus_document">Failed to download consensus document</string>
     <string name="consensus_not_text">The consensus document is not plain text and cannot be previewed here.</string>
+    <string name="consensus_doc_hint">Pick a data document or enter its DID</string>
+    <string name="consensus_doc_not_local">The chosen consensus document isn\'t available locally. Add it in Data first.</string>
     <string name="accept_and_join">Accept &amp; Join</string>
     <string name="team_published_successfully">Team published: %s</string>
     <string name="failed_to_publish_team">Failed to publish team</string>
@@ -1987,6 +1994,10 @@
     <string name="objects">Objects</string>
     <string name="symbols">Symbols</string>
     <string name="downloading_data">Downloading data…</string>
+    <string name="cancel_download_title">Cancel download?</string>
+    <string name="cancel_download_message">Stop downloading this file? The received data will be discarded, and downloading it again will be charged again.</string>
+    <string name="keep_downloading">Keep downloading</string>
+    <string name="cancel_download">Cancel download</string>
     <string name="open_with">Open with…</string>
     <string name="uploading_data">Uploading data…</string>
 

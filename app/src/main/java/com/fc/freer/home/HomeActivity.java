@@ -713,9 +713,7 @@ public class HomeActivity extends AppCompatActivity {
             TextView balanceTextView = findViewById(R.id.fidBalance);
             TextView cdTextView = findViewById(R.id.fidCd);
             ImageView noPrikeyIconView = findViewById(R.id.multisigIcon);
-            ImageView deadIconView = findViewById(R.id.fidDeadIcon);
-
-            // Set avatar
+            // Set avatar (grayscale marks a nobody FID)
             if (avatarImageView != null) {
                 AvatarManager avatarManager = AvatarManager.getInstance(this);
                 Bitmap avatarBitmap = avatarManager.getAvatarBitmap(liveFid);
@@ -723,6 +721,11 @@ public class HomeActivity extends AppCompatActivity {
                     avatarImageView.setImageBitmap(avatarBitmap);
                 } else {
                     avatarImageView.setImageResource(R.drawable.ic_person);
+                }
+                if (Boolean.TRUE.equals(liveKeyInfo.getIsNobody())) {
+                    com.fc.freer.im.NobodyBoard.applyNobodyMark(avatarImageView);
+                } else {
+                    com.fc.freer.im.NobodyBoard.clearNobodyMark(avatarImageView);
                 }
             }
 
@@ -821,20 +824,6 @@ public class HomeActivity extends AppCompatActivity {
                     noPrikeyIconView.setVisibility(View.VISIBLE);
                 } else {
                     noPrikeyIconView.setVisibility(View.GONE);
-                }
-            }
-
-            // Show/hide dead icon based on isNobody
-            if (deadIconView != null) {
-                Boolean isNobody = liveKeyInfo.getIsNobody();
-                if (isNobody != null && isNobody) {
-                    deadIconView.setVisibility(View.VISIBLE);
-                    // Setup tooltip for dead icon
-                    deadIconView.setTooltipText(getString(R.string.prikey_leaked_tooltip));
-                    // Also show tooltip on click
-                    deadIconView.setOnClickListener(v -> v.performLongClick());
-                } else {
-                    deadIconView.setVisibility(View.GONE);
                 }
             }
 
@@ -1019,8 +1008,14 @@ public class HomeActivity extends AppCompatActivity {
                     FidManager fidManager = FidManager.getInstance();
                     String liveFid = fidManager != null ? fidManager.getLiveFid() : null;
                     if (liveFid != null && !liveFid.isEmpty()) {
-                        ToastUtils.showInfo(this, getString(R.string.refresh));
-                        refreshLiveFidInfoFromApi();
+                        refreshLiveFidInfoFromApi(success -> {
+                            onLiveFidInfoRefreshed(success);
+                            if (success) {
+                                ToastUtils.showInfo(this, getString(R.string.refreshed));
+                            } else {
+                                ToastUtils.showError(this, getString(R.string.failed_to_refresh));
+                            }
+                        });
                     } else {
                         ToastUtils.showWarning(this, getString(R.string.no_fid_available));
                     }
@@ -1406,9 +1401,13 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void refreshLiveFidInfoFromApi() {
+        refreshLiveFidInfoFromApi(this::onLiveFidInfoRefreshed);
+    }
+
+    private void refreshLiveFidInfoFromApi(java.util.function.Consumer<Boolean> onComplete) {
         FidManager fidManager = FidManager.getInstance();
         if (fidManager != null) {
-            fidManager.refreshLiveFidCidInfoAsync(this, this::onLiveFidInfoRefreshed);
+            fidManager.refreshLiveFidCidInfoAsync(this, onComplete);
         }
     }
 
@@ -1417,7 +1416,10 @@ public class HomeActivity extends AppCompatActivity {
      * fetched. The KeyInfo home map is now authoritative, so it's safe to evaluate the DISK
      * server-setup prompt without a false positive for a FID already configured on-chain.
      */
-    private void onLiveFidInfoRefreshed() {
+    private void onLiveFidInfoRefreshed(boolean success) {
+        if (!success) {
+            return;
+        }
         liveFidInfoRefreshed = true;
         refreshLiveFidCard();
         maybeShowServerSetupPrompt(false);
@@ -1517,9 +1519,8 @@ public class HomeActivity extends AppCompatActivity {
             TextView balanceTextView = findViewById(R.id.fidBalance);
             TextView cdTextView = findViewById(R.id.fidCd);
             ImageView noPrikeyIconView = findViewById(R.id.multisigIcon);
-            ImageView deadIconView = findViewById(R.id.fidDeadIcon);
 
-            // Update avatar
+            // Update avatar (grayscale marks a nobody FID)
             if (avatarImageView != null) {
                 AvatarManager avatarManager = AvatarManager.getInstance(this);
                 Bitmap avatarBitmap = avatarManager.getAvatarBitmap(liveFid);
@@ -1527,6 +1528,11 @@ public class HomeActivity extends AppCompatActivity {
                     avatarImageView.setImageBitmap(avatarBitmap);
                 } else {
                     avatarImageView.setImageResource(R.drawable.ic_person);
+                }
+                if (Boolean.TRUE.equals(liveKeyInfo.getIsNobody())) {
+                    com.fc.freer.im.NobodyBoard.applyNobodyMark(avatarImageView);
+                } else {
+                    com.fc.freer.im.NobodyBoard.clearNobodyMark(avatarImageView);
                 }
             }
 
@@ -1619,20 +1625,6 @@ public class HomeActivity extends AppCompatActivity {
                     noPrikeyIconView.setVisibility(View.VISIBLE);
                 } else {
                     noPrikeyIconView.setVisibility(View.GONE);
-                }
-            }
-
-            // Update dead icon based on isNobody
-            if (deadIconView != null) {
-                Boolean isNobody = liveKeyInfo.getIsNobody();
-                if (isNobody != null && isNobody) {
-                    deadIconView.setVisibility(View.VISIBLE);
-                    // Setup tooltip for dead icon
-                    deadIconView.setTooltipText(getString(R.string.prikey_leaked_tooltip));
-                    // Also show tooltip on click
-                    deadIconView.setOnClickListener(v -> v.performLongClick());
-                } else {
-                    deadIconView.setVisibility(View.GONE);
                 }
             }
 

@@ -27,7 +27,7 @@ import com.fc.fc_ajdk.utils.JsonUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
-import com.fc.freer.contact.ChooseContactActivity;
+import com.fc.freer.im.SearchFidsOnChainActivity;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.manager.TokenManager;
@@ -221,22 +221,15 @@ public class SendTokenActivity extends BaseCryptoActivity {
 
     private void onPeopleClick() {
         hideKeyboard();
-        Intent intent = new Intent(this, ChooseContactActivity.class);
-        intent.putExtra(ChooseContactActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_ONE_RETURN.name());
+        Intent intent = new Intent(this, SearchFidsOnChainActivity.class);
+        intent.putExtra(SearchFidsOnChainActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_ONE_RETURN.name());
         chooseContactLauncher.launch(intent);
     }
 
     private void handleChooseContactResult(Intent data) {
-        String contactJson = data.getStringExtra(ChooseContactActivity.EXTRA_SELECTED_CONTACT);
-        if (contactJson != null && !contactJson.isEmpty()) {
-            try {
-                Contact contact = JsonUtils.fromJson(contactJson, Contact.class);
-                if (contact != null && contact.getFid() != null) {
-                    recipientInput.setText(contact.getFid());
-                }
-            } catch (Exception e) {
-                TimberLogger.e(TAG, "Error parsing contact: %s", e.getMessage());
-            }
+        java.util.List<String> fids = data.getStringArrayListExtra(SearchFidsOnChainActivity.EXTRA_SELECTED_FIDS);
+        if (fids != null && !fids.isEmpty()) {
+            recipientInput.setText(fids.get(0));
         }
     }
 

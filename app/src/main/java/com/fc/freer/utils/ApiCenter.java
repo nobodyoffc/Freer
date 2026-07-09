@@ -20,6 +20,7 @@ import com.fc.freer.R;
 import com.fc.freer.initiate.ClientGroup;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.initiate.ConfigureManager;
+import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.Configure;
 import com.fc.freer.model.Setting;
@@ -520,6 +521,7 @@ public class ApiCenter {
                 String mainFid = currentSetting.getMainFid();
                 if (mainFid != null) {
                     fapiClient.setAutoRechargeInfo(mainFid, currentSetting::decryptPrikey);
+                    fapiClient.setUtxoProvider(CashManager.UTXO_PROVIDER);
                 }
                 if (savedApiProvider != null) {
                     fapiClient.cacheServiceForRecharge(savedApiProvider);
@@ -565,6 +567,7 @@ public class ApiCenter {
                 String mainFid = currentSetting.getMainFid();
                 if (mainFid != null) {
                     fapiClient.setAutoRechargeInfo(mainFid, currentSetting::decryptPrikey);
+                    fapiClient.setUtxoProvider(CashManager.UTXO_PROVIDER);
                 }
                 fapiClient.cacheServiceForRecharge(apiProvider);
             }
@@ -719,6 +722,7 @@ public class ApiCenter {
                     String mainFid = currentSetting.getMainFid();
                     if (mainFid != null) {
                         homeClient.setAutoRechargeInfo(mainFid, currentSetting::decryptPrikey);
+                        homeClient.setUtxoProvider(CashManager.UTXO_PROVIDER);
                     }
                 }
                 homeClientMap.put(role, homeClient);
@@ -840,6 +844,7 @@ public class ApiCenter {
             String mainFid = currentSetting.getMainFid();
             if (mainFid != null) {
                 client.setAutoRechargeInfo(mainFid, currentSetting::decryptPrikey);
+                client.setUtxoProvider(CashManager.UTXO_PROVIDER);
             }
         }
         persistHomeClient(ConnectionRole.DISK, client);
@@ -1121,6 +1126,7 @@ public class ApiCenter {
             
             // Set auto-recharge info
             client.setAutoRechargeInfo(mainFid, currentSetting::decryptPrikey);
+            client.setUtxoProvider(CashManager.UTXO_PROVIDER);
             
             // Pre-cache the bootstrap service info in the auto-recharge manager so it
             // can compute payment amounts even when FAPI requests are blocked by credit limit
@@ -1428,6 +1434,7 @@ public class ApiCenter {
             String fid = currentSetting != null ? currentSetting.getMainFid() : null;
             if (fid != null) {
                 fapiClient.setAutoRechargeInfo(fid, currentSetting::decryptPrikey);
+                fapiClient.setUtxoProvider(CashManager.UTXO_PROVIDER);
             }
         }
 

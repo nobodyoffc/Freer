@@ -145,6 +145,13 @@ public class SendTxActivity extends BaseCryptoActivity {
             try {
                 FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
                 fidNobodyMap = fapiClient.checkNobodies(new ArrayList<>(toIdSet));
+                if (fidNobodyMap != null) {
+                    for (Map.Entry<String, Nobody> entry : fidNobodyMap.entrySet()) {
+                        if (entry.getValue() != null) {
+                            com.fc.freer.im.NobodyBoard.markNobody(entry.getKey());
+                        }
+                    }
+                }
                 if (fapiClient != null && fapiClient.getBestHeight() != null) {
                     bestHeight = fapiClient.getBestHeight();
                 }
@@ -225,12 +232,59 @@ public class SendTxActivity extends BaseCryptoActivity {
                     return;
                 }
 
-                if(waitingDialog!=null)
-                    waitingDialog.show();
+                // Warn before broadcasting to a "nobody": a FID whose private key is
+                // public on chain, so any funds sent there can be taken by anyone.
+                List<Cash> nobodyRecipients = getNobodyRecipients();
+                if (!nobodyRecipients.isEmpty()) {
+                    showNobodyConfirmDialog(nobodyRecipients);
+                    return;
+                }
 
-                sendButton.setAlpha(0.5f);
-                // Use the shared transaction sending method from BaseCryptoActivity
-                sendTransaction(rawTxInfo, senderKeyInfo, new TxSendCallback() {
+                performSend();
+            });
+        }
+    }
+
+    /**
+     * Collects the intended output recipients (not change) whose FID is a "nobody",
+     * i.e. an address whose private key has been published on chain.
+     */
+    private List<Cash> getNobodyRecipients() {
+        List<Cash> nobodies = new ArrayList<>();
+        if (rawTxInfo != null && rawTxInfo.getOutputs() != null) {
+            for (Cash output : rawTxInfo.getOutputs()) {
+                if (output.getOwner() != null && isNobody(output.getOwner())) {
+                    nobodies.add(output);
+                }
+            }
+        }
+        return nobodies;
+    }
+
+    private void showNobodyConfirmDialog(List<Cash> nobodyRecipients) {
+        StringBuilder sb = new StringBuilder();
+        for (Cash cash : nobodyRecipients) {
+            sb.append(cash.getOwner()).append("  ").append(cash.getAmount()).append(" F\n");
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.warning)
+                .setMessage(getString(R.string.nobody_recipient_warning, sb.toString().trim()))
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.send_anyway, (dialog, which) -> performSend())
+                .show();
+    }
+
+    /**
+     * Broadcasts the transaction via the shared sending method. Assumes any
+     * pre-send confirmations (e.g. nobody-recipient warning) have already passed.
+     */
+    private void performSend() {
+        if(waitingDialog!=null)
+            waitingDialog.show();
+
+        sendButton.setAlpha(0.5f);
+        // Use the shared transaction sending method from BaseCryptoActivity
+        sendTransaction(rawTxInfo, senderKeyInfo, new TxSendCallback() {
                     @Override
                     public void onSuccess(String txId) {
                         isSent = true;
@@ -287,8 +341,6 @@ public class SendTxActivity extends BaseCryptoActivity {
                             waitingDialog.dismiss();
                     }
                 });
-            });
-        }
     }
 
     public void updateButtonTexts() {

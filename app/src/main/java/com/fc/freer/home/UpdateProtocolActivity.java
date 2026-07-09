@@ -25,12 +25,14 @@ import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
+import com.fc.freer.utils.EntityFieldPickers;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.TextIconsUtils;
 import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.utils.ToolbarUtils;
 import com.fc.freer.manager.ProtocolManager;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -58,6 +60,8 @@ public class UpdateProtocolActivity extends BaseCryptoActivity {
     private ImageButton saveButton;
     private ImageButton updateButton;
     private ImageButton backButton;
+
+    private EntityFieldPickers pickers;
 
     // QR scan request codes
     private static final int QR_SCAN_NAME = 1001;
@@ -120,17 +124,22 @@ public class UpdateProtocolActivity extends BaseCryptoActivity {
         setupButtons();
         populateFields();
 
+        pickers = new EntityFieldPickers(this);
+
         // Setup scan icons for input fields
         TextIconsUtils.setupTextIcons(this, R.id.nameView, R.id.scanIcon, QR_SCAN_NAME);
         TextIconsUtils.setupTextIcons(this, R.id.typeView, R.id.scanIcon, QR_SCAN_TYPE);
         TextIconsUtils.setupTextIcons(this, R.id.snView, R.id.scanIcon, QR_SCAN_SN);
         TextIconsUtils.setupTextIcons(this, R.id.verView, R.id.scanIcon, QR_SCAN_VER);
-        TextIconsUtils.setupTextIcons(this, R.id.didView, R.id.scanIcon, QR_SCAN_DID);
+        // DID field: pick a local data DID via the file icon, or enter it manually.
+        pickers.bindDidField(R.id.didView, R.id.scanIcon, QR_SCAN_DID, didInput);
         TextIconsUtils.setupTextIcons(this, R.id.descView, R.id.scanIcon, QR_SCAN_DESC);
         TextIconsUtils.setupTextIcons(this, R.id.langView, R.id.scanIcon, QR_SCAN_LANG);
         TextIconsUtils.setupTextIcons(this, R.id.fileUrlsView, R.id.scanIcon, QR_SCAN_FILE_URLS);
-        TextIconsUtils.setupTextIcons(this, R.id.preDidView, R.id.scanIcon, QR_SCAN_PRE_DID);
-        TextIconsUtils.setupTextIcons(this, R.id.waitersView, R.id.scanIcon, QR_SCAN_WAITERS);
+        // Pre-PID is a protocol id: pick a previous protocol via the file icon, or enter it manually.
+        pickers.bindEntityIdField(R.id.preDidView, R.id.scanIcon, QR_SCAN_PRE_DID, preDidInput, false, ProtocolActivity.class);
+        // Waiters are FIDs: search them on chain (or pick from contacts) via the people icon.
+        pickers.bindFidField(R.id.waitersView, R.id.scanIcon, QR_SCAN_WAITERS, waitersInput, true);
     }
 
     @Override
@@ -149,34 +158,34 @@ public class UpdateProtocolActivity extends BaseCryptoActivity {
         View waitersView = findViewById(R.id.waitersView);
 
         nameInput = nameView.findViewById(R.id.textInput);
-        nameInput.setHint(R.string.name_required);
+        setLabel(nameView, R.string.name_required);
 
         typeInput = typeView.findViewById(R.id.textInput);
-        typeInput.setHint(R.string.type);
+        setLabel(typeView, R.string.type);
 
         snInput = snView.findViewById(R.id.textInput);
-        snInput.setHint(R.string.serial_number);
+        setLabel(snView, R.string.serial_number);
 
         verInput = verView.findViewById(R.id.textInput);
-        verInput.setHint(R.string.version);
+        setLabel(verView, R.string.version);
 
         didInput = didView.findViewById(R.id.textInput);
-        didInput.setHint(R.string.did);
+        setLabel(didView, R.string.did);
 
         descInput = descView.findViewById(R.id.textInput);
-        descInput.setHint(R.string.description);
+        setLabel(descView, R.string.description);
 
         langInput = langView.findViewById(R.id.textInput);
-        langInput.setHint(R.string.language);
+        setLabel(langView, R.string.language);
 
         fileUrlsInput = fileUrlsView.findViewById(R.id.textInput);
-        fileUrlsInput.setHint(R.string.file_urls_comma_separated);
+        setLabel(fileUrlsView, R.string.file_urls_comma_separated);
 
         preDidInput = preDidView.findViewById(R.id.textInput);
-        preDidInput.setHint(R.string.pre_did);
+        setLabel(preDidView, R.string.pre_did);
 
         waitersInput = waitersView.findViewById(R.id.textInput);
-        waitersInput.setHint(R.string.waiters_comma_separated);
+        setLabel(waitersView, R.string.waiters_comma_separated);
 
         clearButton = findViewById(R.id.clearButton);
         saveButton = findViewById(R.id.saveButton);
@@ -485,6 +494,17 @@ public class UpdateProtocolActivity extends BaseCryptoActivity {
 
     private String getText(TextInputEditText input) {
         return input.getText() != null ? input.getText().toString().trim() : "";
+    }
+
+    /**
+     * Set a persistent floating label on the field's TextInputLayout. Unlike a hint on the inner
+     * EditText, this stays visible above the pre-populated content when editing an existing entity.
+     */
+    private void setLabel(View container, int hintRes) {
+        TextInputLayout layout = container.findViewById(R.id.textInputWithScanLayout);
+        if (layout != null) {
+            layout.setHint(getString(hintRes));
+        }
     }
 
     private List<String> parseCommaSeparated(String input) {

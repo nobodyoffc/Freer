@@ -31,7 +31,7 @@ import com.fc.fc_ajdk.utils.JsonUtils;
 import com.fc.fc_ajdk.utils.StringUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
-import com.fc.freer.contact.ChooseContactActivity;
+import com.fc.freer.im.SearchFidsOnChainActivity;
 import com.fc.freer.manager.FidManager;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.ui.IoIconsView;
@@ -99,17 +99,12 @@ public class CreateMultisigIdActivity extends BaseCryptoActivity {
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                    String selectedContactsJson = result.getData().getStringExtra(ChooseContactActivity.EXTRA_SELECTED_CONTACTS);
-                    if (selectedContactsJson != null) {
-                        try {
-                            List<Contact> selectedContacts = JsonUtils.listFromJson(selectedContactsJson, Contact.class);
-                            if (!selectedContacts.isEmpty()) {
-                                handleSelectedContacts(selectedContacts);
-                            }
-                        } catch (Exception e) {
-                            TimberLogger.e(TAG, "Error parsing selected contacts: " + e.getMessage());
-                            showToast(getString(R.string.operation_failed_with_message, e.getMessage()));
-                        }
+                    java.util.List<String> fids = result.getData()
+                            .getStringArrayListExtra(SearchFidsOnChainActivity.EXTRA_SELECTED_FIDS);
+                    java.util.List<String> pubkeys = result.getData()
+                            .getStringArrayListExtra(SearchFidsOnChainActivity.EXTRA_SELECTED_PUBKEYS);
+                    if (fids != null && !fids.isEmpty()) {
+                        handleSelectedFids(fids, pubkeys);
                     }
                 }
             }
@@ -481,34 +476,54 @@ public class CreateMultisigIdActivity extends BaseCryptoActivity {
     }
 
     /**
-     * Launch ChooseContactActivity to select contacts
+     * Launch on-chain FID search (also lets the user pick from contacts) to select members
      */
     private void launchChooseContactActivity() {
-        Intent intent = new Intent(this, ChooseContactActivity.class);
-        intent.putExtra(ChooseContactActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_MULTI.name());
+        Intent intent = new Intent(this, SearchFidsOnChainActivity.class);
+        intent.putExtra(SearchFidsOnChainActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_MULTI.name());
         chooseContactLauncher.launch(intent);
     }
 
     /**
-     * Handle selected contacts from ChooseContactActivity
+     * Handle selected FIDs (with aligned pubkeys) from SearchFidsOnChainActivity. Multisig members
+     * must have a pubkey to build the redeem script, so any FID without one is skipped.
      */
-    private void handleSelectedContacts(List<Contact> selectedContacts) {
-        if (selectedContacts == null || selectedContacts.isEmpty()) {
+    private void handleSelectedFids(List<String> fids, List<String> pubkeys) {
+        if (fids == null || fids.isEmpty()) {
             return;
         }
 
-        int contactsToAdd = selectedContacts.size();
-        int currentSize = memberList.size();
+        List<KeyInfo> toAdd = new java.util.ArrayList<>();
+        int skipped = 0;
+        for (int i = 0; i < fids.size(); i++) {
+            String fid = fids.get(i);
+            String pubkey = (pubkeys != null && i < pubkeys.size()) ? pubkeys.get(i) : null;
+            if (fid == null || fid.isEmpty()) continue;
+            if (pubkey == null || pubkey.isEmpty()) {
+                skipped++;
+                continue;
+            }
+            KeyInfo keyInfo = new KeyInfo();
+            keyInfo.setId(fid);
+            keyInfo.setPubkey(pubkey);
+            toAdd.add(keyInfo);
+        }
 
-        // Check if adding these contacts would exceed the limit
-        if (currentSize + contactsToAdd > 16) {
+        if (skipped > 0) {
+            showToast(getString(R.string.failed_to_get_pubkey_of, "some members"));
+        }
+
+        if (toAdd.isEmpty()) {
+            return;
+        }
+
+        // Check if adding these members would exceed the limit
+        if (memberList.size() + toAdd.size() > 16) {
             showToast(getString(R.string.the_members_can_t_more_than_16));
             return;
         }
 
-        // Add each contact's public key to the member list
-        for (Contact contact : selectedContacts) {
-            KeyInfo keyInfo = KeyInfo.fromContact(contact);
+        for (KeyInfo keyInfo : toAdd) {
             memberList.add(keyInfo);
             keyCardContainer.addKeyCard(keyInfo);
         }
@@ -517,6 +532,6 @@ public class CreateMultisigIdActivity extends BaseCryptoActivity {
         updateRadioButtonsState();
 
         // Show success message
-        showToast(getString(R.string.added_new_entities, contactsToAdd, "contacts"));
+        showToast(getString(R.string.added_new_entities, toAdd.size(), "member"));
     }
 } 
