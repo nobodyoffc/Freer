@@ -238,6 +238,21 @@ Running log of bugs, smells, and risky patterns spotted in the Android codebase 
 
 ---
 
+### C12. A room invitation can take over a room you are already in
+- **Severity:** medium — needs the user to accept, but the prompt looks entirely legitimate
+- **Scope:** both (found while porting Rooms to the Mac, 2026-08-14)
+- **Location:** `app/.../im/RoomHandler.java:554` (`acceptRoomInvite`), reached via `ImManager.java:1113` (`createRoomInvitePendingIssue`)
+- **Problem:** A `RoomInfo` payload carries its own `owner` field, written by whoever sent it. `ImManager` computes `isFromOwner` by comparing the *sender* to that self-declared field, so anyone who knows a room id can set `owner` to themselves and satisfy it. `handleRoomInfoShare` then rejects the message for an existing room (sender is not a member) and returns false — but the `else if (isFromOwner)` branch still fires and raises a **ROOM_INVITE pending issue** for a room the user is already in. If the user accepts, `acceptRoomInvite` does:
+  ```java
+  Room newRoom = roomInfo.toRoom();   // owner = attacker, members = attacker's list
+  saveRoom(newRoom);                  // overwrites the real room record
+  symkeyStore.receiveSharedSymkey(id, version, roomInfo.getSymkey(), /* fromOwner */ true);
+  ```
+  so one tap replaces the room's owner, its member list, and — because `fromOwner` is hardcoded to `roomInfo.getOwner() != null` — its stored symkey for that version. The invite UI shows a plausible room name, and a room id is known to every current and *former* member.
+- **Fix:** Two changes, either of which closes it. (1) Do not raise an invite issue for a room id already in the DB — an existing room's updates go through `handleRoomInfoShare`'s member check and nowhere else. (2) In `acceptRoomInvite`, refuse when a room with that id exists under a different owner, and pass `allowOverwrite = false` to `receiveSharedSymkey` (on a genuine first join there is nothing to overwrite, so it costs nothing). The Mac port does both: `RoomService.acceptInvite` throws `invitationOwnerMismatch` and stores the shared key with `allowOverwrite: false`.
+
+---
+
 ## Architecture notes (not bugs, but called out)
 
 ### A1. APIP is being retired
