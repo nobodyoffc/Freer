@@ -133,6 +133,46 @@ Running log of bugs, smells, and risky patterns spotted in the Android codebase 
 - **Problem:** Computes `sha512(nonce || sharedSecret)` and takes bytes `[0..32)` as the symmetric key. Loses the domain separation and collision-resistance properties HKDF provides, and — importantly — is **incompatible** with the Ecc256K1 ECDH path, which uses HKDF-SHA512 with `info = "hkdf"`. A message encrypted by the secp256k1 code cannot be decrypted by the X25519 code even if they agreed on the same shared secret.
 - **Fix:** Use HKDF-SHA512 with an explicit `info` string (e.g. `"fudp-x25519"`) matching the contextual convention of the secp256k1 path. Pick one derivation story and apply it everywhere.
 
+### C6. Hash tool's SHA3 hashes the hex *string*, not the input bytes
+- **Severity:** low
+- **Scope:** both (results differ between Android and the Mac port)
+- **Location:** `app/src/main/java/com/fc/freer/tools/HashActivity.java:396` (`applyHashAlgorithm`, `radioSha3` branch)
+- **Problem:** Every other algorithm hashes `inputBytes` directly, but the SHA3 branch calls `Hash.sha3String(Hex.toHex(inputBytes))` — it hex-encodes the input and hashes the UTF-8 bytes of that hex string. So "abc" is hashed as the 6 ASCII chars `616263`, doubling the input and producing a digest that matches no standard Keccak-256 of the input. (Also note `Hash.sha3*` is Keccak-256, not NIST SHA3-256 — the label "SHA3" is misleading either way.)
+- **Fix:** Use `Hash.sha3(inputBytes)` and hex the result, like the other branches. The Mac port (ToolsView → "Keccak256") already hashes the raw bytes, so Android should converge on that behaviour for cross-checking to work.
+
+### C7. A mail is encrypted with a different algorithm depending on which button you press
+- **Severity:** medium
+- **Scope:** both (found while porting Mail to the Mac, 2026-08-14)
+- **Location:** `FC-AJDK/.../data/feipData/Mail.java` `encryptContent` vs `app/.../mail/CreateMailActivity.java:705` `encryptMailContent`
+- **Problem:** The two encrypt paths for the same field disagree. `Mail.encryptContent` — used by `sendMail()`, i.e. every mail that goes **on chain** — asks for `FC_EccK1AesCbc256_No1_NrC7`. `CreateMailActivity.encryptMailContent` — used by the local-save paths — asks for `FC_EccK1AesGcm256_No1_NrC7`. So the copy in your outbox and the copy on the chain are sealed under different algorithms, and the *carved* one is the unauthenticated CBC of the two. CBC's only integrity check here is the 4-byte `sum`, which `Decryptor` does verify, but a 4-byte tag is 32 bits of protection on a payload that anyone can rewrite in a competing carve.
+- **Fix:** Use `FC_EccK1AesGcm256_No1_NrC7` in `Mail.encryptContent` too. Reading stays backward-compatible either way — `Decryptor` dispatches on the envelope's `alg` — so this is a write-side change only. The Mac port reads both and writes GCM.
+
+### C8. `Encryptor` produces a cipher its own `Decryptor` rejects for empty input
+- **Severity:** low
+- **Scope:** android-only (no product path sends an empty payload)
+- **Location:** `FC-AJDK/.../core/crypto/Encryptor.java` / `Decryptor.java`, Asy paths
+- **Problem:** `encryptByAsyTwoWay(new byte[0], …)` returns success, but feeding the resulting envelope back to `Decryptor.decryptTry` fails with code 1029 ("Failed to decrypt"). Round-tripping any non-empty payload works. Found while generating AsyTwoWay golden vectors: the zero-length case had to be dropped because the reference implementation has no correct answer for it.
+- **Fix:** Either reject empty input at encrypt time with a clear code, or fix the decrypt path to return an empty `data` array. Silently producing an unreadable ciphertext is the worst of the three.
+
+### C9. The mail notice fee mixes coins and satoshis in one comparison
+- **Severity:** high — the failure mode is overpaying by orders of magnitude
+- **Scope:** both (found while porting Mail to the Mac, 2026-08-14)
+- **Location:** `app/.../mail/CreateMailActivity.java:612-617`, with `MailManager.calculateMailFee` and `MailActivity.java:1533`
+- **Problem:** `payNoticeFee` is a **double in coins** — `calculateMailFee` returns `FchUtils.satoshiToCoin(DEFAULT_MAIL_FEE_SATOSHI)` (0.0001) or `Double.parseDouble(freer.getNoticeFee())`, and it is handed to `carveFeipWithRecipient(…, Double amount, …)` → `new Cash(recipient, amount)`. But `gotNoticeFeeLong` is a **`Long`** read from `mail.getNoticeFee()`, and the reply path does:
+  ```java
+  if (… && gotNoticeFeeLong > payNoticeFee) payNoticeFee = gotNoticeFeeLong;
+  ```
+  Both the comparison and the assignment cross units. If `Mail.noticeFee` is satoshis (which is what the chain indexes a paid output as), then a routine 10 000-satoshi fee compares as `10000 > 0.0001` — always true — and the reply pays **10 000 F**. If it is coins, every ordinary fee truncates to `0` and the pay-back rule silently never fires. Neither reading is the intended behaviour.
+- **Fix:** Pick one unit for the whole path — satoshis is the natural one, since that is what the output carries — and convert exactly once, where `Freer.noticeFee` (a coin-denominated string) is parsed. The Mac port does this in `NoticeFee`, which is satoshis end to end and converts only in `satoshis(coinString:)`.
+- **Related, same area:** Android applies the max-paying cap *before* the pay-back bump, so a reply can pay any amount regardless of the user's configured limit — a correspondent can step around it by attaching a large notice fee to their mail. The Mac port applies the cap last.
+
+### C10. The mail size check measures the wrong thing, so oversize mail fails at broadcast
+- **Severity:** medium
+- **Scope:** both
+- **Location:** `app/.../mail/CreateMailActivity.java:562` (`content.length() > Constants.MaxOpReturnSize`)
+- **Problem:** The check compares the **plaintext body** against the 4 096-byte OP_RETURN limit, but what goes into the OP_RETURN is the body *encrypted, base64-encoded, wrapped in a CryptoDataStr envelope with two 33-byte pubkeys, and wrapped again in the FEIP envelope*. Base64 alone costs a third. The real ceiling is **2 786 bytes** of body; anything between that and 4 096 passes the check, gets encrypted, has a notice fee decided, gets signed — and is rejected by the network. Also note `String.length()` counts UTF-16 units, not bytes, so a body of CJK text overflows a good deal earlier still.
+- **Fix:** Check the assembled carve, not the body, and drive the compose screen's character counter from the real budget. The Mac port exposes `MailFeip.maxBodyBytes` (measured against the actual encoder, currently 2 786) and `sendCarve` throws on the assembled payload before anything is signed.
+
 ### C3. BIP39 wordlist integrity not verified at load
 - **Severity:** low (moot after mnemonic removal)
 - **Scope:** android-only — mnemonic support is being dropped from Freer entirely.
@@ -181,6 +221,20 @@ Running log of bugs, smells, and risky patterns spotted in the Android codebase 
   - `tx/TxSender`
   - `ui/ApiCardContainer`
 - **Fix:** Triage — either close out or move to an issue tracker.
+
+---
+
+### C11. The first entry of the message-retry backoff is dead code
+- **Severity:** low — the effect is a slower first retry, not a lost message
+- **Scope:** android-only (found while porting IM delivery to the Mac, 2026-08-14)
+- **Location:** `app/.../im/MessageQueue.java:243-255`
+- **Problem:** `RETRY_DELAYS_MS` is `{5s, 15s, 1m, 5m, 15m}`, but the index is read *after* the counter is incremented:
+  ```java
+  int retryCount = qm.getRetryCount() + 1;          // 0 → 1 on the first failure
+  long delay = RETRY_DELAYS_MS[Math.min(retryCount, RETRY_DELAYS_MS.length - 1)];
+  ```
+  So the first retry waits `RETRY_DELAYS_MS[1]` = 15 s and index 0 is never read at all. The array reads as a five-step schedule and behaves as a four-step one, with the quick first retry — the one that rides out a momentary loss of signal — missing.
+- **Fix:** Index with `retryCount - 1` (or read the delay before incrementing). The Mac port uses `retryDelaysMs[min(attempts - 1, count - 1)]` and its `testTransientFailureWalksTheBackoffSchedule` asserts all five steps.
 
 ---
 
