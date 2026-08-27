@@ -51,6 +51,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         void onSpeakerNameClick(String fid);
         void onSpeakerNameLongClick(String fid);
         void onOpenHat(Hat hat);
+        void onDownloadHat(Hat hat);
         void onMessageLongPress(ImMessage message, View anchorView);
     }
 
@@ -62,7 +63,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
     /** Live HAT download progress per hatId: [bytesReceived, totalBytes]. */
     private final java.util.Map<String, long[]> hatDownloads = new java.util.HashMap<>();
 
-    private static final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("HH:mm", Locale.getDefault());
+    private static final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("yy-MM-dd HH:mm", Locale.getDefault());
 
     public MessageAdapter(List<ImMessage> messages, String liveFid, ImType imType) {
         this.messages = messages;
@@ -232,7 +233,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
             }
 
             if (content == null) {
-                content = message.getCipher() != null ? "[Encrypted]" : "";
+                content = message.isSealed() ? "[Encrypted]" : "";
             }
 
             String time = message.getTimestamp() != null
@@ -411,9 +412,8 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                     player.resume();
                     playBtn.setImageResource(R.drawable.ic_pause);
                 } else {
-                    String dataBase64 = message.getDataBase64();
-                    if (dataBase64 != null) {
-                        byte[] audioData = Base64.decode(dataBase64, Base64.DEFAULT);
+                    byte[] audioData = message.getData();
+                    if (audioData != null) {
                         player.setListener(new VoicePlayer.PlaybackListener() {
                             @Override
                             public void onProgress(String msgId, int currentMs, int totalMs) {
@@ -500,7 +500,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
             typeIcon.setImageResource(FileShareHelper.getTypeIconRes(hat));
             if (isOutgoing) {
                 typeIcon.setImageTintList(android.content.res.ColorStateList.valueOf(
-                        ctx.getColor(R.color.white)));
+                        ctx.getColor(R.color.field_name)));
                 nameView.setTextColor(ctx.getColor(R.color.white));
                 sizeView.setTextColor(ctx.getColor(R.color.white_transparent));
                 descView.setTextColor(ctx.getColor(R.color.white_transparent));
@@ -526,26 +526,38 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
             card.setOnClickListener(v -> openHatDetail(ctx, finalHat));
 
             ImageButton playBtn = card.findViewById(R.id.im_hat_play_btn);
-            playBtn.setImageTintList(android.content.res.ColorStateList.valueOf(
-                    ctx.getColor(R.color.white)));
+            ImageButton downloadBtn = card.findViewById(R.id.im_hat_download_btn);
+            int accentColor = ctx.getColor(isOutgoing ? R.color.white : R.color.accent);
+            playBtn.setImageTintList(android.content.res.ColorStateList.valueOf(accentColor));
+            downloadBtn.setImageTintList(android.content.res.ColorStateList.valueOf(accentColor));
             playBtn.setOnClickListener(v -> {
                 if (listener != null) listener.onOpenHat(finalHat);
+            });
+            downloadBtn.setOnClickListener(v -> {
+                if (listener != null) listener.onDownloadHat(finalHat);
             });
 
             com.google.android.material.progressindicator.CircularProgressIndicator downloadProgress =
                     card.findViewById(R.id.im_hat_download_progress);
+            TextView percentView = card.findViewById(R.id.im_hat_download_percent);
             long[] dl = hatDownloads != null ? hatDownloads.get(hat.getId()) : null;
             if (dl != null) {
                 playBtn.setVisibility(View.INVISIBLE);
-                int indicatorColor = ctx.getColor(isOutgoing ? R.color.white : R.color.accent);
-                downloadProgress.setIndicatorColor(indicatorColor);
+                downloadBtn.setVisibility(View.INVISIBLE);
+                downloadProgress.setIndicatorColor(accentColor);
+                percentView.setTextColor(accentColor);
                 long total = dl[1];
                 if (total > 0) {
                     // Received bytes include protocol framing overhead; clamp below 100%
                     // so the ring only completes when the download actually finishes.
-                    downloadProgress.setProgress((int) Math.min(99, dl[0] * 100 / total));
+                    int percent = (int) Math.min(99, dl[0] * 100 / total);
+                    downloadProgress.setIndeterminate(false);
+                    downloadProgress.setProgress(percent);
+                    percentView.setText(percent + "%");
+                    percentView.setVisibility(View.VISIBLE);
                 } else {
                     downloadProgress.setIndeterminate(true);
+                    percentView.setVisibility(View.GONE);
                 }
                 downloadProgress.setVisibility(View.VISIBLE);
                 // Tapping the ring asks whether to cancel (handled by the listener,
@@ -553,9 +565,14 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                 downloadProgress.setOnClickListener(v -> {
                     if (listener != null) listener.onOpenHat(finalHat);
                 });
+                percentView.setOnClickListener(v -> {
+                    if (listener != null) listener.onOpenHat(finalHat);
+                });
             } else {
                 downloadProgress.setVisibility(View.GONE);
+                percentView.setVisibility(View.GONE);
                 playBtn.setVisibility(View.VISIBLE);
+                downloadBtn.setVisibility(View.VISIBLE);
             }
 
             if (listener != null) {
@@ -599,7 +616,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
             } else if (mimeType != null && mimeType.startsWith("audio/")) {
                 typeIcon.setImageResource(android.R.drawable.ic_lock_silent_mode_off);
             } else if (mimeType != null && mimeType.startsWith("video/")) {
-                typeIcon.setImageResource(android.R.drawable.ic_media_play);
+                typeIcon.setImageResource(R.drawable.ic_video_file);
             } else {
                 typeIcon.setImageResource(R.drawable.ic_file);
             }

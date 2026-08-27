@@ -4,15 +4,29 @@ import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.InputFilter;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import com.fc.fc_ajdk.data.feipData.Service;
+import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
+import com.fc.freer.im.ImManager;
+import com.fc.freer.im.NobodyBoard;
+import com.fc.freer.initiate.SettingManager;
+import com.fc.freer.model.Setting;
+import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.ToastUtils;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
@@ -30,9 +44,14 @@ import java.util.Map;
 public class TopupPromptDialog {
     private static final String TAG = "TopupPromptDialog";
 
+    /** One-shot guard: a FID may post to the board only once. */
+    private static final String ASK_PREFS = "first_fch_board";
+    private static final String KEY_ASKED = "asked_";
+
     private final Context context;
     private final String fid;
     private final OnIgnoreListener ignoreListener;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private AlertDialog dialog;
 
     /**
@@ -127,19 +146,15 @@ public class TopupPromptDialog {
             }
 
             if (askBoardButton != null) {
-                // Zero-balance users can still post a send-only request on the
-                // public first-FCH board (the default nobody freer's DOCK inbox).
+                // Zero-balance users can still post a request on the public
+                // first-FCH board (the default nobody freer's DOCK inbox). The
+                // request is posted directly — no chat, and each FID may ask once.
                 askBoardButton.setOnClickListener(v -> {
-                    android.content.Intent intent = new android.content.Intent(
-                            context, com.fc.freer.im.ChatActivity.class);
-                    intent.putExtra(com.fc.freer.im.ChatActivity.EXTRA_TYPE,
-                            com.fc.fc_ajdk.data.fcData.ImType.P2P.name());
-                    intent.putExtra(com.fc.freer.im.ChatActivity.EXTRA_TARGET_ID,
-                            com.fc.freer.im.NobodyBoard.DEFAULT_NOBODY_FID);
-                    intent.putExtra(com.fc.freer.im.ChatActivity.EXTRA_DISPLAY_NAME,
-                            context.getString(R.string.first_fch_board_name));
-                    context.startActivity(intent);
-                    dismiss();
+                    if (hasAlreadyAsked()) {
+                        showPostedMessage();
+                    } else {
+                        showAskBoardConfirm();
+                    }
                 });
             }
 
@@ -150,6 +165,115 @@ public class TopupPromptDialog {
             TimberLogger.e(TAG, "Error showing topup prompt dialog: " + e.getMessage(), e);
             ToastUtils.showError(context, context.getString(R.string.toast_error_showing_dialog, e.getMessage()));
         }
+    }
+
+    // ── First-FCH board ──────────────────────────────────────────────────
+
+    private SharedPreferences askPrefs() {
+        return context.getSharedPreferences(ASK_PREFS, Context.MODE_PRIVATE);
+    }
+
+    private boolean hasAlreadyAsked() {
+        return askPrefs().getBoolean(KEY_ASKED + fid, false);
+    }
+
+    private void markAsked() {
+        askPrefs().edit().putBoolean(KEY_ASKED + fid, true).apply();
+    }
+
+    /**
+     * Resolve (creating if necessary) the current identity's ImManager. Built
+     * lazily at tap time — on a brand-new FID the manager may not exist yet when
+     * this dialog is first shown, so capturing it at construction would be null.
+     * Call off the UI thread: creation opens a DB and starts the transport.
+     */
+    private ImManager resolveImManager() {
+        Setting setting = SettingManager.getInstance().getCurrentSetting();
+        if (setting == null) return null;
+        ImManager existing = setting.getImManager();
+        if (existing != null) return existing;
+        FapiClient fapiClient = null;
+        ApiCenter apiCenter = ApiCenter.getInstance();
+        if (apiCenter != null) {
+            fapiClient = (FapiClient) apiCenter.getClient(Service.ServiceType.FAPI_No1_NrC7);
+        }
+        return setting.getOrCreateImManager(context.getApplicationContext(), fapiClient);
+    }
+
+    /**
+     * Confirm dialog shown before posting: a single safety line and an optional
+     * note. Tapping send posts the request directly to the board.
+     */
+    private void showAskBoardConfirm() {
+        int pad = (int) TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP, 20, context.getResources().getDisplayMetrics());
+
+        LinearLayout layout = new LinearLayout(context);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(pad, pad, pad, 0);
+
+        TextView notice = new TextView(context);
+        notice.setText(R.string.first_fch_safety_notice);
+        layout.addView(notice);
+
+        EditText noteInput = new EditText(context);
+        noteInput.setHint(R.string.first_fch_note_hint);
+        noteInput.setSingleLine(true);
+        noteInput.setFilters(new InputFilter[]{
+                new InputFilter.LengthFilter(NobodyBoard.REQUEST_NOTE_MAX_CHARS)});
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = pad;
+        noteInput.setLayoutParams(lp);
+        layout.addView(noteInput);
+
+        new AlertDialog.Builder(context)
+                .setTitle(R.string.first_fch_confirm_title)
+                .setView(layout)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.send, (d, which) ->
+                        postBoardRequest(noteInput.getText().toString()))
+                .show();
+    }
+
+    private void postBoardRequest(String note) {
+        // Resolve/create the ImManager off the UI thread (it may open a DB and
+        // start the transport); the send callback returns on the main thread.
+        new Thread(() -> {
+            ImManager im = resolveImManager();
+            if (im == null) {
+                mainHandler.post(() ->
+                        ToastUtils.makeText(context, R.string.im_manager_init_failed));
+                return;
+            }
+            im.sendFirstFchBoardRequest(note, success -> {
+                if (success) {
+                    markAsked();
+                    showPostedMessage();
+                } else {
+                    ToastUtils.makeText(context, R.string.first_fch_send_failed);
+                }
+            });
+        }).start();
+    }
+
+    /**
+     * Confirmation shown after a successful post (and whenever the user asks
+     * again from the same FID): the request is on the board, now wait for
+     * someone to send FCH — or ask people you know to send to this FID.
+     */
+    private void showPostedMessage() {
+        if (context instanceof android.app.Activity activity
+                && (activity.isFinishing() || activity.isDestroyed())) {
+            return;
+        }
+        new AlertDialog.Builder(context)
+                .setTitle(R.string.first_fch_posted_title)
+                .setMessage(context.getString(R.string.first_fch_posted_message, fid))
+                .setNeutralButton(R.string.copy, (d, which) -> copyFidToClipboard())
+                .setPositiveButton(R.string.ok, (d, which) -> dismiss())
+                .show();
     }
 
     /**

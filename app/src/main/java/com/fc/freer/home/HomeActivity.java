@@ -1734,6 +1734,25 @@ public class HomeActivity extends AppCompatActivity {
         if (serverSetupPrompted) return;
         if (isFinishing() || isDestroyed()) return;
 
+        // The prompt registers home.DOCK/home.DISK for the LIVE FID. A multisig FID has no
+        // key pair — it can't encrypt/decrypt messages and can't sign the HOME TX — so the
+        // setup is meaningless while one is live; prompt again after switching back.
+        if (FidManager.getInstance() != null && FidManager.getInstance().isLiveFidMultisig()) return;
+
+        // Respect a "Not now" dismissal for the rest of the session. Without this the
+        // combined prompt re-pops on every return to Home / funding refresh, because
+        // serverSetupPrompted only guards a single Activity instance and the DISK half
+        // of the prompt stays "unconfigured" whenever the user set only DOCK (e.g. the
+        // current server advertises no disk component, so DISK was left blank). Tapping
+        // "Set up" clears this flag, so engaging with the prompt still works.
+        if (isServerSetupDismissed()) return;
+
+        // A server-setup TX broadcast within the confirmation window suppresses the whole
+        // combined prompt. This is persisted and ImManager-independent, so it holds even
+        // when the user quit and relaunched before the TX confirmed on-chain, and when the
+        // half they left unset (e.g. no disk component) never becomes configured.
+        if (com.fc.freer.data.ServerSetupState.isTxPending(this, FidManager.getInstance().getMainFid())) return;
+
         // DISK config is a reliable local-home check; DOCK is only considered when the
         // caller knows the on-chain check ran (the ImManager callback), to avoid a
         // spurious prompt before ImManager has determined the DOCK state.
@@ -1752,6 +1771,18 @@ public class HomeActivity extends AppCompatActivity {
         if (setting == null) return false;
         ImManager imManager = setting.getImManager();
         return imManager != null && imManager.isRegistrationPending();
+    }
+
+    /**
+     * Whether the server-setup prompt should stay suppressed: either "Not now" (this
+     * session) or "Never" (persisted permanently for this identity).
+     */
+    private boolean isServerSetupDismissed() {
+        Setting setting = SettingManager.getInstance().getCurrentSetting();
+        if (setting == null) return false;
+        if (setting.isServerSetupDeclined()) return true;
+        ImManager imManager = setting.getImManager();
+        return imManager != null && imManager.isChannelSetupDismissed();
     }
 
     private boolean isDiskRegistrationPending() {

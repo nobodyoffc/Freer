@@ -36,6 +36,10 @@ public class FidManager {
     
     private static FidManager instance;
     
+    /** How long to wait for the FAPI connection before a balance refresh gives up. */
+    private static final long CONNECT_WAIT_MS = 6000;
+    private static final long CONNECT_POLL_INTERVAL_MS = 200;
+
     // Runtime state
     private String mainFid;           // The authenticated user's FID
     private String liveFid;           // The currently active FID being operated on
@@ -352,7 +356,20 @@ public class FidManager {
     public String getLiveFid() { return liveFid; }
     public KeyInfo getMainKeyInfo() { return mainKeyInfo; }
     public KeyInfo getLiveKeyInfo() { return liveKeyInfo; }
-    
+
+    /**
+     * A multisig (P2SH, '3'-prefixed) FID is a script address, not a key pair: it has no
+     * private key to decrypt with and no public key to encrypt to. It therefore cannot take
+     * part in encrypted messaging or private data storage, which makes home.DOCK/home.DISK
+     * registration meaningless for it.
+     */
+    public static boolean isMultisigFid(String fid) {
+        return fid != null && fid.startsWith("3");
+    }
+
+    /** Whether the currently active FID is a multisig FID. */
+    public boolean isLiveFidMultisig() { return isMultisigFid(liveFid); }
+
     public CashManager getCashManager() { return cashManager; }
     public SecretManager getSecretManager() { return secretManager; }
     public ContactManager getContactManager() { return contactManager; }
@@ -566,11 +583,33 @@ public class FidManager {
                 }
 
                 FapiClient fapiClient = (FapiClient) apiCenter.getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.FAPI_No1_NrC7);
-                if (fapiClient == null || !fapiClient.isConnected()) {
-                    TimberLogger.w(TAG, "FAPI client not available for freerInfo refresh (client=%s, connected=%s)",
-                            fapiClient != null ? "exists" : "null",
-                            fapiClient != null ? fapiClient.isConnected() : "N/A");
-                    // Do not show topUp dialog: network/default fapiClient not ready, we don't know balance
+                if (fapiClient == null) {
+                    TimberLogger.w(TAG, "FAPI client not available for freerInfo refresh (client=null)");
+                    // Do not show topUp dialog: default fapiClient not ready, we don't know balance
+                    postRefreshResult(context, onComplete, false);
+                    return;
+                }
+
+                // On first launch the FUDP bootstrap (HELLO+PING) is still in
+                // flight when this runs, so the client exists but isn't connected
+                // yet. Wait briefly for it — otherwise the one automatic balance
+                // check bails and a brand-new zero-balance FID never sees the
+                // "get your first FCH" prompt. We're on a background thread, so
+                // a bounded poll is safe.
+                if (!fapiClient.isConnected()) {
+                    final long deadline = System.currentTimeMillis() + CONNECT_WAIT_MS;
+                    while (!fapiClient.isConnected() && System.currentTimeMillis() < deadline) {
+                        try {
+                            Thread.sleep(CONNECT_POLL_INTERVAL_MS);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
+                }
+                if (!fapiClient.isConnected()) {
+                    TimberLogger.w(TAG, "FAPI client not connected after waiting %d ms for freerInfo refresh", CONNECT_WAIT_MS);
+                    // Do not show topUp dialog: still can't reach the network, we don't know balance
                     postRefreshResult(context, onComplete, false);
                     return;
                 }
@@ -671,6 +710,14 @@ public class FidManager {
             String mainFid = getMainFid();
             if (mainFid == null || dockPromptedFids.contains(mainFid)) return;
 
+            // The prompt registers the home entries of the live FID; a multisig FID has no
+            // key pair for encryption and no prikey to sign with, so skip it while one is live.
+            if (isLiveFidMultisig()) return;
+
+            // A recently-broadcast server-setup TX suppresses the prompt until it confirms,
+            // independent of ImManager and across app restarts within the window.
+            if (com.fc.freer.data.ServerSetupState.isTxPending(context, mainFid)) return;
+
             Map<String, String> home = freerInfo.getHome();
             if (home != null) {
                 for (Map.Entry<String, String> entry : home.entrySet()) {
@@ -684,9 +731,14 @@ public class FidManager {
             }
 
             Setting currentSetting = SettingManager.getInstance().getCurrentSetting();
+            // Permanently opted out via "Never": don't prompt at all.
+            if (currentSetting != null && currentSetting.isServerSetupDeclined()) return;
             com.fc.freer.im.ImManager imManager =
                     currentSetting != null ? currentSetting.getImManager() : null;
-            if (imManager != null && imManager.isRegistrationPending()) return;
+            // Suppress while a registration TX is in flight, or if the user already
+            // tapped "Not now" on the server-setup prompt this session.
+            if (imManager != null
+                    && (imManager.isRegistrationPending() || imManager.isChannelSetupDismissed())) return;
 
             if (context instanceof android.app.Activity activity) {
                 if (activity.isFinishing() || activity.isDestroyed()) return;

@@ -680,8 +680,7 @@
     <string name="all">All</string>
 
     <string name="refresh">Refresh</string>
-    <string name="refreshed">Refreshed</string>
-    <string name="failed_to_refresh">Failed to refresh</string>
+
     <string name="edit">Edit</string>
     <string name="share">Share\n</string>
     <string name="reorg">Reorg</string>
@@ -1087,9 +1086,7 @@
     <string name="fc_time_tooltip">Time of Freevers, since 2020-01-01 00:00 and in format: year.day.hour.minute</string>
     <string name="height_info_format">Height: %d\nApproximate time: %s</string>
     <string name="nobody">Nobody</string>
-    <string name="warning">Warning</string>
-    <string name="send_anyway">Send Anyway</string>
-    <string name="nobody_recipient_warning">The private key of the following recipient(s) has been made public on chain. Any funds sent there can be taken by anyone:\n\n%1$s\n\nSend anyway?</string>
+
     <string name="invalid_sender">Invalid sender</string>
     <string name="copy_fid">Copy FID</string>
 
@@ -1722,6 +1719,7 @@
     <string name="owner_no_reachable_channels">Owner has no reachable channels (FUDP/ROAD/DOCK)</string>
     <string name="members_no_reachable_channels">%d member(s) have no reachable channels</string>
     <string name="im_dock_unresolvable">The message server (DOCK) does not exist or cannot be resolved. The message was not delivered.</string>
+    <string name="im_cannot_encrypt_for_recipient">Cannot encrypt for this recipient: no public key found. They need to spend from that FID at least once so their key is on chain. The message was not sent — it will never be sent unencrypted.</string>
     <string name="im_dock_not_configured">No message server (DOCK) is configured for this conversation, so messages cannot be delivered.</string>
     <string name="share_symkey">Share Key</string>
     <string name="create_room">Create Room</string>
@@ -1914,8 +1912,6 @@
     <string name="downloading_consensus_document">Downloading consensus…</string>
     <string name="failed_to_download_consensus_document">Failed to download consensus document</string>
     <string name="consensus_not_text">The consensus document is not plain text and cannot be previewed here.</string>
-    <string name="consensus_doc_hint">Pick a data document or enter its DID</string>
-    <string name="consensus_doc_not_local">The chosen consensus document isn\'t available locally. Add it in Data first.</string>
     <string name="accept_and_join">Accept &amp; Join</string>
     <string name="team_published_successfully">Team published: %s</string>
     <string name="failed_to_publish_team">Failed to publish team</string>
@@ -2134,6 +2130,8 @@
     <string name="server_setup_dock_hint">Service ID or URL of your DOCK relay</string>
     <string name="server_setup_disk_hint">Service ID of your DISK storage</string>
     <string name="server_setup_need_one">Enter at least one server to register</string>
+    <string name="server_setup_not_for_multisig">A multisig FID has no key pair and cannot encrypt or decrypt messages, so DOCK/DISK setup does not apply.</string>
+
     <string name="publishing">Publishing…</string>
     <string name="server_setup_registered">Servers registered! TX: %s</string>
     <string name="server_setup_failed">Failed to register servers</string>
@@ -2435,7 +2433,30 @@
     <string name="newcomer_requests_no_dock">The board\'s DOCK server could not be reached</string>
     <string name="send_fch">Send FCH</string>
     <string name="newcomer_requests_none_selected">No request selected</string>
+    <string name="newcomer_requests_newcomers">Newcomers</string>
+    <string name="newcomer_requests_total">Total</string>
+    <string name="newcomer_requests_too_many_outputs">Too many cashes: reduce the count or the number of newcomers</string>
     <string name="ask_first_fch">Ask on First FCH Board</string>
     <string name="first_fch_request_sent_as">Your message is posted publicly as a first-FCH request for %1$s</string>
+    <string name="first_fch_confirm_title">Ask for your first FCH</string>
+    <string name="first_fch_safety_notice">Send a request for help to an open identity; anyone could see your request. Wait for someone to send you an FCH.</string>
+    <string name="first_fch_note_hint">Add a note (optional)</string>
+    <string name="first_fch_send_failed">Couldn\'t post your request. Check your connection and try again.</string>
+    <string name="first_fch_posted_title">Request posted</string>
+    <string name="first_fch_posted_message">Your request is now on the public board.\n\nWait for someone to see it and send FCH to your address:\n%1$s\n\nYou can also ask people you know to send FCH to this address.</string>
+    <string name="newcomer_requests_ignore">Ignore</string>
 
+    <string name="server_setup_use_this">Use this server</string>
+    <string name="server_setup_advanced">Advanced…</string>
+    <string name="server_setup_suggest_both">Use your current server for both messaging (DOCK) and data (DISK)?</string>
+    <string name="server_setup_suggest_dock_only">Use your current server for messaging (DOCK)?</string>
+    <string name="server_setup_suggest_sid">Server SID:\n%1$s</string>
+    <string name="refreshed">Refreshed</string>
+    <string name="failed_to_refresh">Failed to refresh</string>
+    <string name="warning">Warning</string>
+    <string name="send_anyway">Send Anyway</string>
+    <string name="nobody_recipient_warning">The private key of the following recipient(s) has been made public on chain. Any funds sent there can be taken by anyone:\n\n%1$s\n\nSend anyway?</string>
+    <string name="consensus_doc_hint">Pick a data document or enter its DID</string>
+    <string name="consensus_doc_not_local">The chosen consensus document isn\'t available locally. Add it in Data first.</string>
+    <string name="server_setup_never">Never</string>
 </resources>

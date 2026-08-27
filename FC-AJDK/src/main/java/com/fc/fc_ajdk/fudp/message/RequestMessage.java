@@ -67,12 +67,15 @@ public class RequestMessage extends AppMessage {
     }
 
     @Override
-    public void decodePayload(byte[] payload) {
-        if (payload == null || payload.length < 1) {
+    public void decodePayload(byte[] buf, int offset, int length) {
+        if (buf == null || length < 1) {
             throw new IllegalArgumentException("Invalid request payload");
         }
-        ByteBuffer buffer = ByteBuffer.wrap(payload);
+        ByteBuffer buffer = ByteBuffer.wrap(buf, offset, length);
         int nameLength = (int) Varint.decode(buffer);
+        if (nameLength < 0 || buffer.remaining() < nameLength) {
+            throw new IllegalArgumentException("Invalid request payload: service name truncated");
+        }
         byte[] nameBytes = new byte[nameLength];
         buffer.get(nameBytes);
         sid = new String(nameBytes, StandardCharsets.UTF_8);

@@ -213,16 +213,37 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
             name.setText(displayName);
             
             // Avatar
+            //
+            // A P2P thread's target *is* a FID, so it gets the person's
+            // circle. A group's target is a room id or a txid, which
+            // AvatarMaker cannot read and must never be handed: it would
+            // composite a human face out of an identifier. Groups get the
+            // rounded-square tile drawn from their own id instead, badged
+            // with the owner — so a group can no longer be mistaken for a
+            // DM with the person who happens to own it.
             String targetId = conversation.getTargetId();
-            String avatarFid = null;
-            if (conversation.getType() == ImType.P2P && targetId != null && !targetId.isEmpty()) {
-                avatarFid = targetId;
-            } else if ((conversation.getType() == ImType.SQUARE || conversation.getType() == ImType.TEAM
-                    || conversation.getType() == ImType.ROOM)
-                    && conversation.getAvatarDid() != null && !conversation.getAvatarDid().isEmpty()) {
-                avatarFid = conversation.getAvatarDid();
+            boolean isGroup = conversation.getType() == ImType.SQUARE
+                    || conversation.getType() == ImType.TEAM
+                    || conversation.getType() == ImType.ROOM;
+
+            // The silhouette, reset on every bind because holders are
+            // recycled. A person is clipped to the oval background's
+            // outline as before. A group is not clipped at all: the tile
+            // bitmap already carries its own rounded-square corners, and
+            // leaving the oval outline in place would clip it straight
+            // back into a circle — the exact confusion the tile exists to
+            // end. Dropping the clip rather than swapping in a rounded
+            // outline also keeps this off `clipToOutline`, which only
+            // applies under hardware rendering and so cannot be checked
+            // by a test that draws to a software canvas.
+            if (isGroup) {
+                avatar.setBackground(null);
+                avatar.setClipToOutline(false);
+            } else {
+                avatar.setBackgroundResource(R.drawable.avatar_background);
+                avatar.setClipToOutline(true);
             }
-            
+
             // Nobody identities (public private key) render black-and-white.
             if (conversation.getType() == ImType.P2P
                     && com.fc.freer.im.NobodyBoard.isKnownNobody(targetId)) {
@@ -231,20 +252,24 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
                 com.fc.freer.im.NobodyBoard.clearNobodyMark(avatar);
             }
 
-            if (avatarFid != null) {
-                AvatarManager avatarManager = AvatarManager.getInstance(itemView.getContext());
-                Bitmap avatarBitmap = avatarManager.getAvatarBitmap(avatarFid);
-                if (avatarBitmap != null) {
-                    avatar.setImageBitmap(avatarBitmap);
-                    avatar.setPadding(0, 0, 0, 0);
-                    avatar.setImageTintList(null);
-                } else {
-                    int fallback;
-                    if (conversation.getType() == ImType.P2P) fallback = R.drawable.ic_person;
-                    else if (conversation.getType() == ImType.TEAM) fallback = R.drawable.ic_team;
-                    else fallback = R.drawable.ic_group;
-                    setDefaultAvatar(fallback);
-                }
+            AvatarManager avatarManager = AvatarManager.getInstance(itemView.getContext());
+            Bitmap avatarBitmap = null;
+            if (isGroup && targetId != null && !targetId.isEmpty()) {
+                int sizePx = avatar.getWidth() > 0
+                        ? avatar.getWidth()
+                        : (int) (48 * itemView.getContext().getResources()
+                                .getDisplayMetrics().density);
+                avatarBitmap = avatarManager.getGroupAvatarBitmap(
+                        targetId, conversation.getAvatarDid(), sizePx);
+            } else if (conversation.getType() == ImType.P2P
+                    && targetId != null && !targetId.isEmpty()) {
+                avatarBitmap = avatarManager.getAvatarBitmap(targetId);
+            }
+
+            if (avatarBitmap != null) {
+                avatar.setImageBitmap(avatarBitmap);
+                avatar.setPadding(0, 0, 0, 0);
+                avatar.setImageTintList(null);
             } else {
                 int iconRes = R.drawable.ic_person;
                 if (conversation.getType() != null) {

@@ -1172,6 +1172,10 @@ public class CreateTxActivity extends BaseCryptoActivity {
         // Copy all fields from importedRawTxInfo to rawTxInfo
         rawTxInfo.copy(importedRawTxInfo);
 
+        // Keep the imported opReturn: clearing opreturnInput below fires its
+        // TextWatcher, which syncs the emptied field back into rawTxInfo.
+        String importedOpReturn = rawTxInfo.getOpReturn();
+
         // Always use current live FID's keyInfo as sender
         if(rawTxInfo.getSenderInfo()==null){
             keyInfo = FidManager.getInstance().getLiveKeyInfo();
@@ -1229,9 +1233,11 @@ public class CreateTxActivity extends BaseCryptoActivity {
             }
         }
 
-        // Set opreturn text
-        if (rawTxInfo.getOpReturn() != null) {
-            opreturnInput.setText(rawTxInfo.getOpReturn());
+        // Set opreturn text. Restore the model too: the TextWatcher nulled it
+        // while the field was cleared above.
+        rawTxInfo.setOpReturn(importedOpReturn);
+        if (importedOpReturn != null) {
+            opreturnInput.setText(importedOpReturn);
         }
 
         updateTotalAndFeeText();

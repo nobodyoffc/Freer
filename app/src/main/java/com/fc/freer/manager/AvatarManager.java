@@ -2,6 +2,7 @@ package com.fc.freer.manager;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -21,6 +22,7 @@ import com.fc.fc_ajdk.data.fcData.FcEntity;
 import com.fc.fc_ajdk.db.MMKVDB;
 import com.fc.fc_ajdk.db.LocalDB;
 import com.fc.fc_ajdk.feature.avatar.AvatarMaker;
+import com.fc.fc_ajdk.feature.avatar.GroupAvatarMaker;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
 
@@ -292,9 +294,36 @@ public class AvatarManager {
     }
     
     /**
+     * Get the avatar for a <b>group</b> — a room, team or square.
+     *
+     * <p>Drawn from the group's id, which is the one thing about a group
+     * that never changes, and badged with the owner (or a square's last
+     * namer). Do not route a group id through {@link #getAvatarBitmap}
+     * instead: {@code AvatarMaker} reads a group id as if it were a FID
+     * and composites a human face out of it.
+     *
+     * @param groupId  room id, or the team/square txid
+     * @param ownerFid the FID to badge; null or empty draws no badge,
+     *                 which is what an unknown owner should look like
+     * @param sizePx   side length in pixels
+     */
+    public Bitmap getGroupAvatarBitmap(String groupId, String ownerFid, int sizePx) {
+        Bitmap ownerAvatar = (ownerFid == null || ownerFid.isEmpty())
+                ? null : getAvatarBitmap(ownerFid);
+        boolean night = (context.getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        try {
+            return GroupAvatarMaker.makeAvatar(groupId, ownerFid, ownerAvatar, sizePx, night);
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Failed to build group avatar for %s: %s", groupId, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Preload avatars for multiple FIDs
      * Useful for bulk loading avatars in the background
-     * 
+     *
      * @param fids Array of FIDs to preload avatars for
      */
     public void preloadAvatars(String[] fids) {

@@ -32,6 +32,10 @@ public class CheckPasswordActivity extends AppCompatActivity {
 
     private EditText passwordInput;
     private TextInputLayout passwordInputLayout;
+    private Button verifyButton;
+    // Guards against double-tapping the verify button, which would otherwise
+    // start two verification threads and launch ChooseCidActivity twice.
+    private boolean isVerifying = false;
     private static final String TAG = "CryptoSign";
     private static final int QR_CODE_REQUEST_CODE = 1001;
     private static final int REQUEST_CODE_CHOOSE_CID = 1002;
@@ -85,7 +89,7 @@ public class CheckPasswordActivity extends AppCompatActivity {
         // Initialize UI components
         passwordInputLayout = findViewById(R.id.passwordInputLayout);
         passwordInput = findViewById(R.id.password_input);
-        Button verifyButton = findViewById(R.id.verify_button);
+        verifyButton = findViewById(R.id.verify_button);
         Button createPasswordButton = findViewById(R.id.create_password_button);
         Button clearButton = findViewById(R.id.clear_button);
         
@@ -133,6 +137,10 @@ public class CheckPasswordActivity extends AppCompatActivity {
 
         // Handle ChooseCidActivity result after password change
         if (requestCode == REQUEST_CODE_CHOOSE_CID) {
+            // Back on this screen - clear the guard. Success paths below finish()
+            // anyway; failure/cancel paths stay here and need the button usable.
+            isVerifying = false;
+            verifyButton.setEnabled(true);
             if (resultCode == RESULT_OK && data != null) {
                 String keyInfoJson = data.getStringExtra(SELECTED_KEY_INFO_JSON);
                 if (keyInfoJson != null) {
@@ -184,11 +192,20 @@ public class CheckPasswordActivity extends AppCompatActivity {
     }
     
     private void verifyPassword() {
+        // Ignore rapid repeat taps while a verification is already in progress.
+        if (isVerifying) {
+            return;
+        }
+
         String enteredPassword = passwordInput.getText().toString();
         if (enteredPassword.isEmpty()) {
             ToastUtils.makeText(this, getString(R.string.please_enter_password));
             return;
         }
+
+        // Lock the flow so a second tap can't start another verification thread.
+        isVerifying = true;
+        verifyButton.setEnabled(false);
 
         // Show waiting dialog
         WaitingDialog waitingDialog = new WaitingDialog(this, getString(R.string.verifying_password));
@@ -266,6 +283,9 @@ public class CheckPasswordActivity extends AppCompatActivity {
                         setResult(RESULT_OK);
                         finish();
                     } else {
+                        // Verification failed - unlock so the user can retry.
+                        isVerifying = false;
+                        verifyButton.setEnabled(true);
                         ToastUtils.makeText(this, getString(R.string.incorrect_password));
                     }
                 });
@@ -273,6 +293,9 @@ public class CheckPasswordActivity extends AppCompatActivity {
                 TimberLogger.e(TAG, "Error verifying password: " + e.getMessage(), e);
                 runOnUiThread(() -> {
                     waitingDialog.dismiss();
+                    // Verification errored - unlock so the user can retry.
+                    isVerifying = false;
+                    verifyButton.setEnabled(true);
                     ToastUtils.makeText(this, getString(R.string.error_verifying_password));
                 });
             }

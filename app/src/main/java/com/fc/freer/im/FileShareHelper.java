@@ -52,6 +52,15 @@ public class FileShareHelper {
     }
 
     /**
+     * Fired once the file has been hashed and a preliminary {@link ImMessage} exists,
+     * before the (potentially slow) DISK upload begins. Lets the UI show the message
+     * bubble immediately and track upload progress on it, keyed by {@code hatId}.
+     */
+    public interface PrepareCallback {
+        void onPrepared(ImMessage message, String hatId, long fileSize);
+    }
+
+    /**
      * Share a file in a chat via the DISK+HAT flow.
      * Must be called on a background thread.
      *
@@ -66,20 +75,22 @@ public class FileShareHelper {
      */
     public ImMessage shareFile(File file, String fileName, ImType imType,
                                String senderId, String targetId,
-                               String desc, LongConsumer progress) {
+                               String desc, PrepareCallback onPrepared, LongConsumer progress) {
         if (file == null || !file.exists()) {
             lastError = "File does not exist";
             return null;
         }
 
-        return shareViaHat(file, fileName, file.length(), imType, senderId, targetId, desc, progress);
+        return shareViaHat(file, fileName, file.length(), imType, senderId, targetId, desc,
+                onPrepared, progress);
     }
 
     /**
      * Share a file picked from a content URI.
      */
     public ImMessage shareUri(Uri uri, ImType imType, String senderId,
-                              String targetId, String desc, LongConsumer progress) {
+                              String targetId, String desc,
+                              PrepareCallback onPrepared, LongConsumer progress) {
         File tempFile = null;
         try {
             String fileName = resolveFileName(uri);
@@ -99,7 +110,7 @@ public class FileShareHelper {
             }
             is.close();
 
-            return shareFile(tempFile, fileName, imType, senderId, targetId, desc, progress);
+            return shareFile(tempFile, fileName, imType, senderId, targetId, desc, onPrepared, progress);
         } catch (Exception e) {
             lastError = "Failed to copy content: " + e.getMessage();
             TimberLogger.e(TAG, lastError);
@@ -115,7 +126,7 @@ public class FileShareHelper {
 
     private ImMessage shareViaHat(File file, String fileName, long fileSize,
                                   ImType imType, String senderId, String targetId,
-                                  String desc, LongConsumer progress) {
+                                  String desc, PrepareCallback onPrepared, LongConsumer progress) {
         try {
             byte[] rawHash = Hash.sha256x2Bytes(file);
             if (rawHash == null) {
@@ -144,6 +155,14 @@ public class FileShareHelper {
             }
 
             hatManager.addHat(rawHat);
+
+            // Build the message now, before the (slow) upload, so the UI can show the
+            // bubble immediately and render upload progress on it (keyed by rawDid).
+            // Content is refreshed with the finalized HAT (symkey + locas) after upload.
+            ImMessage msg = ImMessage.createHat(imType, senderId, targetId, rawHat);
+            if (onPrepared != null) {
+                onPrepared.onPrepared(msg, rawDid, fileSize);
+            }
 
             DiskItem diskItem = dataSyncManager.uploadData(file, rawHat, false, null, progress);
 
@@ -186,7 +205,9 @@ public class FileShareHelper {
                 }
             }
 
-            return ImMessage.createHat(imType, senderId, targetId, rawHat);
+            // Refresh the message content with the finalized HAT (symkey + locas).
+            msg.setContent(rawHat.toJson());
+            return msg;
 
         } catch (Exception e) {
             lastError = "HAT share failed: " + e.getMessage();
@@ -238,7 +259,7 @@ public class FileShareHelper {
 
         if (mimeType.startsWith("image/")) return android.R.drawable.ic_menu_gallery;
         if (mimeType.startsWith("audio/")) return android.R.drawable.ic_lock_silent_mode_off;
-        if (mimeType.startsWith("video/")) return android.R.drawable.ic_media_play;
+        if (mimeType.startsWith("video/")) return R.drawable.ic_video_file;
         if (mimeType.equals("application/json") || mimeType.equals("text/json")) return R.drawable.ic_json;
         if (mimeType.startsWith("text/")) return android.R.drawable.ic_menu_edit;
         return android.R.drawable.ic_menu_save;

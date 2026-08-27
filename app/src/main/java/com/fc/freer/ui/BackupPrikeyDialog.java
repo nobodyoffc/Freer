@@ -62,6 +62,7 @@ public class BackupPrikeyDialog extends Dialog {
     private String prikeyHex;
     private String prikeyBase58;
     private String prikeyCipher;
+    private String prikeyCipherBase58;
 
     private boolean isPrikeyVisible = false;
     private boolean isQrVisible = false;
@@ -158,7 +159,7 @@ public class BackupPrikeyDialog extends Dialog {
             prikeyBase58 = prikeyHex; // Fallback to hex
         }
 
-        // Encrypt prikey to get cipher
+        // Encrypt prikey (hex form) to get cipher
         try {
             byte[] prikeyBytes = Hex.fromHex(prikeyHex);
             Encryptor encryptor = new Encryptor(AlgorithmId.FC_AesGcm256_No1_NrC7);
@@ -174,6 +175,27 @@ public class BackupPrikeyDialog extends Dialog {
             }
         } catch (Exception e) {
             TimberLogger.e(TAG, "Exception encrypting prikey: %s", e.getMessage());
+            ToastUtils.makeText(getContext(), R.string.failed_to_encrypt_prikey);
+            close();
+            return;
+        }
+
+        // Encrypt the Base58Check (WIF) text so the QR can carry the cipher of that text
+        try {
+            byte[] prikeyBase58Bytes = prikeyBase58.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            Encryptor encryptor = new Encryptor(AlgorithmId.FC_AesGcm256_No1_NrC7);
+            CryptoDataByte cryptoDataByte = encryptor.encryptByPasswordHash(prikeyBase58Bytes, symkey);
+
+            if (cryptoDataByte.getCode() == 0) {
+                prikeyCipherBase58 = cryptoDataByte.toJson();
+            } else {
+                TimberLogger.e(TAG, "Failed to encrypt Base58 prikey: %s", cryptoDataByte.getMessage());
+                ToastUtils.makeText(getContext(), R.string.failed_to_encrypt_prikey);
+                close();
+                return;
+            }
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Exception encrypting Base58 prikey: %s", e.getMessage());
             ToastUtils.makeText(getContext(), R.string.failed_to_encrypt_prikey);
             close();
             return;
@@ -202,6 +224,7 @@ public class BackupPrikeyDialog extends Dialog {
         // Base58 checkbox
         base58Checkbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
             updatePrikeyText();
+            updateQRCode();
         });
 
         // Done button
@@ -237,11 +260,11 @@ public class BackupPrikeyDialog extends Dialog {
         String qrContent;
 
         if (encryptCheckbox.isChecked()) {
-            // Show encrypted cipher
-            qrContent = prikeyCipher;
+            // Show encrypted cipher of the Base58Check text or the hex text, matching the checkbox
+            qrContent = base58Checkbox.isChecked() ? prikeyCipherBase58 : prikeyCipher;
         } else {
-            // Show plain prikey in hex
-            qrContent = prikeyHex;
+            // Show plain prikey, honoring the Base58Check/Hex choice
+            qrContent = base58Checkbox.isChecked() ? prikeyBase58 : prikeyHex;
         }
 
         // Generate QR code bitmap
@@ -307,9 +330,10 @@ public class BackupPrikeyDialog extends Dialog {
     }
 
     private void copyCipherToClipboard() {
-        if (prikeyCipher != null && !prikeyCipher.isEmpty()) {
+        String cipherToCopy = base58Checkbox.isChecked() ? prikeyCipherBase58 : prikeyCipher;
+        if (cipherToCopy != null && !cipherToCopy.isEmpty()) {
             ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
-            ClipData clip = ClipData.newPlainText("Prikey Cipher", prikeyCipher);
+            ClipData clip = ClipData.newPlainText("Prikey Cipher", cipherToCopy);
             clipboard.setPrimaryClip(clip);
             ToastUtils.makeText(getContext(), R.string.cipher_copied);
         } else {
@@ -330,6 +354,9 @@ public class BackupPrikeyDialog extends Dialog {
         }
         if (prikeyCipher != null) {
             prikeyCipher = null;
+        }
+        if (prikeyCipherBase58 != null) {
+            prikeyCipherBase58 = null;
         }
 
         // Dismiss the dialog

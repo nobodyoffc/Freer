@@ -2,7 +2,9 @@ package com.fc.fc_ajdk.data.fcData;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.security.SecureRandom;
 
 import org.bitcoinj.core.ECKey;
@@ -21,6 +23,24 @@ public class FcSubject extends FcEntity {
     protected transient byte[] prikeyBytes;
 
     public FcSubject() {
+    }
+
+    /**
+     * Returns a LinkedHashMap with the field names declared in FcSubject in their
+     * declaration order and their display names in multiple languages.
+     * Subclasses should include these entries in their own getFieldNameMap() so
+     * that detail views (e.g. DetailFragment) render pubkey/cid/etc.
+     * @return LinkedHashMap<fieldName, Map<language, displayName>>
+     */
+    public static LinkedHashMap<String, Map<String, String>> getFieldNameMap() {
+        LinkedHashMap<String, Map<String, String>> fieldMap = new LinkedHashMap<>();
+
+        addFieldToMap(fieldMap, "cid", "CID", "CID");
+        addFieldToMap(fieldMap, "pubkey", "Pubkey", "公钥");
+        addFieldToMap(fieldMap, "usedCids", "Used CIDs", "曾用CID");
+        addFieldToMap(fieldMap, "isNobody", "Nobody", "无名");
+
+        return fieldMap;
     }
 
     public FcSubject(byte[] prikey) {

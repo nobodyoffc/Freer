@@ -159,8 +159,89 @@ public class AutoRechargeManager {
     }
     
     /**
+     * Recharge so the balance reaches at least the given floor, regardless of
+     * the regular threshold. For callers that gate their work on their own
+     * minimum balance: that floor can sit far above the credit-based threshold
+     * of {@link #checkAndRechargeIfNeeded}, so waiting for the regular trigger
+     * would leave them paused forever.
+     * Honors the enabled flag, price-limit stop, cooldown, and maxPayment cap.
+     *
+     * @param currentBalance current balance in satoshi (may be negative)
+     * @param requiredBalance the balance the caller needs, in satoshi
+     * @return CompletableFuture with the recharge result, or null result when no recharge was started
+     */
+    public CompletableFuture<RechargeResult> rechargeToFloor(Long currentBalance, long requiredBalance) {
+        return rechargeToFloor(currentBalance, requiredBalance, null);
+    }
+
+    /**
+     * Like {@link #rechargeToFloor(Long, long)}, but with a caller-preferred
+     * payment amount. Pays the deficit plus the preferred (or default)
+     * purchase amount, so the balance lands above the floor with usable
+     * headroom. Amounts above maxPayment are clamped with a warning instead of
+     * tripping the price-limit stop, because they come from the operator's own
+     * configuration rather than a service's price.
+     *
+     * @param preferredPaymentSat preferred purchase amount in satoshi, paid on top of the deficit; null or <= 0 to use the default purchase amount
+     */
+    public CompletableFuture<RechargeResult> rechargeToFloor(Long currentBalance, long requiredBalance, Long preferredPaymentSat) {
+        if (!enabled) {
+            TimberLogger.d(TAG, "Auto-recharge is disabled");
+            return CompletableFuture.completedFuture(null);
+        }
+
+        if (stoppedDueToPriceLimit) {
+            TimberLogger.w(TAG, "Auto-recharge stopped due to price limit. Call resetPriceAlert() to resume after adjusting settings.");
+            return CompletableFuture.completedFuture(null);
+        }
+
+        if (currentBalance == null || currentBalance >= requiredBalance) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        // 检查冷却期
+        long now = System.currentTimeMillis();
+        if (now - lastRechargeAttemptMs < cooldownMs) {
+            TimberLogger.d(TAG, "In cooldown period, skipping recharge. Last attempt: {}ms ago", now - lastRechargeAttemptMs);
+            return CompletableFuture.completedFuture(null);
+        }
+
+        // 检查是否已有充值进行中
+        if (!recharging.compareAndSet(false, true)) {
+            TimberLogger.d(TAG, "Recharge already in progress, skipping");
+            return CompletableFuture.completedFuture(null);
+        }
+
+        lastRechargeAttemptMs = now;
+        long deficit = requiredBalance - currentBalance;
+        TimberLogger.i(TAG, "Triggering auto-recharge to floor: balance=%d, requiredBalance=%d, deficit=%d, preferredPayment=%s",
+                currentBalance, requiredBalance, deficit, String.valueOf(preferredPaymentSat));
+
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                // Pay the deficit PLUS the purchase amount (preferred or default).
+                // Paying the bare deficit would land exactly at the floor minus
+                // whatever was charged between trigger and confirmation — always
+                // slightly short, triggering another micro-recharge every cycle.
+                long base = (preferredPaymentSat != null && preferredPaymentSat > 0)
+                        ? preferredPaymentSat
+                        : Math.max(calculatePaymentAmount(), 0);
+                long payment = deficit + base;
+                if (payment > maxPayment) {
+                    TimberLogger.w(TAG, "Recharge amount %d sat exceeds %s %d sat; clamping. Raise %s to allow larger recharges.",
+                            payment, KEY_MAX_PAYMENT, maxPayment, KEY_MAX_PAYMENT);
+                    payment = maxPayment;
+                }
+                return executeRechargeWithRetry(payment);
+            } finally {
+                recharging.set(false);
+            }
+        });
+    }
+
+    /**
      * 执行手动充值
-     * 
+     *
      * @param amountFch 充值金额（FCH），如果为 null 则使用默认计算值
      * @return 充值结果
      */

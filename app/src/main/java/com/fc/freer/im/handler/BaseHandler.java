@@ -17,10 +17,21 @@ import com.fc.freer.im.dock.DockServiceRegistry;
  * 1. P2P via FUDP: Encrypted at FUDP layer with sender's prikey + recipient's pubkey. No app-level encryption needed.
  * 2. P2P via ROAD: Data to ROAD encrypted at FUDP layer (sender prikey + ROAD pubkey).
  *    Message is encrypted with sender prikey + recipient pubkey, wrapped in ROAD data.
- * 3. Team/Room via DOCK: Data to DOCK encrypted at FUDP layer.
+ * 3. P2P via DOCK: Data to DOCK encrypted at FUDP layer, but that session ENDS AT THE
+ *    DOCK — the server decrypts it to store the payload (it verifies dataHash over the
+ *    plaintext bytes and later serves them back verbatim). So the body is encrypted with
+ *    sender prikey + recipient pubkey before sending, exactly as for ROAD.
+ * 4. Team/Room via DOCK: Data to DOCK encrypted at FUDP layer.
  *    Message content encrypted with symkey before sending.
- * 4. Group via DOCK: Data to DOCK encrypted at FUDP layer.
- *    Message content is plain text (no symkey).
+ * 5. Group via DOCK: Data to DOCK encrypted at FUDP layer.
+ *    Message content is plain text (no symkey) — anyone may join a square, so there is
+ *    no secret to keep.
+ *
+ * Case 3 was missing from this list, and its absence was the bug: the "FUDP handles it"
+ * reasoning in case 1 is true only when the FUDP session is peer-to-peer, and it was
+ * applied to the DOCK path, where it is not. Since FUDP_DIRECT and ROAD_RELAY are both
+ * opt-in and off by default, DOCK is the path nearly every P2P message actually takes —
+ * so nearly every P2P message was being stored on the DOCK operator's disk in clear text.
  */
 public abstract class BaseHandler {
     protected static final String TAG = "ImHandler";
@@ -30,7 +41,20 @@ public abstract class BaseHandler {
     protected FudpNode fudpNode;
     protected FapiClient fapiClient;
     protected SymkeyStore symkeyStore;
-    
+
+    /**
+     * The live FID's private key, for the one job the symkey store cannot do:
+     * sealing a P2P body to a specific recipient (AsyTwoWay needs our private
+     * half, not a shared secret). Set by ImManager alongside
+     * {@link SymkeyStore#setUserPrikey(byte[])}.
+     */
+    protected byte[] userPrikey;
+
+    public void setUserPrikey(byte[] prikey) {
+        this.userPrikey = prikey;
+    }
+
+
     // Listener for incoming messages
     protected MessageListener messageListener;
 
@@ -137,17 +161,17 @@ public abstract class BaseHandler {
     
     /**
      * Encrypt message content (for team/room with symkey).
-     * P2P encryption is handled by FUDP layer - no app-level encryption needed.
+     * P2P seals per-recipient in P2pHandler instead (AsyTwoWay, not a shared key).
      * Group messages are plain text - no encryption.
      */
     protected String encrypt(String content, String targetId) {
         // Override in TeamHandler/RoomHandler for symkey encryption
         return content;
     }
-    
+
     /**
      * Decrypt message content (for team/room with symkey).
-     * P2P decryption is handled by FUDP layer.
+     * P2P opens per-recipient in P2pHandler instead.
      * Group messages are plain text - no decryption.
      */
     protected String decrypt(String cipher, String targetId, Long symkeyVersion) {

@@ -12,6 +12,8 @@ import com.fc.freer.utils.ToastUtils;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.fc.freer.model.Configure;
+import com.fc.freer.model.Setting;
+import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.utils.IdNameUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
@@ -171,6 +173,10 @@ public class CreatePasswordActivity extends AppCompatActivity {
             return;
         }
 
+        // No existing password/config means this is a genuine first-time user.
+        // Capture it before we store the new config below.
+        boolean isFirstUser = configMap.isEmpty();
+
         // Create new Configure object
         Configure configure = new Configure();
         configure.makeSymkeyFromPassword(passwordBytes);
@@ -183,6 +189,14 @@ public class CreatePasswordActivity extends AppCompatActivity {
         // Store the Configure object in ConfigureManager
         ConfigureManager.getInstance().setConfigure(configure);
         ConfigureManager.getInstance().storeConfigure(this, configure);
+
+        // Brand-new user (no prior password/config): auto-create a random FID and
+        // drop them straight onto Home, skipping the otherwise-empty identity chooser.
+        // A first-time user is never in the background-timeout flow, so handle it here.
+        if (isFirstUser) {
+            bootstrapFirstIdentityAndLaunchHome(configure);
+            return;
+        }
 
         // Check if this is from background timeout
         boolean fromBackgroundTimeout = getIntent().getBooleanExtra(FROM_BACKGROUND_TIMEOUT, false);
@@ -199,6 +213,41 @@ public class CreatePasswordActivity extends AppCompatActivity {
             // Close CheckPasswordActivity and CreatePasswordActivity, leaving only ChooseCidActivity
             finishAffinity();
         } else {
+            setResult(RESULT_OK);
+            finish();
+        }
+    }
+
+    /**
+     * Bootstraps a brand-new user: generates a random FID, creates its Setting,
+     * sets it as the current identity and launches HomeActivity directly, clearing
+     * the auth stack. This mirrors ChooseCidActivity's from-new-password path but
+     * skips the (empty) identity chooser entirely. On any failure it falls back to
+     * the normal flow so the user can still create an identity manually.
+     */
+    private void bootstrapFirstIdentityAndLaunchHome(Configure configure) {
+        try {
+            byte[] symkey = configure.getSymkey();
+            KeyInfo keyInfo = KeyInfo.createNew(symkey);
+
+            // getOrCreateSetting also adds the KeyInfo to the configure's
+            // mainCidInfoMap and persists it.
+            SettingManager settingManager = SettingManager.getInstance();
+            Setting setting = settingManager.getOrCreateSetting(this, keyInfo);
+            if (setting == null) {
+                throw new IllegalStateException("Setting creation returned null");
+            }
+
+            settingManager.setCurrentSetting(setting);
+            TimberLogger.d(TAG, "Bootstrapped first identity for new user: %s", keyInfo.getId());
+
+            Intent homeIntent = new Intent(this, com.fc.freer.home.HomeActivity.class);
+            homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(homeIntent);
+            finish();
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Failed to bootstrap first identity, falling back to chooser: " + e.getMessage(), e);
+            // Fall back to the normal flow: return OK so the caller opens ChooseCidActivity.
             setResult(RESULT_OK);
             finish();
         }

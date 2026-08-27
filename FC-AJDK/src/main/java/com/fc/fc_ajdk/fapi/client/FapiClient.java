@@ -183,6 +183,21 @@ public class FapiClient implements ApiClient {
                 this.lastResponse = errorResp;
                 return errorResp;
             }
+
+            // The FudpNode is shared and owned by the Setting, not this client. If it has
+            // been stopped (session re-lock, FID switch, client-group teardown) while this
+            // client is still referenced, its scheduler is terminated and fudpNode.request()
+            // throws RejectedExecutionException from scheduleIdleCheck. Fail fast with a
+            // clear, actionable error instead of surfacing that raw executor exception.
+            if (fudpNode == null || !fudpNode.isRunning()) {
+                this.lastError = new IllegalStateException("FUDP node not running");
+                FapiResponse errorResp = buildErrorResponse(503,
+                        "Connection unavailable: network node not running. Please reconnect.");
+                this.lastResponse = errorResp;
+                TimberLogger.w(TAG, "FAPI request on stopped FUDP node: api=" +
+                        (fapiRequest != null ? fapiRequest.getApi() : "null"));
+                return errorResp;
+            }
             
             // 自动填充 via（消费渠道）
             if (fapiRequest.getVia() == null && via != null) {
@@ -1572,6 +1587,9 @@ public class FapiClient implements ApiClient {
         }
         String peerId = KeyTools.pubkeyToFchAddr(pubkey);
         fudpNode.addPeer(peerId, pubkey, host, port);
+        // This address just answered the HELLO — make it the primary endpoint
+        // so the ping below (and reconnects) target it instead of a stale one.
+        fudpNode.promotePeerEndpoint(peerId, host, port);
 
         PongMessage pong;
         try {
@@ -1880,7 +1898,7 @@ public class FapiClient implements ApiClient {
         Fcdsl fcdsl = new Fcdsl();
         fcdsl.addNewQuery().addNewTerms().addNewFields(FieldNames.SPENT_CASHES_OWNER,ISSUED_CASHES_OWNER).addNewValues(fid);
         if (order != null) {
-            fcdsl.addSort(FieldNames.HEIGHT, order).addSort(ID,order);
+            fcdsl.addSort(FieldNames.HEIGHT, order).addSort(FieldNames.TX_INDEX, order).addSort(ID,order);
         }
         if (size != null) {
             fcdsl.setSize(String.valueOf(size));
@@ -2422,6 +2440,8 @@ public class FapiClient implements ApiClient {
             
             // Pass 2: Stream file content through FUDP transport with progress tracking
             CompletableFuture<ResponseMessage> future;
+            java.util.concurrent.atomic.AtomicLong lastActivityMs =
+                    new java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis());
             try (java.io.FileInputStream rawStream = new java.io.FileInputStream(file)) {
                 java.io.InputStream fileStream;
                 if (progressCallback != null) {
@@ -2429,14 +2449,19 @@ public class FapiClient implements ApiClient {
                 } else {
                     fileStream = rawStream;
                 }
+                // The activity tracker refreshes the idle deadline on any sign of life
+                // from the server: ACKs while retransmissions of the upload are still
+                // being absorbed (bytes == 0) and response data arriving (bytes > 0).
                 future = fudpNode.requestWithStream(
-                    servicePeerId, serviceSid, headerData, fileStream, fileSize);
+                    servicePeerId, serviceSid, headerData, fileStream, fileSize,
+                    bytes -> lastActivityMs.set(System.currentTimeMillis()));
             }
 
-            // Dynamic timeout based on file size: base + 1s per 25KB (~25KB/s slow-link floor)
-            long dynamicTimeout = Math.max(requestTimeoutSeconds,
-                    requestTimeoutSeconds + (fileSize / (25 * 1024)));
-            ResponseMessage response = future.get(dynamicTimeout, TimeUnit.SECONDS);
+            // Idle-based wait: a large upload keeps the deadline alive via ACK
+            // keepalives long after the local send loop has finished, so only
+            // real silence (dead peer / hung server) times out.
+            lastActivityMs.set(System.currentTimeMillis());
+            ResponseMessage response = awaitWithIdleTimeout(future, requestTimeoutSeconds, lastActivityMs);
             
             // Parse response body (server encodes FapiResponse even for errors)
             FapiResponse fapiResp = null;
@@ -2479,9 +2504,15 @@ public class FapiClient implements ApiClient {
             
         } catch (TimeoutException e) {
             lastError = e;
-            TimberLogger.w(TAG, "FAPI streaming upload timeout (size-based, base=" + requestTimeoutSeconds + "s): api=" + api);
+            TimberLogger.w(TAG, "FAPI streaming upload idle timeout (" + requestTimeoutSeconds + "s): api=" + api);
             return null;
         } catch (Exception e) {
+            // The transport's own idle timer surfaces as ExecutionException(TimeoutException)
+            if (e instanceof java.util.concurrent.ExecutionException && e.getCause() instanceof TimeoutException) {
+                lastError = (TimeoutException) e.getCause();
+                TimberLogger.w(TAG, "FAPI streaming upload transport idle timeout: api=" + api);
+                return null;
+            }
             lastError = e;
             TimberLogger.e(TAG, "Failed to store file: " + e.getMessage(), e);
             return null;
@@ -2563,43 +2594,169 @@ public class FapiClient implements ApiClient {
 
             FapiRequest fapiRequest = FapiRequest.operation("disk.get", params);
 
-            // Send request and get unified response, reporting receive progress
-            UnifiedCodec.UnifiedResponse unified = requestWithBinaryData(
-                    fapiRequest, null, requestTimeoutSeconds, null, progressCallback);
+            // Send request; the response binary is streamed straight to outputFile so a
+            // large download is never fully held in RAM. Returns only the metadata header.
+            FapiResponse response = requestBinaryToFile(
+                    fapiRequest, requestTimeoutSeconds, outputFile, progressCallback);
 
-            if (unified == null || unified.response() == null) {
+            if (response == null) {
                 lastError = new RuntimeException("No response from server");
                 TimberLogger.w(TAG, "diskGet: no response for did=%s (lastError=%s)",
                         did, lastError != null ? lastError.getMessage() : "null");
+                deleteQuietly(outputFile);
                 return null;
             }
 
-            if (unified.response().getCode() != 0) {
-                lastError = responseError(unified.response());
+            if (response.getCode() != null && response.getCode() != 0) {
+                lastError = responseError(response);
                 TimberLogger.w(TAG, "diskGet: server rejected did=%s code=%s message=%s",
-                        did, unified.response().getCode(), unified.response().getMessage());
+                        did, response.getCode(), response.getMessage());
+                deleteQuietly(outputFile);
                 return null;
             }
 
-            // Parse metadata
-            DiskItem metadata = ObjectUtils.objectToClass(
-                    unified.response().getData(), DiskItem.class);
-
-            // Write binary data to output file (progress was reported during receive)
-            byte[] content = unified.binaryData();
-            if (content != null && content.length > 0) {
-                if (outputFile.getParentFile() != null) {
-                    outputFile.getParentFile().mkdirs();
-                }
-                java.nio.file.Files.write(outputFile.toPath(), content);
-            }
-
-            return metadata;
+            // Parse metadata (small JSON header); binary was already written to outputFile.
+            return ObjectUtils.objectToClass(response.getData(), DiskItem.class);
 
         } catch (Exception e) {
             lastError = e;
+            deleteQuietly(outputFile);
             TimberLogger.e(TAG, "Failed to get file: " + e.getMessage(), e);
             return null;
+        }
+    }
+
+    private static void deleteQuietly(java.io.File f) {
+        if (f != null && f.exists()) {
+            //noinspection ResultOfMethodCallIgnored
+            f.delete();
+        }
+    }
+
+    /**
+     * Send a request and write the response's binary payload straight to
+     * {@code outputFile}, streaming from the (possibly spilled-to-disk) response so
+     * the content is never fully materialised in RAM. Returns the parsed
+     * {@link FapiResponse} metadata header (its {@code data} holds the JSON metadata,
+     * NOT the binary). On transport/timeout error returns a synthetic error response
+     * and writes nothing.
+     */
+    private FapiResponse requestBinaryToFile(FapiRequest fapiRequest, long timeoutSeconds,
+            java.io.File outputFile, java.util.function.LongConsumer receiveProgress) {
+        ResponseMessage response = null;
+        try {
+            if (balanceVerifier != null && balanceVerifier.isStopped()) {
+                this.lastError = new IllegalStateException("Balance verification stopped due to drift");
+                FapiResponse err = buildErrorResponse(403, "Balance verification stopped");
+                this.lastResponse = err;
+                return err;
+            }
+            if (fapiRequest.getVia() == null && via != null) {
+                fapiRequest.setVia(via);
+            }
+
+            byte[] requestData = UnifiedCodec.encodeRequest(fapiRequest, null);
+            java.util.concurrent.atomic.AtomicLong lastActivityMs =
+                    new java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis());
+            java.util.function.LongConsumer activityTracker = bytes -> {
+                lastActivityMs.set(System.currentTimeMillis());
+                if (receiveProgress != null) receiveProgress.accept(bytes);
+            };
+            CompletableFuture<ResponseMessage> future = fudpNode.request(
+                    servicePeerId, serviceSid, requestData, null, activityTracker);
+            response = awaitWithIdleTimeout(future, timeoutSeconds, lastActivityMs);
+
+            FapiResponse fapi = writeResponseBinaryToFile(response, outputFile);
+
+            if (response.getStatusCode() != ResponseMessage.STATUS_SUCCESS) {
+                this.lastError = new IOException("Request failed with status: " + response.getStatusCode());
+                if (fapi != null && fapi.getCode() != null) {
+                    updateBalanceFromResponse(fapi);
+                    this.lastResponse = fapi;
+                    return fapi;
+                }
+                FapiResponse err = buildErrorResponse(response.getStatusCode(), "Request failed");
+                this.lastResponse = err;
+                return err;
+            }
+            if (fapi == null) {
+                FapiResponse err = buildErrorResponse(500, "Empty response");
+                this.lastResponse = err;
+                return err;
+            }
+            updateBalanceFromResponse(fapi);
+            this.lastResponse = fapi;
+            this.lastError = null;
+            return fapi;
+
+        } catch (TimeoutException e) {
+            this.lastError = e;
+            FapiResponse err = buildErrorResponse(408, "Request idle timeout after " + timeoutSeconds + "s without response data");
+            this.lastResponse = err;
+            return err;
+        } catch (Exception e) {
+            if (e instanceof java.util.concurrent.ExecutionException
+                    && e.getCause() instanceof TimeoutException) {
+                this.lastError = (TimeoutException) e.getCause();
+                FapiResponse err = buildErrorResponse(408, e.getCause().getMessage());
+                this.lastResponse = err;
+                return err;
+            }
+            this.lastError = e;
+            FapiResponse err = buildErrorResponse(500, e.getMessage());
+            this.lastResponse = err;
+            return err;
+        } finally {
+            // The response owns the spill temp file (if any); delete it now that the
+            // binary has been streamed to its destination.
+            if (response != null && response.isFileBacked()) {
+                response.deleteBackingFile();
+            }
+        }
+    }
+
+    /**
+     * Parse the UnifiedCodec response framing ([headerLen(4)][JSON][binary]) from a
+     * {@link ResponseMessage} and stream its binary portion to {@code outputFile}.
+     * Works for both in-RAM and file-backed responses (both expose {@link ResponseMessage#openData()}).
+     *
+     * @return the parsed metadata {@link FapiResponse}, or null if the response had no data
+     */
+    private FapiResponse writeResponseBinaryToFile(ResponseMessage response, java.io.File outputFile)
+            throws IOException {
+        long dataLen = response.dataLength();
+        if (dataLen <= 0) return null;
+
+        try (java.io.DataInputStream dis = new java.io.DataInputStream(
+                new java.io.BufferedInputStream(response.openData()))) {
+            int headerLen = dis.readInt();
+            if (headerLen < 0 || headerLen > dataLen - 4) {
+                throw new IOException("Invalid unified response header length: " + headerLen);
+            }
+            byte[] jsonBytes = new byte[headerLen];
+            dis.readFully(jsonBytes);
+            FapiResponse fapi = JsonUtils.fromJson(
+                    new String(jsonBytes, StandardCharsets.UTF_8), FapiResponse.class);
+
+            long binaryLen = dataLen - 4 - headerLen;
+            if (binaryLen > 0 && outputFile != null) {
+                if (outputFile.getParentFile() != null) {
+                    //noinspection ResultOfMethodCallIgnored
+                    outputFile.getParentFile().mkdirs();
+                }
+                try (java.io.OutputStream out = new java.io.BufferedOutputStream(
+                        new java.io.FileOutputStream(outputFile))) {
+                    byte[] buf = new byte[64 * 1024];
+                    long copied = 0;
+                    int n;
+                    while (copied < binaryLen
+                            && (n = dis.read(buf, 0, (int) Math.min(buf.length, binaryLen - copied))) > 0) {
+                        out.write(buf, 0, n);
+                        copied += n;
+                    }
+                }
+            }
+            return fapi;
         }
     }
 

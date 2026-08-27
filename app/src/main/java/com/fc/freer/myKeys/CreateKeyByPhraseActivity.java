@@ -20,7 +20,6 @@ import com.fc.freer.ui.DetailFragment;
 import com.google.android.material.textfield.TextInputEditText;
 import com.fc.freer.utils.TextIconsUtils;
 
-import java.util.Arrays;
 import java.util.concurrent.Executors;
 
 public class CreateKeyByPhraseActivity extends BaseCryptoActivity {
@@ -178,8 +177,15 @@ public class CreateKeyByPhraseActivity extends BaseCryptoActivity {
 
         Handler main = new Handler(Looper.getMainLooper());
         Executors.newSingleThreadExecutor().execute(() -> {
-            // Deterministic per-phrase salt so the same phrase always derives the same key.
-            byte[] salt = Arrays.copyOf(Hash.sha256(phrase.getBytes()), 16);
+            // Empty salt so the same phrase always derives the same key AND stays
+            // compatible with Safe, which derives with Kdf.Argon2id_No1_NrC7 and new byte[0].
+            //
+            // NOTE (legacy): earlier Freer builds used a deterministic per-phrase salt:
+            //     byte[] salt = Arrays.copyOf(Hash.sha256(phrase.getBytes()), 16);
+            // Any private key created by those builds was derived from that salt and will
+            // NOT match the empty-salt result below. If such keys must be recovered, restore
+            // the salt above for that specific phrase.
+            byte[] salt = new byte[0];
             byte[] priKey32 = Kdf.Argon2id_No1_NrC7.deriveSymkey(phrase.toCharArray(), salt);
             KeyInfo keyInfo = new KeyInfo(label, priKey32, ConfigureManager.getInstance().getSymkey());
             main.post(() -> {

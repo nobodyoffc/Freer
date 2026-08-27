@@ -33,6 +33,7 @@ import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.view.CashAmountCard;
 import com.fc.freer.tx.view.TxOutputCard;
 import com.fc.freer.tx.SendTxActivity;
+import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.KeyCardContainer;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.CashManager;
@@ -115,6 +116,17 @@ public class SignMultisigTxActivity extends BaseCryptoActivity {
         super.onCreate(savedInstanceState);
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Release any TxSender callback waiting on this activity. A multisig tx
+        // that is left partly signed simply ends as cancelled.
+        TxSender currentTxSender = TxSender.getCurrentInstance();
+        if (currentTxSender != null) {
+            currentTxSender.clearPendingCallback();
+        }
+    }
+
     private void refreshFragmentContainer() {
         // Clear existing views
         fragmentContainer.removeAllViews();
@@ -171,6 +183,11 @@ public class SignMultisigTxActivity extends BaseCryptoActivity {
                     @Override
                     public void onSuccess(String txId) {
                         ToastUtils.makeText(SignMultisigTxActivity.this, getString(R.string.tx_sent));
+                        // Notify TxSender if the tx came from a TxSender call
+                        TxSender currentTxSender = TxSender.getCurrentInstance();
+                        if (currentTxSender != null) {
+                            currentTxSender.onActivityResult(txId);
+                        }
                         setResult(RESULT_SENT);
                         finish();
                     }
@@ -256,7 +273,7 @@ public class SignMultisigTxActivity extends BaseCryptoActivity {
     }
 
     private void setupSendTo() {
-        if (tx.getIssuedCashes() == null || tx.getIssuedCashes().isEmpty()) {
+        if (tx == null || tx.getIssuedCashes() == null || tx.getIssuedCashes().isEmpty()) {
             return;
         }
 

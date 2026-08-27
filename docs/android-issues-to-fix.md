@@ -253,6 +253,62 @@ Running log of bugs, smells, and risky patterns spotted in the Android codebase 
 
 ---
 
+### C14. The Address converter derives a hash160 without checking the address checksum
+
+- **Severity:** medium — a mistyped address converts silently into addresses for a key nobody holds
+- **Scope:** android-only (found while porting the Converter to the Mac, 2026-08-17)
+- **Location:** `FC-AJDK/.../core/crypto/KeyTools.java:368` (`addrToHash160`), reached from `app/.../convert/AddressConverterActivity.java:141`
+- **Problem:** `addrToHash160` does a plain Base58 decode and slices bytes 1…21, discarding the trailing 4-byte checksum without ever verifying it:
+  ```java
+  byte[] addrBytes = Base58.decode(addr);
+  byte[] hash160Bytes = new byte[20];
+  System.arraycopy(addrBytes, 1, hash160Bytes, 0, 20);
+  ```
+  The checksum is the only thing standing between a typo and a different, valid-looking hash160. `AddressConverterActivity.convert()` feeds the result straight to `hash160ToAddresses`, so a single wrong character produces a complete, confident table of FCH/BTC/BCH/LTC/DOGE addresses for a key that does not exist. The user's only clue is that the output does not match what they expected — and the whole reason to use a converter is not knowing what to expect. Anything sent to one of those addresses is unspendable by anyone.
+- **Fix:** Decode with `Base58.decodeChecked` (already present in the same class and used by `getPubkey33`) and surface the failure. The Mac port's `ChainAddresses.hash160(fromAddress:)` goes through `Base58Check`, and `testHash160FromAddressRejectsBadChecksum` flips one character of a valid FID and asserts it throws.
+
+---
+
+### C15. `FcDate` and `TimeConvertActivity` disagree about the genesis epoch by two seconds
+
+- **Severity:** low — a one-block error, and only for instants near a block boundary
+- **Scope:** android-only (found while porting the Converter to the Mac, 2026-08-17)
+- **Location:** `FC-AJDK/.../utils/FcDate.java:33` vs `app/.../convert/TimeConvertActivity.java:18`
+- **Problem:** The genesis timestamp is written twice with two values. `FcDate.GENESIS_UNIX_SECONDS = 1577836802L` (the real genesis block time, 2020-01-01 00:00:02 UTC); `TimeConvertActivity.FCH_GENESIS_TIMESTAMP = 1577836800000L` ms (00:00:00). The activity computes `height` from its own constant and then renders that height with `FcDate.fromHeight`, so the two halves of one screen are keyed to epochs two seconds apart. Inside a two-second window at each block boundary the displayed height and the displayed FcDate refer to different blocks, and `convertFromFcDate` → height → timestamp does not return the timestamp it started from.
+- **Fix:** Delete the activity's constant and use `FcDate.GENESIS_UNIX_SECONDS` (× 1000) — or better, let `FcDate` own both directions so the activity does no epoch arithmetic at all. The Mac port keeps the single `FcDate.genesisUnixSeconds` and routes every conversion through it; `testFcDateRoundTripsThroughUnixSeconds` pins the round trip.
+
+---
+
+### C16. The String converter's "UTF-8" line does not decode back to the bytes beside it
+
+- **Severity:** low — misleading output, no data loss
+- **Scope:** android-only (found while porting the Converter to the Mac, 2026-08-17)
+- **Location:** `app/.../convert/StringConvertActivity.java:256`
+- **Problem:** `displayResults` renders the UTF-8 row unconditionally with `new String(bytes)`. For arbitrary binary — which is the normal case, since the input is usually a hex key or a Base58 payload — the platform decoder substitutes U+FFFD for every unmappable sequence. The row is presented as a peer of the Hex/Base58/Base64/Base32 rows and is click-to-copy like them, but copying it yields replacement characters that decode to something else entirely. It reads as "your bytes, as text" and is not.
+- **Fix:** Render the UTF-8 row only when the bytes are valid UTF-8 (decode strictly and omit the row on failure). The Mac port's `StringCodec.renderAll` appends the UTF-8 entry only when `String(data:encoding:.utf8)` succeeds; `testStringCodecOmitsUtf8ForNonTextBytes` covers it.
+
+---
+
+### C17. News search paging sends a `[time, id]` cursor no matter which field the results are sorted by
+
+- **Severity:** medium — pagination silently breaks on four of the five offered sorts
+- **Scope:** android-only (found while porting News to the Mac, 2026-08-18)
+- **Location:** `app/.../manager/FcObjectManager.java:191-217` (`buildSearchFcdsl` + `addSortingToFcdsl`), consumed by `NewsActivity.fetchOlderNewsFromAPI` / `fetchNewerNewsFromAPI`
+- **Problem:** `addSortingToFcdsl` sorts by whatever the user picked in the Sort spinner (`doer` / `objectType` / `act` / `time` / `objectName`, plus an `id` tiebreaker), but the cursor `buildSearchFcdsl` appends is unconditionally `Arrays.asList(String.valueOf(referenceNews.getTime()), referenceNews.getId())`. `search_after` compares its values positionally against the sort keys actually in play, so as soon as the sort is anything but Time the first value is a timestamp being compared against a doer FID or a protocol serial. The user sees More return the wrong page, a repeat of the page they have, or nothing. Only the default Time sort is correct — which is why this survives casual testing.
+- **Fix:** page from the server's own cursor (`fapiClient.getLastResponse().getLast()`), which the response already carries and which always matches the sort in use; failing that, build the cursor from the same fields `addSortingToFcdsl` named. The Mac port's `NewsService.search(...)` takes `after:` straight from `Page.last`, and only the fixed `time, id` browse walk rebuilds a cursor from a row.
+
+---
+
+### C18. The News list renders a selection model and a context action, and neither is wired to anything
+
+- **Severity:** low — dead controls, no data loss
+- **Scope:** android-only (found while porting News to the Mac, 2026-08-18)
+- **Location:** `app/.../home/NewsActivity.java:295` (`new NewsCardContainer(this, newsListContainer, ChooseMode.CHOOSE_MULTI)`), `app/.../utils/NewsCardContainer.java`
+- **Problem:** the container is constructed `CHOOSE_MULTI`, so every card inflates `news_checkbox` and the user can tick rows — but `NewsActivity` never calls `getSelectedNews()`, `removeSelectedNews()` or `selectAll(...)`, so a selection can only ever be discarded. The same holds for the long-press menu: `NewsCardContainer`'s default menu item is "Add doer to list", and `NewsActivity` never calls `setOnMenuItemClickListener`, so choosing it does nothing.
+- **Fix:** either wire the selection and the menu to real actions, or construct with `ChooseMode.WITHOUT_CHOOSE` and drop the menu until there is one. The Mac port ships the doer action for real (a row context menu that opens the contact editor prefilled with the doer's FID) and has no checkboxes, since nothing there is multi-selectable.
+
+---
+
 ## Architecture notes (not bugs, but called out)
 
 ### A1. APIP is being retired

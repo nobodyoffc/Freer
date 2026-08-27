@@ -302,13 +302,14 @@ public class JoinTeamActivity extends BaseCryptoActivity {
         avatarLp.setMarginEnd((int)(12*d));
         avatar.setLayoutParams(avatarLp);
         avatar.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        avatar.setClipToOutline(true);
-        avatar.setBackgroundResource(R.drawable.avatar_background);
-        if (team.getOwner() != null) {
-            Bitmap bmp = AvatarManager.getInstance(this).getAvatarBitmap(team.getOwner());
-            if (bmp != null) { avatar.setImageBitmap(bmp); avatar.setImageTintList(null); }
-            else setDefaultAvatar(avatar, d);
-        } else { setDefaultAvatar(avatar, d); }
+        // A team is a group: the tile is drawn from the team's own id and
+        // carries its own rounded-square corners, so no oval clip.
+        avatar.setClipToOutline(false);
+        avatar.setBackground(null);
+        Bitmap bmp = AvatarManager.getInstance(this)
+                .getGroupAvatarBitmap(team.getId(), team.getOwner(), avatarSize);
+        if (bmp != null) { avatar.setImageBitmap(bmp); avatar.setImageTintList(null); }
+        else setDefaultAvatar(avatar, d);
         card.addView(avatar);
 
         // Content column

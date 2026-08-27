@@ -7,9 +7,14 @@ import android.content.Context;
 import com.fc.fc_ajdk.data.fcData.ContentType;
 import com.fc.fc_ajdk.data.fcData.DeliveryMethod;
 import com.fc.fc_ajdk.data.fcData.ImMessage;
+import com.fc.fc_ajdk.data.fcData.ImMessageBody;
 import com.fc.fc_ajdk.data.fcData.ImType;
 import com.fc.fc_ajdk.data.fcData.MessageStatus;
+import com.fc.fc_ajdk.data.fcData.AlgorithmId;
 import com.fc.fc_ajdk.data.fcData.TalkPartner;
+import com.fc.fc_ajdk.core.crypto.CryptoDataByte;
+import com.fc.fc_ajdk.core.crypto.Decryptor;
+import com.fc.fc_ajdk.core.crypto.Encryptor;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.fapi.client.HomeServiceResolver;
 import com.fc.fc_ajdk.utils.Hex;
@@ -22,6 +27,7 @@ import com.fc.freer.model.Setting;
 import com.fc.freer.utils.ApiCenter;
 
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -38,7 +44,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * binary ImMessage envelope (toWireBytes / fromWireBytes); there is no
  * legacy text fast path.
  *
- * Encryption is provided by the underlying transport (FUDP on every hop).
+ * Encryption depends on the route, because the routes do not all end in the
+ * same place. FUDP_DIRECT is already sender-to-recipient, so the transport is
+ * the encryption. ROAD and DOCK are not: each terminates its FUDP session at a
+ * third party that decrypts the request to do its job — the DOCK verifies a
+ * hash over the plaintext payload, stores it, and serves those bytes back on
+ * fetch. So bodies going out over ROAD or DOCK are sealed to the recipient
+ * first (AsyTwoWay: our prikey + their pubkey), and opened again on arrival.
+ * See {@link BaseHandler} for the full per-route table.
  */
 public class P2pHandler extends BaseHandler {
 
@@ -163,12 +176,38 @@ public class P2pHandler extends BaseHandler {
             }
         }
 
+        // Everything from here leaves the message with a third party — a ROAD
+        // relay or a DOCK server — both of which terminate their own FUDP
+        // session and see the payload. So the body is sealed to the recipient
+        // now. The FUDP_DIRECT attempt above needed none of this: that session
+        // already runs sender-to-recipient.
+        //
+        // A body we cannot seal is not sent in the clear as a fallback. Failing
+        // to encrypt is exactly the bug this closes, and a message that silently
+        // downgrades is worse than one that visibly does not go.
+        //
+        // Only when a third-party route actually exists: with no ROAD and no
+        // DOCK there is nothing to seal for, and sealing first would replace
+        // the accurate "no route" report below with a misleading crypto error.
+        boolean hasRelayRoute = targetDockUrl != null || (useRoad && targetRoadUrl != null);
+        byte[] relayEnvelope = hasRelayRoute ? sealedEnvelope(message, targetFid) : null;
+        if (hasRelayRoute && relayEnvelope == null) {
+            message.setStatus(MessageStatus.FAILED);
+            // Receipts are best-effort background traffic; a toast for one
+            // would be noise the user cannot act on.
+            if (message.getContentType() != ContentType.RECEIPT) {
+                notifyError(context.getString(R.string.im_cannot_encrypt_for_recipient));
+            }
+            TimberLogger.e(TAG, "Refusing to send %s to %s unencrypted", message.getId(), targetFid);
+            return SendResult.FAIL_PERMANENT;
+        }
+
         // 2. Optional ROAD_RELAY.
         if (useRoad && targetRoadUrl != null) {
             FapiClient roadClient = ApiCenter.getInstance().getClient(ApiCenter.ConnectionRole.ROAD);
             if (roadClient != null) {
                 try {
-                    FapiClient.RoadRelayResult result = roadClient.roadRelay(targetFid, envelope, targetRoadUrl);
+                    FapiClient.RoadRelayResult result = roadClient.roadRelay(targetFid, relayEnvelope, targetRoadUrl);
                     if (result != null && result.success()) {
                         message.setDeliveryMethod(DeliveryMethod.ROAD_RELAY);
                         message.setStatus(MessageStatus.SENT);
@@ -196,7 +235,7 @@ public class P2pHandler extends BaseHandler {
         FapiClient ownDockClient = ApiCenter.getInstance().getClient(ApiCenter.ConnectionRole.DOCK);
 
         if (targetDockUrl != null) {
-            if (deliverToDock(targetDockUrl, envelope, message, targetFid, ownDockClient)) {
+            if (deliverToDock(targetDockUrl, relayEnvelope, message, targetFid, ownDockClient)) {
                 return SendResult.SUCCESS;
             }
 
@@ -222,7 +261,7 @@ public class P2pHandler extends BaseHandler {
                         TimberLogger.i(TAG, "Target DOCK changed for %s; retrying with %s", targetFid, freshDock);
                         recipientHome = refreshed;
                         targetDockUrl = freshDock;
-                        if (deliverToDock(freshDock, envelope, message, targetFid, ownDockClient)) {
+                        if (deliverToDock(freshDock, relayEnvelope, message, targetFid, ownDockClient)) {
                             return SendResult.SUCCESS;
                         }
                     }
@@ -338,6 +377,133 @@ public class P2pHandler extends BaseHandler {
         }
     }
 
+    // ========== body encryption ==========
+
+    /**
+     * Seal the body to {@code targetFid} and return the wire bytes to hand to a
+     * third party (a DOCK server or a ROAD relay).
+     * <p>
+     * The FUDP hop to that third party is encrypted, but it terminates there:
+     * the DOCK decrypts the request to store the payload, and hands those exact
+     * bytes back to whoever fetches. So anything travelling this way has to be
+     * sealed to the recipient first, the same way the ROAD path already was.
+     * <p>
+     * The message object keeps its plaintext content — we can obviously read
+     * what we sent, and the sender's own transcript would otherwise show
+     * "[Encrypted]" for their own message. Only the wire copy is sealed.
+     *
+     * @return wire bytes with the body sealed, or null when it could not be
+     *         sealed — callers must treat that as a failure and must NOT fall
+     *         back to sending the plaintext envelope.
+     */
+    private byte[] sealedEnvelope(ImMessage message, String targetFid) {
+        // Nothing to seal: a message with no payload at all -- a typing ping, a
+        // bare presence -- goes as it is.
+        //
+        // v1 also skipped sealing for a STREAM "whose payload rides in
+        // dataBase64", which meant every inline binary went out in the clear.
+        // In v2 both payloads are one body, so this test cannot miss one.
+        if (message.getContent() == null && message.getData() == null) {
+            return message.toWireBytes();
+        }
+
+        if (userPrikey == null) {
+            TimberLogger.e(TAG, "Cannot seal message: no private key for %s", liveFid);
+            return null;
+        }
+        byte[] pubkey = peerPubkey(targetFid);
+        if (pubkey == null) {
+            TimberLogger.e(TAG, "Cannot seal message: no pubkey for %s", targetFid);
+            return null;
+        }
+
+        // Seal on a copy, so the caller's object keeps its plaintext --
+        // notifySent and the local transcript both read that same object, and
+        // the sender cannot reopen an AsyTwoWay bundle to get it back.
+        ImMessage outgoing = ImMessage.fromJson(message.toJson());
+        if (outgoing == null) {
+            TimberLogger.e(TAG, "Cannot seal message %s: could not copy it", message.getId());
+            return null;
+        }
+        boolean selfChat = targetFid.equals(liveFid);
+        if (!ImMessageBody.sealForPeer(outgoing, userPrikey, pubkey, selfChat)) {
+            TimberLogger.e(TAG, "Failed to seal message for %s", targetFid);
+            return null;
+        }
+        try {
+            return outgoing.toWireBytes();
+        } catch (RuntimeException e) {
+            // An over-long field now throws instead of wrapping. v1 truncated
+            // the length and corrupted everything after it.
+            TimberLogger.e(TAG, "Cannot encode message %s: %s", message.getId(), e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Open a sealed body in place. A no-op for anything already readable, so it
+     * is safe on every inbound message whatever route it arrived by -- a
+     * FUDP_DIRECT message carries a plaintext body and simply passes through.
+     */
+    private void openBody(ImMessage message) {
+        if (!message.isSealed()) return;
+        if (userPrikey == null) {
+            TimberLogger.w(TAG, "Cannot open sealed message: no private key for %s", liveFid);
+            return;
+        }
+        if (ImMessageBody.openWithPrikey(message, userPrikey)) {
+            // Once the plaintext is beside it the bundle is redundant, and
+            // keeping it would leave the transcript holding two copies.
+            message.setBody(null);
+        }
+    }
+
+    /**
+     * The recipient's public key, from the cheapest source that has it.
+     * <p>
+     * Cached in the peer book once found: it never changes, and a chain lookup
+     * on every send would put a round trip in front of every message.
+     */
+    private byte[] peerPubkey(String targetFid) {
+        PeerInfo cached = peerBook.get(targetFid);
+        if (cached != null && cached.getPubkey() != null) return cached.getPubkey();
+
+        String hex = null;
+        TalkPartner partner = (talkPartnerProvider != null)
+                ? talkPartnerProvider.getTalkPartner(targetFid) : null;
+        if (partner != null && partner.getPubkey() != null && !partner.getPubkey().isEmpty()) {
+            hex = partner.getPubkey();
+        } else if (fapiClient != null) {
+            try {
+                hex = fapiClient.getPubkey(targetFid);
+            } catch (Exception e) {
+                TimberLogger.w(TAG, "Pubkey lookup failed for %s: %s", targetFid, e.getMessage());
+            }
+        }
+        if (hex == null || hex.isEmpty()) return null;
+
+        byte[] pubkey;
+        try {
+            pubkey = Hex.fromHex(hex);
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "Malformed pubkey for %s: %s", targetFid, e.getMessage());
+            return null;
+        }
+        if (pubkey == null || pubkey.length != 33) return null;
+
+        // Cached directly rather than through updatePeerBook: that also stamps
+        // lastSeen, and learning someone's key off the chain is not a sighting
+        // of them.
+        PeerInfo info = peerBook.get(targetFid);
+        if (info == null) {
+            info = new PeerInfo();
+            info.setFid(targetFid);
+            peerBook.put(targetFid, info);
+        }
+        info.setPubkey(pubkey);
+        return pubkey;
+    }
+
     /**
      * Handle a NOTIFY_ACK from the FUDP layer. The FUDP message id equals the ImMessage hex id.
      */
@@ -357,6 +523,11 @@ public class P2pHandler extends BaseHandler {
     @Override
     public void handleIncoming(ImMessage message) {
         if (message == null) return;
+
+        // Before anything reads getContent(): a receipt is sealed like any
+        // other body, so opening it after the RECEIPT branch would leave
+        // read/delivered receipts permanently unreadable.
+        openBody(message);
 
         if (message.getContentType() == ContentType.RECEIPT) {
             handleReceipt(message);

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
@@ -12,7 +13,7 @@
         android:layout_width="36dp"
         android:layout_height="36dp"
         android:src="@drawable/ic_json"
-        app:tint="@color/accent"
+        app:tint="@color/field_name"
         android:layout_marginEnd="8dp" />
 
     <LinearLayout
@@ -59,34 +60,62 @@
 
     </LinearLayout>
 
-    <FrameLayout
-        android:layout_width="36dp"
-        android:layout_height="36dp"
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
         android:layout_marginStart="8dp">
 
         <ImageButton
-            android:id="@+id/im_hat_play_btn"
+            android:id="@+id/im_hat_download_btn"
             android:layout_width="32dp"
             android:layout_height="32dp"
-            android:layout_gravity="center"
-            android:src="@drawable/ic_play"
+            android:padding="4dp"
+            android:src="@drawable/ic_download"
             android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/open" />
+            android:contentDescription="@string/download" />
 
-        <com.google.android.material.progressindicator.CircularProgressIndicator
-            android:id="@+id/im_hat_download_progress"
+        <FrameLayout
             android:layout_width="36dp"
             android:layout_height="36dp"
-            android:layout_gravity="center"
-            android:visibility="gone"
-            android:clickable="true"
-            android:focusable="true"
-            android:contentDescription="@string/cancel_download"
-            app:indicatorSize="30dp"
-            app:trackThickness="3dp"
-            app:indicatorColor="@color/accent"
-            app:trackColor="@color/hint" />
+            android:layout_marginTop="4dp">
 
-    </FrameLayout>
+            <ImageButton
+                android:id="@+id/im_hat_play_btn"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_play"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/open" />
+
+            <com.google.android.material.progressindicator.CircularProgressIndicator
+                android:id="@+id/im_hat_download_progress"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_gravity="center"
+                android:visibility="gone"
+                android:clickable="true"
+                android:focusable="true"
+                android:contentDescription="@string/cancel_download"
+                app:indicatorSize="30dp"
+                app:trackThickness="3dp"
+                app:indicatorColor="@color/accent"
+                app:trackColor="@color/hint" />
+
+            <TextView
+                android:id="@+id/im_hat_download_percent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:text="42%" />
+
+        </FrameLayout>
+
+    </LinearLayout>
 
 </LinearLayout>

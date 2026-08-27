@@ -425,6 +425,14 @@ public class MailActivity extends BaseCryptoActivity {
     private void loadMailCardList() {
         // Initialize the LinearLayout container for mail cards
         LinearLayout mailListContainer = findViewById(R.id.fragment_container);
+
+        // Drop the cards of the previous rendering: a new MailCardContainer starts with an
+        // empty mail list, so leftover views would both duplicate the list and shift every
+        // card out of sync with mailList (which is what setBoundaryIndicator indexes into).
+        if (mailListContainer != null) {
+            mailListContainer.removeAllViews();
+        }
+
         FidManager fidManager = FidManager.getInstance();
         String liveFid = fidManager != null ? fidManager.getLiveFid() : null;
 

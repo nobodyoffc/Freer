@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/background_light"
+    android:padding="4dp"
+    android:elevation="4dp">
+
+    <TextView
+        android:id="@+id/action_copy"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/copy"
+        android:padding="12dp"
+        android:textSize="14sp"
+        android:background="?android:attr/selectableItemBackground" />
+
+    <TextView
+        android:id="@+id/action_resend"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/resend"
+        android:padding="12dp"
+        android:textSize="14sp"
+        android:background="?android:attr/selectableItemBackground" />
+
+    <TextView
+        android:id="@+id/action_delete"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/delete"
+        android:padding="12dp"
+        android:textSize="14sp"
+        android:textColor="@color/red"
+        android:background="?android:attr/selectableItemBackground" />
+
+</LinearLayout>

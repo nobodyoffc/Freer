@@ -20,16 +20,28 @@ public class VoiceMessageHelper {
 
     /**
      * Build an ImMessage from a voice recording result.
-     * For recordings under MAX_INLINE_DATA_SIZE, creates an inline VOICE message.
-     * For larger recordings, returns null (caller should use FileShareHelper for HAT upload).
      *
-     * @return ImMessage with ContentType.VOICE, or null if file is too large for inline
+     * <p>Returns null when the recording will not fit inline, and the caller
+     * must then upload it to a DISK and share it as a HAT. That fallback is
+     * permanent: the real ceiling is whatever the destination DOCK advertises
+     * (see {@link ImMessage#ASSUMED_DOCK_ITEM_LIMIT}), so no content type --
+     * voice included -- can be assumed to always travel inline.
+     *
+     * @param inlineBudget the destination's resolved per-item ceiling in bytes.
+     *                     Pass {@link ImMessage#ASSUMED_DOCK_ITEM_LIMIT} when it
+     *                     is not known; do NOT hard-code a larger number.
+     * @return ImMessage with ContentType.VOICE, or null if it must go to DISK
      */
     public static ImMessage buildVoiceMessage(VoiceRecorder.VoiceRecordResult result,
-                                               ImType imType, String senderId, String targetId) {
+                                               ImType imType, String senderId, String targetId,
+                                               int inlineBudget) {
         File audioFile = result.audioFile;
 
-        if (audioFile.length() > ImMessage.MAX_INLINE_DATA_SIZE) {
+        // Measured against the audio alone, with room left for the envelope,
+        // the body framing and the seal. The authoritative check is on the
+        // encoded envelope at send time; this one only avoids building a
+        // message that is certain to be refused.
+        if (audioFile.length() > inlineBudget - WIRE_OVERHEAD_ALLOWANCE) {
             // Caller should handle HAT upload for large files
             return null;
         }
@@ -37,14 +49,20 @@ public class VoiceMessageHelper {
         byte[] audioBytes = readFile(audioFile);
         if (audioBytes == null) return null;
 
-        String dataBase64 = Base64.encodeToString(audioBytes, Base64.NO_WRAP);
         String metaJson = buildMetaJson(result.durationMs, result.sampleRate);
 
         // Clean up temp file after encoding
         audioFile.delete();
 
-        return ImMessage.createVoice(imType, senderId, targetId, metaJson, dataBase64);
+        return ImMessage.createVoice(imType, senderId, targetId, metaJson, audioBytes);
     }
+
+    /**
+     * Headroom left for the envelope header, the body framing and the seal.
+     * The AsyTwoWay bundle alone is 52 bytes; the rest is ids, timestamps and
+     * the voice metadata JSON.
+     */
+    private static final int WIRE_OVERHEAD_ALLOWANCE = 1024;
 
     /**
      * Build metadata JSON for voice message content field.

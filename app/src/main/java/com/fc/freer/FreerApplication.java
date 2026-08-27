@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class FreerApplication extends Application {
-    public static final String VER = "v2.9";
+    public static final String VER = "v3.1";
 
     public static final int DEFAULT_PAGE_SIZE = 10;
     public static final int MAX_CONTAINER_SIZE =40;
@@ -110,7 +110,9 @@ public class FreerApplication extends Application {
             public void onActivityCreated(android.app.Activity activity, Bundle savedInstanceState) {}
 
             @Override
-            public void onActivityStarted(android.app.Activity activity) {}
+            public void onActivityStarted(android.app.Activity activity) {
+                BackgroundTimeoutManager.onActivityStarted();
+            }
 
             @Override
             public void onActivityResumed(android.app.Activity activity) {
@@ -124,11 +126,12 @@ public class FreerApplication extends Application {
                 if (currentActivity == activity) {
                     currentActivity = null;
                 }
-                BackgroundTimeoutManager.onAppBackground();
             }
 
             @Override
-            public void onActivityStopped(android.app.Activity activity) {}
+            public void onActivityStopped(android.app.Activity activity) {
+                BackgroundTimeoutManager.onActivityStopped();
+            }
 
             @Override
             public void onActivitySaveInstanceState(android.app.Activity activity, Bundle outState) {}

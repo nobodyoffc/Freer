@@ -12,9 +12,17 @@ public class BackgroundTimeoutManager {
 
     private static long lastBackgroundTime = 0;
     private static boolean isInBackground = false;
+    // Number of started (visible) activities. During an in-app transition the new
+    // activity is started BEFORE the old one is stopped, so this count only reaches
+    // zero when the whole app actually leaves the screen (home button, screen off,
+    // task switch). Tracking pause events instead would stamp a "background" time on
+    // every in-app transition, and any transition slower than the timeout (heavy
+    // work in a result callback, a system dialog such as the camera permission
+    // prompt) would spuriously re-lock the app. All counters are updated and read
+    // on the main thread from the activity lifecycle, so plain ints are safe.
+    private static int startedActivities = 0;
     // Number of CheckPasswordActivity instances currently alive (created but not
-    // yet destroyed). Updated on the main thread from the activity lifecycle, and
-    // read on the main thread from launchPasswordCheck, so a plain int is safe.
+    // yet destroyed).
     private static int passwordCheckInstances = 0;
 
     /** Called from CheckPasswordActivity.onCreate. */
@@ -29,13 +37,28 @@ public class BackgroundTimeoutManager {
         }
     }
 
-    public static void onAppBackground() {
+    /** Called from Application.ActivityLifecycleCallbacks.onActivityStarted. */
+    public static void onActivityStarted() {
+        startedActivities++;
+    }
+
+    /** Called from Application.ActivityLifecycleCallbacks.onActivityStopped. */
+    public static void onActivityStopped() {
+        if (startedActivities > 0) {
+            startedActivities--;
+        }
+        if (startedActivities == 0) {
+            onAppBackground();
+        }
+    }
+
+    private static void onAppBackground() {
         if (!isInBackground) {
             lastBackgroundTime = System.currentTimeMillis();
             isInBackground = true;
         }
     }
-    
+
     public static void onAppForeground(Activity activity) {
         if (isInBackground) {
             long currentTime = System.currentTimeMillis();
@@ -62,8 +85,7 @@ public class BackgroundTimeoutManager {
         // Don't stack a second password screen if one is already alive but not the
         // resuming activity. This covers the window where the user has just submitted
         // the password (CheckPasswordActivity is finishing while the underlying
-        // activity resumes) and intermediate screens (QR scanner / camera-permission
-        // dialog) that hand control back after the timeout has elapsed.
+        // activity resumes).
         if (passwordCheckInstances > 0) {
             return;
         }

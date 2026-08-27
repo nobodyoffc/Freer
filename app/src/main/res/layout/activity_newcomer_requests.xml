@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <include layout="@layout/common_toolbar" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_margin="8dp"
+        android:padding="4dp"
+        android:orientation="vertical"
+        android:background="@drawable/container_outline">
+
+        <TextView
+            android:id="@+id/empty_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="24dp"
+            android:gravity="center"
+            android:text="@string/newcomer_requests_loading"
+            android:textColor="@color/hint"
+            android:textSize="14sp" />
+
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/swipe_refresh_layout"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/requests_recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingBottom="8dp" />
+
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+    </LinearLayout>
+    <!-- Summary: liveFid balance, selected newcomer count, and the grand total
+         consumed (count x amount x selected newcomers). All read-only. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/balance"
+            android:textColor="@color/hint"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/balance_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="—"
+            android:textColor="@color/text"
+            android:textSize="12sp" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/newcomer_requests_newcomers"
+            android:textColor="@color/hint"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/newcomer_count_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="0"
+            android:textColor="@color/text"
+            android:textSize="12sp" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/newcomer_requests_total"
+            android:textColor="@color/hint"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/total_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="0"
+            android:textColor="@color/text"
+            android:textStyle="bold"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="2dp"
+            android:text="F"
+            android:textColor="@color/hint"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Inputs: per newcomer we send `count` outputs, each worth `amount`.
+         Defaults: count 3 (so a newcomer can act without waiting for a
+         confirmation), amount 1.01 F each. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
+        android:gravity="center_vertical|end">
+
+        <EditText
+            android:id="@+id/count_input"
+            android:layout_width="56dp"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:singleLine="true"
+            android:gravity="end"
+            android:textSize="16sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:text="×"
+            android:textColor="@color/hint"
+            android:textSize="16sp" />
+
+        <EditText
+            android:id="@+id/amount_input"
+            android:layout_width="80dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:inputType="numberDecimal"
+            android:singleLine="true"
+            android:gravity="end"
+            android:textSize="16sp" />
+        <TextView
+            android:id="@+id/f"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="end"
+            android:text="F"
+            android:textColor="@color/hint"
+            android:textSize="14sp" />
+
+        <CheckBox
+            android:id="@+id/check_all"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_marginStart="20dp"
+            android:paddingEnd="16dp"
+            android:text="@string/all"
+            android:textSize="14sp"
+            android:textColor="@color/text" />
+    </LinearLayout>
+    <!-- Bottom buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
+        android:gravity="center_vertical|end">
+
+        <ImageButton
+            android:id="@+id/ignore_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_delete"
+            android:contentDescription="@string/newcomer_requests_ignore" />
+
+        <ImageButton
+            android:id="@+id/send_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_send"
+            android:contentDescription="@string/send" />
+
+        <ImageButton
+            android:id="@+id/back_button"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_back"
+            android:contentDescription="@string/back" />
+
+    </LinearLayout>
+
+</LinearLayout>

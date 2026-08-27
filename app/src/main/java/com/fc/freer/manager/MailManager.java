@@ -205,6 +205,19 @@ public class MailManager extends FcManager<Mail> {
 
     @Override
     protected void markEntityAsNew(Mail entity) {
+        if (entity == null) return;
+
+        // Mails sent by the live FID come back from the API as "new" too, but they were
+        // never received, so they must not be flagged as unread: the card of a sent mail
+        // never shows the indicator, and a flag on it would only inflate the unread badge.
+        if (liveFid != null && liveFid.equals(entity.getFrom())) {
+            entity.setUnread(false);
+            if (entityDB != null && entity.getId() != null) {
+                entityDB.removeFromMap(UNREAD_MAP, entity.getId());
+            }
+            return;
+        }
+
         entity.setUnread(true);
         if (entityDB != null && entity.getId() != null) {
             entityDB.putInMap(UNREAD_MAP, entity.getId(), true);
@@ -260,7 +273,34 @@ public class MailManager extends FcManager<Mail> {
 
     public int getUnreadMailCount() {
         if (entityDB == null) return 0;
-        return entityDB.getMapSize(UNREAD_MAP);
+
+        Map<String, Object> unreadMap = entityDB.getAllFromMap(UNREAD_MAP);
+        if (unreadMap == null || unreadMap.isEmpty()) return 0;
+
+        // Drop entries that can never show an unread indicator on a card: mails sent by the
+        // live FID (flagged by older builds) and mails no longer in the database. Without this
+        // the badge would keep counting mails that no card can ever mark as read.
+        List<String> staleIds = new ArrayList<>();
+        int count = 0;
+        for (String id : unreadMap.keySet()) {
+            Mail mail = entityDB.get(id);
+            if (mail == null || (liveFid != null && liveFid.equals(mail.getFrom()))) {
+                if (mail != null && Boolean.TRUE.equals(mail.getUnread())) {
+                    mail.setUnread(false);
+                    entityDB.put(id, mail);
+                }
+                staleIds.add(id);
+                continue;
+            }
+            count++;
+        }
+
+        if (!staleIds.isEmpty()) {
+            entityDB.removeFromMap(UNREAD_MAP, staleIds);
+            commit();
+        }
+
+        return count;
     }
 
     /**

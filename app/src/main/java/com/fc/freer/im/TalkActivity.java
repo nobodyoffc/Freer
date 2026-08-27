@@ -245,6 +245,10 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
         List<String> fidsToResolve = new ArrayList<>();
         for (Conversation conv : all) {
             if (conv.getType() == ImType.P2P) {
+                // The first-FCH board is asked via a direct post, not a chat, so
+                // it never belongs in the conversation list. Skip any leftover
+                // board conversation from an earlier build.
+                if (NobodyBoard.isDefaultNobody(conv.getTargetId())) continue;
                 conversations.add(conv);
                 if ((conv.getDisplayName() == null || conv.getDisplayName().isEmpty())
                         && conv.getTargetId() != null && !conv.getTargetId().isEmpty()) {
@@ -253,7 +257,6 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
             }
         }
 
-        ensureNobodyBoardConversation();
         resolveCidsForConversations(fidsToResolve);
         
         filterConversations(searchEditText.getText().toString());
@@ -264,29 +267,6 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
     
     private void refreshConversations() {
         loadConversations();
-    }
-
-    /**
-     * The default nobody freer is preinstalled as the "First FCH Board" so a
-     * newcomer always has somewhere to ask for their first coins. The entry is
-     * synthesized on each load (not persisted) until a real message creates the
-     * conversation in the DB.
-     */
-    private void ensureNobodyBoardConversation() {
-        for (Conversation conv : conversations) {
-            if (NobodyBoard.isDefaultNobody(conv.getTargetId())) {
-                if (conv.getDisplayName() == null || conv.getDisplayName().isEmpty()) {
-                    conv.setDisplayName(getString(R.string.first_fch_board_name));
-                }
-                return;
-            }
-        }
-        Conversation board = new Conversation();
-        board.setId(ImType.P2P.name() + "_" + NobodyBoard.DEFAULT_NOBODY_FID);
-        board.setType(ImType.P2P);
-        board.setTargetId(NobodyBoard.DEFAULT_NOBODY_FID);
-        board.setDisplayName(getString(R.string.first_fch_board_name));
-        conversations.add(board);
     }
     
     private void filterConversations(String query) {

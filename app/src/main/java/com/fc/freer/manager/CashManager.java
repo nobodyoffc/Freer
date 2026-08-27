@@ -1892,7 +1892,7 @@ public class CashManager {
             return null;
         }
 
-        TimberLogger.i(TAG, "Fetching tx for mainFid: %s with order: %s", liveFid, order);
+        TimberLogger.i(TAG, "Fetching tx for liveFid: %s with order: %s", liveFid, order);
 
         try {
             // Make API request to txHasSearch
@@ -2024,7 +2024,7 @@ public class CashManager {
             return null;
         }
 
-        TimberLogger.i(TAG, "Fetching tx for mainFid: %s, operation: %s", liveFid, operationType);
+        TimberLogger.i(TAG, "Fetching tx for liveFid: %s, operation: %s", liveFid, operationType);
 
         try {
             String order;

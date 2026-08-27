@@ -157,8 +157,9 @@ public abstract class BaseCryptoActivity extends AppCompatActivity {
                 // Set the FID text
                 toolbarFidText.setText(id);
                 
-                // Set up avatar
-                setupToolbarAvatar(toolbarAvatar, liveKeyInfo.getId());
+                // Set up avatar (grayscale marks a nobody FID)
+                boolean isNobody = Boolean.TRUE.equals(liveKeyInfo.getIsNobody());
+                setupToolbarAvatar(toolbarAvatar, liveKeyInfo.getId(), isNobody);
                 
                 // Set up click listener for the avatar to finish current activity and go to HomeActivity
                 toolbarAvatar.setOnClickListener(v -> {
@@ -209,22 +210,29 @@ public abstract class BaseCryptoActivity extends AppCompatActivity {
     /**
      * Sets up the avatar in the toolbar
      */
-    private void setupToolbarAvatar(ImageView avatarView, String fid) {
+    private void setupToolbarAvatar(ImageView avatarView, String fid, boolean isNobody) {
         try {
             TimberLogger.d(TAG, "Setting up toolbar avatar for FID: %s", fid);
-            
+
             // Set initial background while avatar loads
             avatarView.setBackgroundColor(getResources().getColor(R.color.accent, getTheme()));
-            
+
+            // Grayscale marks a nobody FID
+            if (isNobody) {
+                com.fc.freer.im.NobodyBoard.applyNobodyMark(avatarView);
+            } else {
+                com.fc.freer.im.NobodyBoard.clearNobodyMark(avatarView);
+            }
+
             // Get avatar manager instance
             AvatarManager avatarManager = AvatarManager.getInstance(this);
-            
+
             // Get avatar bitmap in background thread to avoid blocking UI
             new Thread(() -> {
                 try {
                     TimberLogger.d(TAG, "Generating avatar bitmap for FID: %s", fid);
                     Bitmap avatarBitmap = avatarManager.getAvatarBitmap(fid);
-                    
+
                     // Update UI on main thread
                     runOnUiThread(() -> {
                         if (avatarBitmap != null && !isFinishing() && !isDestroyed()) {

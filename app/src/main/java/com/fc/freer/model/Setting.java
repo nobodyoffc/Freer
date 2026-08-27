@@ -39,6 +39,9 @@ public class Setting extends BaseSetting implements ClientConfig {
     // Freer-specific constants
     public static final String KEY_PROMOTED_TOP_UP = "promotedTopUp";
     public static final String KEY_PROMOTED_SET_CID = "promotedSetCid";
+    // Set when the user taps "Never" on the server-setup prompt: suppress it permanently
+    // for this identity (unlike "Not now", which only lasts the session).
+    public static final String KEY_SERVER_SETUP_DECLINED = "serverSetupDeclined";
     public static final String KEY_API_PAID_TIME_PREFIX = "apiPaidTime_";
     public static final String KEY_LAST_TEAM_UPDATE_HEIGHT = "lastTeamUpdateHeight";
     public static final String KEY_LAST_GROUP_UPDATE_HEIGHT = "lastGroupUpdateHeight";
@@ -366,6 +369,17 @@ public class Setting extends BaseSetting implements ClientConfig {
 
     public void setLastGroupUpdateHeight(long height) {
         putSetting(KEY_LAST_GROUP_UPDATE_HEIGHT, height);
+    }
+
+    /** Whether the user permanently opted out of the server-setup prompt ("Never"). */
+    public boolean isServerSetupDeclined() {
+        Object v = getStateMap().get(KEY_SERVER_SETUP_DECLINED);
+        if (v instanceof Boolean) return (Boolean) v;
+        return v != null && Boolean.parseBoolean(v.toString());
+    }
+
+    public void setServerSetupDeclined(boolean declined) {
+        getStateMap().put(KEY_SERVER_SETUP_DECLINED, declined);
     }
 
     /**

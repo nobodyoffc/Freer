@@ -189,22 +189,22 @@ public class JoinSquareActivity extends BaseCryptoActivity {
         avatarLp.setMarginEnd((int)(12 * density));
         avatarView.setLayoutParams(avatarLp);
         avatarView.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        avatarView.setClipToOutline(true);
-        avatarView.setBackgroundResource(R.drawable.avatar_background);
+        // No outline clip and no background: a group tile carries its own
+        // rounded-square corners, and the oval would clip them off.
+        avatarView.setClipToOutline(false);
+        avatarView.setBackground(null);
 
         String avatarFid = null;
         if (square.getNamers() != null && !square.getNamers().isEmpty()) {
             avatarFid = square.getNamers().get(square.getNamers().size() - 1);
         }
-        if (avatarFid != null) {
-            AvatarManager avatarManager = AvatarManager.getInstance(this);
-            Bitmap avatarBitmap = avatarManager.getAvatarBitmap(avatarFid);
-            if (avatarBitmap != null) {
-                avatarView.setImageBitmap(avatarBitmap);
-                avatarView.setImageTintList(null);
-            } else {
-                setDefaultAvatar(avatarView, density);
-            }
+        // The tile comes from the square's id; the last namer is only the
+        // badge on it, and an absent one simply leaves the tile unbadged.
+        Bitmap avatarBitmap = AvatarManager.getInstance(this)
+                .getGroupAvatarBitmap(square.getId(), avatarFid, avatarSize);
+        if (avatarBitmap != null) {
+            avatarView.setImageBitmap(avatarBitmap);
+            avatarView.setImageTintList(null);
         } else {
             setDefaultAvatar(avatarView, density);
         }

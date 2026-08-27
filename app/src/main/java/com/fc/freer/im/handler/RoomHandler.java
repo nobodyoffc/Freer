@@ -8,6 +8,7 @@ import com.fc.fc_ajdk.data.fcData.ContentType;
 import com.fc.fc_ajdk.data.fcData.DeliveryMethod;
 import com.fc.fc_ajdk.data.fcData.DockItem;
 import com.fc.fc_ajdk.data.fcData.ImMessage;
+import com.fc.fc_ajdk.data.fcData.ImMessageBody;
 import com.fc.fc_ajdk.data.fcData.ImType;
 import com.fc.fc_ajdk.data.fcData.MessageStatus;
 import com.fc.fc_ajdk.data.fcData.RequestType;
@@ -111,16 +112,25 @@ public class RoomHandler extends BaseHandler {
                 return SendResult.FAIL_PERMANENT;
             }
             
-            String content = message.getContent();
-            String cipher = encrypt(content, symkey);
-            
-            message.setCipher(cipher);
-            message.setContent(null);
-            message.setSymkeyVersion(symkeyStore.getCurrentVersion(roomId));
-            
-            byte[] data = message.toWireBytes();
-            
-            message.setContent(content);
+            // Seal on a copy: the caller's object keeps its plaintext for
+            // notifySent and the local transcript. Both payload sections go
+            // inside the seal together -- v1 sealed `content` only and left an
+            // inline binary readable by the DOCK.
+            ImMessage outgoing = ImMessage.fromJson(message.toJson());
+            if (outgoing == null
+                    || !ImMessageBody.sealWithSymkey(outgoing, symkey, symkeyStore.getCurrentVersion(roomId))) {
+                notifyError("Failed to seal room message");
+                return SendResult.FAIL_PERMANENT;
+            }
+            message.setSymkeyVersion(outgoing.getSymkeyVersion());
+
+            byte[] data;
+            try {
+                data = outgoing.toWireBytes();
+            } catch (RuntimeException e) {
+                notifyError("Message too large to encode: " + e.getMessage());
+                return SendResult.FAIL_PERMANENT;
+            }
             
             java.util.List<String> recipients = new java.util.ArrayList<>();
             recipients.add(roomId);
@@ -185,18 +195,17 @@ public class RoomHandler extends BaseHandler {
         
         String roomId = message.getTargetId();
         
-        if (message.getCipher() != null && message.getContent() == null) {
+        if (message.isSealed()) {
             Long version = message.getSymkeyVersion();
             byte[] symkey = symkeyStore != null
                     ? symkeyStore.getSymkey(roomId, version != null ? version : 1L)
                     : null;
             
             if (symkey != null) {
-                try {
-                    String content = decrypt(message.getCipher(), symkey);
-                    message.setContent(content);
-                } catch (Exception e) {
-                    TimberLogger.w(TAG, "Failed to decrypt room message: %s", e.getMessage());
+                if (ImMessageBody.openWithSymkey(message, symkey)) {
+                    message.setBody(null);
+                } else {
+                    TimberLogger.w(TAG, "Failed to open room message %s", message.getId());
                     message.setContent("[Encrypted - decryption failed]");
                 }
             } else {

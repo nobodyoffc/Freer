@@ -1650,6 +1650,7 @@
     <string name="owner_no_reachable_channels">所有者没有可达的通信通道 (FUDP/ROAD/DOCK)</string>
     <string name="members_no_reachable_channels">%d 位成员没有可达的通信通道</string>
     <string name="im_dock_unresolvable">消息服务器 (DOCK) 不存在或无法解析，消息未能送达。</string>
+    <string name="im_cannot_encrypt_for_recipient">无法为该接收方加密：未找到公钥。对方需要用该 FID 至少花费一次，公钥才会上链。消息未发送——绝不会以明文发送。</string>
     <string name="im_dock_not_configured">该会话未配置消息服务器 (DOCK)，无法发送消息。</string>
     <string name="share_symkey">分享密钥</string>
     <string name="create_room">创建房间</string>
@@ -2349,6 +2350,7 @@
     <string name="server_setup_dock_hint">DOCK 中继的服务 ID 或 URL</string>
     <string name="server_setup_disk_hint">DISK 存储的服务 ID</string>
     <string name="server_setup_need_one">请至少输入一个要注册的服务器</string>
+    <string name="server_setup_not_for_multisig">多签 FID 没有密钥对，无法加密或解密消息，因此无需设置 DOCK/DISK。</string>
     <string name="publishing">发布中…</string>
     <string name="server_setup_registered">服务器注册成功！TX: %s</string>
     <string name="server_setup_failed">注册服务器失败</string>
@@ -2388,7 +2390,32 @@
     <string name="newcomer_requests_no_dock">无法连接求助板的 DOCK 服务器</string>
     <string name="send_fch">发送 FCH</string>
     <string name="newcomer_requests_none_selected">未选择任何求助</string>
+    <string name="newcomer_requests_newcomers">新人</string>
+    <string name="newcomer_requests_total">共计</string>
+    <string name="newcomer_requests_too_many_outputs">钞票数量过多：请减少数量或新人个数</string>
     <string name="ask_first_fch">去首币求助板求助</string>
     <string name="first_fch_request_sent_as">你的消息将作为 %1$s 的首币求助公开发布</string>
+
+    <string name="first_fch_confirm_title">首币求助</string>
+    <string name="first_fch_safety_notice">向一个开放身份发送求助，任何人都可能看到你的求助，等待有人给你发送FCH。</string>
+    <string name="first_fch_note_hint">给好心人留言 (可选)</string>
+    <string name="first_fch_send_failed">发送请求失败，检查网络后重试</string>
+    <string name="first_fch_posted_title">请求已发出</string>
+    <string name="first_fch_posted_message">你的请求已经发布，等待好心人帮助。你可以继续找人给你的FID发币。</string>
+    <string name="newcomer_requests_ignore">忽略</string>
+
+    <string name="server_setup_use_this">使用当前服务器</string>
+    <string name="server_setup_advanced">高级设置…</string>
+    <string name="server_setup_suggest_both">将当前服务器同时用于消息（DOCK）和数据（DISK）吗？</string>
+    <string name="server_setup_suggest_dock_only">将当前服务器用于消息（DOCK）吗？</string>
+    <string name="server_setup_suggest_sid">服务器 SID：\n%1$s</string>
+    <string name="refreshed">已刷新</string>
+    <string name="failed_to_refresh">刷新失败</string>
+    <string name="warning">警告</string>
+    <string name="send_anyway">仍然发送</string>
+    <string name="nobody_recipient_warning">以下收款人的私钥已在链上公开，发送到该地址的任何资金都可能被任何人取走：\n\n%1$s\n\n仍然发送吗？</string>
+    <string name="consensus_doc_hint">选择一个数据文档或输入其 DID</string>
+    <string name="consensus_doc_not_local">所选的共识文档在本地不可用，请先在“数据”中添加。</string>
+    <string name="server_setup_never">不再提示</string>
 
 </resources>

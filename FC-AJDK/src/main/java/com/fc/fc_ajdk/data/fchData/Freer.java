@@ -112,7 +112,10 @@ public class Freer extends FcSubject {
      */
     public static LinkedHashMap<String, Map<String, String>> getFieldNameMap() {
         LinkedHashMap<String, Map<String, String>> fieldMap = new LinkedHashMap<>();
-        
+
+        // Add FcSubject fields (cid, pubkey, usedCids, isNobody) first
+        fieldMap.putAll(FcSubject.getFieldNameMap());
+
         // Add Freer fields (lines 32-58)
         addFieldToMap(fieldMap, "prikey", "Prikey", "私钥");
         addFieldToMap(fieldMap, "balance", "Balance", "余额");

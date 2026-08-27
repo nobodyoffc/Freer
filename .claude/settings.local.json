@@ -55,7 +55,19 @@
       "Bash(awk -F: '{print $1}')",
       "Bash(perl -i -pe 's{^\\(\\\\s*\\)\\(fapiClient|homeClient|client\\)\\\\.setAutoRechargeInfo\\\\\\(\\(mainFid|fid\\), \\(currentSetting|setting\\)::decryptPrikey\\\\\\);$}{$1$2.setAutoRechargeInfo\\($3, $4::decryptPrikey\\);\\\\n$1$2.setUtxoProvider\\(CashManager.UTXO_PROVIDER\\);}' app/src/main/java/com/fc/freer/utils/ApiCenter.java app/src/main/java/com/fc/freer/initiate/ClientGroup.java)",
       "Bash(awk '/private \\(static \\)?void bindHatCard/,/^        \\\\}/' /Users/liuchangyong/AndroidStudioProjects/Freer/app/src/main/java/com/fc/freer/im/adapter/MessageAdapter.java)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(xargs -I{} grep -n \"class Base58\\\\|checksum\\\\|public static\" {})",
+      "Bash(pip3 list *)",
+      "Bash(pip3 install *)",
+      "Bash(sort -t P -k2 -n)",
+      "Bash(mvn -q compile -DskipTests)",
+      "Bash(mvn -q -o compile)",
+      "Bash(mvn -q compile)",
+      "Bash(mvn compile *)",
+      "Bash(echo \"mvn exit=$?\")",
+      "Read(//tmp/**)",
+      "Bash(mvn -q test -Dtest=MessageFrameAssemblerTest -DfailIfNoTests=false)",
+      "Bash(mvn -q test-compile)"
     ],
     "deny": [],
     "ask": []

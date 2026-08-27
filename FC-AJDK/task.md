@@ -1,25 +1,19 @@
 # task
-欢迎来到自由宇宙！
-
-飞人APP还在测试中，暂时没有说明书，有问题可以问我。
-
-你可以在广场里点击加号按钮，搜‘People Square’，加入进去。里面有一些人。
-
-你需要设置自己的消息接受服务器（DOCK），应该会自动弹窗，默认是你当前的基础信息服务器，可以不用改。设置后之后，别人才能给你发信息。
-
-不过，你随时可以通过密信（Mail）跟任何链上的人加密通信，就像这封信一样。
-
-我没有试过。视频文件应该是可以的。不过，太大的话，可能时间非常长。
-
-
-[] 1. 发送交易设置dock后不应该再显示设置dock提示；2. 注册cid后，设置dock失败，确认后才恢复。3. set master 'no enough CD.'
+[x] 首身份自动生成
+[x] 首币自动拆分3个
+[x] DISK/DOCK自动注册
+春花秋月何时了
+[] 需要做一个协议、代码、服务、应用管理版本系统
+[] 发送交易设置dock后不应该再显示设置dock提示；
+[x] 注册cid后，设置dock失败，确认后才恢复。
+[] set master 'no enough CD.'
 [x] search in usedCids
 [] token
 [] publish codes.
-[] make up nerve server
 [] update services
-[] add disk mirror and dock mirror.
+[x] add disk mirror mirror.
 [] create APIP protocol
+[x] make up nerve server
 [x] bitcore to freer, safe, freer/safe mac.
 [x] upload server programs
 [x] publish APPs

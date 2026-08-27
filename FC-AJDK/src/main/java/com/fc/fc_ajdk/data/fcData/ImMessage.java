@@ -1,7 +1,9 @@
 package com.fc.fc_ajdk.data.fcData;
 
 import com.fc.fc_ajdk.utils.JsonUtils;
+import com.google.gson.annotations.JsonAdapter;
 
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -29,8 +31,23 @@ public class ImMessage extends FcEntity {
     
     // Content
     private ContentType contentType; // TEXT, HAT, STREAM, SYMKEY, MEMBERS, HISTORY, etc.
-    private String content;        // Text or HAT JSON or request/response data
-    private String dataBase64;     // Binary data as Base64 (for small payloads)
+    /**
+     * Text, HAT JSON, or request/response data. On the wire this is the FIRST
+     * SECTION OF THE BODY, not a field of its own -- see toWireBytes().
+     */
+    private String content;
+    /**
+     * Inline binary payload -- audio, an attachment, a wrapped key.
+     *
+     * <p>Raw bytes, not Base64. v1 carried this as a Base64 string because the
+     * wire had no way to express bytes; v2's body framing does, so the +33% is
+     * gone. Local JSON still writes it Base64 (FIMP0V2 s7) via the adapter.
+     *
+     * <p>Whether a payload may travel inline at all is a property of the
+     * DESTINATION, not a constant -- see ASSUMED_DOCK_ITEM_LIMIT.
+     */
+    @JsonAdapter(Base64BytesAdapter.class)
+    private byte[] data;
     
     // For REQUEST/RESPONSE types
     private RequestType requestType;
@@ -45,8 +62,18 @@ public class ImMessage extends FcEntity {
     private Long readAt;
     
     // Encryption (for team/room/p2p)
-    private String cipher;         // Encrypted content
-    private Long symkeyVersion;    // Which version of symkey was used (team/room)
+    /**
+     * The sealed body -- a binary CryptoDataByte bundle (see toBundle()).
+     *
+     * <p>Replaces v1's `cipher`, and the replacement is the point of the
+     * version break: v1 sealed `content` and left `dataBase64` beside it in the
+     * clear, so a voice note travelled with its metadata encrypted and its
+     * audio readable by the DOCK operator. Here the seal covers content AND
+     * data together, so that state cannot be built.
+     */
+    @JsonAdapter(Base64BytesAdapter.class)
+    private byte[] body;
+    private Long symkeyVersion;    // Which version of symkey sealed `body`
     
     // Threading
     private String replyToId;      // For replies/threading
@@ -63,26 +90,50 @@ public class ImMessage extends FcEntity {
     // ========== Size threshold ==========
 
     /**
-     * Maximum data size (in bytes) that can be sent inline as a message.
-     * Data at or below this size is sent inline (STREAM for P2P, toWireBytes for DOCK).
-     * Data above this size must be uploaded to DISK and shared as a HAT reference.
-     * Value: 900 KB -- provides 100 KB headroom below DOCK server's 1 MB limit.
+     * What to assume a DOCK will accept per item when its service record does
+     * not say -- FAPI13's own DEFAULT_MAX_DATA_SIZE.
+     *
+     * <p>This is a FLOOR TO FALL BACK ON, NOT A LIMIT TO ENFORCE. The real
+     * ceiling is whatever the destination DOCK advertises as `maxDataSize` in
+     * its on-chain service record, and it varies by operator. Resolve it per
+     * destination and measure the ENCODED ENVELOPE against that.
+     *
+     * <p>v1 had a fixed MAX_INLINE_DATA_SIZE of 900 KB here, justified by an
+     * assumed 1 MB server limit that does not exist. The server's default is
+     * this value -- 14x smaller -- so inline binary failed long before the
+     * documented limit, and the failure looked like a wire bug.
      */
-    public static final int MAX_INLINE_DATA_SIZE = 900 * 1024;
+    public static final int ASSUMED_DOCK_ITEM_LIMIT = 64 * 1024;
 
     // ========== Wire format constants ==========
-    
+
+    /**
+     * FIMP magic, then the wire version -- the first two bytes of every v2
+     * envelope.
+     *
+     * <p>The magic byte is load-bearing, not decoration. A v1 envelope opens
+     * with the ImType ordinal, a value in 0..3, so a bare version byte of 2 is
+     * indistinguishable from a v1 TEAM message: a v2 reader would parse legacy
+     * team traffic as v2 and misparse it silently instead of rejecting it.
+     * 0xF1 cannot occur as a v1 first byte, so rejection is deterministic in
+     * both directions.
+     */
+    public static final byte WIRE_MAGIC = (byte) 0xF1;
+    public static final byte WIRE_VERSION = (byte) 0x02;
+
+    /** Shortest legal encoding: magic, version, header, empty ids, no flags. */
+    private static final int WIRE_HEADER_SIZE = 16;
+
     // 2-byte flags for optional wire fields
-    private static final int FLAG_CONTENT         = 0x0001;
-    private static final int FLAG_DATA_BASE64     = 0x0002;
-    private static final int FLAG_CIPHER          = 0x0004;
-    private static final int FLAG_SYMKEY_VERSION  = 0x0008;
-    private static final int FLAG_REQUEST_TYPE    = 0x0010;
-    private static final int FLAG_REQUEST_ID      = 0x0020;
-    private static final int FLAG_REPLY_TO_ID     = 0x0040;
-    private static final int FLAG_THREAD_ID       = 0x0080;
-    private static final int FLAG_MESSAGE_ID     = 0x0100;
-    // bits 9-15 reserved
+    private static final int FLAG_BODY            = 0x0001;
+    private static final int FLAG_BODY_SEALED     = 0x0002;
+    private static final int FLAG_SYMKEY_VERSION  = 0x0004;
+    private static final int FLAG_REQUEST_TYPE    = 0x0008;
+    private static final int FLAG_REQUEST_ID      = 0x0010;
+    private static final int FLAG_REPLY_TO_ID     = 0x0020;
+    private static final int FLAG_THREAD_ID       = 0x0040;
+    private static final int FLAG_MESSAGE_ID      = 0x0080;
+    // bits 8-15 reserved
     
     // ========== ID helpers ==========
 
@@ -150,13 +201,13 @@ public class ImMessage extends FcEntity {
     
     /**
      * Create a STREAM message for inline binary data sharing.
-     * Content holds metadata JSON (name, size, type); dataBase64 holds the payload.
+     * Content holds metadata JSON (name, size, type); data holds the raw payload.
      */
     public static ImMessage createStream(ImType type, String senderId, String targetId,
-                                          String metaJson, String dataBase64) {
+                                          String metaJson, byte[] data) {
         ImMessage msg = createBase(type, senderId, targetId, ContentType.STREAM);
         msg.setContent(metaJson);
-        msg.setDataBase64(dataBase64);
+        msg.setData(data);
         msg.setUnread(false);
         return msg;
     }
@@ -283,27 +334,27 @@ public class ImMessage extends FcEntity {
     /**
      * Create a voice message for inline audio.
      * Content holds metadata JSON: {"durationMs":..., "sampleRate":..., "format":"aac"}
-     * dataBase64 holds the AAC audio payload as Base64.
+     * data holds the raw AAC audio payload.
      */
     public static ImMessage createVoice(ImType type, String senderId, String targetId,
-                                         String metaJson, String dataBase64) {
+                                         String metaJson, byte[] data) {
         ImMessage msg = createBase(type, senderId, targetId, ContentType.VOICE);
         msg.setContent(metaJson);
-        msg.setDataBase64(dataBase64);
+        msg.setData(data);
         msg.setUnread(false);
         return msg;
     }
 
     /**
      * Create a history push message (proactive sharing of message history).
-     * Content holds the HAT reference JSON for the history file; dataBase64 holds
+     * Content holds the HAT reference JSON for the history file; data holds
      * the kCipher (symkey encrypted with receiver's pubkey) if encrypted.
      */
     public static ImMessage createHistory(ImType type, String senderId, String targetId,
-                                           String hatJson, String kCipherBase64) {
+                                           String hatJson, byte[] kCipher) {
         ImMessage msg = createBase(type, senderId, targetId, ContentType.HISTORY);
         msg.setContent(hatJson);
-        msg.setDataBase64(kCipherBase64);
+        msg.setData(kCipher);
         return msg;
     }
     
@@ -339,37 +390,60 @@ public class ImMessage extends FcEntity {
     }
     
     // ========== Binary wire serialization ==========
-    
+
     /**
-     * Serialize to compact binary format for network transmission.
-     * Only includes fields needed by the recipient; local-only state is excluded.
+     * Serialize to the FIMP v2 compact binary envelope.
      *
-     * Format:
-     *   type(1) + contentType(1) + senderId(lenPfx) + targetId(lenPfx)
-     *   + timestamp(8) + flags(2) + [optional fields based on flags]
+     * <pre>
+     *   magic(1)=0xF1 version(1)=0x02
+     *   type(1) contentType(1)
+     *   senderId(lenPfx8) targetId(lenPfx8)
+     *   timestamp(8) flags(2)
+     *   [body(lenPfx32)]
+     *   [symkeyVersion(4)] [requestType(1)]
+     *   [requestId] [replyToId] [threadId] [id]   -- each lenPfx16
+     * </pre>
+     *
+     * <p><b>One private field.</b> `content` and `data` are not fields here at
+     * all: they are framed together into the body (see bodyFraming()), and it
+     * is that framing the mode's cipher seals. v1 had three payload fields and
+     * sealed one of them, which is how a voice note shipped with encrypted
+     * metadata and cleartext audio. With a single field the rule is "seal the
+     * body", and the half-sealed state has no encoding.
+     *
+     * <p><b>A length that does not fit now throws.</b> v1 wrote every payload
+     * length with putShort(), which silently wrapped past 65535 and corrupted
+     * every field after it. That is the failure this version exists to end, so
+     * an over-long field is an exception, never a truncation.
+     *
+     * @throws IllegalStateException if a field cannot be length-prefixed
      */
     public byte[] toWireBytes() {
-        int flags = 0;
-        byte[] contentBytes = null;
-        byte[] dataB64Bytes = null;
-        byte[] cipherBytes = null;
+        // A sealed body is carried as-is; an unsealed one is framed here.
+        //
+        // EMPTY COUNTS AS ABSENT. The framing records a length, not a presence,
+        // so a zero-length section reads back as null and cannot read back as
+        // "". Encoding an empty payload as an 8-byte all-zero framing would
+        // make the round trip unstable: decode would yield null, and
+        // re-encoding would emit no body at all.
+        byte[] wireBody;
+        boolean sealed = body != null && body.length > 0;
+        if (sealed) {
+            wireBody = body;
+        } else if ((content != null && !content.isEmpty()) || (data != null && data.length > 0)) {
+            wireBody = bodyFraming();
+        } else {
+            wireBody = null;
+        }
+
+        byte[] requestIdBytes = null;
         byte[] replyToIdBytes = null;
         byte[] threadIdBytes = null;
-        byte[] requestIdBytes = null;
         byte[] messageIdBytes = null;
 
-        if (content != null) {
-            flags |= FLAG_CONTENT;
-            contentBytes = content.getBytes(StandardCharsets.UTF_8);
-        }
-        if (dataBase64 != null) {
-            flags |= FLAG_DATA_BASE64;
-            dataB64Bytes = dataBase64.getBytes(StandardCharsets.UTF_8);
-        }
-        if (cipher != null) {
-            flags |= FLAG_CIPHER;
-            cipherBytes = cipher.getBytes(StandardCharsets.UTF_8);
-        }
+        int flags = 0;
+        if (wireBody != null) flags |= FLAG_BODY;
+        if (sealed) flags |= FLAG_BODY_SEALED;
         if (symkeyVersion != null) flags |= FLAG_SYMKEY_VERSION;
         if (requestType != null) flags |= FLAG_REQUEST_TYPE;
         if (requestId != null) {
@@ -391,16 +465,21 @@ public class ImMessage extends FcEntity {
 
         byte[] senderIdBytes = senderId != null ? senderId.getBytes(StandardCharsets.UTF_8) : new byte[0];
         byte[] targetIdBytes = targetId != null ? targetId.getBytes(StandardCharsets.UTF_8) : new byte[0];
+        checkLen8(senderIdBytes, "senderId");
+        checkLen8(targetIdBytes, "targetId");
+        checkLen16(requestIdBytes, "requestId");
+        checkLen16(replyToIdBytes, "replyToId");
+        checkLen16(threadIdBytes, "threadId");
+        checkLen16(messageIdBytes, "id");
 
-        int size = 1 + 1                                       // type + contentType
-                + 1 + senderIdBytes.length                     // lenPfx senderId
-                + 1 + targetIdBytes.length                     // lenPfx targetId
+        int size = 1 + 1                                       // magic + version
+                + 1 + 1                                        // type + contentType
+                + 1 + senderIdBytes.length
+                + 1 + targetIdBytes.length
                 + 8                                            // timestamp
-                + 2;                                           // flags (2 bytes)
+                + 2;                                           // flags
 
-        if (contentBytes != null) size += 2 + contentBytes.length;
-        if (dataB64Bytes != null) size += 2 + dataB64Bytes.length;
-        if (cipherBytes != null) size += 2 + cipherBytes.length;
+        if (wireBody != null) size += 4 + wireBody.length;
         if (symkeyVersion != null) size += 4;
         if (requestType != null) size += 1;
         if (requestIdBytes != null) size += 2 + requestIdBytes.length;
@@ -409,6 +488,8 @@ public class ImMessage extends FcEntity {
         if (messageIdBytes != null) size += 2 + messageIdBytes.length;
 
         ByteBuffer buf = ByteBuffer.allocate(size);
+        buf.put(WIRE_MAGIC);
+        buf.put(WIRE_VERSION);
         buf.put((byte) (type != null ? type.ordinal() : 0));
         buf.put((byte) (contentType != null ? contentType.ordinal() : 0));
         writeLenPfx8(buf, senderIdBytes);
@@ -416,9 +497,10 @@ public class ImMessage extends FcEntity {
         buf.putLong(timestamp != null ? timestamp : 0L);
         buf.putShort((short) flags);
 
-        if (contentBytes != null) writeLenPfx16(buf, contentBytes);
-        if (dataB64Bytes != null) writeLenPfx16(buf, dataB64Bytes);
-        if (cipherBytes != null) writeLenPfx16(buf, cipherBytes);
+        if (wireBody != null) {
+            buf.putInt(wireBody.length);
+            buf.put(wireBody);
+        }
         if (symkeyVersion != null) buf.putInt(symkeyVersion.intValue());
         if (requestType != null) buf.put((byte) requestType.ordinal());
         if (requestIdBytes != null) writeLenPfx16(buf, requestIdBytes);
@@ -430,46 +512,169 @@ public class ImMessage extends FcEntity {
     }
 
     /**
-     * Deserialize from compact binary wire format.
-     * If the wire data includes a message ID (FLAG_MESSAGE_ID), it is restored.
-     * Otherwise the caller should set the ID externally (from FUDP message ID or ROAD/DOCK header).
+     * Deserialize a FIMP v2 envelope.
+     *
+     * <p>A sealed body lands in `body` and stays sealed; `content` and `data`
+     * are populated only once something opens it. An unsealed body is unframed
+     * here and there is nothing left to open.
+     *
+     * <p>If the wire data includes a message ID (FLAG_MESSAGE_ID) it is
+     * restored; otherwise the caller sets it from the FUDP message ID or the
+     * ROAD/DOCK header.
+     *
+     * @throws IllegalArgumentException on anything that is not a v2 envelope
      */
-    public static ImMessage fromWireBytes(byte[] data) {
-        if (data == null || data.length < 14) {
+    public static ImMessage fromWireBytes(byte[] wire) {
+        if (wire == null || wire.length < WIRE_HEADER_SIZE) {
             throw new IllegalArgumentException("Wire data too short");
         }
-        ByteBuffer buf = ByteBuffer.wrap(data);
+        ByteBuffer buf = ByteBuffer.wrap(wire);
         ImMessage msg = new ImMessage();
 
-        int typeOrd = buf.get() & 0xFF;
-        if (typeOrd < ImType.values().length) msg.setType(ImType.values()[typeOrd]);
-
-        int ctOrd = buf.get() & 0xFF;
-        if (ctOrd < ContentType.values().length) msg.setContentType(ContentType.values()[ctOrd]);
-
-        msg.setSenderId(readLenPfx8(buf));
-        msg.setTargetId(readLenPfx8(buf));
-        msg.setTimestamp(buf.getLong());
-
-        int flags = buf.getShort() & 0xFFFF;
-
-        if ((flags & FLAG_CONTENT) != 0) msg.setContent(readLenPfx16(buf));
-        if ((flags & FLAG_DATA_BASE64) != 0) msg.setDataBase64(readLenPfx16(buf));
-        if ((flags & FLAG_CIPHER) != 0) msg.setCipher(readLenPfx16(buf));
-        if ((flags & FLAG_SYMKEY_VERSION) != 0) msg.setSymkeyVersion((long) buf.getInt());
-        if ((flags & FLAG_REQUEST_TYPE) != 0) {
-            int rtOrd = buf.get() & 0xFF;
-            if (rtOrd < RequestType.values().length) msg.setRequestType(RequestType.values()[rtOrd]);
+        byte magic = buf.get();
+        byte version = buf.get();
+        if (magic != WIRE_MAGIC) {
+            // A v1 envelope opens with the ImType ordinal, so a first byte in
+            // 0..3 is almost certainly one -- worth saying, because "not a FIMP
+            // envelope" would be misleading for the one case that really is.
+            if ((magic & 0xFF) <= 3) {
+                throw new IllegalArgumentException(
+                        "Looks like a FIMP v1 envelope -- v2 does not read v1, and there is no negotiation");
+            }
+            throw new IllegalArgumentException(
+                    String.format("Not a FIMP envelope (first byte 0x%02x, expected 0xf1)", magic & 0xFF));
         }
-        if ((flags & FLAG_REQUEST_ID) != 0) msg.setRequestId(readLenPfx16(buf));
-        if ((flags & FLAG_REPLY_TO_ID) != 0) msg.setReplyToId(readLenPfx16(buf));
-        if ((flags & FLAG_THREAD_ID) != 0) msg.setThreadId(readLenPfx16(buf));
-        if ((flags & FLAG_MESSAGE_ID) != 0) msg.setId(readLenPfx16(buf));
+        if (version != WIRE_VERSION) {
+            throw new IllegalArgumentException("Unsupported FIMP wire version " + (version & 0xFF));
+        }
+
+        try {
+            int typeOrd = buf.get() & 0xFF;
+            if (typeOrd < ImType.values().length) msg.setType(ImType.values()[typeOrd]);
+
+            int ctOrd = buf.get() & 0xFF;
+            if (ctOrd < ContentType.values().length) msg.setContentType(ContentType.values()[ctOrd]);
+
+            msg.setSenderId(readLenPfx8(buf));
+            msg.setTargetId(readLenPfx8(buf));
+            msg.setTimestamp(buf.getLong());
+
+            int flags = buf.getShort() & 0xFFFF;
+
+            if ((flags & FLAG_BODY) != 0) {
+                int length = buf.getInt();
+                if (length < 0 || length > buf.remaining()) {
+                    throw new IllegalArgumentException("Body length " + length + " exceeds the envelope");
+                }
+                byte[] raw = new byte[length];
+                buf.get(raw);
+                if ((flags & FLAG_BODY_SEALED) != 0) {
+                    msg.setBody(raw);
+                } else {
+                    msg.applyBodyFraming(raw);
+                }
+            } else if ((flags & FLAG_BODY_SEALED) != 0) {
+                throw new IllegalArgumentException("bodySealed flag with no body");
+            }
+            // Sign-extended, as v1 did: the field is a Long that the wire
+            // carries in 32 bits, so a version past 2^31 arrives negative.
+            if ((flags & FLAG_SYMKEY_VERSION) != 0) msg.setSymkeyVersion((long) buf.getInt());
+            if ((flags & FLAG_REQUEST_TYPE) != 0) {
+                int rtOrd = buf.get() & 0xFF;
+                if (rtOrd < RequestType.values().length) msg.setRequestType(RequestType.values()[rtOrd]);
+            }
+            if ((flags & FLAG_REQUEST_ID) != 0) msg.setRequestId(readLenPfx16(buf));
+            if ((flags & FLAG_REPLY_TO_ID) != 0) msg.setReplyToId(readLenPfx16(buf));
+            if ((flags & FLAG_THREAD_ID) != 0) msg.setThreadId(readLenPfx16(buf));
+            if ((flags & FLAG_MESSAGE_ID) != 0) msg.setId(readLenPfx16(buf));
+        } catch (BufferUnderflowException e) {
+            throw new IllegalArgumentException("Wire data ended mid-field", e);
+        }
 
         return msg;
     }
 
+    // ========== Body framing ==========
+
+    /**
+     * The plaintext layout inside the body:
+     * {@code contentLen(4) | content | dataLen(4) | data}.
+     *
+     * <p>Both sections are always framed; an absent one is a zero length. This
+     * is what a cipher seals, and what it returns on opening -- so the two
+     * payloads are inside or outside the seal TOGETHER, never one without the
+     * other.
+     */
+    public byte[] bodyFraming() {
+        byte[] contentBytes = content != null ? content.getBytes(StandardCharsets.UTF_8) : new byte[0];
+        byte[] dataBytes = data != null ? data : new byte[0];
+        ByteBuffer buf = ByteBuffer.allocate(4 + contentBytes.length + 4 + dataBytes.length);
+        buf.putInt(contentBytes.length);
+        buf.put(contentBytes);
+        buf.putInt(dataBytes.length);
+        buf.put(dataBytes);
+        return buf.array();
+    }
+
+    /**
+     * Unframe a body into `content` and `data`.
+     *
+     * <p>A zero-length section reads back as null, not as ""/empty: the framing
+     * cannot tell absent from empty, and every producer of an empty section
+     * means absent.
+     */
+    public void applyBodyFraming(byte[] framing) {
+        if (framing == null || framing.length < 8) {
+            throw new IllegalArgumentException("Body framing too short");
+        }
+        ByteBuffer buf = ByteBuffer.wrap(framing);
+        try {
+            int contentLength = buf.getInt();
+            if (contentLength < 0 || contentLength > buf.remaining()) {
+                throw new IllegalArgumentException(
+                        "Body content length " + contentLength + " exceeds the framing");
+            }
+            byte[] contentBytes = new byte[contentLength];
+            buf.get(contentBytes);
+
+            int dataLength = buf.getInt();
+            if (dataLength < 0 || dataLength > buf.remaining()) {
+                throw new IllegalArgumentException(
+                        "Body data length " + dataLength + " exceeds the framing");
+            }
+            byte[] dataBytes = new byte[dataLength];
+            buf.get(dataBytes);
+
+            this.content = contentLength == 0 ? null : new String(contentBytes, StandardCharsets.UTF_8);
+            this.data = dataLength == 0 ? null : dataBytes;
+        } catch (BufferUnderflowException e) {
+            throw new IllegalArgumentException("Body framing ended mid-field", e);
+        }
+    }
+
+    /**
+     * Whether this message is still sealed to us -- a body we hold but have not
+     * opened. The cue for a locked row in the transcript, and for asking the
+     * group for the key version it names.
+     */
+    public boolean isSealed() {
+        return content == null && (data == null || data.length == 0)
+                && body != null && body.length > 0;
+    }
+
     // Wire format helpers
+
+    private static void checkLen8(byte[] value, String field) {
+        if (value != null && value.length > 0xFF) {
+            throw new IllegalStateException(field + " exceeds the 255-byte length prefix");
+        }
+    }
+
+    private static void checkLen16(byte[] value, String field) {
+        if (value != null && value.length > 0xFFFF) {
+            throw new IllegalStateException(field + " exceeds the 65535-byte length prefix");
+        }
+    }
 
     private static void writeLenPfx8(ByteBuffer buf, byte[] data) {
         buf.put((byte) (data != null ? data.length : 0));
@@ -496,7 +701,7 @@ public class ImMessage extends FcEntity {
         buf.get(bytes);
         return new String(bytes, StandardCharsets.UTF_8);
     }
-    
+
     // ========== Getters and setters ==========
     
     public ImType getType() {
@@ -555,12 +760,12 @@ public class ImMessage extends FcEntity {
         this.content = content;
     }
     
-    public String getDataBase64() {
-        return dataBase64;
+    public byte[] getData() {
+        return data;
     }
-    
-    public void setDataBase64(String dataBase64) {
-        this.dataBase64 = dataBase64;
+
+    public void setData(byte[] data) {
+        this.data = data;
     }
     
     public RequestType getRequestType() {
@@ -627,12 +832,12 @@ public class ImMessage extends FcEntity {
         this.readAt = readAt;
     }
     
-    public String getCipher() {
-        return cipher;
+    public byte[] getBody() {
+        return body;
     }
-    
-    public void setCipher(String cipher) {
-        this.cipher = cipher;
+
+    public void setBody(byte[] body) {
+        this.body = body;
     }
     
     public Long getSymkeyVersion() {

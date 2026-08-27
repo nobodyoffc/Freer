@@ -130,6 +130,23 @@ public class TxSender {
         }
     }
 
+    /**
+     * Resolves the Multisig info of a sender FID.
+     * A multisig (P2SH) FID owns no private key of its own, so its transactions
+     * have to be built with the Multisig info and signed by the cosigners.
+     *
+     * @param sender The sender FID
+     * @return The Multisig of the sender, or null if the sender is not multisig
+     *         or its Multisig info is unknown locally
+     */
+    public static Multisig getMultisigOfSender(String sender) {
+        if (sender == null || !sender.startsWith("3")) return null;
+        FidManager fidManager = FidManager.getInstance();
+        if (fidManager == null) return null;
+        KeyInfo keyInfo = fidManager.getKeyInfoByFid(sender);
+        return keyInfo == null ? null : keyInfo.getMultisign();
+    }
+
     public void carveFeipWithRecipient(
             Context context,
             String sender,
@@ -249,15 +266,27 @@ public class TxSender {
 
             Long requestedCd = requiredCd;
 
+            // A multisig FID has no prikey of its own; resolve its Multisig info
+            // so the tx is built for the cosigners instead of failing to sign.
+            Multisig senderMultisig = (multisig != null) ? multisig : getMultisigOfSender(sender);
+            if (senderMultisig == null && sender.startsWith("3")) {
+                dismissWaitingDialog(context);
+                if (callback != null) {
+                    callback.onError(context.getString(R.string.failed_to_get_multisign_info_for_fid) + ": " + sender);
+                }
+                return;
+            }
+
             new Thread(() -> {
                 try {
                     // Resolve the effective CD on the worker thread: getBestHeight()
                     // is a network call and returns null when invoked on the main
                     // thread, which used to skip the below-CDD_CHECK_HEIGHT waiver
                     // and fail fresh FIDs with "No enough CD".
-                    Long finalRequiredCd = Feip.getRequiredCd(fapiClient.getBestHeight(), requestedCd);
+                    Long bestHeight = (fapiClient != null) ? fapiClient.getBestHeight() : null;
+                    Long finalRequiredCd = Feip.getRequiredCd(bestHeight, requestedCd);
                     sendTxInternal(context, sender, outputs, opReturn, finalRequiredCd, feeRate,
-                            multisig, ver, lockTime, prikey, cashManager, txHandler, fapiClient, callback, false, withConfirm);
+                            senderMultisig, ver, lockTime, prikey, cashManager, txHandler, fapiClient, callback, false, withConfirm);
                 } catch (Exception e) {
                     dismissWaitingDialog(context);
                     if (callback != null) {
@@ -318,21 +347,27 @@ public class TxSender {
             RawTxInfo rawTxInfo = new RawTxInfo(sender, validCashList, outputs, opReturn, cdRequired,
                 feeRate, multisig, ver);
 
-            // Step 2.5: Show confirmation UI if requested
-            if (withConfirm) {
+            // Step 2.5: Show confirmation UI if requested. A multisig tx always
+            // goes through the cosigner UI: no single prikey can sign it here.
+            if (withConfirm || multisig != null) {
                 // Store the callback for later use by the activity
                 pendingCallback = callback;
                 currentInstance = this;
 
                 Intent intent;
+                String txInfoJson;
                 if (multisig != null) {
-                    // Use SignMultisigTxActivity for multisig transactions
+                    // Use SignMultisigTxActivity for multisig transactions.
+                    // toNiceJson()/toJson() drop senderInfo, which carries the
+                    // Multisig, so keep it here for the cosigner UI.
                     intent = new Intent(context, SignMultisigTxActivity.class);
+                    txInfoJson = rawTxInfo.toJsonWithSenderInfo();
                 } else {
                     // Use SendTxActivity for regular transactions
                     intent = new Intent(context, SendTxActivity.class);
+                    txInfoJson = rawTxInfo.toNiceJson();
                 }
-                intent.putExtra(SendTxActivity.EXTRA_TX_INFO_JSON, rawTxInfo.toNiceJson());
+                intent.putExtra(SendTxActivity.EXTRA_TX_INFO_JSON, txInfoJson);
                 dismissWaitingDialog(context);
                 context.startActivity(intent);
                 return;

@@ -407,9 +407,17 @@ public class SetCidActivity extends com.fc.freer.BaseCryptoActivity {
                 return;
             }
 
+            // A multisig FID has no prikey of its own: the tx is built here and
+            // signed by the cosigners in SignMultisigTxActivity.
+            boolean isMultisig = liveFid != null && liveFid.startsWith("3");
+            if (isMultisig && liveKeyInfo.getMultisign() == null) {
+                ToastUtils.showError(this, getString(R.string.failed_to_get_multisign_info_for_fid) + ": " + liveFid);
+                return;
+            }
+
             // Use the same logic as CreateContactActivity for on-chain operations
-            byte[] prikey = SecurePrikeyManager.fetchPrikeySilent(liveKeyInfo.getPrikeyCipher());
-            if (prikey != null) {
+            byte[] prikey = isMultisig ? null : SecurePrikeyManager.fetchPrikeySilent(liveKeyInfo.getPrikeyCipher());
+            if (isMultisig || prikey != null) {
                 new Thread(() -> {
                     CashManager cashManager = CashManager.getInstance();
                     TxSender txSender = new TxSender();

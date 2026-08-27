@@ -28,6 +28,7 @@ import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
     public static final String TAG = "MainActivity";
+    private static final String KEY_HAS_LAUNCHED_PASSWORD = "has_launched_password";
     private ActivityResultLauncher<Intent> cidLauncher;
     private ActivityResultLauncher<Intent> passwordLauncher;
     private boolean hasLaunchedPasswordActivity;
@@ -39,6 +40,17 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         setupEdgeToEdge();
+
+        // Restore the launch guard so a recreated MainActivity (process death during
+        // a long background sleep, or a configuration change, while CheckPassword /
+        // ChooseCid is on top) does not start a second CheckPasswordActivity. The
+        // pending activity result from the original auth screen is redelivered after
+        // recreation and drives the flow forward on its own; launching again here
+        // stacks duplicate password/chooser screens.
+        if (savedInstanceState != null) {
+            hasLaunchedPasswordActivity =
+                    savedInstanceState.getBoolean(KEY_HAS_LAUNCHED_PASSWORD, false);
+        }
 
         // Initialize passwordLauncher
         passwordLauncher = registerForActivityResult(
@@ -53,6 +65,12 @@ public class MainActivity extends AppCompatActivity {
         );
 
         initiate();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putBoolean(KEY_HAS_LAUNCHED_PASSWORD, hasLaunchedPasswordActivity);
     }
 
     private void setupEdgeToEdge() {

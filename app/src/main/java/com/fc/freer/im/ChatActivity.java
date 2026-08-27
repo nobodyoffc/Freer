@@ -87,6 +87,7 @@ import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.im.voice.VoiceMessageHelper;
 import com.fc.freer.im.voice.VoicePlayer;
 import com.fc.freer.im.voice.VoiceRecorder;
+import com.orhanobut.hawk.Hawk;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -100,6 +101,8 @@ public class ChatActivity extends BaseCryptoActivity
     public static final String EXTRA_TYPE = "im_type";
     public static final String EXTRA_TARGET_ID = "target_id";
     public static final String EXTRA_DISPLAY_NAME = "display_name";
+
+    private static final String DRAFT_KEY_PREFIX = "chat_draft_";
     
     private RecyclerView messagesRecyclerView;
     private EditText messageInput;
@@ -512,7 +515,10 @@ public class ChatActivity extends BaseCryptoActivity
 
     private void setupGroupToolbar(FrameLayout avatarContainer,
                                     ImageView avatarView, TextView titleView) {
-        String avatarFid = targetId;
+        // Who the tile badges. Null until a record says otherwise — an
+        // unknown owner draws no badge rather than falling back to the
+        // group id, which is not a person.
+        String avatarFid = null;
 
         if (imType == ImType.TEAM) {
             Team team = imManager != null ? imManager.getTeam(targetId) : null;
@@ -546,7 +552,7 @@ public class ChatActivity extends BaseCryptoActivity
             }
         }
 
-        loadToolbarAvatar(avatarView, avatarFid);
+        loadToolbarGroupAvatar(avatarView, targetId, avatarFid);
 
         avatarContainer.setOnClickListener(v -> {
             hideKeyboard();
@@ -649,6 +655,35 @@ public class ChatActivity extends BaseCryptoActivity
         textView.setText(sb);
     }
 
+    /**
+     * The toolbar avatar for a group: the tile drawn from the group's own
+     * id, badged with {@code ownerFid}. The plain {@link #loadToolbarAvatar}
+     * must not be used here — it would read a room id or a txid as a FID
+     * and put a stranger's face on the group.
+     */
+    private void loadToolbarGroupAvatar(ImageView avatarView, String groupId, String ownerFid) {
+        // The accent fill would otherwise show through the tile's rounded
+        // corners.
+        avatarView.setBackgroundColor(Color.TRANSPARENT);
+        int sizePx = avatarView.getLayoutParams() != null
+                ? avatarView.getLayoutParams().width
+                : (int) (42 * getResources().getDisplayMetrics().density);
+        new Thread(() -> {
+            try {
+                Bitmap bitmap = AvatarManager.getInstance(this)
+                        .getGroupAvatarBitmap(groupId, ownerFid, sizePx);
+                runOnUiThread(() -> {
+                    if (bitmap != null && !isFinishing() && !isDestroyed()) {
+                        avatarView.setImageBitmap(bitmap);
+                    }
+                });
+            } catch (Exception e) {
+                TimberLogger.e(TAG, "Error loading toolbar group avatar for %s: %s",
+                        groupId, e.getMessage());
+            }
+        }).start();
+    }
+
     private void loadToolbarAvatar(ImageView avatarView, String fid) {
         new Thread(() -> {
             try {
@@ -687,6 +722,7 @@ public class ChatActivity extends BaseCryptoActivity
         }
 
         liveFid = setting.getMainFid();
+        restoreDraft();
 
         // Build ImManager off the UI thread, showing a "Connecting…"/Retry
         // banner meanwhile. Everything that reads the local message DB runs once
@@ -1011,6 +1047,32 @@ public class ChatActivity extends BaseCryptoActivity
         }
     }
 
+    // ── Draft persistence ────────────────────────────────────────────────
+
+    private String getDraftKey() {
+        return DRAFT_KEY_PREFIX + (liveFid != null ? liveFid : "default") + "_" + imType + "_" + targetId;
+    }
+
+    private void restoreDraft() {
+        if (messageInput == null) return;
+        String draft = Hawk.get(getDraftKey(), "");
+        if (!draft.isEmpty()) {
+            messageInput.setText(draft);
+            messageInput.setSelection(draft.length());
+        }
+    }
+
+    private void saveDraft() {
+        if (messageInput == null || targetId == null) return;
+        String text = messageInput.getText().toString();
+        String key = getDraftKey();
+        if (text.isEmpty()) {
+            Hawk.delete(key);
+        } else {
+            Hawk.put(key, text);
+        }
+    }
+
     private void sendMessage() {
         String text = messageInput.getText().toString().trim();
         if (text.isEmpty()) return;
@@ -1046,7 +1108,8 @@ public class ChatActivity extends BaseCryptoActivity
         scrollToBottom();
         
         messageInput.setText("");
-        
+        Hawk.delete(getDraftKey());
+
         imManager.send(message);
     }
     
@@ -1122,7 +1185,12 @@ public class ChatActivity extends BaseCryptoActivity
             return;
         }
 
-        ImMessage message = VoiceMessageHelper.buildVoiceMessage(result, imType, liveFid, targetId);
+        // The budget belongs to the destination DOCK, which publishes it as
+        // `maxDataSize` in its on-chain service record. Until that is resolved
+        // here, assume the server's own default rather than a larger guess —
+        // guessing high is what made v1's 900 KB constant fail in the field.
+        ImMessage message = VoiceMessageHelper.buildVoiceMessage(
+                result, imType, liveFid, targetId, ImMessage.ASSUMED_DOCK_ITEM_LIMIT);
         if (message == null) {
             // Large file — would need HAT upload; for now show a message
             ToastUtils.makeText(this, getString(R.string.toast_voice_message_too_large));
@@ -1201,24 +1269,52 @@ public class ChatActivity extends BaseCryptoActivity
         HatManager hatManager = HatManager.getInstance(this, fidManager.getLiveFid());
         FileShareHelper helper = new FileShareHelper(this, hatManager);
 
-        WaitingDialog waitingDialog = new WaitingDialog(this, getString(R.string.uploading_file));
-        waitingDialog.show();
+        // Track the pending outgoing bubble so upload progress can be rendered on it
+        // (same percent-ring mechanism as incoming downloads), keyed by hatId.
+        final ImMessage[] pendingMsg = new ImMessage[1];
+        final String[] pendingHatId = new String[1];
+        final long[] lastUiUpdate = {0};
 
         new Thread(() -> {
             ImMessage msg = helper.shareUri(fileUri, imType, liveFid, targetId, null,
-                    bytesUploaded -> runOnUiThread(() -> {
-                        waitingDialog.setHint(getString(R.string.uploading_file) + " "
-                                + FileShareHelper.formatSize(bytesUploaded));
-                    }));
+                    (prepared, hatId, fileSize) -> runOnUiThread(() -> {
+                        pendingMsg[0] = prepared;
+                        pendingHatId[0] = hatId;
+                        messages.add(prepared);
+                        adapter.notifyItemInserted(messages.size() - 1);
+                        adapter.setHatDownloadProgress(hatId, 0, fileSize);
+                        adapter.notifyHatChanged(hatId);
+                        scrollToBottom();
+                    }),
+                    bytesUploaded -> {
+                        final String hatId = pendingHatId[0];
+                        if (hatId == null) return;
+                        runOnUiThread(() -> {
+                            adapter.setHatDownloadProgress(hatId, bytesUploaded, 0);
+                            long now = System.currentTimeMillis();
+                            if (now - lastUiUpdate[0] > 200) {
+                                lastUiUpdate[0] = now;
+                                adapter.notifyHatChanged(hatId);
+                            }
+                        });
+                    });
 
             runOnUiThread(() -> {
-                waitingDialog.dismiss();
+                String hatId = pendingHatId[0];
+                if (hatId != null) adapter.clearHatDownload(hatId);
                 if (msg != null) {
-                    messages.add(msg);
-                    adapter.notifyItemInserted(messages.size() - 1);
-                    scrollToBottom();
+                    if (hatId != null) adapter.notifyHatChanged(hatId);
                     imManager.send(msg);
                 } else {
+                    // Upload failed: remove the preliminary bubble.
+                    ImMessage failed = pendingMsg[0];
+                    if (failed != null) {
+                        int idx = messages.indexOf(failed);
+                        if (idx >= 0) {
+                            messages.remove(idx);
+                            adapter.notifyItemRemoved(idx);
+                        }
+                    }
                     ToastUtils.showError(this, getString(R.string.file_share_failed)
                             + ": " + helper.getLastError());
                 }
@@ -1524,6 +1620,20 @@ public class ChatActivity extends BaseCryptoActivity
 
     @Override
     public void onOpenHat(com.fc.fc_ajdk.data.fcData.Hat hat) {
+        startHatTransfer(hat, true);
+    }
+
+    @Override
+    public void onDownloadHat(com.fc.fc_ajdk.data.fcData.Hat hat) {
+        startHatTransfer(hat, false);
+    }
+
+    /**
+     * Shared entry point for the two HAT card actions: {@code open == true} plays/opens the file,
+     * {@code false} only downloads it to the public Downloads folder. Both share the same in-card
+     * progress-ring and cancellation UI.
+     */
+    private void startHatTransfer(com.fc.fc_ajdk.data.fcData.Hat hat, boolean open) {
         String hatId = hat.getId();
         if (activeHatDownloads.containsKey(hatId)) {
             showCancelDownloadDialog(hatId);
@@ -1543,7 +1653,7 @@ public class ChatActivity extends BaseCryptoActivity
             // Merge download credentials from the IM hat in case the DB copy predates them.
             mergeImHatCredentials(hat, dbHat);
         }
-        new HatFileOpener(this, hm).open(dbHat, new HatFileOpener.DownloadObserver() {
+        HatFileOpener.DownloadObserver observer = new HatFileOpener.DownloadObserver() {
             @Override
             public void onDownloadStarted(HatFileOpener.DownloadHandle handle, long totalBytes) {
                 activeHatDownloads.put(hatId, handle);
@@ -1577,7 +1687,13 @@ public class ChatActivity extends BaseCryptoActivity
                             getString(R.string.download_failed, error));
                 }
             }
-        });
+        };
+        HatFileOpener opener = new HatFileOpener(this, hm);
+        if (open) {
+            opener.open(dbHat, observer);
+        } else {
+            opener.download(dbHat, observer);
+        }
     }
 
     private void showCancelDownloadDialog(String hatId) {
@@ -3042,6 +3158,7 @@ public class ChatActivity extends BaseCryptoActivity
     @Override
     protected void onPause() {
         super.onPause();
+        saveDraft();
         if (isRecording) cancelRecording();
         if (voicePlayer != null) voicePlayer.stop();
         if (imManager != null) {

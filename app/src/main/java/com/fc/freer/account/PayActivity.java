@@ -173,6 +173,12 @@ public class PayActivity extends BaseCryptoActivity {
             } else {
                 avatarImageView.setImageResource(R.drawable.ic_person);
             }
+            // Grayscale marks a nobody FID (leaked/public prikey)
+            if (Boolean.TRUE.equals(liveKeyInfo.getIsNobody())) {
+                com.fc.freer.im.NobodyBoard.applyNobodyMark(avatarImageView);
+            } else {
+                com.fc.freer.im.NobodyBoard.clearNobodyMark(avatarImageView);
+            }
         }
 
         // Set name (cid if available, otherwise fid)

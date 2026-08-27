@@ -14,6 +14,7 @@ import com.fc.fc_ajdk.data.fcData.ContentType;
 import com.fc.fc_ajdk.data.fcData.Conversation;
 import com.fc.fc_ajdk.data.fcData.DockItem;
 import com.fc.fc_ajdk.data.fcData.ImMessage;
+import com.fc.fc_ajdk.data.fcData.ImMessageBody;
 import com.fc.fc_ajdk.data.fcData.ImType;
 import com.fc.fc_ajdk.data.fcData.MessageStatus;
 import com.fc.fc_ajdk.data.fcData.RequestType;
@@ -289,6 +290,11 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         squareHandler = new SquareHandler(context, liveFid);
         teamHandler = new TeamHandler(context, liveFid);
         roomHandler = new RoomHandler(context, liveFid);
+
+        // P2P seals each body to its recipient rather than with a shared key,
+        // so the handler needs the private key itself — see BaseHandler's
+        // per-route encryption table.
+        p2pHandler.setUserPrikey(userPrikey);
         
         // Wire TalkPartner lookup into P2P handler
         p2pHandler.setTalkPartnerProvider(this::getTalkPartner);
@@ -837,6 +843,47 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         messageQueue.retryNow(messageId);
     }
 
+    // ========== First-FCH Board ==========
+
+    /** Result of posting a first-FCH request to the public nobody board. */
+    public interface BoardSendCallback {
+        void onResult(boolean success);
+    }
+
+    /**
+     * Post a first-FCH request to the well-known public nobody board via a
+     * direct DOCK put.
+     *
+     * Unlike {@link #send}, this deliberately creates no conversation and no
+     * message-list entry — the board must never appear in the chat list — and
+     * it reports the DOCK-put result rather than a delivery ack (a nobody board
+     * has no owner to acknowledge). The callback runs on the main thread.
+     */
+    public void sendFirstFchBoardRequest(String note, BoardSendCallback callback) {
+        executor.execute(() -> {
+            boolean ok = false;
+            try {
+                String content = NobodyBoard.buildFirstFchRequest(liveFid, note);
+                ImMessage request = ImMessage.createText(
+                        ImType.P2P, liveFid, NobodyBoard.DEFAULT_NOBODY_FID, content);
+                if (!request.hasFudpId() && fudpNode != null) {
+                    request.setIdFromLong(fudpNode.generateMessageId());
+                }
+                MessageQueue.SendResult result = p2pHandler.send(request);
+                ok = result == MessageQueue.SendResult.SUCCESS;
+                if (!ok) {
+                    TimberLogger.w(TAG, "First-FCH board request failed: %s", result);
+                }
+            } catch (Exception e) {
+                TimberLogger.e(TAG, "Error posting first-FCH board request: %s", e.getMessage());
+            }
+            final boolean success = ok;
+            if (callback != null) {
+                mainHandler.post(() -> callback.onResult(success));
+            }
+        });
+    }
+
     // ========== Team Notification ==========
 
     public static final String TEAM_INVITE_PREFIX = "[TEAM_INVITE]";
@@ -983,7 +1030,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         for (String msgId : index) {
             ImMessage msg = messagesDb.get(msgId);
             if (msg == null) continue;
-            if (msg.getCipher() == null) continue;
+            if (msg.getBody() == null) continue;
             if (msg.getContent() != null && !msg.getContent().startsWith("[Encrypted")) continue;
 
             Long version = msg.getSymkeyVersion();
@@ -991,9 +1038,9 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             if (symkey == null) continue;
 
             try {
-                String content = new String(new Decryptor().decrypt(msg.getCipher(), symkey).getData());
-                if (content != null) {
-                    msg.setContent(content);
+                if (ImMessageBody.openWithSymkey(msg, symkey)) {
+                    // The bundle is redundant once the plaintext is beside it.
+                    msg.setBody(null);
                     messagesDb.put(msg.getId(), msg);
                     redecrypted.add(msg);
                 }
@@ -2819,7 +2866,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
 
             for (ImMessage msg : messages) {
                 if (msg.getContent() != null) {
-                    msg.setCipher(null);
+                    msg.setBody(null);
                 }
                 writer.write(msg.toJson());
                 writer.newLine();

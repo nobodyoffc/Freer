@@ -8,19 +8,11 @@ import androidx.activity.result.contract.ActivityResultContracts;
 
 import com.fc.fc_ajdk.constants.Constants;
 import com.fc.fc_ajdk.core.fch.RawTxInfo;
-import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
-import com.fc.fc_ajdk.data.feipData.Feip;
-import com.fc.fc_ajdk.data.feipData.HomeOpData;
-import com.fc.fc_ajdk.data.feipData.Service;
-import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.im.ImManager;
-import com.fc.freer.initiate.SettingManager;
-import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
-import com.fc.freer.model.Setting;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.SecurePrikeyManager;
@@ -28,7 +20,6 @@ import com.fc.freer.utils.ServicePickerUtils;
 import com.fc.freer.utils.ToastUtils;
 import com.google.android.material.textfield.TextInputEditText;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -93,6 +84,15 @@ public class ServerSetupActivity extends BaseCryptoActivity {
         chooseDiskButton = findViewById(R.id.choose_disk_button);
         registerButton = findViewById(R.id.register_button);
         backButton = findViewById(R.id.back_button);
+
+        // A multisig FID is a script address with no key pair: it cannot encrypt or decrypt
+        // messages, so neither DOCK (messaging relay) nor DISK (private storage, whose SID is
+        // encrypted to the owner's pubkey) applies. It also has no prikey to sign the HOME TX.
+        if (FidManager.getInstance() != null && FidManager.getInstance().isLiveFidMultisig()) {
+            ToastUtils.makeText(this, R.string.server_setup_not_for_multisig);
+            finish();
+            return;
+        }
 
         prefillDefaults();
     }
@@ -165,90 +165,39 @@ public class ServerSetupActivity extends BaseCryptoActivity {
             return;
         }
 
-        // Read-modify-write: preserve existing home entries; set DOCK (plaintext) and/or
-        // DISK (encrypted) in a single HOME register TX.
-        Map<String, String> homeMap = new HashMap<>();
-        if (liveKeyInfo.getHome() != null) homeMap.putAll(liveKeyInfo.getHome());
-
-        final boolean settingDock = !dockVal.isEmpty();
-        if (settingDock) homeMap.put(Constants.DOCK_NO1_NRC7, dockVal);
-
-        final boolean settingDisk = !diskSid.isEmpty();
-        final String diskEnc;
-        if (settingDisk) {
-            diskEnc = DiskHomeManager.encryptSid(diskSid, liveKeyInfo.getPubkey());
-            if (diskEnc == null) {
-                ToastUtils.makeText(this, R.string.server_setup_failed);
-                return;
-            }
-            homeMap.put(DiskHomeManager.DISK_KEY, diskEnc);
-        } else {
-            diskEnc = null;
-        }
-
-        HomeOpData homeOpData = new HomeOpData();
-        homeOpData.setOp(HomeOpData.Op.REGISTER.toLowerCase());
-        homeOpData.setHome(homeMap);
-
-        Feip feip = Feip.fromProtocolName(Feip.FeipProtocol.HOME);
-        feip.setData(homeOpData);
-        String feipJson = feip.toJson();
-
         ToastUtils.makeText(this, R.string.publishing);
-        new Thread(() -> {
-            CashManager cashManager = CashManager.getInstance();
-            TxSender txSender = new TxSender();
-            txSender.carveSimpleFeip(this, liveKeyInfo.getId(), feipJson, prikey, cashManager,
-                    new TxHandler(),
-                    (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7),
-                    new TxSender.TxCallback() {
-                        @Override
-                        public void onSuccess(String txId) {
-                            // DISK: usable immediately — mark locally and cache its client.
-                            // Also set a persisted pending flag so the Data setup prompt stays
-                            // suppressed until the TX confirms, even after FidManager refreshes
-                            // KeyInfo.home from on-chain (which still lacks the unconfirmed DISK).
-                            if (settingDisk) {
-                                Map<String, String> localHome = liveKeyInfo.getHome() != null
-                                        ? new HashMap<>(liveKeyInfo.getHome()) : new HashMap<>();
-                                localHome.put(DiskHomeManager.DISK_KEY, diskEnc);
-                                liveKeyInfo.setHome(localHome);
-                                DiskHomeManager.resolveAndCacheDiskClient(liveKeyInfo, prikey);
-                                DiskHomeManager.markRegistrationPending(
-                                        getApplicationContext(), liveKeyInfo.getId());
-                            }
-                            // DOCK: peers need on-chain visibility — enter pending so the Talk
-                            // tile enables once the TX confirms (and the prompt is suppressed).
-                            if (settingDock) {
-                                Setting setting = SettingManager.getInstance().getCurrentSetting();
-                                ImManager im = setting != null ? setting.getImManager() : null;
-                                if (im != null) im.onRegistrationTxSent(txId);
-                            }
-                            runOnUiThread(() -> {
-                                setResult(RESULT_OK);
-                                finish();
-                            });
-                        }
+        final TxSender txSender = new TxSender();
+        // The TX build, broadcast, and all post-broadcast bookkeeping (DISK/DOCK pending flags
+        // and the persisted server-setup suppression flag) live in the shared helper, so this
+        // manual path and the one-tap dialog path stay identical.
+        ServerSetupManager.register(this, liveKeyInfo, dockVal, diskSid, prikey,
+                new TxSender.TxCallback() {
+                    @Override
+                    public void onSuccess(String txId) {
+                        runOnUiThread(() -> {
+                            setResult(RESULT_OK);
+                            finish();
+                        });
+                    }
 
-                        @Override
-                        public void onError(String errorMessage) {
-                            runOnUiThread(() -> ToastUtils.makeText(ServerSetupActivity.this,
-                                    getString(R.string.server_setup_failed) + ": " + errorMessage));
-                        }
+                    @Override
+                    public void onError(String errorMessage) {
+                        runOnUiThread(() -> ToastUtils.makeText(ServerSetupActivity.this,
+                                getString(R.string.server_setup_failed) + ": " + errorMessage));
+                    }
 
-                        @Override
-                        public void onUnsignedTx(RawTxInfo rawTxInfo) {
-                            runOnUiThread(() -> {
-                                ToastUtils.makeText(ServerSetupActivity.this, R.string.cannot_sign_transaction);
-                                txSender.showUnsignedTxAsQR(ServerSetupActivity.this, rawTxInfo);
-                            });
-                        }
+                    @Override
+                    public void onUnsignedTx(RawTxInfo rawTxInfo) {
+                        runOnUiThread(() -> {
+                            ToastUtils.makeText(ServerSetupActivity.this, R.string.cannot_sign_transaction);
+                            txSender.showUnsignedTxAsQR(ServerSetupActivity.this, rawTxInfo);
+                        });
+                    }
 
-                        @Override
-                        public void onUnbroadcasted(String signedTxHex) {
-                            runOnUiThread(() -> txSender.showSignedTxAsQR(ServerSetupActivity.this, signedTxHex));
-                        }
-                    });
-        }).start();
+                    @Override
+                    public void onUnbroadcasted(String signedTxHex) {
+                        runOnUiThread(() -> txSender.showSignedTxAsQR(ServerSetupActivity.this, signedTxHex));
+                    }
+                });
     }
 }

@@ -176,6 +176,14 @@ public class PopupMenuHelper {
             }
         });
 
+        // A multisig FID has no key pair, so it can neither encrypt nor decrypt messages:
+        // DOCK (messaging) and DISK (private storage) registration would be useless for it.
+        if (FidManager.getInstance() != null && FidManager.getInstance().isLiveFidMultisig()) {
+            setDockDisk.setVisibility(View.GONE);
+            View dockDiskDivider = popupView.findViewById(R.id.set_dock_disk_divider);
+            if (dockDiskDivider != null) dockDiskDivider.setVisibility(View.GONE);
+        }
+
         setDockDisk.setOnClickListener(v -> {
             popupWindow.dismiss();
             context.startActivity(new Intent(context, com.fc.freer.data.ServerSetupActivity.class));
