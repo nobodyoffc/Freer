@@ -4,7 +4,11 @@ import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.widget.ImageView;
 
+import com.fc.fc_ajdk.data.fcData.ImMessage;
+import com.fc.fc_ajdk.data.fcData.ImMessageBody;
 import com.fc.fc_ajdk.data.feipData.Contact;
+import com.fc.fc_ajdk.utils.BytesUtils;
+import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.manager.ContactManager;
 
 import java.util.Collections;
@@ -26,6 +30,8 @@ import java.util.Set;
  */
 public final class NobodyBoard {
 
+    private static final String TAG = "NobodyBoard";
+
     /** Well-known default nobody freer. Its private key is public by design. */
     public static final String DEFAULT_NOBODY_FID = "FHG8DW2eHQ5wNAJQnLNKzYUSo2YKt7ffff";
     public static final String DEFAULT_NOBODY_PRIKEY = "d710ff828229c8fd9923407a5ebfb4a27a42504a1d69ae7ec95b9cc2c7073226";
@@ -40,6 +46,9 @@ public final class NobodyBoard {
 
     /** Negative cache so adapter binds don't re-query the contact DB on the UI thread. */
     private static final Set<String> knownNotNobodies = Collections.synchronizedSet(new HashSet<>());
+
+    /** Lazily decoded {@link #DEFAULT_NOBODY_PRIKEY}. */
+    private static byte[] nobodyPrikeyBytes;
 
     private NobodyBoard() {}
 
@@ -77,6 +86,43 @@ public final class NobodyBoard {
         }
         knownNotNobodies.add(fid);
         return false;
+    }
+
+    /**
+     * Open a board post and return its message with a readable body.
+     *
+     * A post reaches the board as an ordinary P2P message, so the sender seals
+     * the body to the board's pubkey before handing it to a DOCK server (see
+     * P2pHandler.sealedEnvelope — nothing that passes through a third party
+     * travels in the clear). Every reader can open it, because the board's
+     * private key is public, but a reader has to actually do it: decoding the
+     * wire bytes alone yields a sealed envelope whose content is null, and the
+     * whole board then looks empty.
+     *
+     * @return the message with its body opened, or null when it can't be read
+     */
+    public static ImMessage openBoardMessage(byte[] wireBytes) {
+        if (wireBytes == null || wireBytes.length == 0) return null;
+        try {
+            ImMessage message = ImMessage.fromWireBytes(wireBytes);
+            if (message == null) return null;
+            if (message.isSealed()
+                    && !ImMessageBody.openWithPrikey(message, defaultNobodyPrikey())) {
+                return null;
+            }
+            return message;
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "Unreadable board item: %s", e.getMessage());
+            return null;
+        }
+    }
+
+    /** The board's private key. Published by design — this is a nobody. */
+    private static synchronized byte[] defaultNobodyPrikey() {
+        if (nobodyPrikeyBytes == null) {
+            nobodyPrikeyBytes = BytesUtils.hexToByteArray(DEFAULT_NOBODY_PRIKEY);
+        }
+        return nobodyPrikeyBytes;
     }
 
     /** Build the templated request content sent to the board. */

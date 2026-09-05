@@ -20,7 +20,8 @@ import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.utils.ToolbarUtils;
 
 /**
- * Activity for P2P chat privacy settings (stranger policy, blacklist).
+ * Activity for P2P chat settings: the stranger policy, the blacklist, and the
+ * opt-in check of the first-FCH board at login.
  * These settings are stored locally. For home setup (carved onchain), use ServerSetupActivity.
  */
 public class P2pChatSettingsActivity extends BaseCryptoActivity {
@@ -31,6 +32,7 @@ public class P2pChatSettingsActivity extends BaseCryptoActivity {
 
     private CheckBox cbRejectAllStrangers;
     private CheckBox cbAutoAcceptContacts;
+    private CheckBox cbCheckBoardAtLogin;
     private TextView linkManageBlacklist;
 
     private String liveFid;
@@ -86,10 +88,18 @@ public class P2pChatSettingsActivity extends BaseCryptoActivity {
 
         cbRejectAllStrangers = findViewById(R.id.cb_reject_all_strangers);
         cbAutoAcceptContacts = findViewById(R.id.cb_auto_accept_contacts);
+        cbCheckBoardAtLogin = findViewById(R.id.cb_check_board_at_login);
         linkManageBlacklist = findViewById(R.id.link_manage_blacklist);
 
         loadStrangerPolicySettings();
         setupStrangerPolicyListeners();
+        cbCheckBoardAtLogin.setChecked(NewcomerBoard.isAutoCheckAtLogin(this, liveFid));
+        // Saved on the spot, like the policy boxes: the tick button saves
+        // everything again, but leaving the screen by Back must not lose it.
+        cbCheckBoardAtLogin.setOnClickListener(v -> {
+            hideKeyboard();
+            saveCheckBoardAtLogin(cbCheckBoardAtLogin.isChecked());
+        });
     }
 
     private void loadStrangerPolicySettings() {
@@ -151,6 +161,10 @@ public class P2pChatSettingsActivity extends BaseCryptoActivity {
                 .apply();
     }
 
+    private void saveCheckBoardAtLogin(boolean enabled) {
+        NewcomerBoard.setAutoCheckAtLogin(this, liveFid, enabled);
+    }
+
     private void applyStrangerPolicy() {
         Setting setting = SettingManager.getInstance().getCurrentSetting();
         if (setting == null) return;
@@ -193,6 +207,7 @@ public class P2pChatSettingsActivity extends BaseCryptoActivity {
         boolean autoAccept = cbAutoAcceptContacts.isChecked();
         saveRejectAllStrangers(rejectAll);
         saveAutoAcceptContacts(autoAccept);
+        saveCheckBoardAtLogin(cbCheckBoardAtLogin.isChecked());
         applyStrangerPolicy();
     }
 

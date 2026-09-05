@@ -2431,6 +2431,11 @@
     <string name="newcomer_requests_empty">No open first-FCH requests</string>
     <string name="newcomer_requests_loading">Loading requests from the board…</string>
     <string name="newcomer_requests_no_dock">The board\'s DOCK server could not be reached</string>
+    <string name="newcomer_requests_fetch_failed">The board\'s DOCK server refused the request: %1$s</string>
+    <string name="check_board_at_login">Check the board when I log in</string>
+    <string name="check_board_at_login_hint">Off by default. When on, Freer looks once per login for newcomers asking for their first FCH and tells you only if someone is waiting.</string>
+    <string name="newcomer_board_login_prompt_title">A newcomer is waiting</string>
+    <string name="newcomer_board_login_prompt">Someone has asked for their first FCH on the board. Open it to see who is waiting?</string>
     <string name="send_fch">Send FCH</string>
     <string name="newcomer_requests_none_selected">No request selected</string>
     <string name="newcomer_requests_newcomers">Newcomers</string>

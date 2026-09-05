@@ -2388,6 +2388,11 @@
     <string name="newcomer_requests_empty">暂无待处理的首币求助</string>
     <string name="newcomer_requests_loading">正在从求助板加载…</string>
     <string name="newcomer_requests_no_dock">无法连接求助板的 DOCK 服务器</string>
+    <string name="newcomer_requests_fetch_failed">求助板的 DOCK 服务器拒绝了请求：%1$s</string>
+    <string name="check_board_at_login">登录时检查求助板</string>
+    <string name="check_board_at_login_hint">默认关闭。开启后，每次登录检查一次是否有新人求助首币，只在确有人等待时才提示你。</string>
+    <string name="newcomer_board_login_prompt_title">有新人在等待</string>
+    <string name="newcomer_board_login_prompt">有人在求助板上求助首币，现在去看看是谁在等待吗？</string>
     <string name="send_fch">发送 FCH</string>
     <string name="newcomer_requests_none_selected">未选择任何求助</string>
     <string name="newcomer_requests_newcomers">新人</string>

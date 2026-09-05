@@ -1308,6 +1308,11 @@ public class HomeActivity extends AppCompatActivity {
             TimberLogger.d(TAG, "ImManager initialized for FID: %s", liveFid);
         }
 
+        // Opt-in, off by default, and silent unless a newcomer is actually
+        // waiting. Placed after the ImManager so the board's DOCK connection can
+        // be resolved through its registry; it waits for the FAPI client itself.
+        com.fc.freer.im.NewcomerBoard.maybeCheckAtLogin(this);
+
         runOnUiThread(this::updateBadges);
 
         // Check FAPI connection and retry if needed

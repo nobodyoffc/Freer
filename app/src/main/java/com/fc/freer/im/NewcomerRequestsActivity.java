@@ -3,7 +3,6 @@ package com.fc.freer.im;
 import android.content.Intent;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.util.Base64;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -17,36 +16,23 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
-import com.fc.fc_ajdk.constants.FieldNames;
-import com.fc.fc_ajdk.constants.Values;
 import com.fc.fc_ajdk.core.fch.RawTxInfo;
-import com.fc.fc_ajdk.data.apipData.Fcdsl;
-import com.fc.fc_ajdk.data.fcData.DockItem;
-import com.fc.fc_ajdk.data.fcData.ImMessage;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.data.fchData.Cash;
-import com.fc.fc_ajdk.data.fchData.Freer;
-import com.fc.fc_ajdk.data.feipData.Service;
-import com.fc.fc_ajdk.fapi.client.FapiClient;
-import com.fc.fc_ajdk.fapi.message.FapiResponse;
 import com.fc.fc_ajdk.utils.FchUtils;
-import com.fc.fc_ajdk.utils.ObjectUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
-import com.fc.freer.im.dock.DockServiceRegistry;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.Setting;
 import com.fc.freer.tx.SendTxActivity;
 import com.fc.freer.ui.WaitingDialog;
-import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.ToastUtils;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -58,11 +44,9 @@ import java.util.Set;
 /**
  * Helper-side viewer of the first-FCH request board.
  *
- * Fetches the default nobody freer's DOCK inbox — readable by everyone because
- * the nobody's key is public — while the helper stays logged in as their own
- * FID. Only items matching the FIRST_FCH_REQUEST template are shown, and
- * requesters that already have on-chain balance or history are hidden (they
- * were already funded, or they are farming). The helper checks one or more
+ * Reads the board through {@link NewcomerBoard} — the nobody freer's DOCK
+ * inbox, readable by everyone because the nobody's key is public — while the
+ * helper stays logged in as their own FID. The helper checks one or more
  * requests (or All), enters an amount (default {@link #DEFAULT_SEND_AMOUNT}),
  * and taps send: one transaction is prefilled with that amount per checked FID
  * as outputs and valid cashes from the CashManager as inputs, then reviewed
@@ -72,7 +56,6 @@ import java.util.Set;
 public class NewcomerRequestsActivity extends BaseCryptoActivity {
     private static final String TAG = "NewcomerRequests";
 
-    private static final int FETCH_PAGE_SIZE = 100;
     private static final int MAX_SHOWN_REQUESTS = 30;
     /** Default amount per output cash: enough for a DOCK registration TX plus a little slack. */
     private static final double DEFAULT_SEND_AMOUNT = 1.01;
@@ -88,10 +71,6 @@ public class NewcomerRequestsActivity extends BaseCryptoActivity {
      * in TxHandler.
      */
     private static final int MAX_TOTAL_OUTPUTS = 100;
-
-    /** One long per identity: the newest board timestamp this helper has seen. */
-    private static final String CURSOR_PREFS = "newcomer_board_cursor";
-    private static final String KEY_CURSOR = "cursor_";
 
     private SwipeRefreshLayout swipeRefreshLayout;
     private RecyclerView recyclerView;
@@ -375,23 +354,19 @@ public class NewcomerRequestsActivity extends BaseCryptoActivity {
 
         new Thread(() -> {
             String error = null;
-            FetchResult fetched = new FetchResult(new ArrayList<>(), boardCursor);
+            NewcomerBoard.FetchResult fetched =
+                    new NewcomerBoard.FetchResult(new ArrayList<>(), boardCursor, null);
             try {
-                FapiClient fapiClient = (FapiClient) ApiCenter.getInstance()
-                        .getClient(Service.ServiceType.FAPI_No1_NrC7);
-                FapiClient boardDockClient = resolveBoardDockClient(fapiClient);
-                if (boardDockClient == null) {
-                    error = getString(R.string.newcomer_requests_no_dock);
-                } else {
-                    fetched = fetchAndFilterRequests(boardDockClient, fapiClient);
-                }
+                // No cap: everything open goes into the session cache, and the
+                // cursor below is only allowed to move past what we now hold.
+                fetched = NewcomerBoard.fetch(this, boardCursor, Integer.MAX_VALUE);
             } catch (Exception e) {
                 TimberLogger.e(TAG, "Failed to load board requests: %s", e.getMessage());
                 error = e.getMessage();
             }
 
             final String finalError = error;
-            final FetchResult finalFetched = fetched;
+            final NewcomerBoard.FetchResult finalFetched = fetched;
             runOnUiThread(() -> {
                 loading = false;
                 if (isFinishing() || isDestroyed()) return;
@@ -416,8 +391,9 @@ public class NewcomerRequestsActivity extends BaseCryptoActivity {
 
                 rebuildRequestList();
 
-                if (finalError != null && requests.isEmpty()) {
-                    emptyText.setText(finalError);
+                String failure = finalError != null ? finalError : finalFetched.error;
+                if (failure != null && requests.isEmpty()) {
+                    emptyText.setText(failure);
                     emptyText.setVisibility(View.VISIBLE);
                 } else if (requests.isEmpty()) {
                     emptyText.setText(R.string.newcomer_requests_empty);
@@ -474,133 +450,11 @@ public class NewcomerRequestsActivity extends BaseCryptoActivity {
     }
 
     private long loadCursor() {
-        if (liveFid == null) return 0L;
-        return getSharedPreferences(CURSOR_PREFS, MODE_PRIVATE).getLong(KEY_CURSOR + liveFid, 0L);
+        return NewcomerBoard.getCursor(this, liveFid);
     }
 
     private void saveCursor() {
-        if (liveFid == null) return;
-        getSharedPreferences(CURSOR_PREFS, MODE_PRIVATE)
-                .edit().putLong(KEY_CURSOR + liveFid, boardCursor).apply();
-    }
-
-    /** Result of one board fetch: filtered requests plus the newest server time seen. */
-    private static class FetchResult {
-        final List<NobodyBoard.Request> requests;
-        final long maxCreateTime;
-
-        FetchResult(List<NobodyBoard.Request> requests, long maxCreateTime) {
-            this.requests = requests;
-            this.maxCreateTime = maxCreateTime;
-        }
-    }
-
-    /**
-     * Resolve and connect to the DOCK server declared in the nobody freer's
-     * on-chain home, reusing the ImManager's registry so an existing connection
-     * is shared.
-     */
-    private FapiClient resolveBoardDockClient(FapiClient fapiClient) {
-        if (fapiClient == null) return null;
-
-        Freer boardFreer = fapiClient.getFreer(NobodyBoard.DEFAULT_NOBODY_FID);
-        if (boardFreer == null || boardFreer.getHome() == null) return null;
-
-        String dockUrl = fapiClient.getHomeServiceResolver()
-                .resolveDockFromHome(boardFreer.getHome(), fapiClient);
-        if (dockUrl == null) return null;
-
-        Setting setting = SettingManager.getInstance().getCurrentSetting();
-        ImManager imManager = setting != null ? setting.getImManager() : null;
-        DockServiceRegistry registry = imManager != null ? imManager.getDockRegistry() : null;
-        if (registry == null) return null;
-
-        FapiClient client = registry.getClientForDock(dockUrl);
-        if (client == null) {
-            client = registry.retryBootstrap(dockUrl);
-        }
-        return client;
-    }
-
-    /**
-     * Fetch the board inbox, keep only template-matching requests (latest per
-     * FID), and hide requesters that already have on-chain balance.
-     */
-    private FetchResult fetchAndFilterRequests(FapiClient boardDockClient,
-                                               FapiClient fapiClient) {
-        Fcdsl fcdsl = new Fcdsl();
-        fcdsl.addSort(FieldNames.CREATE_TIME, Values.DESC);
-        fcdsl.setSize(String.valueOf(FETCH_PAGE_SIZE));
-        // Only fetch asks newer than the watermark. The range keys off the DOCK
-        // server's createTime — never the sender-controlled message timestamp,
-        // which a scammer could set arbitrarily high to jump every cursor.
-        if (boardCursor > 0) {
-            if (fcdsl.getQuery() == null) fcdsl.addNewQuery();
-            fcdsl.getQuery().addNewRange().addNewFields(FieldNames.CREATE_TIME);
-            fcdsl.getQuery().getRange().addGt(String.valueOf(boardCursor));
-        }
-
-        List<String> recipientIds = Collections.singletonList(NobodyBoard.DEFAULT_NOBODY_FID);
-        FapiResponse response = boardDockClient.dockFetch(recipientIds, fcdsl);
-        if (response == null || !response.isSuccess()) {
-            TimberLogger.w(TAG, "dockFetch for board failed: %s",
-                    response != null ? response.getMessage() : "null response");
-            return new FetchResult(new ArrayList<>(), boardCursor);
-        }
-
-        List<DockItem> items = ObjectUtils.objectToList(response.getData(), DockItem.class);
-        if (items == null) return new FetchResult(new ArrayList<>(), boardCursor);
-
-        // Latest request per FID, and the newest server time across all items
-        // (so the cursor advances past scam/funded asks too, not just shown ones).
-        long maxCreateTime = boardCursor;
-        Map<String, NobodyBoard.Request> byFid = new LinkedHashMap<>();
-        for (DockItem item : items) {
-            if (item.getCreateTime() != null && item.getCreateTime() > maxCreateTime) {
-                maxCreateTime = item.getCreateTime();
-            }
-            NobodyBoard.Request request = decodeRequest(item);
-            if (request == null) continue;
-            NobodyBoard.Request existing = byFid.get(request.requesterFid);
-            if (existing == null || request.timestamp > existing.timestamp) {
-                byFid.put(request.requesterFid, request);
-            }
-        }
-
-        // Freshness filter: a requester with any on-chain balance was already
-        // funded (or is farming), so their request no longer needs to show.
-        List<NobodyBoard.Request> result = new ArrayList<>();
-        for (NobodyBoard.Request request : byFid.values()) {
-            try {
-                Freer requester = fapiClient.getFreer(request.requesterFid);
-                if (requester != null && requester.getBalance() != null
-                        && requester.getBalance() > 0) {
-                    continue;
-                }
-            } catch (Exception e) {
-                TimberLogger.w(TAG, "Freshness check failed for %s: %s",
-                        request.requesterFid, e.getMessage());
-            }
-            result.add(request);
-        }
-        return new FetchResult(result, maxCreateTime);
-    }
-
-    private NobodyBoard.Request decodeRequest(DockItem item) {
-        if (item == null || item.getDataBase64() == null || item.getDataBase64().isEmpty()) return null;
-        try {
-            byte[] data = Base64.decode(item.getDataBase64(), Base64.NO_WRAP);
-            ImMessage message = ImMessage.fromWireBytes(data);
-            if (message == null) return null;
-            // Use the DOCK server's createTime as the authoritative timestamp:
-            // it can't be forged by the sender, so ordering, dedup, and the
-            // cursor all stay honest. Fall back to the message only if absent.
-            Long timestamp = item.getCreateTime() != null
-                    ? item.getCreateTime() : message.getTimestamp();
-            return NobodyBoard.parseFirstFchRequest(message.getContent(), timestamp);
-        } catch (Exception e) {
-            return null;
-        }
+        NewcomerBoard.saveCursor(this, liveFid, boardCursor);
     }
 
     // ── List ───────────────────────────────────────────────────────────
