@@ -29,8 +29,6 @@ import com.fc.freer.utils.ApiCenter;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,18 +53,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class P2pHandler extends BaseHandler {
 
-    private static final int PENDING_RECEIPTS_MAX = 256;
-
     private final Map<String, PeerInfo> peerBook = new ConcurrentHashMap<>();
-
-    // Bounded LRU; entries are evicted when capacity is exceeded.
-    private final Map<String, ImMessage> pendingReceipts = Collections.synchronizedMap(
-            new LinkedHashMap<String, ImMessage>(PENDING_RECEIPTS_MAX, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(Map.Entry<String, ImMessage> eldest) {
-                    return size() > PENDING_RECEIPTS_MAX;
-                }
-            });
 
     private TalkPartnerProvider talkPartnerProvider;
     private TalkPartnerHomeUpdater talkPartnerHomeUpdater;
@@ -127,7 +114,6 @@ public class P2pHandler extends BaseHandler {
                         fudpMsgId, message.getId());
                 message.setDeliveryMethod(DeliveryMethod.FUDP_DIRECT);
                 message.setStatus(MessageStatus.SENT);
-                trackForReceipt(message);
                 notifySent(message);
                 PeerInfo peer = peerBook.get(targetFid);
                 if (peer != null) {
@@ -211,7 +197,6 @@ public class P2pHandler extends BaseHandler {
                     if (result != null && result.success()) {
                         message.setDeliveryMethod(DeliveryMethod.ROAD_RELAY);
                         message.setStatus(MessageStatus.SENT);
-                        trackForReceipt(message);
                         notifySent(message);
                         return SendResult.SUCCESS;
                     }
@@ -363,7 +348,6 @@ public class P2pHandler extends BaseHandler {
                 message.setDockId(dockItem.getId());
                 message.setDeliveryMethod(DeliveryMethod.DOCK_STORED);
                 message.setStatus(MessageStatus.SENT);
-                trackForReceipt(message);
                 TimberLogger.d(TAG, "Stored %s", via);
                 notifySent(message);
                 return Boolean.TRUE;
@@ -517,7 +501,7 @@ public class P2pHandler extends BaseHandler {
             peer.setLastDeliveryMethod(DeliveryMethod.FUDP_DIRECT);
         }
 
-        notifyStatusChange(imMessageId, MessageStatus.DELIVERED);
+        notifyStatusChange(peerId, imMessageId, MessageStatus.DELIVERED);
     }
 
     @Override
@@ -554,42 +538,69 @@ public class P2pHandler extends BaseHandler {
         if (message == null || message.getSenderId() == null) return;
         ImMessage receipt = ImMessage.createReceipt(
                 liveFid, message.getSenderId(), message.getId(), true);
-        send(receipt);
+        enqueueReceipt(receipt);
     }
 
+    /**
+     * Apply an inbound receipt to the message it acknowledges.
+     * <p>
+     * The message is looked up by id in the message store rather than in any
+     * in-memory table of what we sent. A receipt for a DOCK-delivered message
+     * arrives only once the recipient comes back online, which may be days
+     * later and across any number of restarts of this app -- an in-memory
+     * table is empty exactly when it is needed, which left the sender's
+     * message stuck on SENT forever.
+     * <p>
+     * Ordering is not guaranteed either: delivered and read receipts can take
+     * different routes and overtake each other, so the listener applies the
+     * status monotonically and drops one that would walk the message
+     * backwards.
+     */
     private void handleReceipt(ImMessage receiptMsg) {
         String originalId = receiptMsg.getRequestId();
         if (originalId == null) return;
         boolean isRead = "read".equals(receiptMsg.getContent());
 
-        ImMessage original;
-        if (isRead) {
-            original = pendingReceipts.remove(originalId);
-        } else {
-            original = pendingReceipts.get(originalId);
-        }
-        if (original == null) return;
+        TimberLogger.d(TAG, "Receipt for %s from %s: %s",
+                originalId, receiptMsg.getSenderId(), isRead ? "read" : "delivered");
 
-        if (isRead) {
-            original.setStatus(MessageStatus.READ);
-            original.setReadAt(receiptMsg.getTimestamp());
-        } else {
-            original.setStatus(MessageStatus.DELIVERED);
-            original.setDeliveredAt(receiptMsg.getTimestamp());
-        }
-        notifyStatusChange(originalId, original.getStatus());
+        notifyStatusChange(receiptMsg.getSenderId(), originalId,
+                isRead ? MessageStatus.READ : MessageStatus.DELIVERED);
     }
 
     private void sendDeliveryReceipt(ImMessage message) {
         ImMessage receipt = ImMessage.createReceipt(
                 liveFid, message.getSenderId(), message.getId(), false);
-        new Thread(() -> send(receipt)).start();
+        enqueueReceipt(receipt);
     }
 
-    private void trackForReceipt(ImMessage message) {
-        if (message.getContentType() != ContentType.RECEIPT) {
-            pendingReceipts.put(message.getId(), message);
+    /**
+     * Hand a receipt to the durable send queue instead of firing it straight
+     * at the network.
+     * <p>
+     * A receipt is the only thing that ever moves the sender's message past
+     * SENT, and nothing regenerates it: once we have recorded the message as
+     * delivered locally, a receipt lost to a network flap is lost for good.
+     * That flap is likely precisely here -- delivery receipts are produced
+     * while draining a DOCK backlog, i.e. seconds after coming back online,
+     * against a DOCK connection that may still be re-bootstrapping. The queue
+     * persists across restarts and retries with backoff.
+     * <p>
+     * Queue entries are keyed by message id, so a receipt we could not assign
+     * an id to falls back to the old best-effort direct send rather than
+     * poisoning the queue with a null key.
+     */
+    private void enqueueReceipt(ImMessage receipt) {
+        if (!receipt.hasFudpId() && fudpNode != null) {
+            receipt.setIdFromLong(fudpNode.generateMessageId());
         }
+        if (p2pSender != null && receipt.hasFudpId()) {
+            // Returns immediately: the queue owns the send from here, which
+            // also keeps a backlog of receipts off the caller's thread.
+            p2pSender.sendP2p(receipt);
+            return;
+        }
+        new Thread(() -> send(receipt)).start();
     }
 
     public void updatePeerBook(String fid, InetSocketAddress address, String pubkey) {

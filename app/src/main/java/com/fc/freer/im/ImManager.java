@@ -317,6 +317,12 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         };
         teamHandler.setP2pSender(p2pSender);
         roomHandler.setP2pSender(p2pSender);
+        // P2P uses the same hook for delivery/read receipts. They are the only
+        // signal that advances a sent message past SENT and nothing reissues a
+        // lost one, so they need the queue's persistence and retry rather than
+        // a one-shot direct send. send() skips DB/conversation indexing for
+        // RECEIPT, so queueing them adds no chat-list noise.
+        p2pHandler.setP2pSender(p2pSender);
 
         BaseHandler.SymkeyRequester requester = this::requestTeamSymkey;
         teamHandler.setSymkeyRequester(requester);
@@ -1629,23 +1635,70 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
     }
     
     @Override
-    public void onDeliveryStatusChanged(String messageId, MessageStatus status) {
+    public void onDeliveryStatusChanged(String peerId, String messageId, MessageStatus status) {
         executor.execute(() -> {
             ImMessage message = messagesDb.get(messageId);
-            if (message != null) {
-                message.setStatus(status);
-                if (status == MessageStatus.DELIVERED) {
-                    message.setDeliveredAt(System.currentTimeMillis());
-                } else if (status == MessageStatus.READ) {
-                    message.setReadAt(System.currentTimeMillis());
-                }
-                messagesDb.put(message.getId(), message);
-                
-                mainHandler.post(() -> {
-                    for (ImListener l : listeners) l.onMessageSent(message);
-                });
+            if (message == null) {
+                // Not ours, or already purged. Receipts for room control and
+                // team notifications land here too: those are never stored.
+                TimberLogger.d(TAG, "Status %s for unknown message %s, ignoring", status, messageId);
+                return;
             }
+
+            // Only the peer we sent it to may report on it. Message ids are
+            // unique per sender, not globally, so without this a peer that
+            // guessed an id could mark a message we sent to someone else as
+            // read, or stamp a status onto a message we received.
+            if (!liveFid.equals(message.getSenderId())
+                    || peerId == null || !peerId.equals(message.getTargetId())) {
+                TimberLogger.w(TAG, "Rejecting %s for %s from %s: not that peer's to report",
+                        status, messageId, peerId);
+                return;
+            }
+
+            int current = deliveryRank(message.getStatus());
+            int incoming = deliveryRank(status);
+            if (current < 0 || incoming <= current) {
+                TimberLogger.d(TAG, "Ignoring %s for %s: already %s", status, messageId, message.getStatus());
+                return;
+            }
+
+            message.setStatus(status);
+            if (status == MessageStatus.DELIVERED) {
+                message.setDeliveredAt(System.currentTimeMillis());
+            } else if (status == MessageStatus.READ) {
+                message.setReadAt(System.currentTimeMillis());
+            }
+            messagesDb.put(message.getId(), message);
+
+            mainHandler.post(() -> {
+                for (ImListener l : listeners) l.onMessageSent(message);
+            });
         });
+    }
+
+    /**
+     * Delivery progress ranking, used to keep receipt-driven status monotonic.
+     * <p>
+     * Delivered and read receipts travel independently and can overtake each
+     * other -- a read receipt may come back over FUDP while the delivery
+     * receipt for the same message is still resting in a DOCK -- so a status
+     * update is applied only when it moves the message forward.
+     * <p>
+     * FAILED ranks below SENT on purpose: a receipt is proof the message
+     * actually arrived, so it supersedes a local send failure. QUARANTINED and
+     * IMPORTED describe received messages, which we never sent and can hold no
+     * receipt for; they rank -1 so a stray receipt cannot overwrite them.
+     */
+    private static int deliveryRank(MessageStatus status) {
+        if (status == null) return 0;
+        return switch (status) {
+            case PENDING, FAILED -> 0;
+            case SENT -> 1;
+            case DELIVERED -> 2;
+            case READ -> 3;
+            case QUARANTINED, IMPORTED -> -1;
+        };
     }
     
     @Override
@@ -1862,6 +1915,16 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
     }
     
     private void handleMessageFailed(ImMessage message, String reason) {
+        // Receipts are background traffic the user never sent and cannot act
+        // on: storing one would put a message in the DB under the receipt's own
+        // id, and toasting would blame the user for someone else's dead DOCK.
+        // The cost of giving up is that the peer's message stays on SENT.
+        if (message.getContentType() == ContentType.RECEIPT) {
+            TimberLogger.w(TAG, "Receipt for %s to %s gave up after retries: %s",
+                    message.getRequestId(), message.getTargetId(), reason);
+            return;
+        }
+
         executor.execute(() -> {
             message.setStatus(MessageStatus.FAILED);
             if (!isRoomControlType(message.getContentType())) {

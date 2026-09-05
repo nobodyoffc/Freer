@@ -67,7 +67,19 @@ public abstract class BaseHandler {
     public interface MessageListener {
         void onMessageReceived(ImMessage message);
         void onMessageSent(ImMessage message);
-        void onDeliveryStatusChanged(String messageId, com.fc.fc_ajdk.data.fcData.MessageStatus status);
+
+        /**
+         * Delivery progress reported for a message we sent.
+         *
+         * @param peerId the peer the progress came from — the receipt's sender,
+         *               or the peer that acked at the transport layer. Message
+         *               ids are only locally unique, so the listener must check
+         *               this against the message's target before applying the
+         *               status: otherwise any peer that guesses an id can mark
+         *               a message we sent to somebody else as read.
+         */
+        void onDeliveryStatusChanged(String peerId, String messageId,
+                                     com.fc.fc_ajdk.data.fcData.MessageStatus status);
         void onError(String error);
     }
 
@@ -253,9 +265,10 @@ public abstract class BaseHandler {
     /**
      * Notify listener of status change.
      */
-    protected void notifyStatusChange(String messageId, com.fc.fc_ajdk.data.fcData.MessageStatus status) {
+    protected void notifyStatusChange(String peerId, String messageId,
+                                      com.fc.fc_ajdk.data.fcData.MessageStatus status) {
         if (messageListener != null) {
-            messageListener.onDeliveryStatusChanged(messageId, status);
+            messageListener.onDeliveryStatusChanged(peerId, messageId, status);
         }
     }
     
