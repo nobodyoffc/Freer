@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class FreerApplication extends Application {
-    public static final String VER = "v3.1";
+    public static final String VER = "v3.1.1";
 
     public static final int DEFAULT_PAGE_SIZE = 10;
     public static final int MAX_CONTAINER_SIZE =40;
