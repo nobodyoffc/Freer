@@ -273,22 +273,70 @@ public class Setting extends BaseSetting implements ClientConfig {
     
     /** Maximum number of ports to try when the default port is not available */
     private static final int MAX_PORT_ATTEMPTS = 10;
-    
+
+    /**
+     * Live FUDP nodes, keyed by the FID whose private key runs them.
+     * <p>
+     * The node is transient state on a Setting, but a Setting is not a singleton:
+     * {@code SettingManager.getOrCreateSetting} deserializes a fresh object from
+     * SharedPreferences on every identity selection, so the object that owns a
+     * running node is routinely dropped while the node keeps running. Without this
+     * registry the next Setting for the same FID sees {@code fudpNode == null},
+     * starts a second node, fails to bind the configured port, and lands on the
+     * next one — leaving two nodes alive under one FID on two UDP ports (and so
+     * two NAT mappings). Peers then see one FID with two session epochs and two
+     * source addresses, steer that FID's traffic at whichever socket spoke last,
+     * and every request issued on the other socket times out.
+     * <p>
+     * Keyed by FID rather than by Setting instance so the guard survives that churn.
+     */
+    private static final java.util.Map<String, FudpNode> LIVE_NODES = new java.util.HashMap<>();
+
+    /**
+     * Guards {@link #LIVE_NODES} and the whole start/stop sequence. A per-instance
+     * lock would not help: the racing callers hold different Setting objects.
+     */
+    private static final Object NODE_LOCK = new Object();
+
     /**
      * Initialize and start FUDP node with port fallback logic.
      * If the configured port is not available, tries subsequent ports (e.g., 8501, 8502, etc.)
+     * <p>
+     * Start-to-finish under {@link #NODE_LOCK}, and shared through {@link #LIVE_NODES},
+     * so at most one node per FID is running no matter how many Setting objects or
+     * threads ask for one.
      */
     public FudpNode initFudpNode(String dataDir) {
+        synchronized (NODE_LOCK) {
+            return initFudpNodeLocked(dataDir);
+        }
+    }
+
+    private FudpNode initFudpNodeLocked(String dataDir) {
         if (fudpNode != null && fudpNode.isRunning()) {
             return fudpNode;
         }
-        
+
+        // A previous Setting object for this identity may still own a running node.
+        // Adopt it instead of starting a second one on another port.
+        if (mainFid != null) {
+            FudpNode live = LIVE_NODES.get(mainFid);
+            if (live != null) {
+                if (live.isRunning()) {
+                    TimberLogger.d(TAG, "Adopting live FUDP node for %s", mainFid);
+                    fudpNode = live;
+                    return fudpNode;
+                }
+                LIVE_NODES.remove(mainFid);
+            }
+        }
+
         byte[] nodePrikey = decryptPrikey();
         if (nodePrikey == null) {
             TimberLogger.e(TAG, "Cannot init FudpNode: prikey not available");
             return null;
         }
-        
+
         int basePort = getSettingInt(NodeConfig.FUDP_PORT, FudpNode.DEFAULT_PORT);
         
         // Try ports starting from basePort, up to MAX_PORT_ATTEMPTS
@@ -302,9 +350,15 @@ public class Setting extends BaseSetting implements ClientConfig {
             config.setSocketBufferSize(4 * 1024 * 1024);
             
             try {
-                fudpNode = new FudpNode(nodePrikey, config);
-                fudpNode.start();
-                
+                // Build into a local first: the field must never publish a node
+                // that has not started, nor one whose bind is about to fail.
+                FudpNode node = new FudpNode(nodePrikey, config);
+                node.start();
+                fudpNode = node;
+                if (mainFid != null) {
+                    LIVE_NODES.put(mainFid, node);
+                }
+
                 // If successfully started on a different port than configured, save the new port
                 if (attempt > 0) {
                     putSetting(NodeConfig.FUDP_PORT, port);
@@ -312,9 +366,9 @@ public class Setting extends BaseSetting implements ClientConfig {
                 } else {
                     TimberLogger.d(TAG, "FUDP Node started on port %d with dataDir %s", port, dataDir);
                 }
-                
+
                 return fudpNode;
-                
+
             } catch (java.net.BindException e) {
                 // Port is in use, try next port
                 TimberLogger.w(TAG, "Port %d is not available: %s, trying next port...", port, e.getMessage());
@@ -386,10 +440,52 @@ public class Setting extends BaseSetting implements ClientConfig {
      * Stop FUDP node
      */
     public void stopFudpNode() {
-        if (fudpNode != null && fudpNode.isRunning()) {
-            fudpNode.stop();
-            TimberLogger.d(TAG, "FUDP Node stopped");
+        for (FudpNode node : detachFudpNodes()) {
+            stopNode(node);
         }
-        fudpNode = null;
+    }
+
+    /**
+     * Same as {@link #stopFudpNode()} but returns as soon as the node is detached,
+     * doing the blocking shutdown (scheduler drain + receive-thread join, up to
+     * several seconds) on a background thread. Detaching is what matters for
+     * correctness — once unregistered, no later {@code initFudpNode} can adopt the
+     * node — so this is safe to call from the UI thread.
+     */
+    public void stopFudpNodeAsync() {
+        List<FudpNode> nodes = detachFudpNodes();
+        if (nodes.isEmpty()) return;
+        new Thread(() -> {
+            for (FudpNode node : nodes) stopNode(node);
+        }, "fudp-stop").start();
+    }
+
+    /**
+     * Unregister this identity's node(s) and clear the field, under {@link #NODE_LOCK}.
+     * Returns what still needs stopping.
+     * <p>
+     * Takes whatever is live for this identity, not only what this particular Setting
+     * object holds: after an identity switch the object that started the node is
+     * usually already gone.
+     */
+    private List<FudpNode> detachFudpNodes() {
+        List<FudpNode> nodes = new ArrayList<>(2);
+        synchronized (NODE_LOCK) {
+            FudpNode live = (mainFid != null) ? LIVE_NODES.remove(mainFid) : null;
+            if (live != null) nodes.add(live);
+            if (fudpNode != null && fudpNode != live) nodes.add(fudpNode);
+            fudpNode = null;
+        }
+        return nodes;
+    }
+
+    private void stopNode(FudpNode node) {
+        if (node == null || !node.isRunning()) return;
+        try {
+            node.stop();
+            TimberLogger.d(TAG, "FUDP Node stopped for %s", mainFid);
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "Error stopping FUDP Node for %s: %s", mainFid, e.getMessage());
+        }
     }
 }

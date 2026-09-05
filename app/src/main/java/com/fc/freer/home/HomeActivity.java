@@ -1256,31 +1256,33 @@ public class HomeActivity extends AppCompatActivity {
         FidManager.getInstance().setPendingIssueManager(earlyPim);
         runOnUiThread(this::updateBadges);
 
-        // Check network connectivity before initializing API services
-        boolean isNetworkAvailable = NetworkUtils.isNetworkAvailable(this);
-        if (!isNetworkAvailable) {
-            TimberLogger.w(TAG, "Network is not available, skipping API initialization");
-            runOnUiThread(() -> ToastUtils.showWarning(this, getString(R.string.network_unavailable_continuing_offline)));
-        } else {
-            // Initialize API services using ApiCenter
-            try {
-                ApiCenter apiCenter = ApiCenter.getInstance();
-                if (apiCenter == null) {
-                    TimberLogger.e(TAG, "Failed to get ApiCenter instance");
-                    return;
-                }
-                
-                apiCenter.setCurrentSetting(setting);
-                apiCenter.setCurrentConfigure(configure);
-                
+        // Hand ApiCenter the new identity before anything else, network or not.
+        // This is what tears down the previous identity's clients and stops its
+        // FUDP node; skipping it (as the offline branch used to) leaves that node
+        // running under the old FID while this session starts its own, which peers
+        // see as one FID speaking from two sockets.
+        try {
+            ApiCenter apiCenter = ApiCenter.getInstance();
+            if (apiCenter == null) {
+                TimberLogger.e(TAG, "Failed to get ApiCenter instance");
+                return;
+            }
+
+            apiCenter.setCurrentSetting(setting);
+            apiCenter.setCurrentConfigure(configure);
+
+            // Check network connectivity before opening connections
+            if (!NetworkUtils.isNetworkAvailable(this)) {
+                TimberLogger.w(TAG, "Network is not available, skipping API initialization");
+                runOnUiThread(() -> ToastUtils.showWarning(this, getString(R.string.network_unavailable_continuing_offline)));
+            } else {
                 // Initialize API client groups with error handling
                 apiCenter.initiate(this);
-
-            } catch (Exception e) {
-                TimberLogger.e(TAG, "Error initializing API services: %s", e.getMessage(), e);
-                // Don't treat API service initialization failure as fatal
-                TimberLogger.w(TAG, "Continuing without API services due to initialization error");
             }
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error initializing API services: %s", e.getMessage(), e);
+            // Don't treat API service initialization failure as fatal
+            TimberLogger.w(TAG, "Continuing without API services due to initialization error");
         }
 
         // Initialize managers for the current liveFid (FidManager should already be initialized)

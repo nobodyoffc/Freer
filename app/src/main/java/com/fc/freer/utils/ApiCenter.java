@@ -1332,7 +1332,21 @@ public class ApiCenter {
         TimberLogger.d(TAG, "Closed all home-appointed clients");
     }
 
+    /**
+     * Same as {@link #closeAllClients()} but returns without waiting for the FUDP
+     * node's shutdown (scheduler drain + receive-thread join, up to several seconds).
+     * The node is detached synchronously, so nothing can adopt or reuse it afterwards.
+     * Use this from the UI thread.
+     */
+    public void closeAllClientsAsync() {
+        closeAllClients(true);
+    }
+
     public void closeAllClients() {
+        closeAllClients(false);
+    }
+
+    private void closeAllClients(boolean asyncNodeShutdown) {
         TimberLogger.d(TAG, "Closing all API clients");
 
         closeHomeClients();
@@ -1368,7 +1382,11 @@ public class ApiCenter {
         
         // Stop FudpNode if running
         if (currentSetting != null) {
-            currentSetting.stopFudpNode();
+            if (asyncNodeShutdown) {
+                currentSetting.stopFudpNodeAsync();
+            } else {
+                currentSetting.stopFudpNode();
+            }
         }
 
         // Clear current setting and configure references

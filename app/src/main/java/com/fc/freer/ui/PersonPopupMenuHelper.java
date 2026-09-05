@@ -547,10 +547,16 @@ public class PersonPopupMenuHelper {
         try {
             // Reset FidManager
             fidManager.reset();
-            
+
+            // Close this identity's API clients and stop its FUDP node before the
+            // setting is dropped. Leaving it to the next HomeActivity is not enough:
+            // that only tears down when it observes a *different* FID, so selecting
+            // the same identity again would start a second node under one FID.
+            ApiCenter.getInstance().closeAllClientsAsync();
+
             // Reset SettingManager
             SettingManager.getInstance().clearCurrentSetting();
-            
+
             // Return to MainActivity
             Intent intent = new Intent(activity, MainActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
