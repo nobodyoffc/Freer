@@ -71,9 +71,10 @@ public class DataSyncManager {
     // Symmetric key size in bytes
     private static final int SYM_KEY_SIZE = 32;
     
-    // Location prefixes: fudp://host:port, (sid)serviceId
+    // Location prefixes: fudp://host:port, (sid)serviceId, local:///absolute/path
     public static final String FUDP_LOCATION_PREFIX = "fudp://";
     public static final String SID_LOCATION_PREFIX = "(sid)";
+    public static final String LOCAL_LOCATION_PREFIX = "local://";
     
     // LRU cache for DISK clients resolved from SID locations, avoids re-bootstrapping
     private static final int DISK_CLIENT_CACHE_SIZE = 16;
@@ -1162,6 +1163,49 @@ public class DataSyncManager {
         return out;
     }
     
+    /**
+     * True for a location that names a file on this device.
+     */
+    public static boolean isLocalLoca(String loca) {
+        return loca != null && loca.startsWith(LOCAL_LOCATION_PREFIX);
+    }
+
+    /**
+     * Removes every {@code local://} location from a HAT, in place.
+     * Used on HATs arriving from a peer: their absolute paths belong to the sender's device
+     * and must never be mistaken for a local copy here.
+     */
+    public static void stripLocalLocas(Hat hat) {
+        if (hat == null) return;
+        List<String> locas = hat.getLocas();
+        if (locas == null || locas.isEmpty()) return;
+        List<String> kept = new ArrayList<>(locas.size());
+        for (String loca : locas) {
+            if (!isLocalLoca(loca)) kept.add(loca);
+        }
+        if (kept.size() != locas.size()) hat.setLocas(kept);
+    }
+
+    /**
+     * Returns a copy of {@code hat} that is safe to put on the wire.
+     * <p>Two reasons this must be a copy rather than the stored HAT:
+     * <ul>
+     *   <li>{@code local://} locations are absolute paths on this device -- useless to a
+     *       recipient and a needless disclosure of the sender's filesystem layout.</li>
+     *   <li>Callers add sharing credentials (the plaintext symkey) to the outgoing HAT;
+     *       those must not be written back into the local HAT database.</li>
+     * </ul>
+     *
+     * @return a detached HAT without local locations, or null if {@code hat} is null
+     */
+    public static Hat toWireHat(Hat hat) {
+        if (hat == null) return null;
+        Hat copy = Hat.fromJson(hat.toJson(), Hat.class);
+        if (copy == null) return null;
+        stripLocalLocas(copy);
+        return copy;
+    }
+
     /**
      * Gets the last error message.
      */

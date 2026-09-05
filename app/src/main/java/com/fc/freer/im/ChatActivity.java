@@ -72,6 +72,7 @@ import com.fc.freer.mail.CreateMailActivity;
 import com.fc.freer.manager.AvatarManager;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
+import com.fc.freer.data.DataSyncManager;
 import com.fc.freer.data.HatFileOpener;
 import com.fc.freer.manager.HatManager;
 import com.fc.freer.model.Setting;
@@ -1643,6 +1644,10 @@ public class ChatActivity extends BaseCryptoActivity
         String liveFid = fidManager != null ? fidManager.getLiveFid() : null;
         if (liveFid == null) return;
         HatManager hm = HatManager.getInstance(this, liveFid);
+        // The HAT rides in from the wire: any local:// loca on it is a path on the sender's
+        // device, so drop it before it reaches our DB, where findLocalPath() would treat it
+        // as our own copy of the file.
+        DataSyncManager.stripLocalLocas(hat);
         com.fc.fc_ajdk.data.fcData.Hat dbHat = hm.getHatById(hat.getId());
         if (dbHat == null) {
             hm.addHat(hat);
@@ -1725,7 +1730,11 @@ public class ChatActivity extends BaseCryptoActivity
             java.util.List<String> merged = dst.getLocas() != null
                     ? new java.util.ArrayList<>(dst.getLocas()) : new java.util.ArrayList<>();
             for (String loca : src.getLocas()) {
-                if (loca != null && !merged.contains(loca)) merged.add(loca);
+                // Only remote locations are portable; a local:// path from the sender says
+                // nothing about where the file lives here.
+                if (loca != null && !DataSyncManager.isLocalLoca(loca) && !merged.contains(loca)) {
+                    merged.add(loca);
+                }
             }
             dst.setLocas(merged);
         }

@@ -2707,6 +2707,10 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                     return;
                 }
 
+                // A HAT off the wire may carry the sender's local:// paths; they name files
+                // on their device, not ours.
+                DataSyncManager.stripLocalLocas(rawHat);
+
                 HatManager hatManager = HatManager.getInstance(context, liveFid);
                 hatManager.addHat(rawHat);
                 hatManager.commit();
@@ -2863,15 +2867,24 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                     return;
                 }
 
+                // Send a detached copy: local:// locations are this device's absolute paths,
+                // useless to the requester, and the plaintext symkey below must not be
+                // written back into the local HAT database.
+                Hat wireHat = DataSyncManager.toWireHat(rawHat);
+                if (wireHat == null) {
+                    TimberLogger.w(TAG, "Failed to prepare history HAT for sending");
+                    exportFile.delete();
+                    return;
+                }
                 byte[] symkey = dsm.getLastSymkey();
-                rawHat.setKey(Hex.toHex(symkey));
+                wireHat.setKey(Hex.toHex(symkey));
 
                 ImMessage response = new ImMessage();
                 response.setType(ImType.P2P);
                 response.setSenderId(liveFid);
                 response.setTargetId(requesterFid);
                 response.setContentType(ContentType.HISTORY);
-                response.setContent(rawHat.toJson());
+                response.setContent(wireHat.toJson());
                 if (requestMsg.getRequestId() != null) {
                     response.setRequestId(requestMsg.getRequestId());
                 }

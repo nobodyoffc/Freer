@@ -135,11 +135,18 @@ public class FileShareHelper {
             }
             String rawDid = Hex.toHex(rawHash);
 
-            Hat rawHat = new Hat();
-            rawHat.setId(rawDid);
+            // The DID is content-addressed, so a stored HAT with this ID describes these very
+            // bytes: reuse it instead of overwriting, or the share would discard what the DB
+            // already knows -- where the local copy lives (locas) and which cipher HATs were
+            // uploaded (cipherIds). Only the descriptive fields are refreshed from this file.
+            Hat rawHat = hatManager.getHatById(rawDid);
+            if (rawHat == null) {
+                rawHat = new Hat();
+                rawHat.setId(rawDid);
+                rawHat.setBorn(System.currentTimeMillis());
+            }
             rawHat.setName(fileName);
             rawHat.setSize(fileSize);
-            rawHat.setBorn(System.currentTimeMillis());
             rawHat.setLast(System.currentTimeMillis());
             rawHat.setState(Hat.DataState.ACTIVE);
 
@@ -148,9 +155,11 @@ public class FileShareHelper {
                 rawHat.setTypes(Collections.singletonList(mimeType));
             }
 
+            // A description the user typed wins; otherwise keep any the stored HAT carries
+            // rather than replacing it with the generic one.
             if (desc != null && !desc.isEmpty()) {
                 rawHat.setDesc(desc);
-            } else {
+            } else if (rawHat.getDesc() == null || rawHat.getDesc().isEmpty()) {
                 rawHat.setDesc("Shared in " + imType.name().toLowerCase() + " chat");
             }
 
@@ -159,7 +168,15 @@ public class FileShareHelper {
             // Build the message now, before the (slow) upload, so the UI can show the
             // bubble immediately and render upload progress on it (keyed by rawDid).
             // Content is refreshed with the finalized HAT (symkey + locas) after upload.
-            ImMessage msg = ImMessage.createHat(imType, senderId, targetId, rawHat);
+            // A reused HAT can already carry local:// locations, so this preliminary
+            // content is wire-safe from the start.
+            Hat previewHat = DataSyncManager.toWireHat(rawHat);
+            if (previewHat == null) {
+                lastError = "Failed to prepare HAT for sending";
+                TimberLogger.e(TAG, lastError);
+                return null;
+            }
+            ImMessage msg = ImMessage.createHat(imType, senderId, targetId, previewHat);
             if (onPrepared != null) {
                 onPrepared.onPrepared(msg, rawDid, fileSize);
             }
@@ -179,34 +196,46 @@ public class FileShareHelper {
                 rawHat = updatedRawHat;
             }
 
+            // What goes on the wire is a detached copy of the stored HAT, without its
+            // local:// locations: those are absolute paths on this device, useless to the
+            // recipients and a needless disclosure of the sender's filesystem layout.
+            // Working on the copy also keeps the plaintext symkey out of the local HAT DB.
+            Hat wireHat = DataSyncManager.toWireHat(rawHat);
+            if (wireHat == null) {
+                lastError = "Failed to prepare HAT for sending";
+                TimberLogger.e(TAG, lastError);
+                return null;
+            }
+
             // Set plaintext symkey so receivers can decrypt
             byte[] symkey = dataSyncManager.getLastSymkey();
             if (symkey != null) {
-                rawHat.setKey(Hex.toHex(symkey));
+                wireHat.setKey(Hex.toHex(symkey));
             }
 
-            // Copy cipher HAT's DISK locations into rawHat so receivers know where to download
-            List<String> cipherIds = rawHat.getCipherIds();
+            // Copy cipher HAT's DISK locations into wireHat so receivers know where to download
+            List<String> cipherIds = wireHat.getCipherIds();
             if (cipherIds != null) {
                 for (String cipherId : cipherIds) {
                     Hat cipherHat = hatManager.getHatById(cipherId);
                     if (cipherHat != null && cipherHat.getLocas() != null) {
-                        List<String> rawLocas = rawHat.getLocas();
-                        if (rawLocas == null) {
-                            rawLocas = new java.util.ArrayList<>();
+                        List<String> wireLocas = wireHat.getLocas();
+                        if (wireLocas == null) {
+                            wireLocas = new java.util.ArrayList<>();
                         }
                         for (String loca : cipherHat.getLocas()) {
-                            if (loca != null && !rawLocas.contains(loca)) {
-                                rawLocas.add(loca);
+                            if (loca != null && !DataSyncManager.isLocalLoca(loca)
+                                    && !wireLocas.contains(loca)) {
+                                wireLocas.add(loca);
                             }
                         }
-                        rawHat.setLocas(rawLocas);
+                        wireHat.setLocas(wireLocas);
                     }
                 }
             }
 
             // Refresh the message content with the finalized HAT (symkey + locas).
-            msg.setContent(rawHat.toJson());
+            msg.setContent(wireHat.toJson());
             return msg;
 
         } catch (Exception e) {
