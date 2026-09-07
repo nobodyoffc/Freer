@@ -22,6 +22,7 @@ public class CodeOpData {
 	private List<String> protocols;
 	private List<String> waiters;
 	private Integer rate;
+	private String cause;
 	private String closeStatement;
 
 	public enum Op {
@@ -121,11 +122,17 @@ public class CodeOpData {
 		return data;
 	}
 
-	public static CodeOpData makeRate(String codeId, Integer rate) {
+	/**
+	 * @param rate  0 to 5
+	 * @param cause optional free text saying why; pass null when blank so the
+	 *              field is omitted rather than carved as an empty string
+	 */
+	public static CodeOpData makeRate(String codeId, Integer rate, String cause) {
 		CodeOpData data = new CodeOpData();
 		data.setOp(Op.RATE.toLowerCase());
 		data.setCodeId(codeId);
 		data.setRate(rate);
+		data.setCause(cause);
 		return data;
 	}
 
@@ -188,6 +195,12 @@ public class CodeOpData {
 	}
 	public void setRate(Integer rate) {
 		this.rate = rate;
+	}
+	public String getCause() {
+		return cause;
+	}
+	public void setCause(String cause) {
+		this.cause = cause;
 	}
 	public String getCloseStatement() {
 		return closeStatement;

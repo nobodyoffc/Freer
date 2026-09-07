@@ -7,6 +7,7 @@ import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
@@ -26,6 +27,8 @@ import com.fc.fc_ajdk.data.feipData.Code;
 import com.fc.fc_ajdk.data.feipData.CodeOpData;
 import com.fc.fc_ajdk.data.feipData.Feip;
 import com.fc.fc_ajdk.data.feipData.Protocol;
+import com.fc.fc_ajdk.data.feipData.Remark;
+import com.fc.fc_ajdk.data.feipData.RemarkOpData;
 import com.fc.fc_ajdk.data.feipData.ProtocolOpData;
 import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.data.feipData.ServiceOpData;
@@ -63,10 +66,11 @@ public class RateActivity extends BaseCryptoActivity {
     public static final String EXTRA_PROTOCOL_JSON = "extra_protocol_json";
     public static final String EXTRA_SERVICE_JSON = "extra_service_json";
     public static final String EXTRA_TEAM_JSON = "extra_team_json";
+    public static final String EXTRA_REMARK_JSON = "extra_remark_json";
 
     // Item type enum
     public enum ItemType {
-        APP, CODE, PROTOCOL, SERVICE, TEAM
+        APP, CODE, PROTOCOL, SERVICE, TEAM, REMARK
     }
 
     private ItemType currentItemType;
@@ -75,6 +79,7 @@ public class RateActivity extends BaseCryptoActivity {
     private Protocol currentProtocol;
     private Service currentService;
     private Team currentTeam;
+    private Remark currentRemark;
 
     // Views
     private TextView itemTypeLabel;
@@ -88,6 +93,7 @@ public class RateActivity extends BaseCryptoActivity {
     private LinearLayout totalCdContainer;
     private TextView totalCdValue;
     private LinearLayout ratingContainer;
+    private EditText causeInput;
     private RadioButton rate0, rate1, rate2, rate3, rate4, rate5;
     private RadioButton[] ratingButtons;
     private ImageButton clearButton;
@@ -209,6 +215,15 @@ public class RateActivity extends BaseCryptoActivity {
             }
         }
 
+        String remarkJson = getIntent().getStringExtra(EXTRA_REMARK_JSON);
+        if (remarkJson != null) {
+            currentRemark = JsonUtils.fromJson(remarkJson, Remark.class);
+            if (currentRemark != null) {
+                currentItemType = ItemType.REMARK;
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -230,6 +245,8 @@ public class RateActivity extends BaseCryptoActivity {
                 return getString(R.string.rate_service);
             case TEAM:
                 return getString(R.string.rate_team);
+            case REMARK:
+                return getString(R.string.rate_remark);
             default:
                 return getString(R.string.rate_item);
         }
@@ -248,6 +265,7 @@ public class RateActivity extends BaseCryptoActivity {
         totalCdContainer = findViewById(R.id.totalCdContainer);
         totalCdValue = findViewById(R.id.totalCdValue);
         ratingContainer = findViewById(R.id.ratingContainer);
+        causeInput = findViewById(R.id.causeInput);
         clearButton = findViewById(R.id.clearButton);
         rateButton = findViewById(R.id.rateButton);
         backButton = findViewById(R.id.backButton);
@@ -313,6 +331,9 @@ public class RateActivity extends BaseCryptoActivity {
                 break;
             case TEAM:
                 displayTeamInfo();
+                break;
+            case REMARK:
+                displayRemarkInfo();
                 break;
         }
     }
@@ -389,6 +410,25 @@ public class RateActivity extends BaseCryptoActivity {
         itemTCddValue.setText(tCdd != null ? String.valueOf(tCdd) : "0");
 
         Float tRate = currentTeam.gettRate();
+        itemTRateValue.setText(tRate != null ? String.format(Locale.US, "%.2f", tRate) : "-");
+    }
+
+    /**
+     * A remark has a title rather than a stdName, and its summary is
+     * the closest thing it has to a description.
+     */
+    private void displayRemarkInfo() {
+        if (currentRemark == null) return;
+
+        itemTypeLabel.setText(R.string.rate_this_remark);
+        itemNameValue.setText(currentRemark.getTitle() != null ? currentRemark.getTitle() : "-");
+        itemDescValue.setText(currentRemark.getSummary() != null ? currentRemark.getSummary() : "");
+        itemIdValue.setText(currentRemark.getId() != null ? currentRemark.getId() : "");
+
+        Long tCdd = currentRemark.gettCdd();
+        itemTCddValue.setText(tCdd != null ? String.valueOf(tCdd) : "0");
+
+        Float tRate = currentRemark.gettRate();
         itemTRateValue.setText(tRate != null ? String.format(Locale.US, "%.2f", tRate) : "-");
     }
 
@@ -566,6 +606,9 @@ public class RateActivity extends BaseCryptoActivity {
         for (RadioButton rb : ratingButtons) {
             rb.setChecked(false);
         }
+
+        // Clear the reason
+        if (causeInput != null) causeInput.setText("");
     }
 
     /**
@@ -623,8 +666,13 @@ public class RateActivity extends BaseCryptoActivity {
             return;
         }
 
+        // Optional free text saying why. Blank means omit the field entirely
+        // rather than carve an empty string, the same rule as RateFreerActivity.
+        String cause = causeInput == null ? null : causeInput.getText().toString().trim();
+        if (cause != null && cause.isEmpty()) cause = null;
+
         // Create FEIP message based on item type
-        String feipJson = createFeipRateJson(itemId, rating);
+        String feipJson = createFeipRateJson(itemId, rating, cause);
         if (feipJson == null) {
             ToastUtils.makeText(this, R.string.no_item_to_rate);
             return;
@@ -702,6 +750,8 @@ public class RateActivity extends BaseCryptoActivity {
                 return currentService != null ? currentService.getId() : null;
             case TEAM:
                 return currentTeam != null ? currentTeam.getId() : null;
+            case REMARK:
+                return currentRemark != null ? currentRemark.getId() : null;
             default:
                 return null;
         }
@@ -720,6 +770,11 @@ public class RateActivity extends BaseCryptoActivity {
                 return currentService != null ? currentService.getOwner() : null;
             case TEAM:
                 return currentTeam != null ? currentTeam.getOwner() : null;
+            case REMARK:
+                // FEIP22 bars the `publisher`, which is the same rule
+                // under a different word: the Publish protocols call
+                // the record's author a publisher, not an owner.
+                return currentRemark != null ? currentRemark.getPublisher() : null;
             default:
                 return null;
         }
@@ -728,7 +783,7 @@ public class RateActivity extends BaseCryptoActivity {
     /**
      * Create FEIP JSON for rating based on item type
      */
-    private String createFeipRateJson(String itemId, Integer rating) {
+    private String createFeipRateJson(String itemId, Integer rating, String cause) {
         if (currentItemType == null) return null;
 
         Feip feip;
@@ -737,23 +792,27 @@ public class RateActivity extends BaseCryptoActivity {
         switch (currentItemType) {
             case APP:
                 feip = Feip.fromProtocolName(Feip.FeipProtocol.APP);
-                opData = AppOpData.makeRate(itemId, rating);
+                opData = AppOpData.makeRate(itemId, rating, cause);
                 break;
             case CODE:
                 feip = Feip.fromProtocolName(Feip.FeipProtocol.CODE);
-                opData = CodeOpData.makeRate(itemId, rating);
+                opData = CodeOpData.makeRate(itemId, rating, cause);
                 break;
             case PROTOCOL:
                 feip = Feip.fromProtocolName(Feip.FeipProtocol.PROTOCOL);
-                opData = ProtocolOpData.makeRate(itemId, rating);
+                opData = ProtocolOpData.makeRate(itemId, rating, cause);
                 break;
             case SERVICE:
                 feip = Feip.fromProtocolName(Feip.FeipProtocol.SERVICE);
-                opData = ServiceOpData.makeRate(itemId, rating);
+                opData = ServiceOpData.makeRate(itemId, rating, cause);
                 break;
             case TEAM:
                 feip = Feip.fromProtocolName(Feip.FeipProtocol.TEAM);
-                opData = TeamOpData.makeRate(itemId, rating);
+                opData = TeamOpData.makeRate(itemId, rating, cause);
+                break;
+            case REMARK:
+                feip = Feip.fromProtocolName(Feip.FeipProtocol.REMARK);
+                opData = RemarkOpData.makeRate(itemId, rating, cause);
                 break;
             default:
                 return null;

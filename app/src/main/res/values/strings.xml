@@ -1883,6 +1883,8 @@
     <string name="cancel_appointment">Cancel Appointment</string>
     <string name="rate_team">Rate Team</string>
     <string name="rate_this_team">Rate this Team</string>
+    <string name="rate_remark">Rate Remark</string>
+    <string name="rate_this_remark">Rate this Remark</string>
     <string name="rate_freer">Rate Freer</string>
     <string name="rate_this_freer">Rate this Freer</string>
     <string name="rate_good">Good</string>

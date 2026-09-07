@@ -1839,6 +1839,8 @@
     <string name="cancel_appointment">取消任命</string>
     <string name="rate_team">评价团队</string>
     <string name="rate_this_team">评价此团队</string>
+    <string name="rate_remark">评价评论</string>
+    <string name="rate_this_remark">评价此评论</string>
     <string name="rate_freer">评价Freer</string>
     <string name="rate_this_freer">评价此Freer</string>
     <string name="rate_good">好评</string>

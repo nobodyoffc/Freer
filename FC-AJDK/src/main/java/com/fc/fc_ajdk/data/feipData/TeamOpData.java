@@ -21,6 +21,7 @@ public class TeamOpData {
 	private String confirm;
 	private String[] list;
 	private Integer rate;  // Changed from int to Integer
+	private String cause;
 	private Map<String, String> home;
 
 	public enum Op {
@@ -195,11 +196,17 @@ public class TeamOpData {
 		return data;
 	}
 
-	public static TeamOpData makeRate(String tid, Integer rate) {
+	/**
+	 * @param rate  0 to 5
+	 * @param cause optional free text saying why; pass null when blank so the
+	 *              field is omitted rather than carved as an empty string
+	 */
+	public static TeamOpData makeRate(String tid, Integer rate, String cause) {
 		TeamOpData data = new TeamOpData();
 		data.setOp(Op.RATE.toLowerCase());
 		data.setTid(tid);
 		data.setRate(rate);
+		data.setCause(cause);
 		return data;
 	}
 
@@ -272,6 +279,12 @@ public class TeamOpData {
 	}
 	public void setRate(Integer rate) {  // Changed parameter type from int to Integer
 		this.rate = rate;
+	}
+	public String getCause() {
+		return cause;
+	}
+	public void setCause(String cause) {
+		this.cause = cause;
 	}
 
 

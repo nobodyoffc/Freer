@@ -212,6 +212,13 @@ public class FieldNames {
     public static final String AIDS = "aids";
 
     public static final String RATE = "rate";
+    public static final String CAUSE = "cause";
+    public static final String REMARK_ID = "remarkId";
+    public static final String REMARK_IDS = "remarkIds";
+    public static final String ON_DID = "onDid";
+    public static final String AUTHORS = "authors";
+    public static final String SUMMARY = "summary";
+    public static final String FORMAT = "format";
 
     public static final String CODE_IDS = "codeIds";
 

@@ -23,6 +23,7 @@ public class ServiceOpData {
 	private List<String> codes;
 	private Object params;
 	private Integer rate;
+	private String cause;
 	private String closeStatement;
 	private List<String> services;
 
@@ -198,6 +199,12 @@ public class ServiceOpData {
 	public void setRate(Integer rate) {
 		this.rate = rate;
 	}
+	public String getCause() {
+		return cause;
+	}
+	public void setCause(String cause) {
+		this.cause = cause;
+	}
 
 	public String getCloseStatement() {
 		return closeStatement;
@@ -296,11 +303,17 @@ public class ServiceOpData {
 		return data;
 	}
 
-	public static ServiceOpData makeRate(String sid, Integer rate) {
+	/**
+	 * @param rate  0 to 5
+	 * @param cause optional free text saying why; pass null when blank so the
+	 *              field is omitted rather than carved as an empty string
+	 */
+	public static ServiceOpData makeRate(String sid, Integer rate, String cause) {
 		ServiceOpData data = new ServiceOpData();
 		data.setOp(Op.RATE.toLowerCase());
 		data.setSid(sid);
 		data.setRate(rate);
+		data.setCause(cause);
 		return data;
 	}
 

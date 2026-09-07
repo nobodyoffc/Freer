@@ -26,6 +26,7 @@ public class AppOpData{
 	private List<String> codes;
 	private List<String> services;
 	private Integer rate;
+	private String cause;
 	private String closeStatement;
 
 	public enum Op {
@@ -158,6 +159,12 @@ public class AppOpData{
 	public void setRate(Integer rate) {
 		this.rate = rate;
 	}
+	public String getCause() {
+		return cause;
+	}
+	public void setCause(String cause) {
+		this.cause = cause;
+	}
 
 	public List<String> getCodes() {
 		return codes;
@@ -257,11 +264,17 @@ public class AppOpData{
 	}
 
 	// Factory method for RATE operation
-	public static AppOpData makeRate(String aid, Integer rate) {
+	/**
+	 * @param rate  0 to 5
+	 * @param cause optional free text saying why; pass null when blank so the
+	 *              field is omitted rather than carved as an empty string
+	 */
+	public static AppOpData makeRate(String aid, Integer rate, String cause) {
 		AppOpData data = new AppOpData();
 		data.setOp(Op.RATE.toLowerCase());
 		data.setAid(aid);
 		data.setRate(rate);
+		data.setCause(cause);
 		return data;
 	}
 
