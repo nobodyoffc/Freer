@@ -339,10 +339,14 @@ public class RateFreerActivity extends BaseCryptoActivity {
 
         String cause = causeInput.getText().toString().trim();
 
+        // The ratee goes in data.fid. It used to be set on the
+        // envelope's `did`, which is FEIP0's *document* id rather than a
+        // party, so the parser never found a ratee and these carves
+        // confirmed while changing nobody's score.
         Feip feip = Feip.fromProtocolName(Feip.FeipProtocol.REPUTATION);
-        ReputationOpData opData = ReputationOpData.makeRate(rate, cause.isEmpty() ? null : cause);
+        ReputationOpData opData = ReputationOpData.makeRate(
+            currentFreer.getId(), rate, cause.isEmpty() ? null : cause);
         feip.setData(opData);
-        feip.setDid(currentFreer.getId());
         String feipJson = feip.toJson();
 
         CashManager cashManager = CashManager.getInstance();
