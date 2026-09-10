@@ -22,6 +22,7 @@ import android.widget.TextView;
 
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.home.DoAffairActivity;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ToastUtils;
 
 import androidx.activity.OnBackPressedCallback;
@@ -363,12 +364,11 @@ public class QrCodeActivity extends BaseCryptoActivity {
     }
 
     private void showPermissionRationale() {
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setMessage(R.string.permission_camera_rationale)
                 .setPositiveButton(R.string.ok, (dialog, which) -> requestPermissions())
                 .setNegativeButton(R.string.cancel, null)
-                .create()
-                .show();
+                .create());
     }
 
     private void startScanning() {
@@ -692,7 +692,7 @@ public class QrCodeActivity extends BaseCryptoActivity {
                .setNeutralButton(R.string.save, (dialog, which) -> saveQRCodes(qrBitmaps));
         
         AlertDialog dialog = builder.create();
-        dialog.show();
+        DialogUtils.show(dialog);
         
         // Set the button text color
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(textColor);

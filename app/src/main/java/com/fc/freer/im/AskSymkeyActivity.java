@@ -178,6 +178,17 @@ public class AskSymkeyActivity extends BaseCryptoActivity {
         fidView.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
         textColumn.addView(fidView);
 
+        // Our own FID is a real target here: another device signed in as this
+        // identity is often the only holder of the key. Say so, so the row does
+        // not read as a pointless "ask yourself".
+        if (fid.equals(liveFid)) {
+            TextView selfHint = new TextView(this);
+            selfHint.setText(getString(R.string.self_other_devices));
+            selfHint.setTextSize(12);
+            selfHint.setTextColor(getResources().getColor(R.color.hint, null));
+            textColumn.addView(selfHint);
+        }
+
         item.addView(textColumn);
 
         item.setOnClickListener(v -> {

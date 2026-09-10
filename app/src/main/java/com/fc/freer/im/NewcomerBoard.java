@@ -21,6 +21,7 @@ import com.fc.freer.R;
 import com.fc.freer.im.dock.DockServiceRegistry;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.model.Setting;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 
 import java.util.ArrayList;
@@ -311,7 +312,7 @@ public final class NewcomerBoard {
 
     private static void showPrompt(Activity activity, String fid) {
         if (activity.isFinishing() || activity.isDestroyed()) return;
-        new AlertDialog.Builder(activity)
+        DialogUtils.show(new AlertDialog.Builder(activity)
                 .setTitle(R.string.newcomer_board_login_prompt_title)
                 .setMessage(R.string.newcomer_board_login_prompt)
                 .setPositiveButton(R.string.check, (d, which) ->
@@ -321,7 +322,6 @@ public final class NewcomerBoard {
                 // "Never" is the same switch the settings screen shows, so
                 // turning it off here is visible where it was turned on.
                 .setNeutralButton(R.string.never, (d, which) ->
-                        setAutoCheckAtLogin(activity, fid, false))
-                .show();
+                        setAutoCheckAtLogin(activity, fid, false)));
     }
 }

@@ -1,5 +1,6 @@
 package com.fc.freer.data;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -15,6 +16,7 @@ import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.manager.HatManager;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.KeyboardUtils;
 import com.fc.freer.utils.ToastUtils;
 
@@ -33,6 +35,12 @@ public class TextEditorActivity extends BaseCryptoActivity {
     private static final String TAG = "TextEditorActivity";
 
     public static final String EXTRA_HAT_ID = "hatId";
+    /**
+     * Result extra: the DID the content was saved under. Saving re-hashes the text, so an edit
+     * changes the id — a caller that opened the editor to obtain a document must read this rather
+     * than assume the id it passed in still refers to what the user wrote.
+     */
+    public static final String EXTRA_RESULT_DID = "resultDid";
 
     private HatManager hatManager;
     private DataSyncManager dataSyncManager;
@@ -243,7 +251,7 @@ public class TextEditorActivity extends BaseCryptoActivity {
             if (uploadAfterSave) {
                 uploadFile(data);
             } else {
-                setResult(RESULT_OK);
+                setSavedResult();
             }
 
         } catch (Exception e) {
@@ -258,7 +266,7 @@ public class TextEditorActivity extends BaseCryptoActivity {
             runOnUiThread(() -> {
                 if (result != null) {
                     ToastUtils.makeText(this, getString(R.string.upload_successful));
-                    setResult(RESULT_OK);
+                    setSavedResult();
                 } else {
                     ToastUtils.showError(this, getString(R.string.upload_failed) + ": " + dataSyncManager.getLastError());
                 }
@@ -266,9 +274,16 @@ public class TextEditorActivity extends BaseCryptoActivity {
         }).start();
     }
 
+    /** Report success along with the DID the content now hashes to. */
+    private void setSavedResult() {
+        Intent data = new Intent();
+        data.putExtra(EXTRA_RESULT_DID, hat.getId());
+        setResult(RESULT_OK, data);
+    }
+
     private void cancelEdit() {
         if (isModified) {
-            new android.app.AlertDialog.Builder(this)
+            DialogUtils.show(new android.app.AlertDialog.Builder(this)
                     .setTitle(R.string.discard_changes)
                     .setMessage(R.string.discard_changes_message)
                     .setPositiveButton(R.string.discard, (dialog, which) -> {
@@ -276,7 +291,7 @@ public class TextEditorActivity extends BaseCryptoActivity {
                         finish();
                     })
                     .setNegativeButton(R.string.cancel, null)
-                    .show();
+                    );
         } else {
             setResult(RESULT_CANCELED);
             finish();

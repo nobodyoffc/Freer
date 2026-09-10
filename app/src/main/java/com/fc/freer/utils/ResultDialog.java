@@ -1,5 +1,7 @@
 package com.fc.freer.utils;
 
+import com.fc.freer.utils.DialogUtils;
+
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -68,7 +70,7 @@ public class ResultDialog {
             messageText.setSelection(0);
         });
 
-        dialog.show();
+        DialogUtils.show(dialog);
     }
 
     /**
@@ -181,7 +183,7 @@ public class ResultDialog {
                 messageText.setSelection(0);
             });
 
-            dialog.show();
+            DialogUtils.show(dialog);
         } catch (Exception e) {
             ToastUtils.makeText(context, context.getString(R.string.decrypt_error, e.getMessage()));
         }

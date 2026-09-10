@@ -29,6 +29,7 @@ import com.fc.fc_ajdk.data.feipData.Contact;
 import com.fc.fc_ajdk.data.feipData.Mail;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.manager.ContactManager;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.utils.MailCardContainer;
 import com.fc.freer.utils.ChooseMode;
@@ -1689,11 +1690,10 @@ public class MailActivity extends BaseCryptoActivity {
         if (!selectedMails.isEmpty()) {
             markSelectedMailsAsRead(selectedMails);
         } else {
-            new AlertDialog.Builder(this)
+            DialogUtils.show(new AlertDialog.Builder(this)
                 .setMessage(R.string.confirm_mark_all_read)
                 .setPositiveButton(R.string.confirm, (dialog, which) -> markAllMailsRead())
-                .setNegativeButton(R.string.cancel, null)
-                .show();
+                .setNegativeButton(R.string.cancel, null));
         }
     }
 

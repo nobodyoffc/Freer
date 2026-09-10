@@ -37,8 +37,8 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.tencent.mmkv.MMKV;
 
-import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -552,72 +552,11 @@ public class JoinTeamActivity extends BaseCryptoActivity {
             doJoin(team);
             return;
         }
-
-        ToastUtils.makeText(this, getString(R.string.downloading_consensus_document));
-        new Thread(() -> {
-            HatManager hatManager = HatManager.getInstance(this, liveFid);
-            ConsensusDocHelper helper = new ConsensusDocHelper(this, hatManager);
-            File out = null;
-            try {
-                out = File.createTempFile("consensus_view_", ".tmp", getCacheDir());
-                boolean ok = helper.downloadConsensusDoc(team, out);
-                if (!ok) {
-                    final String err = helper.getLastError();
-                    runOnUiThread(() -> ToastUtils.makeText(this,
-                            getString(R.string.failed_to_download_consensus_document)
-                                    + (err != null ? ": " + err : "")));
-                    return;
-                }
-                byte[] bytes = readAll(out);
-                final String text = toText(bytes);
-                runOnUiThread(() -> showConsensusDialog(team, text));
-            } catch (Exception e) {
-                TimberLogger.e(TAG, "Consensus review failed: %s", e.getMessage());
-                runOnUiThread(() -> ToastUtils.makeText(this,
-                        getString(R.string.failed_to_download_consensus_document)));
-            } finally {
-                if (out != null && out.exists()) out.delete();
-            }
-        }).start();
-    }
-
-    private void showConsensusDialog(Team team, String text) {
-        float d = getResources().getDisplayMetrics().density;
-        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
-        TextView body = new TextView(this);
-        body.setPadding((int) (16 * d), (int) (16 * d), (int) (16 * d), (int) (16 * d));
-        body.setTextIsSelectable(true);
-        body.setText(text != null ? text : getString(R.string.consensus_not_text));
-        scroll.addView(body);
-
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(team.getStdName() != null ? team.getStdName() : getString(R.string.consensus_document))
-                .setView(scroll)
-                .setPositiveButton(R.string.accept_and_join, (dlg, w) -> doJoin(team))
-                .setNegativeButton(R.string.cancel, null)
-                .show();
-    }
-
-    private byte[] readAll(File file) throws java.io.IOException {
-        byte[] data = new byte[(int) file.length()];
-        try (java.io.FileInputStream fis = new java.io.FileInputStream(file)) {
-            int total = 0;
-            while (total < data.length) {
-                int r = fis.read(data, total, data.length - total);
-                if (r == -1) break;
-                total += r;
-            }
-        }
-        return data;
-    }
-
-    /** Decode bytes as UTF-8 text, or return null if they look binary (contain NUL bytes). */
-    private String toText(byte[] bytes) {
-        if (bytes == null) return null;
-        for (byte b : bytes) {
-            if (b == 0) return null;
-        }
-        return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        ConsensusDocViewer.fetchAndShow(this, HatManager.getInstance(this, liveFid),
+                team.getStdName() != null ? team.getStdName() : getString(R.string.consensus_document),
+                team.getConsensusId(),
+                Collections.singletonList(ConsensusDocHelper.resolveTeamDiskSid(team)),
+                R.string.accept_and_join, () -> doJoin(team));
     }
 
     private void doJoin(Team team) {

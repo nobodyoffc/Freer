@@ -1,5 +1,7 @@
 package com.fc.freer.im;
 
+import com.fc.freer.utils.DialogUtils;
+
 import android.app.Activity;
 import android.content.Intent;
 import android.os.CountDownTimer;
@@ -129,7 +131,7 @@ public class StrangerPeerDialog {
             if (callback != null) callback.onBlockAllStrangers(peerFid);
         });
 
-        dialog.show();
+        DialogUtils.show(dialog);
         timer.start();
     }
 

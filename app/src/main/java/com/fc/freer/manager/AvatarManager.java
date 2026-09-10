@@ -13,6 +13,7 @@ import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ToastUtils;
 
 import androidx.appcompat.app.AlertDialog;
@@ -123,7 +124,7 @@ public class AvatarManager {
 
         dialogView.findViewById(R.id.ok_button).setOnClickListener(v -> dialog.dismiss());
 
-        dialog.show();
+        DialogUtils.show(dialog);
     }
 
     private static void saveAvatarToGallery(Context context, String id, byte[] avatarBytes) {

@@ -137,14 +137,113 @@ public class InviteTeamMemberActivity extends BaseCryptoActivity {
         }
     }
 
-    private void inviteMembers(List<String> fidList) {
+    /**
+     * Read the team from chain so membership is judged against what the indexer actually holds.
+     * Falls back to the local copy, and to no filtering at all, rather than blocking the invite.
+     */
+    private Team loadTeamForFiltering() {
+        try {
+            FapiClient fapiClient = (FapiClient) ApiCenter.getInstance()
+                    .getClient(Service.ServiceType.FAPI_No1_NrC7);
+            if (fapiClient != null) {
+                Team fresh = fapiClient.entityById("team", Team.class, teamId);
+                if (fresh != null) return fresh;
+            }
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "Could not refresh team before inviting: %s", e.getMessage());
+        }
+        Setting setting = SettingManager.getInstance().getCurrentSetting();
+        ImManager imManager = setting != null ? setting.getImManager() : null;
+        return imManager != null ? imManager.getTeam(teamId) : null;
+    }
+
+    /**
+     * Drop FIDs that would make the invite a no-op.
+     * <p>
+     * The indexer already skips the owner and existing members when it applies an invite, so
+     * carving them changes nothing on chain — but the transaction is still paid for, and the
+     * "you've been invited" notification would still reach someone who is already in the team
+     * and send them to a join screen with nothing to join. Filtering first keeps the fee and the
+     * notification honest.
+     * <p>
+     * FIDs already sitting in {@code invitees} are dropped from the transaction too — re-adding
+     * them is a set operation that changes nothing — but they are still worth notifying, since a
+     * resend is the only way to nudge an invitation that was missed.
+     *
+     * @param fidList  what the user picked
+     * @param members  filled with the FIDs skipped for already being in the team
+     * @param notify   filled with the FIDs worth notifying, invited now or pending from before
+     * @return the FIDs that actually need to go on chain
+     */
+    private List<String> filterInvitees(List<String> fidList, Team team,
+                                        List<String> members, List<String> notify) {
+        List<String> toInvite = new java.util.ArrayList<>();
+        if (team == null) {
+            // Membership unknown: invite exactly what was picked rather than guess.
+            toInvite.addAll(fidList);
+            notify.addAll(fidList);
+            return toInvite;
+        }
+
+        java.util.Set<String> memberSet = new java.util.HashSet<>();
+        if (team.getMembers() != null) memberSet.addAll(team.getMembers());
+        if (team.getOwner() != null) memberSet.add(team.getOwner());
+        java.util.Set<String> inviteeSet = new java.util.HashSet<>();
+        if (team.getInvitees() != null) inviteeSet.addAll(team.getInvitees());
+
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (String fid : fidList) {
+            if (fid == null || fid.isEmpty() || !seen.add(fid)) continue;
+            if (memberSet.contains(fid)) {
+                members.add(fid);
+            } else if (inviteeSet.contains(fid)) {
+                notify.add(fid);
+            } else {
+                toInvite.add(fid);
+                notify.add(fid);
+            }
+        }
+        return toInvite;
+    }
+
+    private void inviteMembers(List<String> picked) {
         KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
         if (liveKeyInfo == null) {
             ToastUtils.makeText(this, R.string.no_active_fid);
             finish();
             return;
         }
+        new Thread(() -> {
+            Team team = loadTeamForFiltering();
+            List<String> alreadyMembers = new java.util.ArrayList<>();
+            List<String> notify = new java.util.ArrayList<>();
+            List<String> toInvite = filterInvitees(picked, team, alreadyMembers, notify);
+            runOnUiThread(() -> onInviteesFiltered(liveKeyInfo, toInvite, alreadyMembers, notify));
+        }).start();
+    }
 
+    private void onInviteesFiltered(KeyInfo liveKeyInfo, List<String> toInvite,
+                                    List<String> alreadyMembers, List<String> notify) {
+        if (!alreadyMembers.isEmpty()) {
+            ToastUtils.makeText(this, getString(R.string.invite_skipped_members, alreadyMembers.size()));
+        }
+
+        if (toInvite.isEmpty()) {
+            // Nothing new to carve. Anyone still pending is re-notified for free.
+            if (!notify.isEmpty()) {
+                sendTeamInviteNotifications(notify);
+                ToastUtils.makeText(this, getString(R.string.invite_notification_resent));
+            } else if (alreadyMembers.isEmpty()) {
+                ToastUtils.makeText(this, getString(R.string.invite_nobody_to_invite));
+            }
+            finish();
+            return;
+        }
+
+        carveInvite(liveKeyInfo, toInvite, notify);
+    }
+
+    private void carveInvite(KeyInfo liveKeyInfo, List<String> fidList, List<String> notify) {
         TeamOpData opData = TeamOpData.makeInvite(teamId, fidList.toArray(new String[0]));
         Feip feip = Feip.fromName("Team");
         feip.setData(opData);
@@ -165,7 +264,7 @@ public class InviteTeamMemberActivity extends BaseCryptoActivity {
                     new TxSender.TxCallback() {
                         @Override
                         public void onSuccess(String txId) {
-                            sendTeamInviteNotifications(fidList);
+                            sendTeamInviteNotifications(notify);
                             runOnUiThread(() -> finish());
                         }
 

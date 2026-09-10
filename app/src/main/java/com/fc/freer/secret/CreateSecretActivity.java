@@ -22,6 +22,7 @@ import com.fc.freer.manager.FidManager;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.TxSender;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ToastUtils;
@@ -219,14 +220,14 @@ public class CreateSecretActivity extends BaseCryptoActivity {
         SecretManager secretManager = SecretManager.getInstance();
         boolean existed = secretManager.checkIfExisted(secret.getId());
         if (existed) {
-            new AlertDialog.Builder(this)
+            DialogUtils.show(new AlertDialog.Builder(this)
                     .setTitle(R.string.secret_existed_title)
                     .setMessage(R.string.secret_already_exists_message)
                     .setPositiveButton(R.string.replace, (dialog, which) -> {
                         secretManager.saveAndFinish(this, secret,false);
                     })
                     .setNegativeButton(R.string.cancel, null)
-                    .show();
+                    );
         } else {
             secretManager.saveAndFinish(this, secret,false);
         }
@@ -327,14 +328,14 @@ public class CreateSecretActivity extends BaseCryptoActivity {
 
             boolean existed = secretManager.checkIfExisted(secret.getId());
             if (existed) {
-                new AlertDialog.Builder(this)
+                DialogUtils.show(new AlertDialog.Builder(this)
                         .setTitle(R.string.secret_existed_title)
                         .setMessage(R.string.secret_already_exists_message)
                         .setPositiveButton(R.string.replace, (dialog, which) -> {
                             secretManager.saveAndFinish(this, secret,true);
                         })
                         .setNegativeButton(R.string.cancel, null)
-                        .show();
+                        );
             } else {
 
                 encryptContent(content, pubkey, secret);

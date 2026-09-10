@@ -29,6 +29,7 @@ import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.CidFidManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.Setting;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ToastUtils;
 
 import java.util.ArrayList;
@@ -394,12 +395,11 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
             return;
         }
 
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.confirm_delete)
                 .setMessage(getString(R.string.confirm_delete_conversations, selected.size()))
                 .setPositiveButton(R.string.delete, (dialog, which) -> deleteSelectedConversations(selected))
-                .setNegativeButton(R.string.cancel, null)
-                .show();
+                .setNegativeButton(R.string.cancel, null));
     }
 
     private void deleteSelectedConversations(List<Conversation> selected) {

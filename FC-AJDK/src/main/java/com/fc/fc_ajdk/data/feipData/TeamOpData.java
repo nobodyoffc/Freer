@@ -12,7 +12,7 @@ public class TeamOpData {
 	private List<String> tids;
 	private String op;
 	private String stdName;
-	private String[] localNames;
+	private Map<String, String> localNames;
 	private String[] waiters;
 	private String[] accounts;
 	private String consensusId;
@@ -81,7 +81,7 @@ public class TeamOpData {
 		OP_FIELDS.put(Op.RATE.toLowerCase(), new String[]{"tid", "rate"});
 	}
 
-	public static TeamOpData makeCreate(String stdName, String consensusId, String[] localNames, String[] waiters, String[] accounts, String desc) {
+	public static TeamOpData makeCreate(String stdName, String consensusId, Map<String, String> localNames, String[] waiters, String[] accounts, String desc) {
 		TeamOpData data = new TeamOpData();
 		data.setOp(Op.CREATE.toLowerCase());
 		data.setStdName(stdName);
@@ -93,7 +93,7 @@ public class TeamOpData {
 		return data;
 	}
 
-	public static TeamOpData makeUpdate(String tid, String stdName, String consensusId, String[] localNames, String[] waiters, String[] accounts, String desc) {
+	public static TeamOpData makeUpdate(String tid, String stdName, String consensusId, Map<String, String> localNames, String[] waiters, String[] accounts, String desc) {
 		TeamOpData data = new TeamOpData();
 		data.setOp(Op.UPDATE.toLowerCase());
 		data.setTid(tid);
@@ -238,10 +238,10 @@ public class TeamOpData {
 	public void setStdName(String stdName) {
 		this.stdName = stdName;
 	}
-	public String[] getLocalNames() {
+	public Map<String, String> getLocalNames() {
 		return localNames;
 	}
-	public void setLocalNames(String[] localNames) {
+	public void setLocalNames(Map<String, String> localNames) {
 		this.localNames = localNames;
 	}
 	public String getConsensusId() {

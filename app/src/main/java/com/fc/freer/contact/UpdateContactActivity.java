@@ -34,6 +34,7 @@ import com.fc.freer.manager.FidManager;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.TxSender;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.TextIconsUtils;
@@ -272,7 +273,7 @@ public class UpdateContactActivity extends BaseCryptoActivity {
         ContactManager contactManager = ContactManager.getInstance();
         boolean existed = contactManager.checkIfExisted(updatedContact.getId());
         if (existed) {
-            new AlertDialog.Builder(this)
+            DialogUtils.show(new AlertDialog.Builder(this)
                     .setTitle(R.string.contact_existed_title)
                     .setMessage(R.string.contact_will_be_updated)
                     .setPositiveButton(R.string.update, (dialog, which) -> {
@@ -283,7 +284,7 @@ public class UpdateContactActivity extends BaseCryptoActivity {
                         finish();
                     })
                     .setNegativeButton(R.string.cancel, null)
-                    .show();
+                    );
         } else {
             // Should not happen for update, but handle gracefully
             contactManager.addContact(updatedContact);

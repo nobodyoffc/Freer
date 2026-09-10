@@ -58,7 +58,10 @@ public class PendingIssueActivity extends BaseCryptoActivity {
             public void onAccept(PendingIssue issue) {
                 hideKeyboard();
                 if (pendingIssueManager == null || issue.getId() == null) return;
-                if (issue.getIssueType() == PendingIssue.IssueType.ROOM_INVITE) {
+                if (issue.getIssueType() == PendingIssue.IssueType.CONSENSUS_CHANGE
+                        || issue.getIssueType() == PendingIssue.IssueType.TEAM_INVITE) {
+                    PendingIssueDetailActivity.start(PendingIssueActivity.this, issue);
+                } else if (issue.getIssueType() == PendingIssue.IssueType.ROOM_INVITE) {
                     pendingIssueManager.acceptRoomInvite(issue.getId());
                     ToastUtils.showInfo(PendingIssueActivity.this,
                             getString(R.string.room_invite_accepted));
@@ -75,6 +78,11 @@ public class PendingIssueActivity extends BaseCryptoActivity {
             public void onReject(PendingIssue issue) {
                 hideKeyboard();
                 if (pendingIssueManager != null && issue.getId() != null) {
+                    if (issue.getIssueType() == PendingIssue.IssueType.CONSENSUS_CHANGE
+                            || issue.getIssueType() == PendingIssue.IssueType.TEAM_INVITE) {
+                        PendingIssueDetailActivity.start(PendingIssueActivity.this, issue);
+                        return;
+                    }
                     if (issue.getIssueType() == PendingIssue.IssueType.ROOM_INVITE) {
                         pendingIssueManager.rejectRoomInvite(issue.getId());
                         ToastUtils.showInfo(PendingIssueActivity.this,
@@ -127,7 +135,7 @@ public class PendingIssueActivity extends BaseCryptoActivity {
             return;
         }
 
-        List<PendingIssue> issues = pendingIssueManager.getPendingIssues();
+        List<PendingIssue> issues = pendingIssueManager.getOpenIssues();
         adapter.setItems(issues);
         showEmpty(issues.isEmpty());
         swipeRefreshLayout.setRefreshing(false);

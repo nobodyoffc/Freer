@@ -42,6 +42,7 @@ import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.ui.DetailActivity;
 import com.fc.freer.ui.WaitingDialog;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.ChooseMode;
 import com.fc.freer.utils.KeyCardContainer;
@@ -618,14 +619,14 @@ public class CreateContactActivity extends BaseCryptoActivity {
         ContactManager contactManager = ContactManager.getInstance();
         boolean existed = contactManager.checkIfExisted(contact.getId());
         if (existed) {
-            new AlertDialog.Builder(this)
+            DialogUtils.show(new AlertDialog.Builder(this)
                     .setTitle(R.string.contact_existed_title)
                     .setMessage(R.string.contact_already_exists_message)
                     .setPositiveButton(R.string.replace, (dialog, which) -> {
                         contactManager.saveAndFinish(this, contact,false);
                     })
                     .setNegativeButton(R.string.cancel, null)
-                    .show();
+                    );
         } else {
             contactManager.saveAndFinish(this, contact,false);
         }
@@ -722,7 +723,7 @@ public class CreateContactActivity extends BaseCryptoActivity {
             ContactManager contactManager = ContactManager.getInstance();
             boolean existed = contactManager.checkIfExisted(contact.getId());
             if (existed) {
-                new AlertDialog.Builder(this)
+                DialogUtils.show(new AlertDialog.Builder(this)
                         .setTitle(R.string.contact_existed_title)
                         .setMessage(R.string.contact_already_exists_message)
                         .setPositiveButton(R.string.replace, (dialog, which) -> {
@@ -731,7 +732,7 @@ public class CreateContactActivity extends BaseCryptoActivity {
                             contactManager.saveAndFinish(this, contact,true);
                         })
                         .setNegativeButton(R.string.cancel, null)
-                        .show();
+                        );
             } else {
                 encryptContactContent(contact, pubkey);
                 contact.setOnChain(null);

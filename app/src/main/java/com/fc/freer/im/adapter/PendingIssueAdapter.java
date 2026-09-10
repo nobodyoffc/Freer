@@ -109,6 +109,12 @@ public class PendingIssueAdapter extends RecyclerView.Adapter<PendingIssueAdapte
                 case ROOM_INVITE:
                     typeLabel = itemView.getContext().getString(R.string.room_invite_request);
                     break;
+                case TEAM_INVITE:
+                    typeLabel = itemView.getContext().getString(R.string.team_invite_notification_title);
+                    break;
+                case CONSENSUS_CHANGE:
+                    typeLabel = itemView.getContext().getString(R.string.consensus_change_request);
+                    break;
                 default:
                     typeLabel = issue.getIssueType().name();
                     break;
@@ -125,9 +131,15 @@ public class PendingIssueAdapter extends RecyclerView.Adapter<PendingIssueAdapte
                 timeText.setText("");
             }
 
+            // A consensus change is not a yes/no on this row: the member has to read the
+            // documents and choose between signing, postponing and leaving, so the row opens
+            // the detail screen instead of offering a one-tap decision.
             boolean isPending = issue.getStatus() == PendingIssue.IssueStatus.PENDING;
-            acceptBtn.setVisibility(isPending ? View.VISIBLE : View.GONE);
-            rejectBtn.setVisibility(isPending ? View.VISIBLE : View.GONE);
+            boolean inlineDecidable = isPending
+                    && issue.getIssueType() != PendingIssue.IssueType.CONSENSUS_CHANGE
+                    && issue.getIssueType() != PendingIssue.IssueType.TEAM_INVITE;
+            acceptBtn.setVisibility(inlineDecidable ? View.VISIBLE : View.GONE);
+            rejectBtn.setVisibility(inlineDecidable ? View.VISIBLE : View.GONE);
 
             if (!isPending && issue.getStatus() != null) {
                 String statusStr = issue.getStatus().name().toLowerCase(Locale.ROOT);

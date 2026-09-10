@@ -110,11 +110,6 @@
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
 
-        <activity
-            android:name="com.fc.freer.myKeys.CreateKeyByPrikeyActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name="com.fc.freer.ui.DetailActivity"
@@ -157,23 +152,8 @@
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
 
-        <activity
-            android:name="com.fc.freer.myKeys.CreateKeyByPubkeyActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustResize" />
 
-        <activity
-            android:name="com.fc.freer.myKeys.CreateKeyByFidActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustResize" />
 
-        <activity
-            android:name="com.fc.freer.myKeys.CreateKeyByPrikeyCipherActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name="com.fc.freer.myKeys.RandomNewKeysActivity"
@@ -438,7 +418,7 @@
             android:windowSoftInputMode="adjustResize"/>
 
         <activity
-            android:name="com.fc.freer.myKeys.ImportKeyInfoActivity"
+            android:name="com.fc.freer.myKeys.ImportKeyActivity"
             android:exported="false"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize"/>

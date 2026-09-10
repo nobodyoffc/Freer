@@ -1965,6 +1965,14 @@ public class HomeActivity extends AppCompatActivity {
         }
 
         @Override
+        public void onTeamNotificationReceived(com.fc.freer.im.PendingIssue issue) {
+            runOnUiThread(() -> {
+                updateBadges();
+                showTeamInviteDialog(issue);
+            });
+        }
+
+        @Override
         public void onChannelNotConfigured(String suggestedUrl) {
             runOnUiThread(() -> {
                 updateTalkTileState();
@@ -1985,6 +1993,51 @@ public class HomeActivity extends AppCompatActivity {
     };
 
 
+
+    /**
+     * Ask about a team invitation. Accepting hands over to {@link com.fc.freer.im.JoinTeamActivity},
+     * which verifies the invitation on chain and shows the consensus before joining.
+     */
+    private void showTeamInviteDialog(com.fc.freer.im.PendingIssue issue) {
+        if (isFinishing() || isDestroyed()) return;
+
+        Setting setting = SettingManager.getInstance().getCurrentSetting();
+        if (setting == null) return;
+        com.fc.freer.im.ImManager imManager = setting.getImManager();
+        if (imManager == null) return;
+        com.fc.freer.im.PendingIssueManager pim = imManager.getPendingIssueManager();
+
+        com.fc.freer.im.TeamInviteDialog.show(this, issue,
+                new com.fc.freer.im.TeamInviteDialog.DialogCallback() {
+                    @Override
+                    public void onAccepted(com.fc.freer.im.PendingIssue i) {
+                        if (pim != null) {
+                            pim.resolveTeamInvite(i.getId(),
+                                    com.fc.freer.im.PendingIssue.IssueStatus.ACCEPTED);
+                        }
+                        updateBadges();
+                        startActivity(new Intent(HomeActivity.this,
+                                com.fc.freer.im.JoinTeamActivity.class));
+                    }
+
+                    @Override
+                    public void onRejected(com.fc.freer.im.PendingIssue i) {
+                        if (pim != null) {
+                            pim.resolveTeamInvite(i.getId(),
+                                    com.fc.freer.im.PendingIssue.IssueStatus.REJECTED);
+                        }
+                        updateBadges();
+                        ToastUtils.showInfo(HomeActivity.this,
+                                getString(R.string.team_notification_rejected));
+                    }
+
+                    @Override
+                    public void onDeferred(com.fc.freer.im.PendingIssue i) {
+                        // Left pending on purpose: it stays in the Todo list and keeps badging.
+                        updateBadges();
+                    }
+                });
+    }
 
     private void showRoomInviteDialog(com.fc.freer.im.PendingIssue issue) {
         if (isFinishing() || isDestroyed()) return;

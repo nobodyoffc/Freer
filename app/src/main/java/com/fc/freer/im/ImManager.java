@@ -147,8 +147,39 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         messagesDb.put(message.getId(), message);
         addToConversationIndex(message);
         updateConversation(message);
+        noteTeamNotification(message);
         mainHandler.post(() -> {
             for (ImListener l : listeners) l.onMessageReceived(message);
+        });
+    }
+
+    /**
+     * Turn a team invite/transfer notification into a pending issue when it reaches the inbox.
+     * <p>
+     * These arrive as ordinary P2P text, so an invitation from someone not yet in the address
+     * book is quarantined behind the stranger gate like any other first message. It therefore has
+     * to be recognised at the point of <b>delivery</b> rather than on receipt: a stranger's
+     * invitation only becomes real once the user accepts them, and at that moment it is promoted
+     * out of quarantine rather than received afresh. Both paths call this, so the prompt appears
+     * either way instead of the invitation quietly becoming a line of chat nobody acts on.
+     */
+    private void noteTeamNotification(ImMessage message) {
+        if (pendingIssueManager == null || !isTeamNotification(message)) return;
+        String content = message.getContent();
+        boolean transfer = content.startsWith(TEAM_TRANSFER_PREFIX);
+        String body = content.substring(
+                (transfer ? TEAM_TRANSFER_PREFIX : TEAM_INVITE_PREFIX).length());
+
+        int sep = body.indexOf('|');
+        String teamId = sep >= 0 ? body.substring(0, sep) : body;
+        String teamName = sep >= 0 ? body.substring(sep + 1) : null;
+        if (teamId.isEmpty()) return;
+
+        PendingIssue issue = pendingIssueManager.addTeamInviteIssue(
+                message.getSenderId(), teamId, teamName, transfer);
+        if (issue == null) return;
+        mainHandler.post(() -> {
+            for (ImListener l : listeners) l.onTeamNotificationReceived(issue);
         });
     }
 
@@ -792,6 +823,10 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 pim.setFudpNode(this.fudpNode);
             }
         }
+        // The team handler raises consensus-change issues as it stores freshly-synced teams.
+        if (teamHandler != null) {
+            teamHandler.setPendingIssueManager(pim);
+        }
     }
     
     // ========== Send Messages ==========
@@ -1409,16 +1444,19 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 return;
             }
 
-            if (liveFid.equals(ownerFid)) {
-                TimberLogger.d(TAG, "Skipping symkey request: current user is the owner");
-                return;
-            }
-
             SymkeyStore store = getSymkeyStore();
             if (store != null && store.hasSymkey(entityId)) {
                 TimberLogger.d(TAG, "Symkey already available for %s", entityId);
                 return;
             }
+
+            // ownerFid may be this very identity: a second device signed in as
+            // the owner holds no symkey of its own, and the device that created
+            // the entity is the only one that can hand it over. That request
+            // travels the ordinary P2P route -- own DOCK, sealed to our own
+            // pubkey -- and the other device answers it like any member's.
+            // Skipping it here is what left a re-installed owner permanently
+            // unable to read their own team.
 
             if (isSymkeyRequestOnCooldown(entityId, ownerFid)) {
                 TimberLogger.d(TAG, "Symkey request for %s to %s on cooldown, skipping", entityId, ownerFid);
@@ -1465,8 +1503,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             List<String> unreachable = new ArrayList<>();
 
             for (String targetFid : targetFids) {
-                if (targetFid.equals(liveFid)) continue;
-
+                // Our own FID is a legitimate target: another device of this
+                // identity may hold the key this one is missing.
                 if (isSymkeyRequestOnCooldown(entityId, targetFid)) {
                     TimberLogger.d(TAG, "Symkey request for %s to %s on cooldown, skipping", entityId, targetFid);
                     continue;
@@ -1752,6 +1790,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 messagesDb.put(msg.getId(), msg);
                 addToConversationIndex(msg);
                 updateConversation(msg);
+                // An invitation held behind the stranger gate is actionable only now.
+                noteTeamNotification(msg);
             }
 
             removeQuarantineIndex(senderFid);
@@ -2236,8 +2276,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             List<String> unreachable = new ArrayList<>();
 
             for (String targetFid : targetFids) {
-                if (targetFid.equals(liveFid)) continue;
-
+                // Our own FID is a legitimate target: another device of this
+                // identity may hold the room info this one is missing.
                 if (!hasReachableChannels(targetFid)) {
                     TimberLogger.w(TAG, "Member %s has no reachable channels, skipping room info request", targetFid);
                     unreachable.add(targetFid);

@@ -17,6 +17,7 @@ import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.Setting;
 import com.fc.freer.tx.TxSender;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ToastUtils;
@@ -94,7 +95,7 @@ public class ChannelSetupDialog {
             dialog.dismiss();
         });
 
-        dialog.show();
+        DialogUtils.show(dialog);
     }
 
     /** One-tap: register the current server as DOCK (and DISK if available) directly. */

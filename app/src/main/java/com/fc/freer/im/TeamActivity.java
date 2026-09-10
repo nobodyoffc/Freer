@@ -38,6 +38,7 @@ import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.Setting;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.ui.RemindDialog;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ToastUtils;
@@ -439,7 +440,7 @@ public class TeamActivity extends BaseCryptoActivity implements ConversationAdap
         }
 
         if (ownedCount == teamIds.size()) {
-            new AlertDialog.Builder(this)
+            DialogUtils.show(new AlertDialog.Builder(this)
                     .setTitle(R.string.disband_team)
                     .setMessage(R.string.confirm_disband_teams)
                     .setPositiveButton(android.R.string.ok, (dialog, which) -> {
@@ -447,11 +448,11 @@ public class TeamActivity extends BaseCryptoActivity implements ConversationAdap
                         disbandTeams(teamIds);
                     })
                     .setNegativeButton(android.R.string.cancel, (dialog, which) -> hideKeyboard())
-                    .show();
+                    );
         } else if (ownedCount > 0) {
             new RemindDialog(this, getString(R.string.cannot_leave_own_teams_or_rooms), true).show();
         } else {
-            new AlertDialog.Builder(this)
+            DialogUtils.show(new AlertDialog.Builder(this)
                     .setTitle(R.string.leave_teams)
                     .setMessage(R.string.confirm_leave_teams)
                     .setPositiveButton(android.R.string.ok, (dialog, which) -> {
@@ -459,7 +460,7 @@ public class TeamActivity extends BaseCryptoActivity implements ConversationAdap
                         leaveTeams(teamIds);
                     })
                     .setNegativeButton(android.R.string.cancel, (dialog, which) -> hideKeyboard())
-                    .show();
+                    );
         }
     }
 

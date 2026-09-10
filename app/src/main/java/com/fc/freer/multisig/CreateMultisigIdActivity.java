@@ -35,6 +35,7 @@ import com.fc.freer.im.SearchFidsOnChainActivity;
 import com.fc.freer.manager.FidManager;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.ui.IoIconsView;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ChooseMode;
 import com.fc.freer.utils.KeyCardContainer;
 import com.fc.freer.utils.KeyboardUtils;
@@ -462,7 +463,7 @@ public class CreateMultisigIdActivity extends BaseCryptoActivity {
         builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
         
         AlertDialog dialog = builder.create();
-        dialog.show();
+        DialogUtils.show(dialog);
         
         // Hide keyboard when dialog is shown
         if(dialog.getWindow()!=null)

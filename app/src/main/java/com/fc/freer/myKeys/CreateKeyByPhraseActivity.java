@@ -8,6 +8,7 @@ import android.view.View;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ToastUtils;
 
 import com.fc.fc_ajdk.core.crypto.Hash;
@@ -134,25 +135,23 @@ public class CreateKeyByPhraseActivity extends BaseCryptoActivity {
     }
 
     private void promptDerivationMode(java.util.function.Consumer<DerivationMode> onChosen) {
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.choose_derivation_method)
                 .setMessage(R.string.choose_derivation_method_message)
                 .setPositiveButton(R.string.derivation_kdf_argon2id,
                         (d, w) -> onChosen.accept(DerivationMode.ARGON2ID))
                 .setNegativeButton(R.string.derivation_sha256,
                         (d, w) -> confirmSha256(onChosen))
-                .setNeutralButton(R.string.cancel, null)
-                .show();
+                .setNeutralButton(R.string.cancel, null));
     }
 
     private void confirmSha256(java.util.function.Consumer<DerivationMode> onChosen) {
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.derivation_sha256_warning_title)
                 .setMessage(R.string.derivation_sha256_warning_message)
                 .setPositiveButton(R.string.proceed,
                         (d, w) -> onChosen.accept(DerivationMode.SHA256))
-                .setNegativeButton(R.string.cancel, null)
-                .show();
+                .setNegativeButton(R.string.cancel, null));
     }
 
     private void deriveKeyInfoAsync(DerivationMode mode, KeyInfoCallback callback) {

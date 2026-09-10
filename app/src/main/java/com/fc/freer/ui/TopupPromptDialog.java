@@ -26,6 +26,7 @@ import com.fc.freer.im.ImManager;
 import com.fc.freer.im.NobodyBoard;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.model.Setting;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.ToastUtils;
 import com.google.zxing.BarcodeFormat;
@@ -159,7 +160,7 @@ public class TopupPromptDialog {
             }
 
             // Show the dialog
-            dialog.show();
+            DialogUtils.show(dialog);
 
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error showing topup prompt dialog: " + e.getMessage(), e);
@@ -228,13 +229,12 @@ public class TopupPromptDialog {
         noteInput.setLayoutParams(lp);
         layout.addView(noteInput);
 
-        new AlertDialog.Builder(context)
+        DialogUtils.show(new AlertDialog.Builder(context)
                 .setTitle(R.string.first_fch_confirm_title)
                 .setView(layout)
                 .setNegativeButton(R.string.cancel, null)
                 .setPositiveButton(R.string.send, (d, which) ->
-                        postBoardRequest(noteInput.getText().toString()))
-                .show();
+                        postBoardRequest(noteInput.getText().toString())));
     }
 
     private void postBoardRequest(String note) {
@@ -268,12 +268,11 @@ public class TopupPromptDialog {
                 && (activity.isFinishing() || activity.isDestroyed())) {
             return;
         }
-        new AlertDialog.Builder(context)
+        DialogUtils.show(new AlertDialog.Builder(context)
                 .setTitle(R.string.first_fch_posted_title)
                 .setMessage(context.getString(R.string.first_fch_posted_message, fid))
                 .setNeutralButton(R.string.copy, (d, which) -> copyFidToClipboard())
-                .setPositiveButton(R.string.ok, (d, which) -> dismiss())
-                .show();
+                .setPositiveButton(R.string.ok, (d, which) -> dismiss()));
     }
 
     /**

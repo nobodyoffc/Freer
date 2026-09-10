@@ -154,7 +154,6 @@
     <string name="input_the_signature">Input the signature</string>
     <string name="input_the_label">Input the label</string>
     <string name="input_the_phrase">Input the phrase</string>
-    <string name="input_the_prikey_cipher">Input the prikey cipher</string>
     <string name="input_the_password">Input the password</string>
     <string name="input_prikey_hint">Enter your prikey (WIF, hex, or other format)</string>
     <string name="input_prikey_cipher_hint">Enter encrypted prikey cipher JSON</string>
@@ -302,8 +301,23 @@
     <string name="no_secret_found">No secret found.</string>
 
     <string name="import_keys">Import keys</string>
+    <string name="import_key">Import Key</string>
+    <string name="input_key_hint">Prikey, pubkey, FID, cipher or key JSON</string>
+    <string name="please_input_a_key">Input a key first</string>
+    <string name="key_detected_prikey">Private key → %1$s</string>
+    <string name="key_detected_pubkey">Public key → %1$s. Watch-only: it can\'t sign.</string>
+    <string name="key_detected_fid">FID. Watch-only: it can\'t sign.</string>
+    <string name="key_detected_cipher">Encrypted. Input its password.</string>
+    <string name="key_detected_backup">Key backup. Tap save to import.</string>
+    <string name="key_non_password_cipher">Encrypted, but not with a password. It can\'t be imported here.</string>
+    <string name="key_bad_prikey">Looks like a private key, but it isn\'t valid. Check for a typo.</string>
+    <string name="key_bad_pubkey">Looks like a public key, but it isn\'t valid. Check for a typo.</string>
+    <string name="key_bad_fid">Looks like an FID, but the checksum is wrong. Check for a typo.</string>
+    <string name="key_multiple">One key at a time. Use a key backup JSON for several.</string>
+    <string name="key_unrecognized">Not a recognized key. For a phrase, use %1$s.</string>
+    <string name="key_backup_no_preview">A key backup can\'t be previewed. Tap save to import it.</string>
+    <string name="decrypting">Decrypting…</string>
     <string name="import_a">Import</string>
-    <string name="input_the_key_info_json">Input the key JSON.</string>
     <string name="no_key_info_found">No key found.</string>
     <string name="instruction">Instruction</string>
     <string name="security_guidelines_text">
@@ -383,11 +397,7 @@
     <string name="no_more_contacts">No more contacts</string>
     <string name="failed_to_update_contacts_db">Failed to update contacts database</string>
     <string name="verify_signature">Verify Signature</string>
-    <string name="create_key_by_fid">Create key by FID</string>
     <string name="create_key_by_phrase">Create key by phrase</string>
-    <string name="create_key_by_prikey">Create key by prikey</string>
-    <string name="create_key_by_prikey_cipher">Create key by prikey cipher</string>
-    <string name="create_key_by_pubkey">Create key by pubkey</string>
     <string name="create_secret">Create Secret</string>
     <string name="update_secret">Update Secret</string>
     <string name="address_convert">Address Convert</string>
@@ -1714,6 +1724,7 @@
     <string name="request_symkey">Request Key</string>
     <string name="ask_symkey">Ask Symkey</string>
     <string name="select_members_to_ask_symkey">Select members to request symmetric key from</string>
+    <string name="self_other_devices">This identity — your other devices</string>
 
     <string name="symkey_requests_sent">Symkey request sent to %d member(s)</string>
     <string name="owner_no_reachable_channels">Owner has no reachable channels (FUDP/ROAD/DOCK)</string>
@@ -1907,6 +1918,8 @@
     <string name="consensus_document_required">A consensus document is required</string>
     <string name="team_servers_required">DOCK and DISK servers are required</string>
     <string name="team_disk_must_be_service">DISK must be a service (choose one or enter a service ID)</string>
+    <string name="team_dock_must_be_service">DOCK must be a service (choose one or enter a service ID)</string>
+    <string name="team_dock_hint">Service ID of the team\'s DOCK relay</string>
     <string name="failed_to_read_consensus_document">Failed to read consensus document</string>
     <string name="failed_to_upload_consensus_document">Failed to upload consensus document</string>
     <string name="uploading_consensus_document">Uploading consensus…</string>
@@ -2356,14 +2369,9 @@
     <string name="toast_deleted_contacts_local">Deleted %1$d off-chain contacts locally</string>
     <string name="toast_failed_delete_contacts_onchain">Failed to delete contacts on-chain: %1$s</string>
     <string name="toast_contacts_deleted_local">Contacts deleted locally</string>
-    <string name="toast_please_enter_public_key">Please enter a public key</string>
     <string name="toast_invalid_private_key">Invalid private key</string>
-    <string name="toast_private_key_empty">Private key is empty</string>
-    <string name="toast_prikey_cipher_empty">Private key cipher is empty</string>
     <string name="toast_password_empty">Password is empty</string>
     <string name="toast_failed_decrypt_prikey">Failed to decrypt private key</string>
-    <string name="toast_failed_save_key_info">Failed to save key info</string>
-    <string name="toast_fid_empty">FID is empty</string>
     <string name="toast_failed_convert_multisig_contact">Failed to convert multisig to contact</string>
     <string name="toast_unexpected_error">Unexpected error</string>
     <string name="toast_tx_well_signed_build">The TX is well signed! Build it.</string>
@@ -2466,4 +2474,33 @@
     <string name="consensus_doc_hint">Pick a data document or enter its DID</string>
     <string name="consensus_doc_not_local">The chosen consensus document isn\'t available locally. Add it in Data first.</string>
     <string name="server_setup_never">Never</string>
+
+    <!-- Team consensus lifecycle -->
+    <string name="home_disk_label">DISK</string>
+    <string name="consensus_change_request">Team consensus changed</string>
+    <string name="consensus_change_warning">Changing the consensus obliges every member to sign the new one. Members who do not sign stay listed as not agreed until they sign or leave.</string>
+    <string name="view_old_consensus">Old consensus</string>
+    <string name="view_new_consensus">New consensus</string>
+    <string name="sign_consensus">Sign</string>
+    <string name="sign_later">Later</string>
+    <string name="consensus_signed">Consensus signed</string>
+    <string name="consensus_signing_postponed">Postponed. You can sign later from the pending issues.</string>
+    <string name="failed_to_sign_consensus">Failed to sign the consensus</string>
+    <string name="confirm_leave_team_consensus">Leave %1$s instead of signing its new consensus?</string>
+    <string name="left_team">Left the team</string>
+    <string name="new_consensus_id">New consensus ID</string>
+    <string name="old_consensus_id">Previous consensus ID</string>
+    <string name="role_not_agreed">not agreed</string>
+    <string name="migrating_consensus_document">Moving the consensus document to the new DISK\u2026</string>
+    <string name="failed_to_migrate_consensus_document">Failed to move the consensus document to the new DISK</string>
+    <string name="publish_anyway">Publish anyway?</string>
+
+    <!-- Consensus template offered when creating a team -->
+    <string name="edit_consensus_document">Edit consensus</string>
+    <string name="consensus_template_name">team_consensus.md</string>
+    <string name="consensus_template"># Team consensus\n\n## Purpose\nWhat this team exists to do.\n\n## Membership\nWho may join, how members are invited, and what is expected of them.\n\n## Decisions\nHow the team decides things, and who decides what.\n\n## Managers\nWhat managers may do, and how they are appointed or removed.\n\n## Changing this consensus\nHow this document may be amended. Changing it requires every member to sign the new version, or leave the team.\n\n## Leaving\nHow a member leaves, and what happens to their obligations.</string>
+    <string name="consensus_no_disk_to_read">not on this device, and the team has no DISK to read it from</string>
+    <string name="invite_skipped_members">%1$d already in the team, skipped</string>
+    <string name="invite_notification_resent">Already invited; invitation re-sent</string>
+    <string name="invite_nobody_to_invite">Nobody new to invite</string>
 </resources>

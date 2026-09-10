@@ -21,6 +21,7 @@ import com.fc.fc_ajdk.data.fchData.Nobody;
 import com.fc.fc_ajdk.data.fchData.Tx;
 import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.ToastUtils;
 
@@ -266,12 +267,11 @@ public class SendTxActivity extends BaseCryptoActivity {
         for (Cash cash : nobodyRecipients) {
             sb.append(cash.getOwner()).append("  ").append(cash.getAmount()).append(" F\n");
         }
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.warning)
                 .setMessage(getString(R.string.nobody_recipient_warning, sb.toString().trim()))
                 .setNegativeButton(R.string.cancel, null)
-                .setPositiveButton(R.string.send_anyway, (dialog, which) -> performSend())
-                .show();
+                .setPositiveButton(R.string.send_anyway, (dialog, which) -> performSend()));
     }
 
     /**
@@ -987,7 +987,7 @@ public class SendTxActivity extends BaseCryptoActivity {
 
             okButton.setOnClickListener(v -> dialog.dismiss());
 
-            dialog.show();
+            DialogUtils.show(dialog);
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error showing JSON dialog: " + e.getMessage());
             ToastUtils.showError(this, getString(R.string.failed_to_show_json_dialog));

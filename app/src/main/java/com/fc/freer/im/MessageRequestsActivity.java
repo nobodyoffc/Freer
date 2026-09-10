@@ -15,6 +15,7 @@ import com.fc.freer.im.adapter.MessageRequestAdapter;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.CidFidManager;
 import com.fc.freer.model.Setting;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ToastUtils;
 
 import java.util.ArrayList;
@@ -149,12 +150,11 @@ public class MessageRequestsActivity extends BaseCryptoActivity
             }
         }
 
-        new androidx.appcompat.app.AlertDialog.Builder(this)
+        DialogUtils.show(new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle(getString(R.string.stranger_messages_count, quarantined.size()))
                 .setMessage(sb.toString())
                 .setPositiveButton(R.string.accept, (d, w) -> onAccept(issue))
                 .setNegativeButton(R.string.reject, (d, w) -> onReject(issue))
-                .setNeutralButton(R.string.cancel, null)
-                .show();
+                .setNeutralButton(R.string.cancel, null));
     }
 }

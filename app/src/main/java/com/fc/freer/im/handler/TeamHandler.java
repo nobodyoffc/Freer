@@ -16,7 +16,10 @@ import com.fc.fc_ajdk.data.feipData.Team;
 import com.fc.fc_ajdk.db.LocalDB;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
+import com.fc.freer.im.ConsensusDocHelper;
 import com.fc.freer.im.MessageQueue.SendResult;
+import com.fc.freer.im.PendingIssue;
+import com.fc.freer.im.PendingIssueManager;
 import com.fc.freer.manager.DatabaseManager;
 
 import com.fc.fc_ajdk.data.apipData.Fcdsl;
@@ -37,6 +40,12 @@ public class TeamHandler extends BaseHandler {
     
     private final Map<String, Team> teamCache = new HashMap<>();
     private final LocalDB<Team> teamsDb;
+    private PendingIssueManager pendingIssueManager;
+
+    /** Set by ImManager once the pending-issue store for this FID exists. */
+    public void setPendingIssueManager(PendingIssueManager manager) {
+        this.pendingIssueManager = manager;
+    }
     
     public TeamHandler(Context context, String liveFid) {
         super(context, liveFid);
@@ -421,7 +430,7 @@ public class TeamHandler extends BaseHandler {
             Team team = result.get(teamId);
             if (team != null) {
                 team.setOnChain(true);
-                saveTeam(team);
+                saveOnChainTeam(team);
             }
             return team;
         } catch (Exception e) {
@@ -441,7 +450,57 @@ public class TeamHandler extends BaseHandler {
     public void saveTeamPublic(Team team) {
         if (team == null || team.getId() == null) return;
         team.setOnChain(true);
+        saveOnChainTeam(team);
+    }
+
+    /**
+     * Store a team as fetched from chain, first reconciling this FID's consensus obligation
+     * against it. Every on-chain read funnels through here; {@link #savePendingTeam} deliberately
+     * does not, since a locally-edited team is not evidence of what the chain says.
+     */
+    private void saveOnChainTeam(Team team) {
+        checkConsensusObligation(teamCache.get(team.getId()), team);
         saveTeam(team);
+    }
+
+    /**
+     * Raise or clear this FID's "sign the new consensus" issue for a team.
+     * <p>
+     * The chain is the source of truth: a member owes a signature exactly while the team lists
+     * them in {@code notAgreeMembers}, which the indexer refills with every non-owner member each
+     * time the owner carves a different {@code consensusId}. Reading it here means the obligation
+     * surfaces however the team was refreshed, and it also clears itself when the signature was
+     * sent from another device or the member was dismissed.
+     * <p>
+     * {@code cached} is the copy about to be overwritten — the only place the <i>previous</i>
+     * consensus id still exists, since the chain only ever holds the current one. It is recorded
+     * on the issue so the member can read what they agreed to before, alongside what they are
+     * being asked to agree to now.
+     */
+    private void checkConsensusObligation(Team cached, Team fresh) {
+        if (pendingIssueManager == null || fresh == null || fresh.getId() == null) return;
+        try {
+            List<String> notAgreed = fresh.getNotAgreeMembers();
+            boolean owes = notAgreed != null && notAgreed.contains(liveFid);
+
+            if (!owes) {
+                pendingIssueManager.clearConsensusIssuesForTeam(fresh.getId(),
+                        PendingIssue.IssueStatus.ACCEPTED);
+                return;
+            }
+            if (fresh.getConsensusId() == null) return;
+
+            String oldConsensusId = null;
+            if (cached != null && cached.getConsensusId() != null
+                    && !cached.getConsensusId().equals(fresh.getConsensusId())) {
+                oldConsensusId = cached.getConsensusId();
+            }
+            pendingIssueManager.addConsensusChangeIssue(fresh.getId(), fresh.getStdName(),
+                    fresh.getOwner(), oldConsensusId, fresh.getConsensusId(),
+                    ConsensusDocHelper.resolveTeamDiskSid(fresh));
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Failed to check consensus obligation: %s", e.getMessage());
+        }
     }
 
     /**
@@ -596,7 +655,7 @@ public class TeamHandler extends BaseHandler {
 
             long maxHeight = lastUpdateHeight;
             for (Team team : teams) {
-                saveTeam(team);
+                saveOnChainTeam(team);
                 if (team.getLastHeight() != null && team.getLastHeight() > maxHeight) {
                     maxHeight = team.getLastHeight();
                 }

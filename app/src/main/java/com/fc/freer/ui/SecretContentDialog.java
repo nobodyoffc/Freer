@@ -15,6 +15,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 
 import com.fc.freer.R;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.QRCodeGenerator;
 import com.fc.freer.utils.ToastUtils;
 
@@ -94,6 +95,6 @@ public class SecretContentDialog {
         btnOk.setOnClickListener(v -> dialog.dismiss());
 
         // Show the dialog
-        dialog.show();
+        DialogUtils.show(dialog);
     }
 }

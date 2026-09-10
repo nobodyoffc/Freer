@@ -1,5 +1,7 @@
 package com.fc.freer.utils;
 
+import com.fc.freer.utils.DialogUtils;
+
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -282,7 +284,7 @@ public class QRCodeGenerator {
         
         okButton.setOnClickListener(v -> dialog.dismiss());
         
-        dialog.show();
+        DialogUtils.show(dialog);
     }
 
     /**

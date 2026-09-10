@@ -120,6 +120,12 @@ public class MemberListActivity extends BaseCryptoActivity {
                     managerSet.addAll(team.getManagers());
                 }
 
+                // Members the chain still lists as owing a signature on the current consensus.
+                Set<String> notAgreedSet = new HashSet<>();
+                if (team.getNotAgreeMembers() != null) {
+                    notAgreedSet.addAll(team.getNotAgreeMembers());
+                }
+
                 if (team.getMembers() != null) {
                     for (String member : team.getMembers()) {
                         String role;
@@ -129,6 +135,9 @@ public class MemberListActivity extends BaseCryptoActivity {
                             role = getString(R.string.role_manager);
                         } else {
                             role = getString(R.string.role_member);
+                        }
+                        if (notAgreedSet.contains(member)) {
+                            role = role + " · " + getString(R.string.role_not_agreed);
                         }
                         allMembers.add(new MemberInfo(member, role));
                     }

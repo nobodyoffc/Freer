@@ -18,6 +18,7 @@ import com.fc.freer.im.adapter.DockItemsAdapter;
 import com.fc.freer.im.dock.DockItemRouter;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.model.Setting;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ToastUtils;
 
 import java.util.ArrayList;
@@ -133,20 +134,18 @@ public class DockItemsActivity extends BaseCryptoActivity
             detail.append("Recipients: ").append(item.getRecipients()).append("\n");
         }
 
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(getString(R.string.dock_items))
                 .setMessage(detail.toString())
                 .setPositiveButton(R.string.ok, null)
-                .setNegativeButton(R.string.dock_item_delete, (d, w) -> deleteItem(item, position))
-                .show();
+                .setNegativeButton(R.string.dock_item_delete, (d, w) -> deleteItem(item, position)));
     }
 
     private void showDeleteDialog(DockItem item, int position) {
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setMessage(R.string.confirm_delete_dock_item)
                 .setPositiveButton(R.string.dock_item_delete, (d, w) -> deleteItem(item, position))
-                .setNegativeButton(R.string.cancel, null)
-                .show();
+                .setNegativeButton(R.string.cancel, null));
     }
 
     private void deleteItem(DockItem item, int position) {

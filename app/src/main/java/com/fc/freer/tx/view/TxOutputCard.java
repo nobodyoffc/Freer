@@ -17,6 +17,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.fc.fc_ajdk.data.fchData.Cash;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ToastUtils;
 
 import androidx.cardview.widget.CardView;
@@ -173,7 +174,7 @@ public class TxOutputCard extends CardView {
                             break;
                     }
                 });
-                builder.show();
+                DialogUtils.show(builder);
                 return true;
             }
             return false;

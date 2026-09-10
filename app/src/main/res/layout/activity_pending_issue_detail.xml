@@ -162,6 +162,72 @@
 
     </ScrollView>
 
+    <!-- Consensus-change reading actions: the old and new documents, side by side. -->
+    <LinearLayout
+        android:id="@+id/doc_buttons_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:visibility="gone">
+
+        <Button
+            android:id="@+id/btn_view_old_doc"
+            style="@style/ButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:text="@string/view_old_consensus" />
+
+        <Button
+            android:id="@+id/btn_view_new_doc"
+            style="@style/ButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/view_new_consensus" />
+
+    </LinearLayout>
+
+    <!-- Consensus-change decision: sign now, postpone, or leave the team. -->
+    <LinearLayout
+        android:id="@+id/consensus_buttons_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <Button
+            android:id="@+id/btn_leave_team"
+            style="@style/ButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:text="@string/leave_team" />
+
+        <Button
+            android:id="@+id/btn_sign_later"
+            style="@style/ButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:text="@string/sign_later" />
+
+        <Button
+            android:id="@+id/btn_sign_consensus"
+            style="@style/ButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/sign_consensus" />
+
+    </LinearLayout>
+
     <LinearLayout
         android:id="@+id/action_buttons_container"
         android:layout_width="match_parent"

@@ -38,6 +38,7 @@ import com.fc.freer.manager.FidManager;
 import com.fc.freer.manager.TokenManager;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.ui.WaitingDialog;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.ChooseMode;
 import com.fc.freer.utils.SecurePrikeyManager;
@@ -404,12 +405,11 @@ public class MyTokenActivity extends BaseCryptoActivity {
             tokenName = token.getName();
         }
 
-        new androidx.appcompat.app.AlertDialog.Builder(this)
+        DialogUtils.show(new androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(R.string.burn_token)
             .setMessage(getString(R.string.burn_token_confirm, tokenName))
             .setPositiveButton(R.string.confirm, (dialog, which) -> burnToken(tokenHolder))
-            .setNegativeButton(R.string.cancel, null)
-            .show();
+            .setNegativeButton(R.string.cancel, null));
     }
 
     private void burnToken(TokenHolder tokenHolder) {

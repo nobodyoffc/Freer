@@ -15,7 +15,11 @@ public class PendingIssue extends FcEntity {
         STRANGER_PEER,
         GROUP_INVITE,
         FILE_OFFER,
-        ROOM_INVITE
+        ROOM_INVITE,
+        /** A manager invited this FID to a team, or an owner named it as transferee. */
+        TEAM_INVITE,
+        /** The owner changed a team's consensus; this member owes a signature on the new one. */
+        CONSENSUS_CHANGE
     }
 
     public enum IssueStatus {
@@ -146,6 +150,104 @@ public class PendingIssue extends FcEntity {
 
         if (roomName != null && !roomName.isEmpty()) {
             issue.setNote(roomName);
+        }
+        return issue;
+    }
+
+    /**
+     * Payload for CONSENSUS_CHANGE issues.
+     * <p>
+     * {@code oldConsensusId} is captured locally before the sync overwrites the cached team — the
+     * chain only ever holds the current consensus — so the member can read what they previously
+     * agreed to next to what they are being asked to agree to. It is null when this device never
+     * saw the previous consensus. {@code diskSid} is the team's DISK at the time the change was
+     * noticed, which is where both documents can be fetched from.
+     */
+    public static class ConsensusChangeData {
+        public String teamId;
+        public String teamName;
+        public String ownerFid;
+        public String oldConsensusId;
+        public String newConsensusId;
+        public String diskSid;
+
+        public String toJson() { return JsonUtils.toJson(this); }
+        public static ConsensusChangeData fromJson(String json) {
+            return JsonUtils.fromJson(json, ConsensusChangeData.class);
+        }
+    }
+
+    /**
+     * Payload for TEAM_INVITE issues.
+     * <p>
+     * The notification is only a hint: the authoritative invitation lives on chain in the team's
+     * {@code invitees} (or {@code transferee}) list, which {@link JoinTeamActivity} checks before
+     * carving anything. So this carries just enough to tell the user who invited them and where.
+     */
+    public static class TeamInviteData {
+        public String teamId;
+        public String teamName;
+        public String senderFid;
+        /** True when this is a transfer of ownership rather than a plain invitation. */
+        public boolean transfer;
+
+        public String toJson() { return JsonUtils.toJson(this); }
+        public static TeamInviteData fromJson(String json) {
+            return JsonUtils.fromJson(json, TeamInviteData.class);
+        }
+    }
+
+    /** Issue id for a team invitation: one per team, so a resend does not stack up. */
+    public static String teamInviteIssueId(String teamId) {
+        return "TEAM_INVITE_" + teamId;
+    }
+
+    public static PendingIssue createTeamInvite(String senderFid, String teamId, String teamName,
+                                                boolean transfer) {
+        PendingIssue issue = new PendingIssue();
+        issue.setId(teamInviteIssueId(teamId));
+        issue.setIssueType(IssueType.TEAM_INVITE);
+        issue.setStatus(IssueStatus.PENDING);
+        issue.setPeerFid(senderFid);
+        issue.setCreatedAt(System.currentTimeMillis());
+
+        TeamInviteData data = new TeamInviteData();
+        data.teamId = teamId;
+        data.teamName = teamName;
+        data.senderFid = senderFid;
+        data.transfer = transfer;
+        issue.setDataFrom(data);
+
+        if (teamName != null && !teamName.isEmpty()) issue.setNote(teamName);
+        return issue;
+    }
+
+    /** Issue id for a consensus change: one per team per consensus version. */
+    public static String consensusIssueId(String teamId, String newConsensusId) {
+        return "CONSENSUS_" + teamId + "_" + newConsensusId;
+    }
+
+    public static PendingIssue createConsensusChange(String teamId, String teamName, String ownerFid,
+                                                     String oldConsensusId, String newConsensusId,
+                                                     String diskSid) {
+        PendingIssue issue = new PendingIssue();
+        issue.setId(consensusIssueId(teamId, newConsensusId));
+        issue.setIssueType(IssueType.CONSENSUS_CHANGE);
+        issue.setStatus(IssueStatus.PENDING);
+        issue.setPeerFid(ownerFid);
+        issue.setCreatedAt(System.currentTimeMillis());
+
+        ConsensusChangeData data = new ConsensusChangeData();
+        data.teamId = teamId;
+        data.teamName = teamName;
+        data.ownerFid = ownerFid;
+        data.oldConsensusId = oldConsensusId;
+        data.newConsensusId = newConsensusId;
+        data.diskSid = diskSid;
+        issue.setDataFrom(data);
+
+        if (teamName != null && !teamName.isEmpty()) {
+            issue.setNote(teamName);
         }
         return issue;
     }

@@ -11,6 +11,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.fc.fc_ajdk.data.fchData.Multisig;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ChooseMode;
 import com.fc.freer.utils.ToastUtils;
 
@@ -139,7 +140,7 @@ public class MultisigKeyCardManager {
                         break;
                 }
             });
-            builder.show();
+            DialogUtils.show(builder);
             return true;
         };
 
@@ -225,7 +226,7 @@ public class MultisigKeyCardManager {
                         break;
                 }
             });
-            builder.show();
+            DialogUtils.show(builder);
             return true;
         };
 

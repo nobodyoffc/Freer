@@ -24,6 +24,7 @@ import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.Setting;
 import com.fc.freer.tx.TxSender;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ToastUtils;
@@ -102,7 +103,7 @@ public class ManageTeamActivity extends BaseCryptoActivity {
         input.setGravity(android.view.Gravity.TOP);
         input.setPadding(32, 24, 32, 24);
 
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(title)
                 .setView(input)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
@@ -123,7 +124,7 @@ public class ManageTeamActivity extends BaseCryptoActivity {
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, (dialog, which) -> hideKeyboard())
-                .show();
+                );
     }
 
     private void showTransferDialog() {
@@ -131,7 +132,7 @@ public class ManageTeamActivity extends BaseCryptoActivity {
         input.setHint(R.string.transferee_fid);
         input.setPadding(32, 24, 32, 24);
 
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.transfer_team)
                 .setView(input)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
@@ -144,11 +145,11 @@ public class ManageTeamActivity extends BaseCryptoActivity {
                     transferTeam(transferee);
                 })
                 .setNegativeButton(android.R.string.cancel, (dialog, which) -> hideKeyboard())
-                .show();
+                );
     }
 
     private void showDisbandConfirmation() {
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.disband_team)
                 .setMessage(R.string.confirm_disband_team)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
@@ -156,7 +157,7 @@ public class ManageTeamActivity extends BaseCryptoActivity {
                     disbandTeam();
                 })
                 .setNegativeButton(android.R.string.cancel, (dialog, which) -> hideKeyboard())
-                .show();
+                );
     }
 
     private void appointManagers(String[] fids) {

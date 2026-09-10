@@ -10,6 +10,7 @@ import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.model.Setting;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ToastUtils;
 import com.fc.freer.utils.ToolbarUtils;
 
@@ -87,7 +88,7 @@ public class BlacklistActivity extends BaseCryptoActivity
         hideKeyboard();
         if (contactPolicy == null) return;
 
-        new androidx.appcompat.app.AlertDialog.Builder(this)
+        DialogUtils.show(new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle(R.string.remove_from_blacklist)
                 .setMessage(getString(R.string.confirm_remove_from_blacklist, fid))
                 .setPositiveButton(R.string.remove, (dialog, which) -> {
@@ -100,6 +101,6 @@ public class BlacklistActivity extends BaseCryptoActivity
                     ToastUtils.showInfo(this, getString(R.string.removed_from_blacklist));
                 })
                 .setNegativeButton(R.string.cancel, null)
-                .show();
+                );
     }
 }

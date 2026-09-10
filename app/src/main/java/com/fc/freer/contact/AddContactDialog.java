@@ -24,6 +24,7 @@ import com.fc.freer.manager.FidManager;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.TxSender;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ToastUtils;
@@ -279,7 +280,7 @@ public class AddContactDialog {
 
     public void show() {
         if (dialog != null && !dialog.isShowing()) {
-            dialog.show();
+            DialogUtils.show(dialog);
         }
     }
 

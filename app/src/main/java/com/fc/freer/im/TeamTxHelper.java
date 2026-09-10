@@ -2,6 +2,8 @@ package com.fc.freer.im;
 
 import android.app.Activity;
 
+import java.util.Collections;
+
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.data.feipData.Feip;
@@ -20,9 +22,10 @@ import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ToastUtils;
 
 /**
- * Shared helpers for sending on-chain team join / take-over transactions.
- * Used by PendingIssueActivity, PendingIssueDetailActivity, and TeamActivity so the
- * TX-sending logic is not duplicated across the three accept-invitation paths.
+ * Shared helpers for the on-chain team transactions a member sends about themselves:
+ * join, take over, agree consensus and leave. Used by PendingIssueActivity,
+ * PendingIssueDetailActivity, JoinTeamActivity and TeamActivity so the TX-sending logic is
+ * written once.
  */
 class TeamTxHelper {
 
@@ -41,6 +44,78 @@ class TeamTxHelper {
     static void sendTakeOverTx(Activity activity, String teamId, ImManager imManager,
                                 TxResultCallback callback) {
         sendTeamTx(activity, teamId, imManager, true, callback);
+    }
+
+    /**
+     * Sign a team's current consensus.
+     * <p>
+     * The parser accepts this only from a FID the team currently lists in {@code notAgreeMembers},
+     * and only when {@code consensusId} equals the team's stored one — so the id must be the
+     * freshly-synced consensus, not whatever this device cached earlier.
+     */
+    static void sendAgreeConsensusTx(Activity activity, String teamId, String consensusId,
+                                      TxResultCallback callback) {
+        carve(activity, TeamOpData.makeAgreeConsensus(teamId, consensusId), callback);
+    }
+
+    /** Leave a team. The owner cannot leave — they must transfer or disband instead. */
+    static void sendLeaveTx(Activity activity, String teamId, TxResultCallback callback) {
+        carve(activity, TeamOpData.makeLeave(Collections.singletonList(teamId)), callback);
+    }
+
+    /** Carve and broadcast a prepared team op signed by the live FID. */
+    private static void carve(Activity activity, TeamOpData opData, TxResultCallback callback) {
+        KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
+        if (liveKeyInfo == null) {
+            ToastUtils.makeText(activity, activity.getString(R.string.no_active_fid));
+            if (callback != null) callback.onError(activity.getString(R.string.no_active_fid));
+            return;
+        }
+
+        byte[] prikey = SecurePrikeyManager.fetchPrikeySilent(liveKeyInfo.getPrikeyCipher());
+        if (prikey == null) {
+            ToastUtils.makeText(activity, activity.getString(R.string.failed_to_get_private_key));
+            if (callback != null) callback.onError(activity.getString(R.string.failed_to_get_private_key));
+            return;
+        }
+
+        Feip feip = Feip.fromName("Team");
+        feip.setData(opData);
+        String feipJson = feip.toJson();
+
+        new Thread(() -> {
+            TxSender txSender = new TxSender();
+            txSender.carveSimpleFeip(activity, liveKeyInfo.getId(), feipJson, prikey,
+                    CashManager.getInstance(), new TxHandler(),
+                    (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7),
+                    new TxSender.TxCallback() {
+                        @Override
+                        public void onSuccess(String txId) {
+                            activity.runOnUiThread(() -> {
+                                if (callback != null) callback.onSuccess();
+                            });
+                        }
+
+                        @Override
+                        public void onError(String errorMessage) {
+                            activity.runOnUiThread(() -> {
+                                if (callback != null) callback.onError(errorMessage);
+                            });
+                        }
+
+                        @Override
+                        public void onUnsignedTx(com.fc.fc_ajdk.core.fch.RawTxInfo rawTxInfo) {
+                            activity.runOnUiThread(() ->
+                                    txSender.showUnsignedTxAsQR(activity, rawTxInfo));
+                        }
+
+                        @Override
+                        public void onUnbroadcasted(String signedTxHex) {
+                            activity.runOnUiThread(() ->
+                                    txSender.showSignedTxAsQR(activity, signedTxHex));
+                        }
+                    });
+        }).start();
     }
 
     private static void sendTeamTx(Activity activity, String teamId, ImManager imManager,

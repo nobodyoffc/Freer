@@ -13,10 +13,9 @@ public final class AboutDialog {
     private AboutDialog() {}
 
     public static void show(Context context, int titleRes, int messageRes) {
-        new AlertDialog.Builder(context)
+        DialogUtils.show(new AlertDialog.Builder(context)
                 .setTitle(titleRes)
                 .setMessage(messageRes)
-                .setPositiveButton(android.R.string.ok, null)
-                .show();
+                .setPositiveButton(android.R.string.ok, null));
     }
 }

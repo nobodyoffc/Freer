@@ -1,6 +1,9 @@
 package com.fc.freer.im;
 
 import android.content.Context;
+import android.database.Cursor;
+import android.net.Uri;
+import android.provider.OpenableColumns;
 
 import com.fc.fc_ajdk.constants.Constants;
 import com.fc.fc_ajdk.core.crypto.Hash;
@@ -14,6 +17,9 @@ import com.fc.freer.data.DataSyncManager;
 import com.fc.freer.manager.HatManager;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -125,8 +131,27 @@ public class ConsensusDocHelper {
             lastError = "Team has no DISK service in its home; cannot locate consensus";
             return false;
         }
+        return downloadDoc(team.getConsensusId(), diskSid, outputFile);
+    }
 
-        String consensusId = team.getConsensusId();
+    /**
+     * Download the document with the given content id from an explicit DISK.
+     * <p>
+     * Unlike {@link #downloadConsensusDoc(Team, File)} this does not read the id or the DISK
+     * from the team, so it can fetch a <b>superseded</b> consensus — whose id is no longer on
+     * chain, and which may still live on a DISK the team has since moved away from.
+     * The bytes are integrity-checked against {@code consensusId} by {@link DataSyncManager}.
+     * Must be called on a background thread.
+     */
+    public boolean downloadDoc(String consensusId, String diskSid, File outputFile) {
+        if (consensusId == null || consensusId.isEmpty()) {
+            lastError = "No consensus id to download";
+            return false;
+        }
+        if (diskSid == null || diskSid.isEmpty()) {
+            lastError = "No DISK service to download the consensus from";
+            return false;
+        }
         Hat rawHat = hatManager.getHatById(consensusId);
         if (rawHat == null) {
             rawHat = new Hat();
@@ -143,12 +168,285 @@ public class ConsensusDocHelper {
         if (!locas.contains(loca)) locas.add(loca);
         rawHat.setLocas(locas);
         hatManager.updateHat(rawHat);
+        hatManager.commit();
 
         boolean ok = dataSyncManager.downloadData(rawHat, null, outputFile);
         if (!ok) {
             lastError = dataSyncManager.getLastError();
         }
         return ok;
+    }
+
+    /**
+     * Make sure the document is stored on {@code targetDiskSid}, wherever it currently lives, so
+     * that a member holding only the team's DISK SID can fetch it.
+     * <p>
+     * Tried in order, cheapest first: already on the target; local bytes on this device; pulled
+     * from {@code fallbackDiskSid} (the DISK the team is leaving) and pushed across. Checking the
+     * target first matters — carving is a payment, so re-uploading a document that is already
+     * there costs the owner money for nothing.
+     * <p>
+     * {@code fallbackDiskSid} may be null or equal to the target: a team that never had a DISK
+     * has nowhere to be pulled from, which is a plain "not found", not an error worth dressing up.
+     * Must be called on a background thread.
+     *
+     * @return true when the document is on {@code targetDiskSid} afterwards
+     */
+    public boolean ensureDocOnDisk(Context context, String consensusId, String fallbackDiskSid,
+                                   String targetDiskSid, java.util.function.LongConsumer progressCallback) {
+        if (consensusId == null || consensusId.isEmpty()) {
+            lastError = "No consensus document to place";
+            return false;
+        }
+        if (targetDiskSid == null || targetDiskSid.isEmpty()) {
+            lastError = "No target DISK for the consensus document";
+            return false;
+        }
+
+        if (isDocOnDisk(consensusId, targetDiskSid)) return true;
+
+        File local = resolveLocalDoc(context, hatManager, consensusId);
+        if (local != null) {
+            return uploadConsensusDoc(local, targetDiskSid, progressCallback) != null;
+        }
+
+        if (fallbackDiskSid == null || fallbackDiskSid.isEmpty()
+                || fallbackDiskSid.equals(targetDiskSid)) {
+            lastError = "The consensus document is not on this device and no other DISK holds it";
+            return false;
+        }
+
+        File temp = null;
+        try {
+            temp = File.createTempFile("consensus_migrate_", ".tmp", context.getCacheDir());
+            if (!downloadDoc(consensusId, fallbackDiskSid, temp)) return false;
+            return uploadConsensusDoc(temp, targetDiskSid, progressCallback) != null;
+        } catch (Exception e) {
+            lastError = "Failed to place the consensus document: " + e.getMessage();
+            TimberLogger.e(TAG, lastError);
+            return false;
+        } finally {
+            if (temp != null && temp.exists()) {
+                //noinspection ResultOfMethodCallIgnored
+                temp.delete();
+            }
+        }
+    }
+
+    /**
+     * Is the document already stored on this specific DISK?
+     * <p>
+     * Asks that one DISK only — a copy sitting on some other service the HAT happens to know
+     * about is no use to a member, who can only resolve the SID published in the team's home.
+     * Cheap next to re-carving: presence is a query, carving is a payment.
+     * Must be called on a background thread.
+     */
+    public boolean isDocOnDisk(String consensusId, String diskSid) {
+        if (consensusId == null || consensusId.isEmpty()) return false;
+        if (diskSid == null || diskSid.isEmpty()) return false;
+        try {
+            // A transient HAT carrying just this one location, so the check cannot be satisfied
+            // by another loca on the stored HAT — and so nothing is written back.
+            Hat probe = new Hat();
+            probe.setId(consensusId);
+            probe.setLocas(Collections.singletonList(DataSyncManager.SID_LOCATION_PREFIX + diskSid));
+            return dataSyncManager.checkDataOnDisk(probe) != null;
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "Consensus presence check failed: %s", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Resolve the local, unencrypted bytes for a data DID, or null when they are not on this
+     * device. Looks for a {@code local://} loca on the HAT, then the default
+     * {@code files/data/<did>} file — the two places {@link com.fc.freer.data.DataActivity}
+     * writes imported data to.
+     */
+    public static File resolveLocalDoc(Context context, HatManager hatManager, String did) {
+        if (did == null || did.isEmpty()) return null;
+        Hat hat = hatManager.getHatById(did);
+        if (hat != null && hat.getLocas() != null) {
+            for (String loca : hat.getLocas()) {
+                if (loca != null && loca.startsWith(DataSyncManager.LOCAL_LOCATION_PREFIX)) {
+                    File f = new File(loca.substring(DataSyncManager.LOCAL_LOCATION_PREFIX.length()));
+                    if (f.exists()) return f;
+                }
+            }
+        }
+        File defaultFile = new File(new File(context.getFilesDir(), "data"), did);
+        return defaultFile.exists() ? defaultFile : null;
+    }
+
+    /** A document imported into the local HAT store: its content id and the file holding it. */
+    public static class ImportedDoc {
+        public final String did;
+        public final File file;
+        ImportedDoc(String did, File file) {
+            this.did = did;
+            this.file = file;
+        }
+    }
+
+    /**
+     * Import a document picked through the system file picker into the local HAT store, so it can
+     * be uploaded as a consensus. Mirrors {@link com.fc.freer.data.DataActivity}'s import: stream
+     * to {@code files/data/}, content-address with {@code sha256x2}, register a HAT carrying a
+     * {@code local://} loca. Re-importing the same bytes is idempotent — the id is the hash.
+     * Must be called on a background thread.
+     *
+     * @return the imported document, or null on failure (see {@link #getLastError()})
+     */
+    public ImportedDoc importDocFromUri(Context context, Uri uri) {
+        if (uri == null) {
+            lastError = "No document selected";
+            return null;
+        }
+        File dataDir = new File(context.getFilesDir(), "data");
+        //noinspection ResultOfMethodCallIgnored
+        dataDir.mkdirs();
+        File temp = null;
+        try {
+            String fileName = queryDisplayName(context, uri);
+            String mimeType = context.getContentResolver().getType(uri);
+
+            temp = File.createTempFile("consensus_", null, dataDir);
+            try (InputStream in = context.getContentResolver().openInputStream(uri)) {
+                if (in == null) {
+                    lastError = "Cannot open the selected document";
+                    return null;
+                }
+                try (FileOutputStream out = new FileOutputStream(temp)) {
+                    byte[] buf = new byte[64 * 1024];
+                    int n;
+                    while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+                }
+            }
+
+            byte[] didBytes = Hash.sha256x2Bytes(temp);
+            if (didBytes == null) {
+                lastError = "Failed to hash the selected document";
+                return null;
+            }
+            String did = Hex.toHex(didBytes);
+
+            File localFile = new File(dataDir, did);
+            if (localFile.exists()) {
+                //noinspection ResultOfMethodCallIgnored
+                temp.delete();
+            } else if (!temp.renameTo(localFile)) {
+                // Fallback for a cross-filesystem rename.
+                try (InputStream in = new FileInputStream(temp);
+                     FileOutputStream out = new FileOutputStream(localFile)) {
+                    byte[] buf = new byte[64 * 1024];
+                    int n;
+                    while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+                }
+                //noinspection ResultOfMethodCallIgnored
+                temp.delete();
+            }
+            temp = null;
+
+            registerLocalDoc(did, localFile, fileName, mimeType);
+
+            TimberLogger.i(TAG, "Imported consensus document: did=%s", did);
+            return new ImportedDoc(did, localFile);
+        } catch (Exception e) {
+            lastError = "Failed to import the document: " + e.getMessage();
+            TimberLogger.e(TAG, lastError);
+            return null;
+        } finally {
+            if (temp != null && temp.exists()) {
+                //noinspection ResultOfMethodCallIgnored
+                temp.delete();
+            }
+        }
+    }
+
+    /**
+     * Write text into the local data store as a content-addressed document, so it can be opened
+     * in the text editor and later uploaded as a consensus. Used to seed a new team with an
+     * editable consensus template.
+     * Must be called on a background thread.
+     *
+     * @return the stored document, or null on failure (see {@link #getLastError()})
+     */
+    public ImportedDoc createDocFromText(Context context, String text, String name) {
+        if (text == null) {
+            lastError = "No document text";
+            return null;
+        }
+        try {
+            byte[] data = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            byte[] didBytes = Hash.sha256x2(data);
+            if (didBytes == null) {
+                lastError = "Failed to hash the document";
+                return null;
+            }
+            String did = Hex.toHex(didBytes);
+
+            File dataDir = new File(context.getFilesDir(), "data");
+            //noinspection ResultOfMethodCallIgnored
+            dataDir.mkdirs();
+            File localFile = new File(dataDir, did);
+            if (!localFile.exists()) {
+                try (FileOutputStream out = new FileOutputStream(localFile)) {
+                    out.write(data);
+                }
+            }
+            registerLocalDoc(did, localFile, name, "text/plain");
+            TimberLogger.i(TAG, "Created consensus document from text: did=%s", did);
+            return new ImportedDoc(did, localFile);
+        } catch (Exception e) {
+            lastError = "Failed to create the document: " + e.getMessage();
+            TimberLogger.e(TAG, lastError);
+            return null;
+        }
+    }
+
+    /** Register (or refresh) the HAT for a document held in the local data store. */
+    private void registerLocalDoc(String did, File localFile, String name, String mimeType) {
+        Hat hat = hatManager.getHatById(did);
+        if (hat == null) {
+            hat = new Hat();
+            hat.setId(did);
+            hat.setName(name);
+            hat.setSize(localFile.length());
+            hat.setBorn(System.currentTimeMillis());
+            hat.setState(Hat.DataState.ACTIVE);
+            if (mimeType != null) hat.setTypes(Collections.singletonList(mimeType));
+            hatManager.addHat(hat);
+        }
+        hat.setLast(System.currentTimeMillis());
+        List<String> locas = hat.getLocas();
+        if (locas == null) locas = new ArrayList<>();
+        String loca = DataSyncManager.LOCAL_LOCATION_PREFIX + localFile.getAbsolutePath();
+        if (!locas.contains(loca)) locas.add(loca);
+        hat.setLocas(locas);
+        hatManager.updateHat(hat);
+        hatManager.commit();
+    }
+
+    private static String queryDisplayName(Context context, Uri uri) {
+        String name = null;
+        if ("content".equals(uri.getScheme())) {
+            try (Cursor cursor = context.getContentResolver().query(uri, null, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                    if (index >= 0) name = cursor.getString(index);
+                }
+            } catch (Exception ignored) {
+                // Fall through to the path-derived name.
+            }
+        }
+        if (name == null) {
+            name = uri.getPath();
+            if (name != null) {
+                int cut = name.lastIndexOf('/');
+                if (cut != -1) name = name.substring(cut + 1);
+            }
+        }
+        return name;
     }
 
     /** Resolve the plaintext DISK SID from a team's on-chain home map. */

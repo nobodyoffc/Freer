@@ -80,6 +80,7 @@ import com.fc.freer.tx.TxSender;
 import com.fc.freer.im.dock.DockServiceRegistry;
 import com.fc.freer.ui.DetailActivity;
 import com.fc.freer.ui.WaitingDialog;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.ServicePickerUtils;
 import com.fc.freer.utils.ChooseMode;
@@ -940,7 +941,7 @@ public class ChatActivity extends BaseCryptoActivity
     private void showOwnerNoSymkeyDialog() {
         disableSending(R.string.no_symkey_available);
 
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.owner_no_symkey_title)
                 .setMessage(R.string.owner_no_symkey_message)
                 .setPositiveButton(R.string.generate_new_symkey, (d, which) -> {
@@ -959,7 +960,7 @@ public class ChatActivity extends BaseCryptoActivity
                     hideKeyboard();
                 })
                 .setCancelable(false)
-                .show();
+                );
     }
 
     private void autoCreateAndShareSymkey() {
@@ -1583,7 +1584,7 @@ public class ChatActivity extends BaseCryptoActivity
 
         runOnUiThread(() -> {
             String msg = getString(R.string.history_request_received, requesterFid);
-            new AlertDialog.Builder(this)
+            DialogUtils.show(new AlertDialog.Builder(this)
                     .setTitle(R.string.request_history)
                     .setMessage(msg)
                     .setPositiveButton(R.string.approve, (d, w) -> {
@@ -1593,7 +1594,7 @@ public class ChatActivity extends BaseCryptoActivity
                         }
                     })
                     .setNegativeButton(R.string.deny, null)
-                    .show();
+                    );
         });
     }
 
@@ -1703,7 +1704,7 @@ public class ChatActivity extends BaseCryptoActivity
 
     private void showCancelDownloadDialog(String hatId) {
         cancelDownloadHatId = hatId;
-        cancelDownloadDialog = new AlertDialog.Builder(this)
+        cancelDownloadDialog = DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.cancel_download_title)
                 .setMessage(R.string.cancel_download_message)
                 .setPositiveButton(R.string.keep_downloading, null)
@@ -1718,7 +1719,7 @@ public class ChatActivity extends BaseCryptoActivity
                     cancelDownloadDialog = null;
                     cancelDownloadHatId = null;
                 })
-                .show();
+                );
     }
 
     private void mergeImHatCredentials(com.fc.fc_ajdk.data.fcData.Hat src,
@@ -1779,11 +1780,10 @@ public class ChatActivity extends BaseCryptoActivity
 
         deleteItem.setOnClickListener(v -> {
             popup.dismiss();
-            new AlertDialog.Builder(this)
+            DialogUtils.show(new AlertDialog.Builder(this)
                     .setMessage(R.string.confirm_delete_message)
                     .setPositiveButton(R.string.delete, (d, w) -> deleteMessageLocally(message))
-                    .setNegativeButton(R.string.cancel, null)
-                    .show();
+                    .setNegativeButton(R.string.cancel, null));
         });
 
         menuView.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
@@ -2030,7 +2030,7 @@ public class ChatActivity extends BaseCryptoActivity
     }
 
     private void showQuitGroupConfirmation() {
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.quit_square)
                 .setMessage(R.string.confirm_quit_square)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
@@ -2038,7 +2038,7 @@ public class ChatActivity extends BaseCryptoActivity
                     quitGroupDirectly();
                 })
                 .setNegativeButton(android.R.string.cancel, (dialog, which) -> hideKeyboard())
-                .show();
+                );
     }
 
     private void quitGroupDirectly() {
@@ -2241,7 +2241,7 @@ public class ChatActivity extends BaseCryptoActivity
                     Constants.DOCK_NO1_NRC7, getString(R.string.server_setup_dock_label)));
         });
 
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.update_room)
                 .setView(dialogView)
                 .setPositiveButton(R.string.save, (dialog, which) -> {
@@ -2268,7 +2268,7 @@ public class ChatActivity extends BaseCryptoActivity
                     }
                 })
                 .setNegativeButton(R.string.cancel, (dialog, which) -> hideKeyboard())
-                .show();
+                );
     }
 
     private void launchAddRoomMember() {
@@ -2368,7 +2368,7 @@ public class ChatActivity extends BaseCryptoActivity
     }
 
     private void showCloseRoomConfirmation() {
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.close_room)
                 .setMessage(R.string.confirm_close_room)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
@@ -2380,11 +2380,11 @@ public class ChatActivity extends BaseCryptoActivity
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, (dialog, which) -> hideKeyboard())
-                .show();
+                );
     }
 
     private void showLeaveRoomConfirmation() {
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.leave_room)
                 .setMessage(R.string.confirm_leave_room)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
@@ -2396,7 +2396,7 @@ public class ChatActivity extends BaseCryptoActivity
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, (dialog, which) -> hideKeyboard())
-                .show();
+                );
     }
 
     private void markRoomConversationAsLeft(String roomId) {
@@ -2708,7 +2708,7 @@ public class ChatActivity extends BaseCryptoActivity
     }
 
     private void showLeaveTeamConfirmation() {
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.leave_team)
                 .setMessage(R.string.confirm_leave_team)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
@@ -2716,7 +2716,7 @@ public class ChatActivity extends BaseCryptoActivity
                     leaveTeamDirectly();
                 })
                 .setNegativeButton(android.R.string.cancel, (dialog, which) -> hideKeyboard())
-                .show();
+                );
     }
 
     private void leaveTeamDirectly() {
@@ -2878,7 +2878,7 @@ public class ChatActivity extends BaseCryptoActivity
     }
 
     private void showDisbandTeamConfirmation() {
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.disband_team)
                 .setMessage(R.string.confirm_disband_team)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
@@ -2889,7 +2889,7 @@ public class ChatActivity extends BaseCryptoActivity
                             R.string.failed_to_disband_team);
                 })
                 .setNegativeButton(android.R.string.cancel, (dialog, which) -> hideKeyboard())
-                .show();
+                );
     }
 
     private void createTeamSymkey() {
@@ -3063,14 +3063,14 @@ public class ChatActivity extends BaseCryptoActivity
         }
 
         String[] items = members.toArray(new String[0]);
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.select_member_for_history)
                 .setItems(items, (d, which) -> {
                     hideKeyboard();
                     showRequestHistoryDatePicker(items[which]);
                 })
                 .setNegativeButton(R.string.cancel, null)
-                .show();
+                );
     }
 
     private List<String> getMembersForCurrentChat() {
@@ -3103,7 +3103,7 @@ public class ChatActivity extends BaseCryptoActivity
                 calSince.get(java.util.Calendar.MONTH),
                 calSince.get(java.util.Calendar.DAY_OF_MONTH));
 
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.select_history_range)
                 .setView(dialogView)
                 .setPositiveButton(R.string.request, (d, w) -> {
@@ -3124,7 +3124,7 @@ public class ChatActivity extends BaseCryptoActivity
                     }
                 })
                 .setNegativeButton(R.string.cancel, null)
-                .show();
+                );
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────

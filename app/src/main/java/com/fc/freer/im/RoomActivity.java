@@ -28,6 +28,7 @@ import com.fc.freer.im.handler.RoomHandler;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.model.Setting;
 import com.fc.freer.ui.RemindDialog;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ToastUtils;
 
 import java.util.ArrayList;
@@ -380,7 +381,7 @@ public class RoomActivity extends BaseCryptoActivity implements ConversationAdap
         }
 
         if (ownedCount == selected.size()) {
-            new AlertDialog.Builder(this)
+            DialogUtils.show(new AlertDialog.Builder(this)
                     .setTitle(R.string.close_room)
                     .setMessage(R.string.confirm_close_rooms)
                     .setPositiveButton(android.R.string.ok, (dialog, which) -> {
@@ -397,11 +398,11 @@ public class RoomActivity extends BaseCryptoActivity implements ConversationAdap
                         }
                     })
                     .setNegativeButton(android.R.string.cancel, (dialog, which) -> hideKeyboard())
-                    .show();
+                    );
         } else if (ownedCount > 0) {
             new RemindDialog(this, getString(R.string.cannot_leave_own_teams_or_rooms), true).show();
         } else {
-            new AlertDialog.Builder(this)
+            DialogUtils.show(new AlertDialog.Builder(this)
                     .setTitle(R.string.leave_room)
                     .setMessage(R.string.confirm_leave_room)
                     .setPositiveButton(android.R.string.ok, (dialog, which) -> {
@@ -418,7 +419,7 @@ public class RoomActivity extends BaseCryptoActivity implements ConversationAdap
                         }
                     })
                     .setNegativeButton(android.R.string.cancel, (dialog, which) -> hideKeyboard())
-                    .show();
+                    );
         }
     }
 

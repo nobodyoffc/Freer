@@ -135,7 +135,6 @@
     <string name="input_the_signature">输入签名</string>
     <string name="input_the_label">输入标签</string>
     <string name="input_the_phrase">输入密语</string>
-    <string name="input_the_prikey_cipher">输入私钥密文</string>
     <string name="input_the_password">输入密码</string>
     <string name="input_prikey_hint">输入您的私钥（WIF、hex或其他格式）</string>
     <string name="input_prikey_cipher_hint">输入加密的私钥密文JSON</string>
@@ -233,9 +232,24 @@
     <string name="no_cash_found">未找到钞票</string>
     <string name="no_secret_found">没有秘密</string>
     <string name="import_keys">导入密钥</string>
+    <string name="import_key">导入密钥</string>
+    <string name="input_key_hint">私钥、公钥、FID、密文或密钥JSON</string>
+    <string name="please_input_a_key">请先输入密钥</string>
+    <string name="key_detected_prikey">私钥 → %1$s</string>
+    <string name="key_detected_pubkey">公钥 → %1$s。仅观察，无法签名。</string>
+    <string name="key_detected_fid">FID。仅观察，无法签名。</string>
+    <string name="key_detected_cipher">已加密，请输入密码。</string>
+    <string name="key_detected_backup">密钥备份，点击保存导入。</string>
+    <string name="key_non_password_cipher">已加密，但不是用密码加密的，无法在此导入。</string>
+    <string name="key_bad_prikey">像是私钥，但无效，请检查是否输错。</string>
+    <string name="key_bad_pubkey">像是公钥，但无效，请检查是否输错。</string>
+    <string name="key_bad_fid">像是FID，但校验和错误，请检查是否输错。</string>
+    <string name="key_multiple">一次只能输入一个密钥，多个密钥请使用密钥备份JSON。</string>
+    <string name="key_unrecognized">无法识别的密钥。如为密语，请使用「%1$s」。</string>
+    <string name="key_backup_no_preview">密钥备份无法预览，点击保存直接导入。</string>
+    <string name="decrypting">正在解密…</string>
     <string name="import_a">导入</string>
 
-    <string name="input_the_key_info_json">输入密钥的JSON</string>
     <string name="no_key_info_found">没发现密钥</string>
     <string name="instruction">使用说明</string>
     <string name="security_guidelines_text">
@@ -302,11 +316,7 @@
     <string name="my_secrets">我的秘密</string>
     <string name="search_secrets">搜索标题或备忘</string>
     <string name="verify_signature">验证签名</string>
-    <string name="create_key_by_fid">仅添加FID</string>
     <string name="create_key_by_phrase">密语创建</string>
-    <string name="create_key_by_prikey">输入私钥</string>
-    <string name="create_key_by_prikey_cipher">解密私钥</string>
-    <string name="create_key_by_pubkey">输入公钥</string>
     <string name="create_secret">新建秘密</string>
     <string name="address_convert">地址转换</string>
     <string name="prikey_convert">私钥转换</string>
@@ -1646,6 +1656,7 @@
     <string name="request_symkey">请求密钥</string>
     <string name="ask_symkey">请求密钥</string>
     <string name="select_members_to_ask_symkey">选择成员请求对称密钥</string>
+    <string name="self_other_devices">本身份——你的其他设备</string>
     <string name="symkey_requests_sent">已向 %d 位成员发送密钥请求</string>
     <string name="owner_no_reachable_channels">所有者没有可达的通信通道 (FUDP/ROAD/DOCK)</string>
     <string name="members_no_reachable_channels">%d 位成员没有可达的通信通道</string>
@@ -1863,6 +1874,8 @@
     <string name="consensus_document_required">共识文档不能为空</string>
     <string name="team_servers_required">需要 DOCK 和 DISK 服务器</string>
     <string name="team_disk_must_be_service">DISK 必须是服务（请选择一个或输入服务 ID）</string>
+    <string name="team_dock_must_be_service">DOCK 必须是服务（请选择一个或输入服务 ID）</string>
+    <string name="team_dock_hint">团队 DOCK 中继的服务 ID</string>
     <string name="failed_to_read_consensus_document">读取共识文档失败</string>
     <string name="failed_to_upload_consensus_document">上传共识文档失败</string>
     <string name="uploading_consensus_document">正在上传共识…</string>
@@ -2277,14 +2290,9 @@
     <string name="toast_deleted_contacts_local">已在本地删除%1$d个链下联系人</string>
     <string name="toast_failed_delete_contacts_onchain">链上删除联系人失败：%1$s</string>
     <string name="toast_contacts_deleted_local">联系人已在本地删除</string>
-    <string name="toast_please_enter_public_key">请输入公钥</string>
     <string name="toast_invalid_private_key">无效的私钥</string>
-    <string name="toast_private_key_empty">私钥为空</string>
-    <string name="toast_prikey_cipher_empty">私钥密文为空</string>
     <string name="toast_password_empty">密码为空</string>
     <string name="toast_failed_decrypt_prikey">解密私钥失败</string>
-    <string name="toast_failed_save_key_info">保存密钥信息失败</string>
-    <string name="toast_fid_empty">FID为空</string>
     <string name="toast_failed_convert_multisig_contact">转换多签为联系人失败</string>
     <string name="toast_unexpected_error">意外错误</string>
     <string name="toast_tx_well_signed_build">交易已完成签名！请构建。</string>
@@ -2425,4 +2433,33 @@
     <string name="consensus_doc_not_local">所选的共识文档在本地不可用，请先在“数据”中添加。</string>
     <string name="server_setup_never">不再提示</string>
 
+
+    <!-- Team consensus lifecycle -->
+    <string name="home_disk_label">DISK</string>
+    <string name="consensus_change_request">团队共识已变更</string>
+    <string name="consensus_change_warning">变更共识后，所有成员都需要签署新共识。未签署的成员会一直显示为未同意，直到签署或退出。</string>
+    <string name="view_old_consensus">旧共识</string>
+    <string name="view_new_consensus">新共识</string>
+    <string name="sign_consensus">签署</string>
+    <string name="sign_later">稍后</string>
+    <string name="consensus_signed">已签署共识</string>
+    <string name="consensus_signing_postponed">已推迟。你可以稍后在待办事项中签署。</string>
+    <string name="failed_to_sign_consensus">签署共识失败</string>
+    <string name="confirm_leave_team_consensus">不签署新共识，退出 %1$s？</string>
+    <string name="left_team">已退出团队</string>
+    <string name="new_consensus_id">新共识 ID</string>
+    <string name="old_consensus_id">原共识 ID</string>
+    <string name="role_not_agreed">未同意</string>
+    <string name="migrating_consensus_document">正在将共识文件转移到新的 DISK\u2026</string>
+    <string name="failed_to_migrate_consensus_document">共识文件转移到新 DISK 失败</string>
+    <string name="publish_anyway">仍然发布？</string>
+
+    <!-- Consensus template offered when creating a team -->
+    <string name="edit_consensus_document">编辑共识</string>
+    <string name="consensus_template_name">team_consensus.md</string>
+    <string name="consensus_template"># 团队共识\n\n## 宗旨\n本团队存在的目的。\n\n## 成员\n谁可以加入，如何邀请成员，以及对成员的要求。\n\n## 决策\n团队如何做决定，由谁决定什么。\n\n## 管理员\n管理员的权限，以及如何任命或撤销。\n\n## 共识的变更\n本文件如何修订。变更后，所有成员都必须签署新版本，否则须退出团队。\n\n## 退出\n成员如何退出，以及其义务如何处理。</string>
+    <string name="consensus_no_disk_to_read">本机没有该文件，且团队没有可读取的 DISK</string>
+    <string name="invite_skipped_members">%1$d 人已在团队中，已跳过</string>
+    <string name="invite_notification_resent">已邀请过，已重新发送邀请通知</string>
+    <string name="invite_nobody_to_invite">没有可邀请的新成员</string>
 </resources>

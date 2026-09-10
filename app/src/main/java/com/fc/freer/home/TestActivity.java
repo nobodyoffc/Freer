@@ -9,6 +9,7 @@ import android.view.Window;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ToastUtils;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -163,7 +164,7 @@ public class TestActivity extends AppCompatActivity {
             // Update count text
             updateCountText();
 
-            avatarDialog.show();
+            DialogUtils.show(avatarDialog);
         }
     }
 

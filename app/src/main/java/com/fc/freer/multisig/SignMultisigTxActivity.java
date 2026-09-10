@@ -15,6 +15,7 @@ import com.fc.fc_ajdk.data.fchData.Tx;
 import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.freer.network.NetworkUtils;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.ChooseMode;
 import com.fc.freer.utils.ToastUtils;
@@ -599,7 +600,7 @@ public class SignMultisigTxActivity extends BaseCryptoActivity {
 
             okButton.setOnClickListener(v -> dialog.dismiss());
 
-            dialog.show();
+            DialogUtils.show(dialog);
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error showing JSON dialog: " + e.getMessage());
             ToastUtils.showError(this, getString(R.string.failed_to_show_json_dialog));

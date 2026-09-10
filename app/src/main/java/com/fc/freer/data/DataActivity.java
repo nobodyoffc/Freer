@@ -39,6 +39,7 @@ import com.fc.freer.FreerApplication;
 import com.fc.freer.R;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.manager.HatManager;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ChooseMode;
 import com.fc.freer.utils.HatCardContainer;
 import com.fc.freer.utils.KeyboardUtils;
@@ -972,7 +973,7 @@ public class DataActivity extends BaseCryptoActivity {
         }
 
         // Show confirmation dialog
-        new android.app.AlertDialog.Builder(this)
+        DialogUtils.show(new android.app.AlertDialog.Builder(this)
                 .setTitle(R.string.confirm_delete)
                 .setMessage(getString(R.string.confirm_delete_items, selected.size()))
                 .setPositiveButton(R.string.delete, (dialog, which) -> {
@@ -987,7 +988,7 @@ public class DataActivity extends BaseCryptoActivity {
                     ToastUtils.makeText(this, getString(R.string.items_deleted, selected.size()));
                 })
                 .setNegativeButton(R.string.cancel, null)
-                .show();
+                );
     }
 
     private void deleteCheckedHatsAndData() {
@@ -998,7 +999,7 @@ public class DataActivity extends BaseCryptoActivity {
         }
 
         // Show warning and confirmation dialog
-        new android.app.AlertDialog.Builder(this)
+        DialogUtils.show(new android.app.AlertDialog.Builder(this)
                 .setTitle(R.string.delete_data)
                 .setMessage(getString(R.string.confirm_delete_data, selected.size())
                         + "\n\n" + getString(R.string.confirm_delete_data_warning))
@@ -1037,7 +1038,7 @@ public class DataActivity extends BaseCryptoActivity {
                     ToastUtils.makeText(this, getString(R.string.data_deleted_successfully, deletedCount));
                 })
                 .setNegativeButton(R.string.cancel, null)
-                .show();
+                );
     }
 
     private void removeLocalDataFromSelectedHats() {
@@ -1067,7 +1068,7 @@ public class DataActivity extends BaseCryptoActivity {
         }
 
         // Show confirmation dialog
-        new android.app.AlertDialog.Builder(this)
+        DialogUtils.show(new android.app.AlertDialog.Builder(this)
                 .setTitle(R.string.remove_local_data)
                 .setMessage(getString(R.string.confirm_remove_local_data, hatsWithLocalData.size())
                         + "\n\n" + getString(R.string.confirm_remove_local_data_warning))
@@ -1103,7 +1104,7 @@ public class DataActivity extends BaseCryptoActivity {
                     ToastUtils.makeText(this, getString(R.string.local_data_removed_successfully, removedCount));
                 })
                 .setNegativeButton(R.string.cancel, null)
-                .show();
+                );
     }
 
     private void launchUploadDataActivity() {

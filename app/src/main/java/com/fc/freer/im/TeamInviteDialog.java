@@ -1,7 +1,5 @@
 package com.fc.freer.im;
 
-import com.fc.freer.utils.DialogUtils;
-
 import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Bitmap;
@@ -17,12 +15,16 @@ import androidx.appcompat.app.AlertDialog;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
 import com.fc.freer.manager.AvatarManager;
+import com.fc.freer.utils.DialogUtils;
 
 /**
- * Shows a timed dialog when a room invitation is received.
- * User can accept, reject, or defer (decide later / auto-dismiss).
+ * Prompts the user when a team invitation (or ownership transfer) arrives.
+ * <p>
+ * Accepting only opens {@link JoinTeamActivity}: the notification is a hint, and the invitation
+ * is confirmed against the team's on-chain {@code invitees} there — along with the consensus
+ * document the user is about to agree to — before any transaction is carved.
  */
-public class RoomInviteDialog {
+public class TeamInviteDialog {
 
     private static final long TIMEOUT_MS = 30_000;
     private static final long TICK_MS = 1_000;
@@ -37,7 +39,11 @@ public class RoomInviteDialog {
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
         if (issue == null) return;
 
-        View dialogView = LayoutInflater.from(activity).inflate(R.layout.dialog_room_invite, null);
+        PendingIssue.TeamInviteData data = issue.getDataAs(PendingIssue.TeamInviteData.class);
+        if (data == null) return;
+
+        View dialogView = LayoutInflater.from(activity)
+                .inflate(R.layout.dialog_team_notification, null);
 
         ImageView avatarView = dialogView.findViewById(R.id.peer_avatar);
         TextView titleText = dialogView.findViewById(R.id.notification_title);
@@ -52,24 +58,21 @@ public class RoomInviteDialog {
 
         loadAvatar(activity, avatarView, issue.getPeerFid());
 
-        PendingIssue.RoomInviteData data =
-                issue.getDataAs(PendingIssue.RoomInviteData.class);
-
-        titleText.setText(R.string.room_invite_notification_title);
+        titleText.setText(data.transfer
+                ? R.string.team_transfer_notification_title
+                : R.string.team_invite_notification_title);
 
         String senderAlias = issue.getPeerFid();
         if (senderAlias != null && senderAlias.length() > 8) {
             senderAlias = senderAlias.substring(0, 8) + "...";
         }
+        String teamName = data.teamName != null ? data.teamName : "";
+        String teamId = data.teamId != null ? data.teamId : "";
+        messageText.setText(activity.getString(R.string.team_invite_notification_message,
+                senderAlias, teamName.isEmpty() ? teamId : teamName));
 
-        String roomName = (data != null && data.roomName != null) ? data.roomName : "";
-        String roomId = (data != null && data.roomId != null) ? data.roomId : "";
-
-        messageText.setText(activity.getString(R.string.room_invite_notification_message,
-                senderAlias, roomName.isEmpty() ? roomId : roomName));
-
-        if (!roomId.isEmpty()) {
-            detailText.setText(activity.getString(R.string.room_invite_notification_detail, roomId));
+        if (!teamId.isEmpty()) {
+            detailText.setText(activity.getString(R.string.team_notification_detail, teamId));
             detailText.setVisibility(View.VISIBLE);
         } else {
             detailText.setVisibility(View.GONE);
@@ -89,6 +92,7 @@ public class RoomInviteDialog {
 
             @Override
             public void onFinish() {
+                // Timing out must not count as a decision: the invitation stays waiting.
                 if (dialog.isShowing()) {
                     dialog.dismiss();
                     if (callback != null) callback.onDeferred(issue);
@@ -142,7 +146,7 @@ public class RoomInviteDialog {
                     activity.runOnUiThread(() -> avatarView.setImageBitmap(bitmap));
                 }
             } catch (Exception e) {
-                TimberLogger.e("RoomInviteDialog", "Error loading avatar: %s", e.getMessage());
+                TimberLogger.e("TeamInviteDialog", "Error loading avatar: %s", e.getMessage());
             }
         }).start();
     }

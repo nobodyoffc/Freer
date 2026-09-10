@@ -1,8 +1,14 @@
 # task
+
+[x] when creating team, the field of DOCK should be the sid of the DOCK (or BASE if no DOCK) of the mainFid instead of the url
+[x] when user create a new team, should it generate the symkey soon instead of waiting confirmation and the promoting user? 
+[x] combine the prikey importing pages
+[] when sending a TX, add advanced button to allow user rearrange the inputs.
+
 [x] 首身份自动生成
 [x] 首币自动拆分3个
 [x] DISK/DOCK自动注册
-春花秋月何时了
+
 [] 需要做一个协议、代码、服务、应用管理版本系统
 [] 发送交易设置dock后不应该再显示设置dock提示；
 [x] 注册cid后，设置dock失败，确认后才恢复。

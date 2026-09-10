@@ -38,6 +38,7 @@ import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.Setting;
 import com.fc.freer.tx.TxSender;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ToastUtils;
@@ -447,7 +448,7 @@ public class SquareActivity extends BaseCryptoActivity implements ConversationAd
 
         exitSelectionMode();
 
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.quit_squares)
                 .setMessage(R.string.confirm_quit_square)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
@@ -455,7 +456,7 @@ public class SquareActivity extends BaseCryptoActivity implements ConversationAd
                     quitGroups(groupIds);
                 })
                 .setNegativeButton(android.R.string.cancel, (dialog, which) -> hideKeyboard())
-                .show();
+                );
     }
 
     private void quitGroups(List<String> groupIds) {
@@ -552,11 +553,10 @@ public class SquareActivity extends BaseCryptoActivity implements ConversationAd
     }
 
     private void showAboutSquare() {
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.about_square_title)
                 .setMessage(R.string.about_square_message)
-                .setPositiveButton(android.R.string.ok, null)
-                .show();
+                .setPositiveButton(android.R.string.ok, null));
     }
 
     // ========== "+" Menu ==========

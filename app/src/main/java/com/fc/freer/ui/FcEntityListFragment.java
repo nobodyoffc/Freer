@@ -25,6 +25,7 @@ import android.widget.RadioButton;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ToastUtils;
 
 import androidx.annotation.NonNull;
@@ -555,7 +556,7 @@ public class FcEntityListFragment<T extends FcEntity> extends Fragment {
                         break;
                 }
             });
-            builder.show();
+            DialogUtils.show(builder);
             return true;
         };
 

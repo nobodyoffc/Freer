@@ -16,7 +16,7 @@ public class TeamHistory extends FcObject {
 	private List<String> tids;
 	private String op;
 	private String stdName;
-	private String[] localNames;
+	private Map<String, String> localNames;
 	private String[] waiters;
 	private String[] accounts;
 	private String consensusId;
@@ -76,10 +76,10 @@ public class TeamHistory extends FcObject {
 	public void setStdName(String stdName) {
 		this.stdName = stdName;
 	}
-	public String[] getLocalNames() {
+	public Map<String, String> getLocalNames() {
 		return localNames;
 	}
-	public void setLocalNames(String[] localNames) {
+	public void setLocalNames(Map<String, String> localNames) {
 		this.localNames = localNames;
 	}
 	public String getConsensusId() {

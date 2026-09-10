@@ -35,6 +35,13 @@ public class PendingIssueManager {
 
     private final Set<String> knownPeerFids = ConcurrentHashMap.newKeySet();
 
+    /**
+     * Teams with a consensus-change issue still open. Team sync asks about every team it stores,
+     * so the common answer — "this team owes nothing" — has to be free rather than a scan of the
+     * issue store per team.
+     */
+    private final Set<String> openConsensusTeamIds = ConcurrentHashMap.newKeySet();
+
     public interface CountChangeListener {
         void onPendingCountChanged(int newCount);
     }
@@ -68,8 +75,18 @@ public class PendingIssueManager {
         try {
             Map<String, PendingIssue> all = db.getAll();
             for (PendingIssue issue : all.values()) {
-                if (issue != null && issue.getPeerFid() != null) {
+                if (issue == null) continue;
+                if (issue.getPeerFid() != null) {
                     knownPeerFids.add(issue.getPeerFid());
+                }
+                if (issue.getIssueType() == PendingIssue.IssueType.CONSENSUS_CHANGE
+                        && (issue.getStatus() == PendingIssue.IssueStatus.PENDING
+                            || issue.getStatus() == PendingIssue.IssueStatus.DEFERRED)) {
+                    PendingIssue.ConsensusChangeData data =
+                            issue.getDataAs(PendingIssue.ConsensusChangeData.class);
+                    if (data != null && data.teamId != null) {
+                        openConsensusTeamIds.add(data.teamId);
+                    }
                 }
             }
         } catch (Exception e) {
@@ -170,6 +187,136 @@ public class PendingIssueManager {
 
         notifyCountChange();
         TimberLogger.i(TAG, "Room invite rejected: %s", issueId);
+    }
+
+    // ========== Team invitation ==========
+
+    /**
+     * Raise a "you have been invited to a team" issue.
+     * <p>
+     * Deduped per team, and re-raised only when the previous issue is no longer open — so a
+     * resent invitation reaches a user who ignored the first one, without stacking duplicates
+     * while one is still waiting for an answer.
+     *
+     * @return the issue when one was created or re-opened, else null
+     */
+    public PendingIssue addTeamInviteIssue(String senderFid, String teamId, String teamName,
+                                            boolean transfer) {
+        if (senderFid == null || teamId == null) return null;
+
+        PendingIssue existing = db.get(PendingIssue.teamInviteIssueId(teamId));
+        if (existing != null && (existing.getStatus() == PendingIssue.IssueStatus.PENDING
+                || existing.getStatus() == PendingIssue.IssueStatus.ACCEPTED)) {
+            return null;
+        }
+
+        PendingIssue issue = PendingIssue.createTeamInvite(senderFid, teamId, teamName, transfer);
+        db.put(issue.getId(), issue);
+        notifyCountChange();
+        toastNewIssue(context.getString(transfer
+                ? R.string.team_transfer_notification_title
+                : R.string.team_invite_notification_title));
+        TimberLogger.i(TAG, "Team invite issue created: team=%s from=%s", teamId, senderFid);
+        return issue;
+    }
+
+    /**
+     * Mark a team invitation resolved. Joining is an on-chain act carried out by
+     * {@link JoinTeamActivity}, so this only records the user's decision.
+     */
+    public void resolveTeamInvite(String issueId, PendingIssue.IssueStatus status) {
+        PendingIssue issue = db.get(issueId);
+        if (issue == null || issue.getStatus() == status) return;
+
+        issue.setStatus(status);
+        issue.setResolvedAt(System.currentTimeMillis());
+        db.put(issue.getId(), issue);
+        notifyCountChange();
+        TimberLogger.i(TAG, "Team invite %s resolved: %s", issueId, status);
+    }
+
+    // ========== Consensus change ==========
+
+    /**
+     * Raise a "sign the new consensus" issue for a team whose owner changed the consensus while
+     * this FID was a member. Deduped per consensus version, so a re-sync does not re-raise one the
+     * user has already deferred or acted on, while a <i>further</i> change raises a fresh issue.
+     *
+     * @return true when a new issue was created
+     */
+    public boolean addConsensusChangeIssue(String teamId, String teamName, String ownerFid,
+                                            String oldConsensusId, String newConsensusId,
+                                            String diskSid) {
+        if (teamId == null || newConsensusId == null) return false;
+
+        String issueId = PendingIssue.consensusIssueId(teamId, newConsensusId);
+        if (db.get(issueId) != null) return false;
+
+        PendingIssue issue = PendingIssue.createConsensusChange(teamId, teamName, ownerFid,
+                oldConsensusId, newConsensusId, diskSid);
+        db.put(issue.getId(), issue);
+        openConsensusTeamIds.add(teamId);
+        notifyCountChange();
+        toastNewIssue(context.getString(R.string.consensus_change_request));
+        TimberLogger.i(TAG, "Consensus change issue created: team=%s consensus=%s", teamId, newConsensusId);
+        return true;
+    }
+
+    /**
+     * Mark a consensus-change issue resolved with the given status. Called when the signature is
+     * broadcast, when the member leaves, and when a sync shows the obligation is already gone
+     * (signed on another device, or dismissed from the team).
+     */
+    public void resolveConsensusIssue(String issueId, PendingIssue.IssueStatus status) {
+        PendingIssue issue = db.get(issueId);
+        if (issue == null || issue.getStatus() == status) return;
+
+        issue.setStatus(status);
+        issue.setResolvedAt(System.currentTimeMillis());
+        db.put(issue.getId(), issue);
+
+        PendingIssue.ConsensusChangeData data =
+                issue.getDataAs(PendingIssue.ConsensusChangeData.class);
+        if (data != null && data.teamId != null) openConsensusTeamIds.remove(data.teamId);
+
+        notifyCountChange();
+        TimberLogger.i(TAG, "Consensus issue %s resolved: %s", issueId, status);
+    }
+
+    /**
+     * Resolve any open consensus-change issue for a team — the member no longer owes a signature,
+     * whichever way that came about. The consensus version is part of the issue id, so this also
+     * clears issues raised for consensus versions that have since been superseded.
+     */
+    public void clearConsensusIssuesForTeam(String teamId, PendingIssue.IssueStatus status) {
+        if (teamId == null || !openConsensusTeamIds.remove(teamId)) return;
+        String prefix = "CONSENSUS_" + teamId + "_";
+        try {
+            Map<String, PendingIssue> all = db.getAll();
+            for (PendingIssue issue : all.values()) {
+                if (issue == null || issue.getId() == null) continue;
+                if (!issue.getId().startsWith(prefix)) continue;
+                if (issue.getStatus() != PendingIssue.IssueStatus.PENDING
+                        && issue.getStatus() != PendingIssue.IssueStatus.DEFERRED) continue;
+                resolveConsensusIssue(issue.getId(), status);
+            }
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Failed to clear consensus issues: %s", e.getMessage());
+        }
+    }
+
+    /**
+     * Set an issue aside without acting on it. It keeps showing in the issue list but stops
+     * counting towards the Todo badge, so the user is not nagged about a decision they postponed.
+     */
+    public void defer(String issueId) {
+        PendingIssue issue = db.get(issueId);
+        if (issue == null || issue.getStatus() != PendingIssue.IssueStatus.PENDING) return;
+
+        issue.setStatus(PendingIssue.IssueStatus.DEFERRED);
+        db.put(issue.getId(), issue);
+        notifyCountChange();
+        TimberLogger.i(TAG, "Issue deferred: %s", issueId);
     }
 
     /**
@@ -327,6 +474,33 @@ public class PendingIssueManager {
      */
     public PendingIssue getIssue(String issueId) {
         return db.get(issueId);
+    }
+
+    /**
+     * Issues still awaiting a decision: PENDING plus DEFERRED. Deferred issues stay visible in the
+     * issue list so a postponed decision can be picked back up, but they do not count towards the
+     * Todo badge — see {@link #getPendingCount()}.
+     */
+    public List<PendingIssue> getOpenIssues() {
+        List<PendingIssue> open = new ArrayList<>();
+        try {
+            Map<String, PendingIssue> all = db.getAll();
+            for (PendingIssue issue : all.values()) {
+                if (issue == null) continue;
+                if (issue.getStatus() == PendingIssue.IssueStatus.PENDING
+                        || issue.getStatus() == PendingIssue.IssueStatus.DEFERRED) {
+                    open.add(issue);
+                }
+            }
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Failed to get open issues: %s", e.getMessage());
+        }
+        Collections.sort(open, (a, b) -> {
+            long at = a.getCreatedAt() != null ? a.getCreatedAt() : 0;
+            long bt = b.getCreatedAt() != null ? b.getCreatedAt() : 0;
+            return Long.compare(bt, at);
+        });
+        return open;
     }
 
     /**

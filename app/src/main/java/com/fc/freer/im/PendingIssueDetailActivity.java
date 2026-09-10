@@ -2,6 +2,8 @@ package com.fc.freer.im;
 
 import android.content.Context;
 import android.content.Intent;
+
+import androidx.appcompat.app.AlertDialog;
 import android.graphics.Bitmap;
 import android.view.View;
 import android.widget.Button;
@@ -10,15 +12,21 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import com.fc.fc_ajdk.data.fcData.KeyInfo;
+import com.fc.fc_ajdk.data.feipData.Team;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.AvatarManager;
+import com.fc.freer.manager.FidManager;
+import com.fc.freer.manager.HatManager;
 import com.fc.freer.model.Setting;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ToastUtils;
 
 import java.text.SimpleDateFormat;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Locale;
 
@@ -146,6 +154,12 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
             case ROOM_INVITE:
                 populateRoomData(container, label);
                 break;
+            case TEAM_INVITE:
+                populateTeamInviteData(container, label);
+                break;
+            case CONSENSUS_CHANGE:
+                populateConsensusData(container, label);
+                break;
             default:
                 break;
         }
@@ -196,6 +210,43 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
         }
     }
 
+    private void populateTeamInviteData(LinearLayout container, TextView label) {
+        PendingIssue.TeamInviteData data = issue.getDataAs(PendingIssue.TeamInviteData.class);
+        if (data == null) return;
+
+        label.setVisibility(View.VISIBLE);
+        container.setVisibility(View.VISIBLE);
+
+        if (data.teamName != null) addDataRow(container, getString(R.string.team_name), data.teamName);
+        if (data.teamId != null) addDataRow(container, getString(R.string.team_id), data.teamId);
+        if (data.senderFid != null) addDataRow(container, getString(R.string.from), data.senderFid);
+    }
+
+    private void populateConsensusData(LinearLayout container, TextView label) {
+        PendingIssue.ConsensusChangeData data =
+                issue.getDataAs(PendingIssue.ConsensusChangeData.class);
+        if (data == null) return;
+
+        label.setVisibility(View.VISIBLE);
+        container.setVisibility(View.VISIBLE);
+
+        if (data.teamName != null) {
+            addDataRow(container, getString(R.string.team_name), data.teamName);
+        }
+        if (data.teamId != null) {
+            addDataRow(container, getString(R.string.team_id), data.teamId);
+        }
+        if (data.ownerFid != null) {
+            addDataRow(container, getString(R.string.owner), data.ownerFid);
+        }
+        if (data.newConsensusId != null) {
+            addDataRow(container, getString(R.string.new_consensus_id), data.newConsensusId);
+        }
+        if (data.oldConsensusId != null) {
+            addDataRow(container, getString(R.string.old_consensus_id), data.oldConsensusId);
+        }
+    }
+
     private void addDataRow(LinearLayout container, String labelStr, String value) {
         TextView labelView = new TextView(this);
         labelView.setText(labelStr);
@@ -217,6 +268,17 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
         LinearLayout actionContainer = findViewById(R.id.action_buttons_container);
         Button acceptBtn = findViewById(R.id.btn_accept);
         Button rejectBtn = findViewById(R.id.btn_reject);
+
+        if (issue.getIssueType() == PendingIssue.IssueType.CONSENSUS_CHANGE) {
+            actionContainer.setVisibility(View.GONE);
+            setupConsensusButtons();
+            return;
+        }
+
+        if (issue.getIssueType() == PendingIssue.IssueType.TEAM_INVITE) {
+            setupTeamInviteButtons(actionContainer, acceptBtn, rejectBtn);
+            return;
+        }
 
         boolean isPending = issue.getStatus() == PendingIssue.IssueStatus.PENDING;
         actionContainer.setVisibility(isPending ? View.VISIBLE : View.GONE);
@@ -252,6 +314,157 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
         });
     }
 
+    /**
+     * Wire the consensus-change decision: read either document, then sign the new consensus,
+     * postpone the decision, or leave the team. Reading stays available after the decision is
+     * made, so the member can still look up what they signed.
+     */
+    private void setupConsensusButtons() {
+        PendingIssue.ConsensusChangeData data =
+                issue.getDataAs(PendingIssue.ConsensusChangeData.class);
+        if (data == null) return;
+
+        LinearLayout docContainer = findViewById(R.id.doc_buttons_container);
+        Button viewOldBtn = findViewById(R.id.btn_view_old_doc);
+        Button viewNewBtn = findViewById(R.id.btn_view_new_doc);
+        docContainer.setVisibility(View.VISIBLE);
+
+        // The previous consensus is only readable when this device saw it before the change.
+        viewOldBtn.setEnabled(data.oldConsensusId != null);
+        viewOldBtn.setOnClickListener(v -> showDoc(getString(R.string.view_old_consensus),
+                data.oldConsensusId, data.diskSid));
+        viewNewBtn.setOnClickListener(v -> showDoc(getString(R.string.view_new_consensus),
+                data.newConsensusId, data.diskSid));
+
+        LinearLayout consensusContainer = findViewById(R.id.consensus_buttons_container);
+        boolean open = issue.getStatus() == PendingIssue.IssueStatus.PENDING
+                || issue.getStatus() == PendingIssue.IssueStatus.DEFERRED;
+        consensusContainer.setVisibility(open ? View.VISIBLE : View.GONE);
+        if (!open) return;
+
+        Button signBtn = findViewById(R.id.btn_sign_consensus);
+        Button laterBtn = findViewById(R.id.btn_sign_later);
+        Button leaveBtn = findViewById(R.id.btn_leave_team);
+
+        signBtn.setOnClickListener(v -> signConsensus(data));
+        leaveBtn.setOnClickListener(v -> confirmLeaveTeam(data));
+
+        laterBtn.setEnabled(issue.getStatus() == PendingIssue.IssueStatus.PENDING);
+        laterBtn.setOnClickListener(v -> {
+            if (pendingIssueManager != null && issue.getId() != null) {
+                pendingIssueManager.defer(issue.getId());
+                ToastUtils.showInfo(this, getString(R.string.consensus_signing_postponed));
+            }
+            finish();
+        });
+    }
+
+    private void showDoc(String title, String consensusId, String diskSid) {
+        KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
+        if (liveKeyInfo == null) {
+            ToastUtils.showWarning(this, getString(R.string.no_active_fid));
+            return;
+        }
+        ConsensusDocViewer.fetchAndShow(this, HatManager.getInstance(this, liveKeyInfo.getId()),
+                title, consensusId, Collections.singletonList(diskSid), 0, null);
+    }
+
+    /**
+     * Carve the signature. The parser rejects an {@code agree consensus} whose id differs from
+     * the team's stored one, so the id is re-read from the team the sync last wrote rather than
+     * taken from the issue, which may have been raised before a further change.
+     */
+    private void signConsensus(PendingIssue.ConsensusChangeData data) {
+        String consensusId = data.newConsensusId;
+        if (imManager != null && imManager.getTeamHandler() != null) {
+            Team team = imManager.getTeamHandler().getTeam(data.teamId);
+            if (team != null && team.getConsensusId() != null) {
+                consensusId = team.getConsensusId();
+            }
+        }
+        TeamTxHelper.sendAgreeConsensusTx(this, data.teamId, consensusId,
+                new TeamTxHelper.TxResultCallback() {
+                    @Override
+                    public void onSuccess() {
+                        if (pendingIssueManager != null && issue.getId() != null) {
+                            pendingIssueManager.resolveConsensusIssue(issue.getId(),
+                                    PendingIssue.IssueStatus.ACCEPTED);
+                        }
+                        ToastUtils.showInfo(PendingIssueDetailActivity.this,
+                                getString(R.string.consensus_signed));
+                        finish();
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        ToastUtils.showWarning(PendingIssueDetailActivity.this,
+                                getString(R.string.failed_to_sign_consensus) + ": " + message);
+                    }
+                });
+    }
+
+    private void confirmLeaveTeam(PendingIssue.ConsensusChangeData data) {
+        DialogUtils.show(new AlertDialog.Builder(this)
+                .setTitle(R.string.leave_team)
+                .setMessage(getString(R.string.confirm_leave_team_consensus,
+                        data.teamName != null ? data.teamName : data.teamId))
+                .setPositiveButton(R.string.leave_team, (d, w) -> leaveTeam(data))
+                .setNegativeButton(R.string.cancel, null));
+    }
+
+    private void leaveTeam(PendingIssue.ConsensusChangeData data) {
+        TeamTxHelper.sendLeaveTx(this, data.teamId, new TeamTxHelper.TxResultCallback() {
+            @Override
+            public void onSuccess() {
+                if (pendingIssueManager != null && issue.getId() != null) {
+                    pendingIssueManager.resolveConsensusIssue(issue.getId(),
+                            PendingIssue.IssueStatus.REJECTED);
+                }
+                ToastUtils.showInfo(PendingIssueDetailActivity.this,
+                        getString(R.string.left_team));
+                finish();
+            }
+
+            @Override
+            public void onError(String message) {
+                ToastUtils.showWarning(PendingIssueDetailActivity.this,
+                        getString(R.string.failed_to_leave_team) + ": " + message);
+            }
+        });
+    }
+
+    /**
+     * Accepting an invitation opens {@link JoinTeamActivity}, which confirms the invitation
+     * against the team's on-chain invitees and shows the consensus before any join is carved.
+     */
+    private void setupTeamInviteButtons(LinearLayout actionContainer, Button acceptBtn, Button rejectBtn) {
+        boolean open = issue.getStatus() == PendingIssue.IssueStatus.PENDING
+                || issue.getStatus() == PendingIssue.IssueStatus.DEFERRED;
+        actionContainer.setVisibility(open ? View.VISIBLE : View.GONE);
+        if (!open) return;
+
+        acceptBtn.setText(R.string.accept);
+        rejectBtn.setText(R.string.reject);
+
+        acceptBtn.setOnClickListener(v -> {
+            if (pendingIssueManager != null && issue.getId() != null) {
+                pendingIssueManager.resolveTeamInvite(issue.getId(),
+                        PendingIssue.IssueStatus.ACCEPTED);
+            }
+            startActivity(new Intent(this, JoinTeamActivity.class));
+            finish();
+        });
+
+        rejectBtn.setOnClickListener(v -> {
+            if (pendingIssueManager != null && issue.getId() != null) {
+                pendingIssueManager.resolveTeamInvite(issue.getId(),
+                        PendingIssue.IssueStatus.REJECTED);
+            }
+            ToastUtils.showInfo(this, getString(R.string.team_notification_rejected));
+            finish();
+        });
+    }
+
     private String getTypeLabel(PendingIssue.IssueType type) {
         if (type == null) return "";
         switch (type) {
@@ -259,6 +472,10 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
                 return getString(R.string.stranger_peer_request);
             case ROOM_INVITE:
                 return getString(R.string.room_invite_request);
+            case TEAM_INVITE:
+                return getString(R.string.team_invite_notification_title);
+            case CONSENSUS_CHANGE:
+                return getString(R.string.consensus_change_request);
             default:
                 return type.name();
         }

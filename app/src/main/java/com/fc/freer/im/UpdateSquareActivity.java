@@ -30,6 +30,7 @@ import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.Setting;
 import com.fc.freer.tx.TxSender;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ServicePickerUtils;
@@ -235,7 +236,7 @@ public class UpdateSquareActivity extends BaseCryptoActivity {
         // cashes to spend so we never consume cashes they want to keep automatically.
         publishButton.setEnabled(false);
 
-        new AlertDialog.Builder(this)
+        DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.cdd_required_title)
                 .setMessage(getString(R.string.select_cash_for_cdd, pendingCddToUpdate))
                 .setPositiveButton(R.string.select_cash, (dialog, which) -> {
@@ -245,7 +246,7 @@ public class UpdateSquareActivity extends BaseCryptoActivity {
                 })
                 .setNegativeButton(android.R.string.cancel, (dialog, which) -> publishButton.setEnabled(true))
                 .setOnCancelListener(dialog -> publishButton.setEnabled(true))
-                .show();
+                );
     }
 
     private long resolveCddToUpdate() {

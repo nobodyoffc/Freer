@@ -35,6 +35,7 @@ import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.ui.IoIconsView;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.ChooseMode;
 import com.fc.freer.utils.KeyCardContainer;
@@ -297,14 +298,14 @@ public class IssueProofActivity extends BaseCryptoActivity {
         ProofManager proofManager = ProofManager.getInstance();
         boolean existed = proofManager.checkIfExisted(proof.getId());
         if (existed) {
-            new AlertDialog.Builder(this)
+            DialogUtils.show(new AlertDialog.Builder(this)
                     .setTitle(R.string.proof_existed_title)
                     .setMessage(R.string.proof_already_exists_message)
                     .setPositiveButton(R.string.replace, (dialog, which) -> {
                         proofManager.saveAndFinish(this, proof, false);
                     })
                     .setNegativeButton(R.string.cancel, null)
-                    .show();
+                    );
         } else {
             proofManager.saveAndFinish(this, proof, false);
         }
@@ -397,7 +398,7 @@ public class IssueProofActivity extends BaseCryptoActivity {
             ProofManager proofManager = ProofManager.getInstance();
             boolean existed = proofManager.checkIfExisted(proof.getId());
             if (existed) {
-                new AlertDialog.Builder(this)
+                DialogUtils.show(new AlertDialog.Builder(this)
                         .setTitle(R.string.proof_existed_title)
                         .setMessage(R.string.proof_already_exists_message)
                         .setPositiveButton(R.string.replace, (dialog, which) -> {
@@ -405,7 +406,7 @@ public class IssueProofActivity extends BaseCryptoActivity {
                             proofManager.saveAndFinish(this, proof, true);
                         })
                         .setNegativeButton(R.string.cancel, null)
-                        .show();
+                        );
             } else {
                 proof.setOnChain(null);
                 proofManager.saveAndFinish(this, proof, true);

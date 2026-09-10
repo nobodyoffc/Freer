@@ -46,6 +46,7 @@ import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.ui.WaitingDialog;
+import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.ui.IoIconsView;
 import com.fc.freer.utils.SecurePrikeyManager;
@@ -527,7 +528,7 @@ public class CreateMailActivity extends BaseCryptoActivity {
         MailManager mailManager = MailManager.getInstance();
         boolean existed = mailManager.checkIfExisted(mail.getId());
         if (existed) {
-            new AlertDialog.Builder(this)
+            DialogUtils.show(new AlertDialog.Builder(this)
                     .setTitle(R.string.mail_existed_title)
                     .setMessage(R.string.mail_already_exists_message)
                     .setPositiveButton(R.string.replace, (dialog, which) -> {
@@ -537,7 +538,7 @@ public class CreateMailActivity extends BaseCryptoActivity {
             finish();
                     })
                     .setNegativeButton(R.string.cancel, null)
-                    .show();
+                    );
         } else {
             mailManager.addMail(mail);
             ToastUtils.makeText(this, getString(R.string.mail_saved_successfully));
@@ -662,7 +663,7 @@ public class CreateMailActivity extends BaseCryptoActivity {
             MailManager mailManager = MailManager.getInstance();
             boolean existed = mailManager.checkIfExisted(mail.getId());
             if (existed) {
-                new AlertDialog.Builder(this)
+                DialogUtils.show(new AlertDialog.Builder(this)
                         .setTitle(R.string.mail_existed_title)
                         .setMessage(R.string.mail_already_exists_message)
                         .setPositiveButton(R.string.replace, (dialog, which) -> {
@@ -674,7 +675,7 @@ public class CreateMailActivity extends BaseCryptoActivity {
                             finish();
                         })
                         .setNegativeButton(R.string.cancel, null)
-                        .show();
+                        );
             } else {
                 if(selectedContact.getPubkey()==null){
                     FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
