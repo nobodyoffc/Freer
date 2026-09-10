@@ -24,6 +24,7 @@ import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.SendTxActivity;
+import com.fc.freer.manager.CashManager;
 import com.google.android.material.textfield.TextInputEditText;
 
 import java.util.ArrayList;
@@ -142,6 +143,7 @@ public class ReorgCashActivity extends BaseCryptoActivity {
                 for (String cashJson : cashJsonList) {
                     Cash cash = Cash.fromJson(cashJson, Cash.class);
                     if (cash != null) {
+                        CashManager.refreshCd(cash);
                         selectedCashList.add(cash);
                         totalCashAmount += cash.getValue();
                         if (cash.getCd() != null) {

@@ -2503,4 +2503,9 @@
     <string name="invite_skipped_members">%1$d already in the team, skipped</string>
     <string name="invite_notification_resent">Already invited; invitation re-sent</string>
     <string name="invite_nobody_to_invite">Nobody new to invite</string>
+    <string name="reselect_inputs">Reselect inputs</string>
+    <string name="inputs_reselected">Inputs replaced. Check the TX again before sending.</string>
+    <string name="reselect_inputs_other_sender">Only the current identity\'s cash can be picked as inputs</string>
+    <string name="selected_cash_not_spendable">Some selected cash is conflicted or still time-locked</string>
+    <string name="selected_inputs_spent_reselect">Some inputs are already spent. Cash is refreshed; reselect the inputs and send again.</string>
 </resources>

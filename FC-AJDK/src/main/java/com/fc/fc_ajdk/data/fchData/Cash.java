@@ -386,6 +386,17 @@ public class Cash extends FcObject {
 		return FchUtils.satoshiToCoin(sum);
 	}
 
+	/**
+	 * Recomputes each cash's cd at bestHeight. The server's cd is only as fresh as the last time
+	 * it indexed the cash. Cash without a birth height, or a null height, is left as it is.
+	 */
+	public static void refreshCd(List<Cash> cashList, Long bestHeight) {
+		if(cashList==null || bestHeight==null || bestHeight<=0)return;
+		for(Cash cash :cashList){
+			if(cash!=null)cash.makeCd(bestHeight);
+		}
+	}
+
 	public static long sumCashCd(List<Cash> cashList, long bestHeight) {
 		if(cashList==null||cashList.isEmpty())return 0;
 		long sum = 0;
@@ -529,7 +540,8 @@ public class Cash extends FcObject {
 		return cd;
 	}
 	public Long makeCd(long bestHeight){
-		if(value==null || birthHeight==null)return null;
+		// No birth height (or 0) means the cash isn't in a block yet: it has no age to count.
+		if(value==null || birthHeight==null || birthHeight<=0)return null;
 		this.cd = FchUtils.cdd(getValue(),getBirthHeight(),bestHeight);
 		return this.cd;
 	}

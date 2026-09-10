@@ -1089,6 +1089,7 @@ public class CreateTxActivity extends BaseCryptoActivity {
         if(rawTxInfo.getInputs()==null) rawTxInfo.setInputs(new ArrayList<>());
         if(rawTxInfo.getOutputs()==null) rawTxInfo.setOutputs(new ArrayList<>());
 
+        CashManager.refreshCd(rawTxInfo.getInputs());
         for(Cash cash : rawTxInfo.getInputs()){
             totalInput += cash.getValue();
             // Add cd from each cash
@@ -1911,6 +1912,8 @@ public class CreateTxActivity extends BaseCryptoActivity {
         amountValue.setText(amountText);
 
         // Set CD value
+        // The server's cd stops at the last time it indexed this cash.
+        CashManager.refreshCd(cash);
         Long cd = cash.getCd();
         if (cd != null) {
             cdValue.setText(String.format(Locale.US, "%d cd", cd));

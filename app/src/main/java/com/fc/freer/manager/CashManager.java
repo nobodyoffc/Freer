@@ -611,20 +611,14 @@ public class CashManager {
 
     public List<Cash> getValidCashes(double payValue, Long cd, int outputSize, int msgSize, double feeRate, Multisig multisig, Context context) {
         long payValueLong = FchUtils.coinToSatoshi(payValue);
-        List<Cash> inputCashes = new ArrayList<>();
+        long requiredCd = cd == null ? 0L : cd;
 
-        // 从数据库按索引倒序获取所有 cash
         List<Cash> allCashes = cashDB.getList(null, null, null, false, null, null, false, true);
-
-        long totalValue = 0;
-        long totalCd = 0;
-        long fee = 0;
-        if(cd==null)cd=0L;
 
         FapiClient fapiClientForHeight = loadFapiClient();
         Long bestHeight = (fapiClientForHeight != null) ? fapiClientForHeight.getBestHeight() : null;
 
-        // 按索引倒序遍历所有 cash
+        List<Cash> spendable = new ArrayList<>();
         for (Cash cash : allCashes) {
             // 只处理有效的 cash
             if (cash.isValid() == null || !cash.isValid()) {
@@ -636,49 +630,36 @@ public class CashManager {
                 continue;
             }
 
-            if(bestHeight!=null && cash.getLockTime()!=null)
-                if(TxHandler.isLockTimeUnlocked(cash.getLockTime(), bestHeight))
-                    continue;
+            // Skip CLTV cash that is still locked. Without a height, a height lock can't be
+            // shown to have passed, so such cash is skipped as well.
+            if (cash.getLockTime() != null
+                    && !TxHandler.isLockTimeUnlocked(cash.getLockTime(), bestHeight != null ? bestHeight : 0L)) {
+                continue;
+            }
 
             // 计算并更新该 cash 的 cd（基于区块高度）。
             // 当无法获取最新高度时，回退到该 cash 已存储的 cd，
             // 避免把实际有 cd 的 cash 误判为 0 而错误地提示"CD不足"。
             Long currentCd = (bestHeight != null) ? cash.makeCd(bestHeight) : cash.getCd();
-            if (currentCd == null)
-                currentCd=0L;
-
-            if(cd > 0 && currentCd <= 0) //当需要CD时，跳过CD为0的cash
-                continue;
-
-            // 将 cash 添加到输入列表
-            inputCashes.add(cash);
-
-            // 更新总值和总 cd
-            totalValue += cash.getValue();
-            totalCd += currentCd;
-
-            // 重新计算手续费（因为输入数量发生了变化）
-            boolean isMultiSign= multisig != null;
-            fee = TxHandler.calcFee(inputCashes.size(), outputSize, msgSize, feeRate, isMultiSign, multisig);
-
-            // 检查是否满足条件：总值 >= 支付值 + 手续费，且总 cd >= 要求的 cd
-            if (totalValue >= (payValueLong + fee) && totalCd >= cd) {
-                break;
-            }
+            cash.setCd(currentCd != null ? currentCd : 0L);
+            spendable.add(cash);
         }
 
-        // 如果满足条件，返回收集到的 cash 列表
-        if (totalValue < (payValueLong + fee) ) {
+        boolean isMultiSign = multisig != null;
+        CashSelector.Selection selection = CashSelector.select(spendable, payValueLong, requiredCd,
+                inputCount -> TxHandler.calcFee(inputCount, outputSize, msgSize, feeRate, isMultiSign, multisig));
+
+        if (!selection.hasEnoughValue()) {
             ToastUtils.makeText(context, context.getString(R.string.not_enough_fch));
             return new ArrayList<>();
         }
 
-        if(totalCd < cd){
+        if (!selection.hasEnoughCd()) {
             ToastUtils.makeText(context, context.getString(R.string.not_enough_cd));
             return new ArrayList<>();
         }
 
-        return inputCashes;
+        return selection.getInputs();
     }
 
 
@@ -700,6 +681,32 @@ public class CashManager {
             TimberLogger.e(TAG, "Error getting FapiClient from ApiCenter: %s", e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Best block height the FAPI client already knows, without a network call, so it is safe
+     * on the main thread. It can only lag the chain, so CD counted at it is never overstated.
+     */
+    public static Long knownBestHeight() {
+        try {
+            Object client = ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
+            return client instanceof FapiClient ? ((FapiClient) client).getCachedBestHeight() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Recomputes the cash's cd at {@link #knownBestHeight()}. Call it wherever a cash is shown
+     * or about to be spent: the server's cd is only as fresh as its last index of the cash.
+     */
+    public static void refreshCd(Cash cash) {
+        if (cash == null) return;
+        Cash.refreshCd(Collections.singletonList(cash), knownBestHeight());
+    }
+
+    public static void refreshCd(List<Cash> cashes) {
+        Cash.refreshCd(cashes, knownBestHeight());
     }
 
     /**

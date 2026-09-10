@@ -39,6 +39,13 @@
         android:gravity="end">
 
         <ImageButton
+            android:id="@+id/reselectInputsButton"
+            style="@style/ImageButtonStyle"
+            android:src="@drawable/ic_cash"
+            android:contentDescription="@string/reselect_inputs"
+            android:tooltipText="@string/reselect_inputs" />
+
+        <ImageButton
             android:id="@+id/makeQrButton"
             style="@style/ImageButtonStyle"
             android:src="@drawable/ic_make_qr"

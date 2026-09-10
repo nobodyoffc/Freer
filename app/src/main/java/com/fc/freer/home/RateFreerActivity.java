@@ -250,6 +250,8 @@ public class RateFreerActivity extends BaseCryptoActivity {
         String amountText = df.format(FchUtils.satoshiToCoin(cash.getValue())) + " F";
         amountValue.setText(amountText);
 
+        // The server's cd stops at the last time it indexed this cash.
+        CashManager.refreshCd(cash);
         Long cd = cash.getCd();
         if (cd != null) {
             cdValue.setText(String.format(Locale.US, "%d cd", cd));
@@ -288,6 +290,7 @@ public class RateFreerActivity extends BaseCryptoActivity {
 
     private void updateTotalCdd() {
         totalCdd = 0;
+        CashManager.refreshCd(selectedCashList);
         for (Cash cash : selectedCashList) {
             if (cash.getCd() != null) {
                 totalCdd += cash.getCd();

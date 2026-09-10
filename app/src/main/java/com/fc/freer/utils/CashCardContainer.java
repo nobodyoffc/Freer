@@ -24,6 +24,7 @@ import com.fc.freer.FreerApplication;
 import com.fc.freer.R;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.freer.ui.DetailActivity;
+import com.fc.freer.manager.CashManager;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public class CashCardContainer {
     private static final String TAG = "CashCardContainer";
@@ -195,6 +197,8 @@ public class CashCardContainer {
         amountValue.setText(amountText);
 
         // Set CD value (no label)
+        // The server's cd stops at the last time it indexed this cash.
+        CashManager.refreshCd(cash);
         Long cd = cash.getCd();
         if (cd != null) {
             cdValue.setText(String.format(Locale.US, "%d cd", cd));
@@ -659,6 +663,8 @@ public class CashCardContainer {
         amountValue.setText(amountText);
 
         // Set CD value
+        // The server's cd stops at the last time it indexed this cash.
+        CashManager.refreshCd(cash);
         Long cd = cash.getCd();
         if (cd != null) {
             cdValue.setText(String.format(Locale.US, "%d cd", cd));
@@ -751,6 +757,19 @@ public class CashCardContainer {
         cashList.add(position, cash);
         if (checkBox != null) {
             checkBoxes.add(position, checkBox);
+        }
+    }
+
+    /** Checks the cards whose cash id is in ids; disabled (conflicted) cards stay unchecked. */
+    public void selectByIds(Set<String> ids) {
+        if (chooseMode != ChooseMode.CHOOSE_MULTI || ids == null || ids.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < checkBoxes.size() && i < cashList.size(); i++) {
+            CompoundButton checkBox = checkBoxes.get(i);
+            if (checkBox.isEnabled() && ids.contains(cashList.get(i).getId())) {
+                checkBox.setChecked(true);
+            }
         }
     }
 

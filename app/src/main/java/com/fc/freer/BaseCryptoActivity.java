@@ -697,6 +697,14 @@ public abstract class BaseCryptoActivity extends AppCompatActivity {
      * @param callback Callback to handle the result
      */
     protected void sendTransaction(RawTxInfo rawTxInfo, KeyInfo senderKeyInfo, TxSendCallback callback) {
+        sendTransaction(rawTxInfo, senderKeyInfo, false, callback);
+    }
+
+    /**
+     * @param keepInputs sign exactly rawTxInfo's inputs; if one is already spent, fail rather
+     *                   than re-selecting cash
+     */
+    protected void sendTransaction(RawTxInfo rawTxInfo, KeyInfo senderKeyInfo, boolean keepInputs, TxSendCallback callback) {
         byte[] priKey = SecurePrikeyManager.fetchPrikeySilent(senderKeyInfo.getPrikeyCipher());
         // Get required instances
         CashManager cashManager = CashManager.getInstance();
@@ -732,7 +740,7 @@ public abstract class BaseCryptoActivity extends AppCompatActivity {
                 runOnUiThread(() -> callback.onUnbroadcasted(signedTxHex));
             }
 
-        });
+        }, false, keepInputs);
 
         // Show progress message
         showToast(getString(R.string.sending_transaction));

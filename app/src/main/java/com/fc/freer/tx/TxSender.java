@@ -578,6 +578,26 @@ public class TxSender {
             FapiClient fapiClient,
             TxCallback callback,
             boolean withConfirm) {
+        sendTx(context, rawTxInfo, prikey, cashManager, txHandler, fapiClient, callback, withConfirm, false);
+    }
+
+    /**
+     * Signs and sends a transaction from RawTxInfo.
+     *
+     * @param keepInputs  Sign only rawTxInfo's own inputs. On a spent-input error the cash DB is
+     *                    still refreshed, but the send fails instead of re-selecting inputs: the
+     *                    user picked these and must review any replacement.
+     */
+    public void sendTx(
+            Context context,
+            RawTxInfo rawTxInfo,
+            byte[] prikey,
+            CashManager cashManager,
+            TxHandler txHandler,
+            FapiClient fapiClient,
+            TxCallback callback,
+            boolean withConfirm,
+            boolean keepInputs) {
         showWaitingDialog(context);
 
         if (rawTxInfo == null) {
@@ -608,7 +628,7 @@ public class TxSender {
         new Thread(() -> {
             try {
                 sendRawTxInternal(context, rawTxInfo, prikey, cashManager,
-                    txHandler, fapiClient, callback, false, withConfirm);
+                    txHandler, fapiClient, callback, false, withConfirm, keepInputs);
             } catch (Exception e) {
                 dismissWaitingDialog(context);
                 if (callback != null) {
@@ -627,7 +647,8 @@ public class TxSender {
             FapiClient fapiClient,
             TxCallback callback,
             boolean isRetry,
-            boolean withConfirm) {
+            boolean withConfirm,
+            boolean keepInputs) {
         
         try {
             String sender = rawTxInfo.getSender();
@@ -727,6 +748,16 @@ public class TxSender {
                                 }
 
                                 ToastUtils.makeText(context, context.getString(R.string.toast_cash_db_refreshed));
+                                if (keepInputs) {
+                                    // The user picked these inputs; swapping in others here would
+                                    // sign a TX they never reviewed. The cash DB is fresh now, so
+                                    // they can reselect.
+                                    dismissWaitingDialog(context);
+                                    if (callback != null) {
+                                        callback.onError(context.getString(R.string.selected_inputs_spent_reselect));
+                                    }
+                                    return;
+                                }
                                 // The original rawTxInfo has the conflicting inputs baked in; re-selecting
                                 // them from the just-refreshed (mempool-aware) DB is required, otherwise the
                                 // retry rebroadcasts the identical TX and hits the same -26. Mirror the input
@@ -757,7 +788,7 @@ public class TxSender {
                                         retryMultisig, rawTxInfo.getVer());
                                 retryTxInfo.setLockTime(rawTxInfo.getLockTime());
                                 sendRawTxInternal(context, retryTxInfo, prikey, cashManager,
-                                    txHandler, fapiClient, callback, true, false);
+                                    txHandler, fapiClient, callback, true, false, false);
                                 return;
                             } else {
                                 // Already retried once, don't retry again

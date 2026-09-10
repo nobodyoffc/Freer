@@ -32,6 +32,7 @@ import com.fc.freer.ui.WaitingDialog;
 import com.fc.freer.manager.CashManager;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import org.json.JSONObject;
 import org.json.JSONException;
@@ -44,6 +45,8 @@ public class CashActivity extends BaseCryptoActivity {
     
     public static final String EXTRA_SELECT_MODE = "select_mode";
     public static final String EXTRA_SELECTED_CASH = "selected_cash";
+    // Cash ids to check on the first load in select mode, e.g. a TX's current inputs.
+    public static final String EXTRA_PRESELECTED_CASH_IDS = "preselected_cash_ids";
     
     private CashCardContainer cashCardContainer;
     protected CashManager cashManager;
@@ -80,6 +83,7 @@ public class CashActivity extends BaseCryptoActivity {
     private TextView cashStatisticsTextView;
     
     private final List<Cash> cashList = new ArrayList<>();
+    private boolean preselectionApplied = false;
     private String earliestId = null;
     private boolean isLoadingNewer = false;
     private boolean hasMoreData = true;
@@ -307,6 +311,15 @@ public class CashActivity extends BaseCryptoActivity {
         // Add all cash cards to the manager
         for (Cash cash : cashList) {
             cashCardContainer.addCashCard(cash);
+        }
+
+        // Only on the first load, so a refresh doesn't bring back cash the user unchecked.
+        if (!preselectionApplied) {
+            preselectionApplied = true;
+            ArrayList<String> preselectedIds = getIntent().getStringArrayListExtra(EXTRA_PRESELECTED_CASH_IDS);
+            if (preselectedIds != null) {
+                cashCardContainer.selectByIds(new HashSet<>(preselectedIds));
+            }
         }
 
         // Update button states and statistics after cards are loaded
@@ -858,6 +871,7 @@ public class CashActivity extends BaseCryptoActivity {
      */
     private void updateSummaryCard() {
         List<Cash> selectedCashList = cashCardContainer != null ? cashCardContainer.getSelectedCashes() : new ArrayList<>();
+        CashManager.refreshCd(selectedCashList);
         
         // Calculate totals
         int cashCount = selectedCashList.size();

@@ -505,6 +505,14 @@ public class FapiClient implements ApiClient {
         return cachedBestHeight;
     }
 
+    /**
+     * The height carried by the latest response, without querying — safe on the main thread.
+     * It can only lag the chain.
+     */
+    public Long getCachedBestHeight() {
+        return cachedBestHeight;
+    }
+
     public Long bestHeight() {
         return getBestHeight();
     }

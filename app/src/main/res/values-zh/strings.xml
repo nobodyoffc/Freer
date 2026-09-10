@@ -2462,4 +2462,9 @@
     <string name="invite_skipped_members">%1$d 人已在团队中，已跳过</string>
     <string name="invite_notification_resent">已邀请过，已重新发送邀请通知</string>
     <string name="invite_nobody_to_invite">没有可邀请的新成员</string>
+    <string name="reselect_inputs">重选输入</string>
+    <string name="inputs_reselected">已替换输入，请重新核对交易后再发送</string>
+    <string name="reselect_inputs_other_sender">只能选择当前身份的钞票作为输入</string>
+    <string name="selected_cash_not_spendable">所选钞票中有冲突或尚未解锁的</string>
+    <string name="selected_inputs_spent_reselect">部分输入已被花费。钞票已刷新，请重选输入后再发送</string>
 </resources>

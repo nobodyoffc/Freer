@@ -33,6 +33,7 @@ import com.fc.fc_ajdk.utils.JsonUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
 import com.fc.freer.BaseCryptoActivity;
+import com.fc.freer.account.CashActivity;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.tx.view.TxOutputCard;
 
@@ -46,6 +47,7 @@ public class SendTxActivity extends BaseCryptoActivity {
     private static final String TAG = "SendTxActivity";
     public static final int RESULT_SIGNED = 1001;
     private static final int REQUEST_BROADCAST = 1002;
+    private static final int REQUEST_RESELECT_INPUTS = 1003;
     private KeyInfo senderKeyInfo;
     private String rawTx;
     private List<Cash> inputCashList;
@@ -55,10 +57,13 @@ public class SendTxActivity extends BaseCryptoActivity {
     private ImageButton makeQrButton;
     private ImageButton copyButton;
     private ImageButton sendButton;
+    private ImageButton reselectInputsButton;
     private String result = null;
     private RawTxInfo rawTxInfo;
     private boolean isSent = false;
     private boolean isBroadcastMode = false;
+    // Inputs picked by hand: a spent-input error must not swap in other cash.
+    private boolean inputsReselected = false;
     private Map<String, Nobody> fidNobodyMap;
     private long bestHeight = 0;
     private com.fc.freer.ui.WaitingDialog waitingDialog;
@@ -133,6 +138,7 @@ public class SendTxActivity extends BaseCryptoActivity {
         makeQrButton = findViewById(R.id.makeQrButton);
         copyButton = findViewById(R.id.copyButton);
         sendButton = findViewById(R.id.signButton);
+        reselectInputsButton = findViewById(R.id.reselectInputsButton);
 
         // Debug logging to identify null buttons
         TimberLogger.d(TAG, "Button initialization - makeQrButton: %s, copyButton: %s, sendButton: %s",
@@ -182,6 +188,10 @@ public class SendTxActivity extends BaseCryptoActivity {
 
     @Override
     protected void setupButtons() {
+        if (reselectInputsButton != null) {
+            reselectInputsButton.setOnClickListener(v -> openCashSelector());
+        }
+
         if (makeQrButton != null) {
             makeQrButton.setOnClickListener(v -> {
                 String contentToQr;
@@ -284,7 +294,7 @@ public class SendTxActivity extends BaseCryptoActivity {
 
         sendButton.setAlpha(0.5f);
         // Use the shared transaction sending method from BaseCryptoActivity
-        sendTransaction(rawTxInfo, senderKeyInfo, new TxSendCallback() {
+        sendTransaction(rawTxInfo, senderKeyInfo, inputsReselected, new TxSendCallback() {
                     @Override
                     public void onSuccess(String txId) {
                         isSent = true;
@@ -344,6 +354,9 @@ public class SendTxActivity extends BaseCryptoActivity {
     }
 
     public void updateButtonTexts() {
+        if (reselectInputsButton != null) {
+            reselectInputsButton.setVisibility(isSent ? View.GONE : View.VISIBLE);
+        }
         if(isSent){
             if (sendButton != null) {
                 sendButton.setImageResource(R.drawable.ic_tick);
@@ -559,7 +572,7 @@ public class SendTxActivity extends BaseCryptoActivity {
         long cdd = 0;
         for (Cash cash : inputCashList) {
             spendingSum += cash.getValue();
-            if(cash.getCd()!=null)cdd+=cash.getCd();
+            cdd += liveCd(cash);
         }
         addTextLine(getString(R.string.sum) + ": " + FchUtils.satoshiToCoin(spendingSum) + " F");
 
@@ -881,12 +894,139 @@ public class SendTxActivity extends BaseCryptoActivity {
         }
     }
 
+    private void openCashSelector() {
+        if (isSent) return;
+        // CashActivity lists only the live identity's cash.
+        String liveFid = FidManager.getInstance().getLiveFid();
+        if (rawTxInfo.getSender() == null || !rawTxInfo.getSender().equals(liveFid)) {
+            ToastUtils.showWarning(this, getString(R.string.reselect_inputs_other_sender));
+            return;
+        }
+
+        ArrayList<String> currentIds = new ArrayList<>();
+        for (Cash cash : inputCashList) {
+            String id = cash.getId();
+            if (id != null) currentIds.add(id);
+        }
+        Intent intent = new Intent(this, CashActivity.class);
+        intent.putExtra(CashActivity.EXTRA_SELECT_MODE, true);
+        intent.putStringArrayListExtra(CashActivity.EXTRA_PRESELECTED_CASH_IDS, currentIds);
+        startActivityForResult(intent, REQUEST_RESELECT_INPUTS);
+    }
+
+    /**
+     * Replaces the TX's inputs with the cash picked in CashActivity and redraws the review.
+     * Outputs, OP_RETURN, fee rate and required CD stay; fee and change follow the new inputs.
+     */
+    private void applyReselectedInputs(List<String> cashJsonList) {
+        if (cashJsonList == null || cashJsonList.isEmpty()) return;
+
+        List<Cash> selected = new ArrayList<>();
+        for (String cashJson : cashJsonList) {
+            try {
+                Cash cash = Cash.fromJson(cashJson);
+                if (cash != null) selected.add(cash);
+            } catch (Exception e) {
+                TimberLogger.e(TAG, "Error parsing cash JSON: " + e.getMessage());
+            }
+        }
+        if (selected.isEmpty()) return;
+
+        String sender = rawTxInfo.getSender();
+        long selectedCd = 0;
+        for (Cash cash : selected) {
+            if (cash.getOwner() != null && !cash.getOwner().equals(sender)) {
+                ToastUtils.showWarning(this, getString(R.string.all_cash_must_have_same_owner));
+                return;
+            }
+            boolean locked = cash.getLockTime() != null
+                    && !TxHandler.isLockTimeUnlocked(cash.getLockTime(), bestHeight);
+            if (Boolean.TRUE.equals(cash.getConflicted()) || locked) {
+                ToastUtils.showWarning(this, getString(R.string.selected_cash_not_spendable));
+                return;
+            }
+            cash.setCd(liveCd(cash));
+            selectedCd += cash.getCd();
+        }
+        long requiredCd = rawTxInfo.getCd() != null ? rawTxInfo.getCd() : 0L;
+        if (selectedCd < requiredCd) {
+            ToastUtils.showWarning(this, getString(R.string.not_enough_cd));
+            return;
+        }
+
+        List<Cash> previousInputs = rawTxInfo.getInputs();
+        Long previousLockTime = rawTxInfo.getLockTime();
+        // createTx copies the largest CLTV input lock into the TX lockTime; drop that copy so it
+        // doesn't outlive the inputs it came from.
+        long previousInputLock = maxLockTime(previousInputs);
+        if (previousInputLock > 0 && previousLockTime != null && previousLockTime == previousInputLock) {
+            rawTxInfo.setLockTime(null);
+        }
+        rawTxInfo.setInputs(Cash.makeCashListForPay(selected));
+
+        String newRawTx = new TxHandler().createTxHex(rawTxInfo);
+        Tx newTx = null;
+        if (newRawTx != null) {
+            try {
+                newTx = Tx.fromRawTx(newRawTx, rawTxInfo.getInputs());
+            } catch (Exception e) {
+                TimberLogger.e(TAG, "Error parsing rebuilt TX: " + e.getMessage());
+            }
+        }
+        if (newTx == null) {
+            rawTxInfo.setInputs(previousInputs);
+            rawTxInfo.setLockTime(previousLockTime);
+            // Only the inputs changed, so the rebuild fails when they can't pay outputs plus fee.
+            ToastUtils.showWarning(this, getString(R.string.not_enough_fch));
+            return;
+        }
+
+        rawTx = newRawTx;
+        tx = newTx;
+        inputCashList = rawTxInfo.getInputs();
+        inputsReselected = true;
+        // A TX signed earlier but not broadcast spends the old inputs; copy and QR must not offer it.
+        result = null;
+
+        fragmentContainer.removeAllViews();
+        setupSender();
+        setupSendTo(bestHeight);
+        setupSummary();
+        setupText();
+        updateButtonTexts();
+        ToastUtils.makeText(this, getString(R.string.inputs_reselected));
+    }
+
+    private static long maxLockTime(List<Cash> cashes) {
+        long max = 0;
+        if (cashes == null) return max;
+        for (Cash cash : cashes) {
+            if (cash.getLockTime() != null && cash.getLockTime() > max) max = cash.getLockTime();
+        }
+        return max;
+    }
+
+    /** CD at the current height when the birth height is known; otherwise the stored cd. */
+    private long liveCd(Cash cash) {
+        if (bestHeight > 0 && cash.getValue() != null && cash.getBirthHeight() != null) {
+            return FchUtils.cdd(cash.getValue(), cash.getBirthHeight(), bestHeight);
+        }
+        return cash.getCd() != null ? cash.getCd() : 0L;
+    }
+
     // Method removed: locktime info is now integrated directly into TxOutputCard
     // See TxOutputCard.setLockTime() and addCltvRecipients() for the new implementation
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == REQUEST_RESELECT_INPUTS) {
+            if (resultCode == RESULT_OK && data != null) {
+                applyReselectedInputs(data.getStringArrayListExtra(CashActivity.EXTRA_SELECTED_CASH));
+            }
+            return;
+        }
 
         if (requestCode == REQUEST_BROADCAST) {
             if (resultCode == RESULT_OK && data != null) {

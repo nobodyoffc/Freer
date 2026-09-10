@@ -526,6 +526,8 @@ public class RateActivity extends BaseCryptoActivity {
         amountValue.setText(amountText);
 
         // Set CD value
+        // The server's cd stops at the last time it indexed this cash.
+        CashManager.refreshCd(cash);
         Long cd = cash.getCd();
         if (cd != null) {
             cdValue.setText(String.format(Locale.US, "%d cd", cd));
@@ -574,6 +576,7 @@ public class RateActivity extends BaseCryptoActivity {
      */
     private void updateTotalCd() {
         totalCd = 0;
+        CashManager.refreshCd(selectedCashList);
         for (Cash cash : selectedCashList) {
             if (cash.getCd() != null) {
                 totalCd += cash.getCd();

@@ -3,7 +3,7 @@
 [x] when creating team, the field of DOCK should be the sid of the DOCK (or BASE if no DOCK) of the mainFid instead of the url
 [x] when user create a new team, should it generate the symkey soon instead of waiting confirmation and the promoting user? 
 [x] combine the prikey importing pages
-[] when sending a TX, add advanced button to allow user rearrange the inputs.
+[x] when sending a TX, add advanced button to allow user rearrange the inputs.
 
 [x] 首身份自动生成
 [x] 首币自动拆分3个
