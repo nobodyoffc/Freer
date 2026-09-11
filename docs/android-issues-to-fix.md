@@ -309,6 +309,46 @@ Running log of bugs, smells, and risky patterns spotted in the Android codebase 
 
 ---
 
+### C19. A dismissed team member is never told, and keeps a live-looking team
+
+- **Severity:** medium — the thread stays open and sendable for somebody the chain has removed
+- **Scope:** both (found while porting team governance to the Mac, 2026-09-11; fixed in the port)
+- **Location:** `app/.../im/TeamSyncManager.java:62-65` and `TeamHandler.refreshUpdatedTeams` (`terms members = liveFid`)
+- **Problem:** both syncs ask only for teams whose `members` contains us. A `dismiss` moves the FID from `members` to `exMembers`, so the team is never returned to that member again: `leftGroup` is never set, the DOCK stays registered, and the composer keeps offering to send. Leaving by your own carve hides this, because the activity flags the conversation when it broadcasts — being dismissed has no such moment.
+- **Fix:** query `members` **or** `exMembers` (one `terms` clause with both fields; the server ORs them). The Mac's `GroupService.fetchTeams` does this, and its existing `belongs = isMember && isActive` rule then flags the thread.
+
+---
+
+### C20. The team chat menu offers "Leave team" to the owner
+
+- **Severity:** low — a paid carve that does nothing
+- **Scope:** android-only (found while porting team governance to the Mac, 2026-09-11)
+- **Location:** `app/.../im/ChatActivity.java` `showTeamChatMenu` (`menu_leave_team` is never hidden), `res/layout/popup_team_chat_menu.xml`
+- **Problem:** `OrganizationParser` skips the owner in a `leave` op, so an owner who leaves from the chat menu pays the fee and stays owner. `TeamActivity.launchLeaveTeams` already routes owners to disband; the chat menu does not.
+- **Fix:** hide Leave for the owner and show Disband there instead. The Mac's team menu does this.
+
+---
+
+### C21. Take-over quotes the cached consensus id, not the chain's
+
+- **Severity:** medium — a stale cache turns a take-over into a rejected, paid carve
+- **Scope:** android-only (found while porting team governance to the Mac, 2026-09-11)
+- **Location:** `app/.../im/TeamTxHelper.java:180-201` (`resolveConsensusId`)
+- **Problem:** the local team is consulted first and the chain only if there is none. The parser rejects a `take over` (and a `join`) whose `consensusId` differs from the team's current one, so an owner who changed the consensus after this device cached the team makes the take-over fail after the fee is spent. The comment on `sendAgreeConsensusTx` already says the id "must be the freshly-synced consensus" — the other two paths do not follow it.
+- **Fix:** read the team from the chain at the moment of the carve and quote its id; refuse before signing when the signer is not the transferee (or, for a join, not in `invitees`). The Mac's `carveTeamTakeOverOnChain` and `TeamGovernance.joinRefusal` do both.
+
+---
+
+### C22. A square left from another device stays joined here
+
+- **Severity:** medium — the thread stays open, the DOCK stays polled, and the composer keeps offering to send
+- **Scope:** both (found while porting the square list to the Mac, 2026-09-11; fixed in the port)
+- **Location:** `app/.../im/SquareSyncManager.java:63-66` and `SquareHandler.refreshUpdatedSquares` (`terms members = liveFid`)
+- **Problem:** the sync only asks for squares whose `members` contains us, so a square the user left on another device — or one deleted when its last member left — is never returned again and its conversation is never marked left. The periodic full scan asks the same question and has the same blind spot. A square has no `exMembers` field, so the team fix (C19) does not apply.
+- **Fix:** after the member query, read back by id every cached square that still lists us and was not returned; mark the conversation left when the record no longer lists us or no longer exists, and change nothing when that read fails. The Mac's `GroupService.syncSquares` does this.
+
+---
+
 ## Architecture notes (not bugs, but called out)
 
 ### A1. APIP is being retired
