@@ -165,9 +165,71 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
             case CONSENSUS_CHANGE:
                 populateConsensusData(container, label);
                 break;
+            case HISTORY_REQUEST:
+                populateHistoryRequestData(container, label);
+                break;
+            case HISTORY_IMPORT_FAILED:
+                populateHistoryImportFailedData(container, label);
+                break;
             default:
                 break;
         }
+    }
+
+    /** Messages this device would hand over; -1 until counted. Share waits for the count. */
+    private int historyMessageCount = -1;
+
+    private void populateHistoryImportFailedData(LinearLayout container, TextView label) {
+        PendingIssue.HistoryImportFailedData data = HistoryRequestPrompt.importFailureOf(issue);
+        if (data == null) return;
+
+        label.setVisibility(View.VISIBLE);
+        container.setVisibility(View.VISIBLE);
+
+        addDataRow(container, getString(R.string.type), data.imType != null ? data.imType.name() : "");
+        if (data.targetId != null) {
+            addDataRow(container, getString(R.string.history_conversation), data.targetId);
+        }
+        addDataRow(container, getString(R.string.history_time_range),
+                HistoryRequestPrompt.formatRange(data.since, data.before));
+        addDataRow(container, getString(R.string.history_import_attempts), String.valueOf(data.attempts));
+        if (data.lastError != null) {
+            addDataRow(container, getString(R.string.history_import_last_error), data.lastError);
+        }
+    }
+
+    private void populateHistoryRequestData(LinearLayout container, TextView label) {
+        PendingIssue.HistoryRequestData data =
+                issue.getDataAs(PendingIssue.HistoryRequestData.class);
+        if (data == null) return;
+
+        label.setVisibility(View.VISIBLE);
+        container.setVisibility(View.VISIBLE);
+
+        String liveFid = imManager != null ? imManager.getLiveFid() : null;
+        addDataRow(container, getString(R.string.type), data.imType != null ? data.imType.name() : "");
+        addDataRow(container, getString(R.string.history_request_issue),
+                HistoryRequestPrompt.title(this, liveFid, issue));
+        addDataRow(container, getString(R.string.history_time_range),
+                HistoryRequestPrompt.formatRange(data.since, data.before));
+
+        int before = container.getChildCount();
+        addDataRow(container, getString(R.string.history_messages_on_device), "…");
+        TextView countValue = (TextView) container.getChildAt(before + 1);
+
+        boolean open = issue.getStatus() == PendingIssue.IssueStatus.PENDING
+                || issue.getStatus() == PendingIssue.IssueStatus.DEFERRED;
+        if (imManager == null || !open) return;
+        new Thread(() -> {
+            int count = imManager.countHistoryRequestMessages(issue.getId());
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                historyMessageCount = count;
+                countValue.setText(count < 0 ? "" : String.valueOf(count));
+                Button acceptBtn = findViewById(R.id.btn_accept);
+                if (acceptBtn != null) acceptBtn.setEnabled(count > 0);
+            });
+        }).start();
     }
 
     private void populateStrangerPeerData(LinearLayout container, TextView label) {
@@ -282,6 +344,16 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
 
         if (issue.getIssueType() == PendingIssue.IssueType.TEAM_INVITE) {
             setupTeamInviteButtons(actionContainer, acceptBtn, rejectBtn);
+            return;
+        }
+
+        if (issue.getIssueType() == PendingIssue.IssueType.HISTORY_REQUEST) {
+            setupHistoryRequestButtons(actionContainer, acceptBtn, rejectBtn);
+            return;
+        }
+
+        if (issue.getIssueType() == PendingIssue.IssueType.HISTORY_IMPORT_FAILED) {
+            setupHistoryImportFailedButtons(actionContainer, acceptBtn, rejectBtn);
             return;
         }
 
@@ -470,6 +542,56 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
         });
     }
 
+    /**
+     * Share opens the confirmation that says what goes and to whom; nothing is sent before the
+     * user agrees there. Decline sends nothing.
+     */
+    private void setupHistoryRequestButtons(LinearLayout actionContainer, Button acceptBtn, Button rejectBtn) {
+        boolean open = issue.getStatus() == PendingIssue.IssueStatus.PENDING
+                || issue.getStatus() == PendingIssue.IssueStatus.DEFERRED;
+        actionContainer.setVisibility(open ? View.VISIBLE : View.GONE);
+        if (!open) return;
+
+        acceptBtn.setText(R.string.history_share_action);
+        rejectBtn.setText(R.string.decline);
+        // Enabled once the count shows there is something to share.
+        acceptBtn.setEnabled(historyMessageCount > 0);
+
+        acceptBtn.setOnClickListener(v -> {
+            hideKeyboard();
+            if (imManager == null || historyMessageCount <= 0) return;
+            HistoryRequestPrompt.confirmShare(this, imManager, issue, historyMessageCount, this::finish);
+        });
+
+        rejectBtn.setOnClickListener(v -> {
+            hideKeyboard();
+            if (imManager == null || issue.getId() == null) return;
+            imManager.declineHistoryRequest(issue.getId());
+            ToastUtils.showInfo(this, getString(R.string.history_request_declined));
+            finish();
+        });
+    }
+
+    /** Retry downloads the shared history again; Dismiss forgets it without importing. */
+    private void setupHistoryImportFailedButtons(LinearLayout actionContainer, Button acceptBtn, Button rejectBtn) {
+        boolean open = issue.getStatus() == PendingIssue.IssueStatus.PENDING
+                || issue.getStatus() == PendingIssue.IssueStatus.DEFERRED;
+        actionContainer.setVisibility(open ? View.VISIBLE : View.GONE);
+        if (!open) return;
+
+        acceptBtn.setText(R.string.retry);
+        rejectBtn.setText(R.string.dismiss);
+
+        acceptBtn.setOnClickListener(v -> {
+            hideKeyboard();
+            HistoryRequestPrompt.retryImport(this, imManager, issue, this::finish);
+        });
+        rejectBtn.setOnClickListener(v -> {
+            hideKeyboard();
+            HistoryRequestPrompt.dismissImport(this, imManager, issue, this::finish);
+        });
+    }
+
     private String getTypeLabel(PendingIssue.IssueType type) {
         if (type == null) return "";
         switch (type) {
@@ -481,6 +603,10 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
                 return getString(R.string.team_invite_notification_title);
             case CONSENSUS_CHANGE:
                 return getString(R.string.consensus_change_request);
+            case HISTORY_REQUEST:
+                return getString(R.string.history_request_issue);
+            case HISTORY_IMPORT_FAILED:
+                return getString(R.string.history_import_failed_issue);
             default:
                 return type.name();
         }

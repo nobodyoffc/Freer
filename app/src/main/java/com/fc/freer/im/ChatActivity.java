@@ -146,6 +146,8 @@ public class ChatActivity extends BaseCryptoActivity
 
     private ImManager imManager;
     private String liveFid;
+    /** History issues already prompted on this screen, so onResume does not re-ask. */
+    private final java.util.Set<String> promptedHistoryRequests = new java.util.HashSet<>();
     private ImType imType;
     private String targetId;
     private String displayName;
@@ -1610,25 +1612,42 @@ public class ChatActivity extends BaseCryptoActivity
     }
 
     @Override
-    public void onHistoryRequestReceived(String requesterFid, String imTypeStr,
-                                          String reqTargetId, Long since, Long before,
-                                          ImMessage requestMsg) {
-        if (!targetId.equals(reqTargetId)) return;
+    public void onHistoryRequestReceived(PendingIssue issue) {
+        runOnUiThread(() -> promptHistoryRequest(issue));
+    }
 
-        runOnUiThread(() -> {
-            String msg = getString(R.string.history_request_received, requesterFid);
-            DialogUtils.show(new AlertDialog.Builder(this)
-                    .setTitle(R.string.request_history)
-                    .setMessage(msg)
-                    .setPositiveButton(R.string.approve, (d, w) -> {
-                        hideKeyboard();
-                        if (imManager != null) {
-                            imManager.approveHistoryRequest(requestMsg);
-                        }
-                    })
-                    .setNegativeButton(R.string.deny, null)
-                    );
-        });
+    @Override
+    public void onHistoryImportFailed(PendingIssue issue) {
+        runOnUiThread(this::promptOpenHistoryRequests);
+    }
+
+    /**
+     * Ask about this chat's open history issues — requests still undecided and shared history
+     * that could not be added — including ones that arose while it was closed. Each is prompted
+     * once per screen; Later leaves it in the pending issues list.
+     */
+    private void promptOpenHistoryRequests() {
+        if (imManager == null || imManager.getPendingIssueManager() == null
+                || imType == null || targetId == null) return;
+        for (PendingIssue issue : imManager.getPendingIssueManager()
+                .getOpenHistoryIssues(imType, targetId)) {
+            if (!promptedHistoryRequests.add(issue.getId())) continue;
+            if (issue.getIssueType() == PendingIssue.IssueType.HISTORY_IMPORT_FAILED) {
+                HistoryRequestPrompt.showImportFailure(this, imManager, issue, null);
+            } else {
+                HistoryRequestPrompt.show(this, imManager, issue, null);
+            }
+        }
+    }
+
+    private void promptHistoryRequest(PendingIssue issue) {
+        if (issue == null || imManager == null || isFinishing() || isDestroyed()) return;
+        PendingIssue.HistoryRequestData data = issue.getDataAs(PendingIssue.HistoryRequestData.class);
+        if (data == null || targetId == null || data.imType != imType
+                || !targetId.equals(data.targetId)) return;
+        if (!promptedHistoryRequests.add(issue.getId())) return;
+        hideKeyboard();
+        HistoryRequestPrompt.show(this, imManager, issue, null);
     }
 
     @Override
@@ -3175,6 +3194,7 @@ public class ChatActivity extends BaseCryptoActivity
             imManager.setActiveChatDock(imType, targetId);
 
             retryFailedDocksForCurrentChat();
+            promptOpenHistoryRequests();
 
             if (isSymkeyRequired() && groupHasDock && hasSymkey()) {
                 if (messageInput != null && !messageInput.isEnabled()) {

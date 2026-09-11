@@ -54,6 +54,8 @@ public class DockFetchScheduler {
     public interface FetchCallback {
         void onItemsFetched(List<DockItem> items, String dockUrl);
         void onFetchError(String dockUrl, String error);
+        /** A fetch pass reached the DOCK and finished, whether or not it found anything. */
+        default void onFetchSucceeded(String dockUrl) {}
     }
 
     private final DockServiceRegistry registry;
@@ -280,6 +282,7 @@ public class DockFetchScheduler {
             List<DockItem> allItems = new ArrayList<>();
             List<String> cursor = dockCursors.get(dockUrl);
             boolean hasMore = true;
+            boolean reached = true;
 
             while (hasMore && running) {
                 Fcdsl fcdsl = new Fcdsl();
@@ -302,6 +305,7 @@ public class DockFetchScheduler {
                     if (callback != null) {
                         callback.onFetchError(dockUrl, errorMsg);
                     }
+                    reached = false;
                     break;
                 }
 
@@ -325,6 +329,9 @@ public class DockFetchScheduler {
 
             if (!allItems.isEmpty() && callback != null) {
                 callback.onItemsFetched(allItems, dockUrl);
+            }
+            if (reached && running && callback != null) {
+                callback.onFetchSucceeded(dockUrl);
             }
 
             if (!allItems.isEmpty()) {

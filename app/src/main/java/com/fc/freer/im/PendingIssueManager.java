@@ -2,6 +2,7 @@ package com.fc.freer.im;
 
 import android.content.Context;
 
+import com.fc.fc_ajdk.data.fcData.ImType;
 import com.fc.fc_ajdk.data.fcData.TalkPartner;
 import com.fc.fc_ajdk.db.LocalDB;
 import com.fc.fc_ajdk.fudp.node.FudpNode;
@@ -235,6 +236,111 @@ public class PendingIssueManager {
         TimberLogger.i(TAG, "Team invite %s resolved: %s", issueId, status);
     }
 
+    // ========== History request ==========
+
+    /**
+     * Keep a history request for the user to decide on. Stored rather than only prompted:
+     * handing over a transcript needs a person, and the request has to survive a restart and
+     * reach the user even when the chat it concerns was not open when it arrived.
+     *
+     * @return the issue when one was created, else null (the same request was already recorded)
+     */
+    public PendingIssue addHistoryRequestIssue(String requesterFid, String nonce, ImType imType,
+                                                String targetId, String requestedTargetId,
+                                                long since, long before, String threadName) {
+        if (requesterFid == null || nonce == null || imType == null || targetId == null) return null;
+
+        String issueId = PendingIssue.historyRequestIssueId(requesterFid, nonce);
+        if (db.get(issueId) != null) return null;
+
+        PendingIssue issue = PendingIssue.createHistoryRequest(requesterFid, nonce, imType,
+                targetId, requestedTargetId, since, before, threadName);
+        db.put(issue.getId(), issue);
+        notifyCountChange();
+        toastNewIssue(context.getString(R.string.history_request_issue));
+        TimberLogger.i(TAG, "History request issue created: %s %s from=%s", imType, targetId, requesterFid);
+        return issue;
+    }
+
+    /** Record the user's decision on a history request. Declining sends nothing. */
+    public void resolveHistoryRequest(String issueId, PendingIssue.IssueStatus status) {
+        PendingIssue issue = db.get(issueId);
+        if (issue == null || issue.getStatus() == status) return;
+
+        issue.setStatus(status);
+        issue.setResolvedAt(System.currentTimeMillis());
+        db.put(issue.getId(), issue);
+        notifyCountChange();
+        TimberLogger.i(TAG, "History request %s resolved: %s", issueId, status);
+    }
+
+    /**
+     * Raise — or refresh — the issue for history that could not be downloaded after the
+     * automatic attempts. A refresh after a failed Retry only updates the error; it neither
+     * toasts again nor re-opens an issue the user has already dismissed.
+     *
+     * @return the issue when one was newly raised, else null
+     */
+    public PendingIssue addOrUpdateHistoryImportFailedIssue(PendingIssue.HistoryImportFailedData data,
+                                                            String threadName) {
+        if (data == null || data.nonce == null || data.senderFid == null) return null;
+
+        String issueId = PendingIssue.historyImportFailedIssueId(data.nonce);
+        PendingIssue existing = db.get(issueId);
+        if (existing != null) {
+            if (existing.getStatus() != PendingIssue.IssueStatus.PENDING
+                    && existing.getStatus() != PendingIssue.IssueStatus.DEFERRED) return null;
+            existing.setDataFrom(data);
+            db.put(existing.getId(), existing);
+            return null;
+        }
+
+        PendingIssue issue = PendingIssue.createHistoryImportFailed(data, threadName);
+        db.put(issue.getId(), issue);
+        notifyCountChange();
+        toastNewIssue(context.getString(R.string.history_import_failed_issue));
+        TimberLogger.i(TAG, "History import failed issue created: nonce=%s from=%s",
+                data.nonce, data.senderFid);
+        return issue;
+    }
+
+    /** Close the failed-import issue for an answer, if one was raised. */
+    public void resolveHistoryImportFailed(String nonce, PendingIssue.IssueStatus status) {
+        if (nonce == null) return;
+        resolveHistoryRequest(PendingIssue.historyImportFailedIssueId(nonce), status);
+    }
+
+    /**
+     * Open history issues about one thread on this device — requests waiting for a decision and
+     * shared history that could not be added — oldest first.
+     */
+    public List<PendingIssue> getOpenHistoryIssues(ImType imType, String targetId) {
+        List<PendingIssue> result = new ArrayList<>();
+        if (imType == null || targetId == null) return result;
+        for (PendingIssue issue : getOpenIssues()) {
+            ImType issueImType;
+            String issueTargetId;
+            if (issue.getIssueType() == PendingIssue.IssueType.HISTORY_REQUEST) {
+                PendingIssue.HistoryRequestData data =
+                        issue.getDataAs(PendingIssue.HistoryRequestData.class);
+                if (data == null) continue;
+                issueImType = data.imType;
+                issueTargetId = data.targetId;
+            } else if (issue.getIssueType() == PendingIssue.IssueType.HISTORY_IMPORT_FAILED) {
+                PendingIssue.HistoryImportFailedData data =
+                        issue.getDataAs(PendingIssue.HistoryImportFailedData.class);
+                if (data == null) continue;
+                issueImType = data.imType;
+                issueTargetId = data.targetId;
+            } else {
+                continue;
+            }
+            if (issueImType == imType && targetId.equals(issueTargetId)) result.add(issue);
+        }
+        Collections.reverse(result);
+        return result;
+    }
+
     // ========== Consensus change ==========
 
     /**
@@ -427,6 +533,10 @@ public class PendingIssueManager {
             for (PendingIssue issue : all.values()) {
                 if (issue == null) continue;
                 if (issue.getStatus() != PendingIssue.IssueStatus.PENDING) continue;
+                // History issues wait for the user however long it takes, and the peer is not
+                // a quarantined stranger whose messages should be purged.
+                if (issue.getIssueType() == PendingIssue.IssueType.HISTORY_REQUEST
+                        || issue.getIssueType() == PendingIssue.IssueType.HISTORY_IMPORT_FAILED) continue;
                 Long created = issue.getCreatedAt();
                 if (created != null && now - created > ImManager.QUARANTINE_EXPIRY_MS) {
                     issue.setStatus(PendingIssue.IssueStatus.EXPIRED);

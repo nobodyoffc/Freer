@@ -97,7 +97,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
     private SymkeyStore symkeyStore;
     private MessageQueue messageQueue;
     private ContactPolicy contactPolicy;
-    
+    private HistoryAskStore historyAskStore;
+
     // DOCK auto-fetch
     private DockServiceRegistry dockRegistry;
     private DockFetchScheduler dockScheduler;
@@ -138,7 +139,6 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
     private final Map<String, Long> symkeyRequestTimestamps = new ConcurrentHashMap<>();
     private final Set<String> pendingSymkeyNonces = ConcurrentHashMap.newKeySet();
     private final Set<String> pendingRoomInfoNonces = ConcurrentHashMap.newKeySet();
-    private final Set<String> pendingHistoryNonces = ConcurrentHashMap.newKeySet();
     
     /**
      * Deliver a received message into the normal conversation and notify the UI.
@@ -249,10 +249,11 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         default void onRoomInfoReceived(String roomId, long symkeyVersion) {}
         default void onMessagesRedecrypted(String entityId, List<ImMessage> messages) {}
         default void onRoomInviteReceived(PendingIssue issue) {}
-        default void onHistoryRequestReceived(String requesterFid, String imType,
-                                               String targetId, Long since, Long before,
-                                               ImMessage requestMsg) {}
+        /** A new HISTORY_REQUEST issue; its data names the thread as it is on this device. */
+        default void onHistoryRequestReceived(PendingIssue issue) {}
         default void onHistoryImported(String fromFid, int count) {}
+        /** Shared history could not be downloaded after the automatic attempts. */
+        default void onHistoryImportFailed(PendingIssue issue) {}
         default void onChannelNotConfigured(String suggestedDockUrl) {}
         /** Fired when home.DOCK becomes available on-chain (e.g. a pending registration confirmed). */
         default void onChannelConfigured() {}
@@ -315,7 +316,10 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         });
         
         contactPolicy = new ContactPolicy(context, liveFid);
-        
+
+        historyAskStore = new HistoryAskStore(liveFid);
+        historyAskStore.pruneExpired();
+
         // Initialize handlers
         p2pHandler = new P2pHandler(context, liveFid);
         squareHandler = new SquareHandler(context, liveFid);
@@ -393,6 +397,13 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 if (count > 0) {
                     TimberLogger.d(TAG, "Routed %d/%d dock items from %s", count, items.size(), dockUrl);
                 }
+            }
+
+            @Override
+            public void onFetchSucceeded(String dockUrl) {
+                // A collect that got through means the network is up: a good moment to retry
+                // shared history whose download failed earlier.
+                retryReceivedHistorySharesSoon();
             }
             
             @Override
@@ -481,6 +492,9 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 // doesn't re-pop the setup prompt.
                 restorePendingRegistration();
                 checkChannelConfigured();
+
+                // Answers received before the app last closed and not yet imported.
+                retryReceivedHistorySharesSoon();
             } catch (Exception e) {
                 TimberLogger.e(TAG, "Failed to start DOCK scheduler: %s", e.getMessage());
             }
@@ -2663,147 +2677,335 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         return false;
     }
 
-    /**
-     * Handle an incoming history request. Verifies membership and notifies the UI for approval.
-     */
-    private void handleHistoryRequest(ImMessage requestMsg) {
-        String requesterFid = requestMsg.getSenderId();
-        String content = requestMsg.getContent();
-        if (requesterFid == null || content == null) return;
+    /** A HISTORY request's content: {"imType","targetId","since","before"}. */
+    private static final class HistoryRequestPayload {
+        final ImType imType;
+        /** The conversation as the <b>asker</b> sees it: a group id, or for P2P the FID they talk to. */
+        final String targetId;
+        final long since;   // inclusive, ms
+        final long before;  // exclusive, ms
 
-        try {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> req = JsonUtils.fromJson(content, HashMap.class);
-            if (req == null) return;
+        private HistoryRequestPayload(ImType imType, String targetId, long since, long before) {
+            this.imType = imType;
+            this.targetId = targetId;
+            this.since = since;
+            this.before = before;
+        }
 
-            String imTypeStr = (String) req.get("imType");
-            String targetId = (String) req.get("targetId");
-            if (imTypeStr == null || targetId == null) return;
-
-            Number sinceNum = (Number) req.get("since");
-            Number beforeNum = (Number) req.get("before");
-            Long since = sinceNum != null ? sinceNum.longValue() : null;
-            Long before = beforeNum != null ? beforeNum.longValue() : null;
-
-            ImType imType = ImType.valueOf(imTypeStr);
-
-            boolean isMember = switch (imType) {
-                case P2P -> {
-                    TalkPartner partner = getTalkPartner(requesterFid);
-                    yield partner != null || requesterFid.equals(targetId) || liveFid.equals(targetId);
+        /** Null for anything that is not a well-formed request. */
+        static HistoryRequestPayload parse(String content) {
+            if (content == null) return null;
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> req = JsonUtils.fromJson(content, HashMap.class);
+                if (req == null) return null;
+                if (!(req.get("imType") instanceof String typeName)
+                        || !(req.get("targetId") instanceof String targetId)
+                        || targetId.isEmpty()) {
+                    return null;
                 }
-                case TEAM -> teamHandler.isMember(targetId, requesterFid);
-                case SQUARE -> squareHandler.isMember(targetId, requesterFid);
-                case ROOM -> {
-                    Room room = roomHandler.getRoom(targetId);
-                    yield room != null && room.isMember(requesterFid);
-                }
-            };
-
-            if (!isMember) {
-                TimberLogger.w(TAG, "History request denied: %s is not a member of %s %s",
-                        requesterFid, imTypeStr, targetId);
-                return;
+                long since = req.get("since") instanceof Number n ? n.longValue() : 0L;
+                long before = req.get("before") instanceof Number n ? n.longValue() : Long.MAX_VALUE;
+                if (before <= since) return null;
+                return new HistoryRequestPayload(ImType.valueOf(typeName), targetId, since, before);
+            } catch (Exception e) {
+                return null;
             }
-
-            mainHandler.post(() -> {
-                for (ImListener l : listeners) {
-                    l.onHistoryRequestReceived(requesterFid, imTypeStr, targetId,
-                            since, before, requestMsg);
-                }
-            });
-
-        } catch (Exception e) {
-            TimberLogger.e(TAG, "Failed to parse history request: %s", e.getMessage());
         }
     }
 
     /**
-     * Handle an incoming history response. Validates nonce, downloads, decrypts, and imports.
+     * The thread on <b>this</b> device a history request is about, or null when the asker has
+     * no claim to it.
+     * <p>
+     * A P2P request names the conversation as the asker sees it, which is our own FID. Looking
+     * that up directly would export our note-to-self thread, so it is turned round to the thread
+     * with the asker. A P2P request from somebody else naming any other FID is refused: a chat
+     * between us and a third party is not theirs to ask for. A request from our own FID is
+     * another device of this identity, which is in every thread we are in, so its target is taken
+     * as named.
+     */
+    private String resolveHistoryThread(HistoryRequestPayload req, String requesterFid) {
+        return switch (req.imType) {
+            case P2P -> {
+                if (requesterFid.equals(liveFid)) yield req.targetId;
+                yield liveFid.equals(req.targetId) ? requesterFid : null;
+            }
+            case TEAM -> teamHandler.isMember(req.targetId, requesterFid) ? req.targetId : null;
+            case SQUARE -> squareHandler.isMember(req.targetId, requesterFid) ? req.targetId : null;
+            case ROOM -> {
+                Room room = roomHandler.getRoom(req.targetId);
+                yield room != null && room.isMember(requesterFid) ? req.targetId : null;
+            }
+        };
+    }
+
+    /**
+     * Handle an incoming history request. Verifies the asker's claim to the thread and notifies
+     * the UI for approval, naming the thread as it is on this device.
+     */
+    private void handleHistoryRequest(ImMessage requestMsg) {
+        String requesterFid = requestMsg.getSenderId();
+        String nonce = requestMsg.getRequestId();
+        if (requesterFid == null || nonce == null || nonce.isEmpty()) return;
+
+        // Our own request, collected back off our own DOCK on its way to our other device.
+        if (requesterFid.equals(liveFid) && historyAskStore != null
+                && historyAskStore.get(nonce) != null) {
+            return;
+        }
+
+        HistoryRequestPayload req = HistoryRequestPayload.parse(requestMsg.getContent());
+        if (req == null) {
+            TimberLogger.w(TAG, "Unreadable history request from %s", requesterFid);
+            return;
+        }
+
+        String threadId = resolveHistoryThread(req, requesterFid);
+        if (threadId == null) {
+            TimberLogger.w(TAG, "History request denied: %s has no part in %s %s",
+                    requesterFid, req.imType.name(), req.targetId);
+            return;
+        }
+
+        if (pendingIssueManager == null) {
+            TimberLogger.w(TAG, "Dropping history request from %s: pending issues not ready", requesterFid);
+            return;
+        }
+        // Kept as a pending issue so it outlives this session and reaches the user wherever
+        // they are; a redelivery of the same request returns null and is not prompted again.
+        PendingIssue issue = pendingIssueManager.addHistoryRequestIssue(requesterFid, nonce,
+                req.imType, threadId, req.targetId, req.since, req.before,
+                historyThreadName(req.imType, threadId));
+        if (issue == null) return;
+
+        mainHandler.post(() -> {
+            for (ImListener l : listeners) l.onHistoryRequestReceived(issue);
+        });
+    }
+
+    /** A group's display name for the issue list; P2P threads are named by the requester. */
+    private String historyThreadName(ImType type, String threadId) {
+        if (type == ImType.P2P || conversationsDb == null) return null;
+        Conversation conv = conversationsDb.get(type.name() + "_" + threadId);
+        return conv != null ? conv.getDisplayName() : null;
+    }
+
+    /**
+     * Handle an incoming history response. Accepted only when it answers a request of ours
+     * and comes from the member that request was sent to; then downloads, decrypts, and
+     * imports it into the requested thread.
      */
     private void handleHistoryResponse(ImMessage message) {
         String nonce = message.getRequestId();
-        if (nonce == null || !pendingHistoryNonces.contains(nonce)) {
+        HistoryAskStore.HistoryAsk ask = historyAskStore != null ? historyAskStore.get(nonce) : null;
+        if (ask == null) {
             TimberLogger.d(TAG, "Ignoring unsolicited history response (nonce=%s)", nonce);
             return;
         }
-        pendingHistoryNonces.remove(nonce);
 
         String senderFid = message.getSenderId();
+        if (senderFid == null || !senderFid.equals(ask.getAskedFid())) {
+            // The request stays: the member actually asked may still answer it.
+            TimberLogger.w(TAG, "Ignoring history response from %s: request %s was sent to %s",
+                    senderFid, nonce, ask.getAskedFid());
+            return;
+        }
+
         String hatJson = message.getContent();
-        if (hatJson == null) return;
+        if (hatJson == null || hatJson.isEmpty()) return;
 
+        // Kept before the request is forgotten: fetching the file can fail or be cut short, and
+        // an answer dropped then could not be asked for again without bothering the sender.
+        HistoryAskStore.ReceivedShare share = HistoryAskStore.ReceivedShare.fromAsk(
+                ask, senderFid, hatJson, System.currentTimeMillis());
+        historyAskStore.recordReceived(share);
+        historyAskStore.remove(nonce);
+
+        executor.execute(() -> tryImportReceivedShare(nonce));
+    }
+
+    /** Least time between automatic download attempts for the same answer. */
+    private static final long HISTORY_RETRY_GAP_MS = 2 * 60_000L;
+    /** How often a DOCK collect may trigger a look for answers still waiting. */
+    private static final long HISTORY_RETRY_CHECK_MS = 60_000L;
+    private volatile long lastHistoryRetryCheckAt = 0L;
+
+    /**
+     * Try again, after a collect, the answers whose download failed and that still have
+     * automatic attempts left. Cheap to call often: it looks at most once a minute, and each
+     * answer is attempted at most every {@link #HISTORY_RETRY_GAP_MS}.
+     */
+    private void retryReceivedHistorySharesSoon() {
+        long now = System.currentTimeMillis();
+        if (historyAskStore == null || now - lastHistoryRetryCheckAt < HISTORY_RETRY_CHECK_MS) return;
+        lastHistoryRetryCheckAt = now;
         executor.execute(() -> {
-            try {
-                Hat rawHat = JsonUtils.fromJson(hatJson, Hat.class);
-                if (rawHat == null || rawHat.getId() == null) {
-                    TimberLogger.w(TAG, "Invalid HAT in history response");
-                    return;
-                }
-
-                String plainKey = rawHat.getKey();
-                if (plainKey == null || plainKey.isEmpty()) {
-                    TimberLogger.w(TAG, "No plain key in history HAT");
-                    return;
-                }
-
-                // A HAT off the wire may carry the sender's local:// paths; they name files
-                // on their device, not ours.
-                DataSyncManager.stripLocalLocas(rawHat);
-
-                HatManager hatManager = HatManager.getInstance(context, liveFid);
-                hatManager.addHat(rawHat);
-                hatManager.commit();
-
-                DataSyncManager dsm = new DataSyncManager(context, hatManager);
-                File outputFile = File.createTempFile("hist_", ".jsonl", context.getCacheDir());
-
-                Setting setting = SettingManager.getInstance().getCurrentSetting();
-                byte[] prikey = setting != null ? setting.decryptPrikey() : null;
-
-                boolean downloaded = dsm.downloadData(rawHat, prikey, outputFile);
-                if (!downloaded) {
-                    TimberLogger.w(TAG, "Failed to download history file: %s", dsm.getLastError());
-                    outputFile.delete();
-                    return;
-                }
-
-                String jsonlContent = new String(Files.readAllBytes(outputFile.toPath()));
-                outputFile.delete();
-
-                int count = importConversation(jsonlContent);
-
-                ExportMeta meta = parseExportMeta(jsonlContent);
-                ImType imType = meta != null && meta.getImType() != null
-                        ? ImType.valueOf(meta.getImType()) : ImType.P2P;
-                String targetId = meta != null ? meta.getTargetId() : senderFid;
-
-                String sysText = context.getString(R.string.history_imported, count, senderFid);
-                addSystemMessage(imType, targetId != null ? targetId : senderFid, sysText);
-
-                mainHandler.post(() -> {
-                    for (ImListener l : listeners) l.onHistoryImported(senderFid, count);
-                });
-
-                TimberLogger.i(TAG, "Imported %d messages from history shared by %s", count, senderFid);
-
-            } catch (Exception e) {
-                TimberLogger.e(TAG, "Failed to process history response: %s", e.getMessage());
+            for (HistoryAskStore.ReceivedShare share : historyAskStore.allReceived()) {
+                if (share.waitsForRetry()) continue;
+                Long last = share.getLastAttemptAt();
+                if (last != null && System.currentTimeMillis() - last < HISTORY_RETRY_GAP_MS) continue;
+                tryImportReceivedShare(share.getId());
             }
         });
     }
 
-    private ExportMeta parseExportMeta(String jsonlContent) {
-        if (jsonlContent == null) return null;
-        int newlineIdx = jsonlContent.indexOf('\n');
-        String firstLine = newlineIdx > 0 ? jsonlContent.substring(0, newlineIdx).trim() : jsonlContent.trim();
+    /** {@link #importReceivedShare} for automatic attempts, whose failures are already recorded. */
+    private void tryImportReceivedShare(String nonce) {
         try {
-            ExportMeta meta = ExportMeta.fromJson(firstLine);
-            if (meta != null && meta.getVersion() != null && meta.getEntityType() != null) {
-                return meta;
+            importReceivedShare(nonce);
+        } catch (Exception ignored) {
+            // Counted and logged by importReceivedShare; surfaced once attempts run out.
+        }
+    }
+
+    /**
+     * Retry downloading history whose automatic attempts ran out. The callback runs on the main
+     * thread with the number of messages imported, or an error.
+     */
+    public void retryHistoryImport(String nonce, HistoryShareCallback callback) {
+        executor.execute(() -> {
+            String error = null;
+            int count = 0;
+            if (historyAskStore == null || historyAskStore.getReceived(nonce) == null) {
+                // Already imported or dismissed elsewhere; nothing left to retry.
+                if (pendingIssueManager != null) {
+                    pendingIssueManager.resolveHistoryImportFailed(nonce, PendingIssue.IssueStatus.ACCEPTED);
+                }
+                error = context.getString(R.string.history_import_not_found);
+            } else {
+                try {
+                    count = importReceivedShare(nonce);
+                } catch (Exception e) {
+                    error = e.getMessage();
+                }
             }
-        } catch (Exception ignored) {}
-        return null;
+            if (callback != null) {
+                final int c = count;
+                final String err = error;
+                mainHandler.post(() -> callback.onResult(c, err));
+            }
+        });
+    }
+
+    /** Give up on shared history without importing it. */
+    public void dismissHistoryImport(String nonce) {
+        executor.execute(() -> {
+            if (historyAskStore != null) historyAskStore.removeReceived(nonce);
+            if (pendingIssueManager != null) {
+                pendingIssueManager.resolveHistoryImportFailed(nonce, PendingIssue.IssueStatus.REJECTED);
+            }
+        });
+    }
+
+    /**
+     * Fetch and import one received answer. Must run on {@link #executor}.
+     * <p>
+     * On success the answer is forgotten and any failed-import issue closed. On failure the
+     * attempt is counted; once the automatic attempts are used up the user is shown a
+     * failed-import issue with Retry and Dismiss, and later failures refresh its error.
+     *
+     * @return the number of messages imported
+     * @throws Exception with a user-readable message when the attempt failed
+     */
+    private int importReceivedShare(String nonce) throws Exception {
+        HistoryAskStore.ReceivedShare share = historyAskStore != null
+                ? historyAskStore.getReceived(nonce) : null;
+        if (share == null) return 0;
+
+        String senderFid = share.getSenderFid();
+        int count;
+        try {
+            count = fetchAndImportShare(share);
+        } catch (Exception e) {
+            String reason = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            share.setAttempts(share.getAttempts() + 1);
+            share.setLastAttemptAt(System.currentTimeMillis());
+            share.setLastError(reason);
+            historyAskStore.recordReceived(share);
+            TimberLogger.w(TAG, "History import from %s failed (attempt %d): %s",
+                    senderFid, share.getAttempts(), reason);
+
+            if (share.waitsForRetry() && pendingIssueManager != null) {
+                PendingIssue.HistoryImportFailedData data = new PendingIssue.HistoryImportFailedData();
+                data.nonce = share.getId();
+                data.senderFid = senderFid;
+                data.imType = share.getImType();
+                data.targetId = share.getTargetId();
+                data.since = share.getSince() != null ? share.getSince() : 0L;
+                data.before = share.getBefore() != null ? share.getBefore() : Long.MAX_VALUE;
+                data.attempts = share.getAttempts();
+                data.lastError = reason;
+                PendingIssue raised = pendingIssueManager.addOrUpdateHistoryImportFailedIssue(data,
+                        historyThreadName(share.getImType(), share.getTargetId()));
+                if (raised != null) {
+                    mainHandler.post(() -> {
+                        for (ImListener l : listeners) l.onHistoryImportFailed(raised);
+                    });
+                }
+            }
+            throw new Exception(context.getString(R.string.history_import_failed, reason), e);
+        }
+
+        historyAskStore.removeReceived(nonce);
+        if (pendingIssueManager != null) {
+            pendingIssueManager.resolveHistoryImportFailed(nonce, PendingIssue.IssueStatus.ACCEPTED);
+        }
+
+        String sysText = context.getString(R.string.history_imported, count, senderFid);
+        addSystemMessage(share.getImType(), share.getTargetId(), sysText);
+
+        mainHandler.post(() -> {
+            for (ImListener l : listeners) l.onHistoryImported(senderFid, count);
+        });
+
+        TimberLogger.i(TAG, "Imported %d messages from history shared by %s", count, senderFid);
+        return count;
+    }
+
+    /**
+     * Download, decrypt and import the file an answer points at.
+     *
+     * @throws Exception with a short reason when any step fails
+     */
+    private int fetchAndImportShare(HistoryAskStore.ReceivedShare share) throws Exception {
+        if (share.getImType() == null || share.getTargetId() == null) {
+            throw new Exception("request record incomplete");
+        }
+        Hat rawHat = JsonUtils.fromJson(share.getHatJson(), Hat.class);
+        if (rawHat == null || rawHat.getId() == null) {
+            throw new Exception(context.getString(R.string.history_import_not_a_hat));
+        }
+        String plainKey = rawHat.getKey();
+        if (plainKey == null || plainKey.isEmpty()) {
+            throw new Exception(context.getString(R.string.history_import_no_key));
+        }
+
+        // A HAT off the wire may carry the sender's local:// paths; they name files
+        // on their device, not ours.
+        DataSyncManager.stripLocalLocas(rawHat);
+
+        HatManager hatManager = HatManager.getInstance(context, liveFid);
+        hatManager.addHat(rawHat);
+        hatManager.commit();
+
+        DataSyncManager dsm = new DataSyncManager(context, hatManager);
+        Setting setting = SettingManager.getInstance().getCurrentSetting();
+        byte[] prikey = setting != null ? setting.decryptPrikey() : null;
+
+        File outputFile = File.createTempFile("hist_", ".jsonl", context.getCacheDir());
+        try {
+            if (!dsm.downloadData(rawHat, prikey, outputFile)) {
+                String err = dsm.getLastError();
+                throw new Exception(err != null && !err.isEmpty() ? err : "download failed");
+            }
+            String jsonlContent = new String(Files.readAllBytes(outputFile.toPath()));
+            return importHistory(jsonlContent, share.getImType(), share.getTargetId(),
+                    share.getSince() != null ? share.getSince() : 0L,
+                    share.getBefore() != null ? share.getBefore() : Long.MAX_VALUE);
+        } finally {
+            outputFile.delete();
+        }
     }
 
     /**
@@ -2820,11 +3022,15 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 return;
             }
 
+            long now = System.currentTimeMillis();
+            long since = sinceTs != null ? sinceTs : 0L;
+            long before = beforeTs != null ? beforeTs : now;
+
             Map<String, Object> reqMap = new HashMap<>();
             reqMap.put("imType", imType.name());
             reqMap.put("targetId", targetId);
-            reqMap.put("since", sinceTs != null ? sinceTs : 0L);
-            reqMap.put("before", beforeTs != null ? beforeTs : System.currentTimeMillis());
+            reqMap.put("since", since);
+            reqMap.put("before", before);
 
             String content = JsonUtils.toJson(reqMap);
             String nonce = generateSymkeyNonce();
@@ -2835,116 +3041,200 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             );
             request.setRequestId(nonce);
 
+            // Remembered before it leaves, and on disk: the answer needs a person to approve
+            // it, so it usually arrives after a restart, and must match who and what was asked.
+            HistoryAskStore.HistoryAsk ask = new HistoryAskStore.HistoryAsk();
+            ask.setId(nonce);
+            ask.setAskedFid(targetFid);
+            ask.setImType(imType);
+            ask.setTargetId(targetId);
+            ask.setSince(since);
+            ask.setBefore(before);
+            ask.setSentAt(now);
+            historyAskStore.record(ask);
+
             MessageQueue.SendResult result = p2pHandler.send(request);
             if (result == MessageQueue.SendResult.SUCCESS) {
-                pendingHistoryNonces.add(nonce);
                 String sysText = context.getString(R.string.history_request_sent, targetFid);
                 addSystemMessage(imType, targetId, sysText);
                 TimberLogger.i(TAG, "Sent history request for %s %s to %s (nonce=%s)",
                         imType.name(), targetId, targetFid, nonce);
             } else {
+                historyAskStore.remove(nonce);
                 TimberLogger.w(TAG, "Failed to send history request to %s: %s", targetFid, result);
             }
         });
     }
 
+    /** Outcome of sharing history; runs on the main thread. {@code error} is null on success. */
+    public interface HistoryShareCallback {
+        void onResult(int sharedCount, String error);
+    }
+
+    /**
+     * The history request data behind an undecided HISTORY_REQUEST issue, or null when the issue
+     * is not one or has already been decided.
+     */
+    private PendingIssue.HistoryRequestData openHistoryRequest(String issueId) {
+        if (pendingIssueManager == null || issueId == null) return null;
+        PendingIssue issue = pendingIssueManager.getIssue(issueId);
+        if (issue == null || issue.getIssueType() != PendingIssue.IssueType.HISTORY_REQUEST) return null;
+        if (issue.getStatus() != PendingIssue.IssueStatus.PENDING
+                && issue.getStatus() != PendingIssue.IssueStatus.DEFERRED) return null;
+        PendingIssue.HistoryRequestData data = issue.getDataAs(PendingIssue.HistoryRequestData.class);
+        if (data == null || data.imType == null || data.targetId == null || data.requesterFid == null) {
+            return null;
+        }
+        return data;
+    }
+
+    /**
+     * How many messages approving a history request would hand over — shown before the user
+     * agrees, because "share your history" means something very different at 3 messages and at
+     * 3000. Reads the message store, so call it off the main thread. -1 when the issue is not an
+     * undecided history request.
+     */
+    public int countHistoryRequestMessages(String issueId) {
+        PendingIssue.HistoryRequestData data = openHistoryRequest(issueId);
+        if (data == null || messagesDb == null) return -1;
+        return getMessages(data.imType, data.targetId, 0, data.since, data.before).size();
+    }
+
+    /**
+     * Decline a history request. Nothing is sent: a refusal on the wire would only tell the
+     * requester to try somebody else sooner.
+     */
+    public void declineHistoryRequest(String issueId) {
+        if (pendingIssueManager == null || issueId == null) return;
+        pendingIssueManager.resolveHistoryRequest(issueId, PendingIssue.IssueStatus.REJECTED);
+    }
+
     /**
      * Approve a history request: export messages, upload to DISK, and send response.
+     * <p>
+     * The request stays open when nothing is sent — an empty range, a failed upload — so the user
+     * can retry or decline it; it is marked accepted only once the answer is on its way.
      */
-    public void approveHistoryRequest(ImMessage requestMsg) {
-        if (requestMsg == null) return;
-
+    public void approveHistoryRequest(String issueId, HistoryShareCallback callback) {
         executor.execute(() -> {
-            String requesterFid = requestMsg.getSenderId();
-            String content = requestMsg.getContent();
-            if (requesterFid == null || content == null) return;
-
+            String error = null;
+            int shared = 0;
             try {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> req = JsonUtils.fromJson(content, HashMap.class);
-                if (req == null) return;
-
-                String imTypeStr = (String) req.get("imType");
-                String targetId = (String) req.get("targetId");
-                if (imTypeStr == null || targetId == null) return;
-
-                Number sinceNum = (Number) req.get("since");
-                Number beforeNum = (Number) req.get("before");
-                Long sinceTs = sinceNum != null ? sinceNum.longValue() : null;
-                Long beforeTs = beforeNum != null ? beforeNum.longValue() : null;
-
-                ImType imType = ImType.valueOf(imTypeStr);
-
-                File exportFile = exportConversationToFile(imType, targetId, sinceTs, beforeTs,
-                        requesterFid, context.getCacheDir());
-
-                if (exportFile == null || !exportFile.exists() || exportFile.length() == 0) {
-                    TimberLogger.w(TAG, "Export file is empty or null");
-                    return;
+                PendingIssue.HistoryRequestData data = openHistoryRequest(issueId);
+                if (data == null) {
+                    error = context.getString(R.string.history_request_not_open);
+                } else {
+                    shared = shareHistory(data);
+                    pendingIssueManager.resolveHistoryRequest(issueId, PendingIssue.IssueStatus.ACCEPTED);
                 }
-
-                HatManager hatManager = HatManager.getInstance(context, liveFid);
-
-                byte[] hashBytes = Hash.sha256x2Bytes(exportFile);
-                String did = Hex.toHex(hashBytes);
-
-                Hat rawHat = new Hat();
-                rawHat.setId(did);
-                rawHat.setName(buildExportFilename(imType, targetId, sinceTs, beforeTs));
-                rawHat.setSize(exportFile.length());
-                rawHat.setBorn(System.currentTimeMillis());
-                rawHat.setLast(System.currentTimeMillis());
-
-                hatManager.addHat(rawHat);
-                hatManager.commit();
-
-                DataSyncManager dsm = new DataSyncManager(context, hatManager);
-                com.fc.fc_ajdk.data.fcData.DiskItem diskItem = dsm.uploadData(exportFile, rawHat, false);
-
-                if (diskItem == null) {
-                    TimberLogger.w(TAG, "Failed to upload history to DISK: %s", dsm.getLastError());
-                    exportFile.delete();
-                    return;
-                }
-
-                // Send a detached copy: local:// locations are this device's absolute paths,
-                // useless to the requester, and the plaintext symkey below must not be
-                // written back into the local HAT database.
-                Hat wireHat = DataSyncManager.toWireHat(rawHat);
-                if (wireHat == null) {
-                    TimberLogger.w(TAG, "Failed to prepare history HAT for sending");
-                    exportFile.delete();
-                    return;
-                }
-                byte[] symkey = dsm.getLastSymkey();
-                wireHat.setKey(Hex.toHex(symkey));
-
-                ImMessage response = new ImMessage();
-                response.setType(ImType.P2P);
-                response.setSenderId(liveFid);
-                response.setTargetId(requesterFid);
-                response.setContentType(ContentType.HISTORY);
-                response.setContent(wireHat.toJson());
-                if (requestMsg.getRequestId() != null) {
-                    response.setRequestId(requestMsg.getRequestId());
-                }
-                response.setTimestamp(System.currentTimeMillis());
-
-                send(response);
-
-                int msgCount = countExportedMessages(exportFile);
-                String sysText = context.getString(R.string.history_shared, msgCount, requesterFid);
-                addSystemMessage(imType, targetId, sysText);
-
-                exportFile.delete();
-
-                TimberLogger.i(TAG, "Approved history request: shared %d messages to %s",
-                        msgCount, requesterFid);
-
+            } catch (HistoryShareException e) {
+                error = e.getMessage();
             } catch (Exception e) {
                 TimberLogger.e(TAG, "Failed to approve history request: %s", e.getMessage());
+                error = context.getString(R.string.history_share_failed, String.valueOf(e.getMessage()));
+            }
+            if (callback != null) {
+                final int count = shared;
+                final String err = error;
+                mainHandler.post(() -> callback.onResult(count, err));
             }
         });
+    }
+
+    /** A history share that did not go, with a message fit for the user. */
+    private static final class HistoryShareException extends Exception {
+        HistoryShareException(String message) { super(message); }
+    }
+
+    /** Export, upload and answer. Returns how many messages went. */
+    private int shareHistory(PendingIssue.HistoryRequestData data) throws Exception {
+        String requesterFid = data.requesterFid;
+
+        // Checked again rather than trusted from when the request arrived: membership may have
+        // changed while it waited for the user.
+        HistoryRequestPayload req = new HistoryRequestPayload(data.imType,
+                data.requestedTargetId != null ? data.requestedTargetId : data.targetId,
+                data.since, data.before);
+        String targetId = resolveHistoryThread(req, requesterFid);
+        if (targetId == null || !targetId.equals(data.targetId)) {
+            TimberLogger.w(TAG, "History approval refused: %s has no part in %s %s",
+                    requesterFid, data.imType.name(), data.targetId);
+            throw new HistoryShareException(
+                    context.getString(R.string.history_request_not_member, requesterFid));
+        }
+        ImType imType = data.imType;
+        Long sinceTs = data.since;
+        Long beforeTs = data.before;
+
+        // Nothing is sent for an empty range: it would cost a DISK upload to say nothing.
+        if (getMessages(imType, targetId, 1, sinceTs, beforeTs).isEmpty()) {
+            throw new HistoryShareException(context.getString(R.string.history_nothing_in_range));
+        }
+
+        File exportFile = exportConversationToFile(imType, targetId, sinceTs, beforeTs,
+                requesterFid, req.targetId, context.getCacheDir());
+        if (exportFile == null || !exportFile.exists() || exportFile.length() == 0) {
+            TimberLogger.w(TAG, "Export file is empty or null");
+            throw new HistoryShareException(context.getString(R.string.history_share_failed, "export"));
+        }
+
+        try {
+            HatManager hatManager = HatManager.getInstance(context, liveFid);
+
+            byte[] hashBytes = Hash.sha256x2Bytes(exportFile);
+            String did = Hex.toHex(hashBytes);
+
+            Hat rawHat = new Hat();
+            rawHat.setId(did);
+            rawHat.setName(buildExportFilename(imType, targetId, sinceTs, beforeTs));
+            rawHat.setSize(exportFile.length());
+            rawHat.setBorn(System.currentTimeMillis());
+            rawHat.setLast(System.currentTimeMillis());
+
+            hatManager.addHat(rawHat);
+            hatManager.commit();
+
+            DataSyncManager dsm = new DataSyncManager(context, hatManager);
+            com.fc.fc_ajdk.data.fcData.DiskItem diskItem = dsm.uploadData(exportFile, rawHat, false);
+
+            if (diskItem == null) {
+                TimberLogger.w(TAG, "Failed to upload history to DISK: %s", dsm.getLastError());
+                throw new HistoryShareException(context.getString(R.string.history_share_failed,
+                        String.valueOf(dsm.getLastError())));
+            }
+
+            // Send a detached copy: local:// locations are this device's absolute paths,
+            // useless to the requester, and the plaintext symkey below must not be
+            // written back into the local HAT database.
+            Hat wireHat = DataSyncManager.toWireHat(rawHat);
+            if (wireHat == null) {
+                TimberLogger.w(TAG, "Failed to prepare history HAT for sending");
+                throw new HistoryShareException(context.getString(R.string.history_share_failed, "HAT"));
+            }
+            byte[] symkey = dsm.getLastSymkey();
+            wireHat.setKey(Hex.toHex(symkey));
+
+            ImMessage response = new ImMessage();
+            response.setType(ImType.P2P);
+            response.setSenderId(liveFid);
+            response.setTargetId(requesterFid);
+            response.setContentType(ContentType.HISTORY);
+            response.setContent(wireHat.toJson());
+            response.setRequestId(data.nonce);
+            response.setTimestamp(System.currentTimeMillis());
+
+            send(response);
+
+            int msgCount = countExportedMessages(exportFile);
+            String sysText = context.getString(R.string.history_shared, msgCount, requesterFid);
+            addSystemMessage(imType, targetId, sysText);
+
+            TimberLogger.i(TAG, "Approved history request: shared %d messages to %s",
+                    msgCount, requesterFid);
+            return msgCount;
+        } finally {
+            exportFile.delete();
+        }
     }
 
     private int countExportedMessages(File file) {
@@ -2961,9 +3251,14 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
     /**
      * Export conversation messages to a JSONL file. Each line is one ImMessage JSON.
      * For team/room messages, plain text content is exported and cipher is cleared.
+     *
+     * @param targetId          the thread on this device
+     * @param requestedTargetId the thread as the requester named it, echoed in the meta line
+     *                          (for P2P that is our FID, while {@code targetId} is theirs)
      */
     public File exportConversationToFile(ImType type, String targetId, Long sinceTs, Long beforeTs,
-                                          String sharedToFid, File outputDir) {
+                                          String sharedToFid, String requestedTargetId,
+                                          File outputDir) {
         List<ImMessage> messages = getMessages(type, targetId, 0, sinceTs, beforeTs);
         Collections.sort(messages, (a, b) -> {
             Long aTime = a.getTimestamp() != null ? a.getTimestamp() : 0L;
@@ -2975,7 +3270,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         File outputFile = new File(outputDir, filename);
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile))) {
-            ExportMeta meta = ExportMeta.createHistory(liveFid, type.name(), targetId,
+            ExportMeta meta = ExportMeta.createHistory(liveFid, type.name(),
+                    requestedTargetId != null ? requestedTargetId : targetId,
                     sinceTs, beforeTs, sharedToFid);
             writer.write(meta.toJson());
             writer.newLine();
@@ -3018,16 +3314,23 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
     }
     
     /**
-     * Import conversation messages from a JSONL string.
+     * Import an answered history request's messages from a JSONL string, into the thread that
+     * was asked about and nowhere else.
+     * <p>
      * First line may be an ExportMeta (skipped). Each subsequent line is an ImMessage JSON.
-     * Duplicate messages (by ID) are skipped. Imported messages are marked as IMPORTED.
+     * The file was written by the other side, so each line is checked against our own record of
+     * the request: a line belonging to any other conversation, or timed outside the requested
+     * range, is skipped. Duplicate messages (by ID) are skipped. Imported messages are marked as
+     * IMPORTED.
      */
-    public int importConversation(String historyJsonl) {
+    private int importHistory(String historyJsonl, ImType imType, String threadId,
+                              long since, long before) {
         if (historyJsonl == null || historyJsonl.isEmpty()) return 0;
-        
+
         try {
             String[] lines = historyJsonl.split("\n");
             int imported = 0;
+            ImMessage newest = null;
 
             for (String line : lines) {
                 String trimmed = line.trim();
@@ -3043,18 +3346,72 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
 
                 ImMessage msg = ImMessage.fromJson(trimmed);
                 if (msg == null || msg.getId() == null) continue;
+                if (msg.getContentType() == ContentType.RECEIPT) continue;
+                if (!isInThread(msg, imType, threadId)) continue;
+                Long ts = msg.getTimestamp();
+                if (ts == null || ts < since || ts >= before) continue;
                 if (messagesDb.get(msg.getId()) != null) continue;
 
                 msg.setStatus(MessageStatus.IMPORTED);
+                msg.setUnread(false);
                 messagesDb.put(msg.getId(), msg);
                 addToConversationIndex(msg);
-                updateConversation(msg);
+                if (newest == null || ts > newest.getTimestamp()) newest = msg;
                 imported++;
             }
+            if (newest != null) recordBackfill(newest);
             return imported;
         } catch (Exception e) {
             TimberLogger.e(TAG, "Failed to import conversation: %s", e.getMessage());
             return 0;
         }
+    }
+
+    /**
+     * Update a thread's conversation for messages filed after the fact. Unlike
+     * {@link #updateConversation}, the unread count is left as it was — a backfill is not news —
+     * and the preview only moves forward, so an old imported message cannot replace a newer
+     * last message.
+     */
+    private void recordBackfill(ImMessage newest) {
+        String convId = newest.getType().name() + "_" +
+                (newest.getType() == ImType.P2P
+                        ? newest.getConversationPartnerId(liveFid)
+                        : newest.getTargetId());
+        Conversation conv = conversationsDb.get(convId);
+        if (conv == null) {
+            conv = Conversation.fromMessage(newest, liveFid);
+            conv.setUnreadCount(0);
+        } else {
+            Long last = conv.getLastMessageTime();
+            if (last != null && newest.getTimestamp() <= last) return;
+            conv.updateWithMessage(newest);
+        }
+
+        if (conv.getDisplayName() == null && newest.getType() == ImType.P2P) {
+            TalkPartner partner = talkPartnersDb.get(newest.getConversationPartnerId(liveFid));
+            if (partner != null && partner.getCid() != null) {
+                conv.setDisplayName(partner.getCid());
+            }
+        }
+
+        conversationsDb.put(conv.getId(), conv);
+        final Conversation finalConv = conv;
+        mainHandler.post(() -> {
+            for (ImListener l : listeners) l.onConversationUpdated(finalConv);
+        });
+    }
+
+    /**
+     * Whether a message belongs to the given thread on this device. For P2P both ends must be
+     * us and the partner: a line from the partner to somebody else is not part of our chat.
+     */
+    private boolean isInThread(ImMessage msg, ImType type, String threadId) {
+        if (type == null || threadId == null || msg.getType() != type) return false;
+        if (type != ImType.P2P) return threadId.equals(msg.getTargetId());
+        String sender = msg.getSenderId();
+        String target = msg.getTargetId();
+        return (liveFid.equals(sender) && threadId.equals(target))
+                || (threadId.equals(sender) && liveFid.equals(target));
     }
 }

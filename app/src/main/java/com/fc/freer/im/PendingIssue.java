@@ -1,6 +1,7 @@
 package com.fc.freer.im;
 
 import com.fc.fc_ajdk.data.fcData.FcEntity;
+import com.fc.fc_ajdk.data.fcData.ImType;
 import com.fc.fc_ajdk.utils.JsonUtils;
 
 /**
@@ -19,7 +20,11 @@ public class PendingIssue extends FcEntity {
         /** A manager invited this FID to a team, or an owner named it as transferee. */
         TEAM_INVITE,
         /** The owner changed a team's consensus; this member owes a signature on the new one. */
-        CONSENSUS_CHANGE
+        CONSENSUS_CHANGE,
+        /** Somebody asked for a conversation's messages; handing them over needs this user's yes. */
+        HISTORY_REQUEST,
+        /** History shared with this user could not be downloaded after the automatic attempts. */
+        HISTORY_IMPORT_FAILED
     }
 
     public enum IssueStatus {
@@ -249,6 +254,98 @@ public class PendingIssue extends FcEntity {
         if (teamName != null && !teamName.isEmpty()) {
             issue.setNote(teamName);
         }
+        return issue;
+    }
+
+    /**
+     * Payload for HISTORY_REQUEST issues.
+     * <p>
+     * {@code imType}/{@code targetId} name the thread on <b>this</b> device, already turned round
+     * for P2P (the requester's FID rather than ours). {@code requestedTargetId} is the thread as
+     * the requester named it, echoed in the export so their client sees its own words.
+     * {@code since} is inclusive and {@code before} exclusive, in milliseconds.
+     */
+    public static class HistoryRequestData {
+        public String nonce;
+        public String requesterFid;
+        public ImType imType;
+        public String targetId;
+        public String requestedTargetId;
+        public long since;
+        public long before;
+
+        public String toJson() { return JsonUtils.toJson(this); }
+        public static HistoryRequestData fromJson(String json) {
+            return JsonUtils.fromJson(json, HistoryRequestData.class);
+        }
+    }
+
+    /**
+     * Issue id for a history request: keyed by requester <i>and</i> nonce, since the nonce is the
+     * requester's to choose and on its own would let one requester overwrite another's request.
+     */
+    public static String historyRequestIssueId(String requesterFid, String nonce) {
+        return "HISTORY_REQUEST_" + requesterFid + "_" + nonce;
+    }
+
+    public static PendingIssue createHistoryRequest(String requesterFid, String nonce, ImType imType,
+                                                    String targetId, String requestedTargetId,
+                                                    long since, long before, String threadName) {
+        PendingIssue issue = new PendingIssue();
+        issue.setId(historyRequestIssueId(requesterFid, nonce));
+        issue.setIssueType(IssueType.HISTORY_REQUEST);
+        issue.setStatus(IssueStatus.PENDING);
+        issue.setPeerFid(requesterFid);
+        issue.setCreatedAt(System.currentTimeMillis());
+
+        HistoryRequestData data = new HistoryRequestData();
+        data.nonce = nonce;
+        data.requesterFid = requesterFid;
+        data.imType = imType;
+        data.targetId = targetId;
+        data.requestedTargetId = requestedTargetId;
+        data.since = since;
+        data.before = before;
+        issue.setDataFrom(data);
+
+        if (threadName != null && !threadName.isEmpty()) issue.setNote(threadName);
+        return issue;
+    }
+
+    /**
+     * Payload for HISTORY_IMPORT_FAILED issues. The share itself (with its file key) stays in
+     * {@link HistoryAskStore}; this only says which one, and what went wrong last.
+     */
+    public static class HistoryImportFailedData {
+        public String nonce;
+        public String senderFid;
+        public ImType imType;
+        public String targetId;
+        public long since;
+        public long before;
+        public int attempts;
+        public String lastError;
+
+        public String toJson() { return JsonUtils.toJson(this); }
+        public static HistoryImportFailedData fromJson(String json) {
+            return JsonUtils.fromJson(json, HistoryImportFailedData.class);
+        }
+    }
+
+    /** Issue id for a failed history import: one per answered request. */
+    public static String historyImportFailedIssueId(String nonce) {
+        return "HISTORY_IMPORT_" + nonce;
+    }
+
+    public static PendingIssue createHistoryImportFailed(HistoryImportFailedData data, String threadName) {
+        PendingIssue issue = new PendingIssue();
+        issue.setId(historyImportFailedIssueId(data.nonce));
+        issue.setIssueType(IssueType.HISTORY_IMPORT_FAILED);
+        issue.setStatus(IssueStatus.PENDING);
+        issue.setPeerFid(data.senderFid);
+        issue.setCreatedAt(System.currentTimeMillis());
+        issue.setDataFrom(data);
+        if (threadName != null && !threadName.isEmpty()) issue.setNote(threadName);
         return issue;
     }
 

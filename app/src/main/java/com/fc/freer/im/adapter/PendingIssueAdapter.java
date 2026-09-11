@@ -115,6 +115,12 @@ public class PendingIssueAdapter extends RecyclerView.Adapter<PendingIssueAdapte
                 case CONSENSUS_CHANGE:
                     typeLabel = itemView.getContext().getString(R.string.consensus_change_request);
                     break;
+                case HISTORY_REQUEST:
+                    typeLabel = itemView.getContext().getString(R.string.history_request_issue);
+                    break;
+                case HISTORY_IMPORT_FAILED:
+                    typeLabel = itemView.getContext().getString(R.string.history_import_failed_issue);
+                    break;
                 default:
                     typeLabel = issue.getIssueType().name();
                     break;
@@ -133,11 +139,14 @@ public class PendingIssueAdapter extends RecyclerView.Adapter<PendingIssueAdapte
 
             // A consensus change is not a yes/no on this row: the member has to read the
             // documents and choose between signing, postponing and leaving, so the row opens
-            // the detail screen instead of offering a one-tap decision.
+            // the detail screen instead of offering a one-tap decision. A history request
+            // likewise: the user should see how many messages would go before sharing them.
             boolean isPending = issue.getStatus() == PendingIssue.IssueStatus.PENDING;
             boolean inlineDecidable = isPending
                     && issue.getIssueType() != PendingIssue.IssueType.CONSENSUS_CHANGE
-                    && issue.getIssueType() != PendingIssue.IssueType.TEAM_INVITE;
+                    && issue.getIssueType() != PendingIssue.IssueType.TEAM_INVITE
+                    && issue.getIssueType() != PendingIssue.IssueType.HISTORY_REQUEST
+                    && issue.getIssueType() != PendingIssue.IssueType.HISTORY_IMPORT_FAILED;
             acceptBtn.setVisibility(inlineDecidable ? View.VISIBLE : View.GONE);
             rejectBtn.setVisibility(inlineDecidable ? View.VISIBLE : View.GONE);
 
