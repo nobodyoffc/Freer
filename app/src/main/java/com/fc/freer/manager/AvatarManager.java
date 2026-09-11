@@ -26,6 +26,7 @@ import com.fc.fc_ajdk.feature.avatar.AvatarMaker;
 import com.fc.fc_ajdk.feature.avatar.GroupAvatarMaker;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
+import com.fc.freer.nobody.NobodyUi;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -85,11 +86,11 @@ public class AvatarManager {
             MAX_CACHED_AVATARS, avatarCache.size());
     }
 
-    private static void setAvatarImage(ImageView avatarView, byte[] avatarBytes) {
+    private static void setAvatarImage(ImageView avatarView, String id, byte[] avatarBytes) {
         if (avatarBytes != null) {
             Bitmap bitmap = BitmapFactory.decodeByteArray(avatarBytes, 0, avatarBytes.length);
             if (bitmap != null) {
-                avatarView.setImageBitmap(bitmap);
+                avatarView.setImageBitmap(NobodyUi.avatar(avatarView.getContext(), id, bitmap));
                 return;
             }
         }
@@ -115,7 +116,7 @@ public class AvatarManager {
             TimberLogger.e(TAG, "Failed to create avatar: %s", e.getMessage());
             ToastUtils.makeText(context, R.string.failed_to_create_avatar);
         }
-        setAvatarImage(avatarView, avatarBytes);
+        setAvatarImage(avatarView, id, avatarBytes);
 
         AlertDialog dialog = builder.setView(dialogView).create();
 
@@ -284,7 +285,10 @@ public class AvatarManager {
         byte[] avatarBytes = getAvatar(fid);
         if (avatarBytes != null) {
             try {
-                return BitmapFactory.decodeByteArray(avatarBytes, 0, avatarBytes.length);
+                // Marked at decode rather than in the cached bytes, so a FID
+                // learned to be a nobody later is marked on its next bind.
+                return NobodyUi.avatar(context,
+                        fid, BitmapFactory.decodeByteArray(avatarBytes, 0, avatarBytes.length));
             } catch (Exception e) {
                 TimberLogger.e(TAG, "Error converting avatar bytes to bitmap for FID %s: %s", 
                     fid, e.getMessage());

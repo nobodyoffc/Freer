@@ -30,6 +30,7 @@ import com.fc.fc_ajdk.utils.Hex;
 import com.fc.fc_ajdk.utils.JsonUtils;
 import com.fc.fc_ajdk.utils.StringUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.nobody.NobodyGuard;
 import com.fc.freer.R;
 import com.fc.freer.im.SearchFidsOnChainActivity;
 import com.fc.freer.manager.FidManager;
@@ -376,7 +377,16 @@ public class CreateMultisigIdActivity extends BaseCryptoActivity {
             showToast(getString(R.string.no_enough_members));
             return;
         }
-        
+
+        // A nobody member can be signed for by anyone
+        List<String> memberFids = new ArrayList<>();
+        for (KeyInfo keyInfo : memberList) memberFids.add(keyInfo.getId());
+        final int requiredSigners = signerNumber;
+        NobodyGuard.confirm(this, memberFids, R.string.nobody_consequence_multisig,
+                () -> createMultisig(requiredSigners));
+    }
+
+    private void createMultisig(int signerNumber) {
         try {
             // Create Multisig
             List<byte[]> pubkeyList = new ArrayList<>();

@@ -15,6 +15,7 @@ import android.widget.TextView;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.data.feipData.Team;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.nobody.NobodyUi;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.initiate.SettingManager;
@@ -121,6 +122,10 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
 
     private void populateFields() {
         setText(R.id.detail_peer_fid, issue.getPeerFid());
+        // Anything from a nobody peer could have come from anyone
+        NobodyUi.bindBannerResolving(findViewById(R.id.nobodyBanner), issue.getPeerFid(),
+                R.string.nobody_sender_warning,
+                () -> loadAvatar(findViewById(R.id.detail_avatar), issue.getPeerFid()));
 
         if (issue.getCreatedAt() != null) {
             setText(R.id.detail_created_at, TIME_FORMAT.format(new Date(issue.getCreatedAt())));

@@ -296,4 +296,7 @@
 
     </LinearLayout>
 
+    <!-- Nobody warning (shown only when this FID's prikey is public) -->
+    <include layout="@layout/view_nobody_banner" />
+
 </LinearLayout>

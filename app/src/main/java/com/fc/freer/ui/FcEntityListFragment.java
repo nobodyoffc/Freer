@@ -728,7 +728,7 @@ public class FcEntityListFragment<T extends FcEntity> extends Fragment {
             imageBytes = idImageBytesMap.get(id);
             if (imageBytes != null) {
                 Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
-                avatarView.setImageBitmap(bitmap);
+                avatarView.setImageBitmap(com.fc.freer.nobody.NobodyUi.avatar(avatarView.getContext(), id, bitmap));
             } else {
                 // Set default gray background
                 avatarView.setBackgroundColor(Color.LTGRAY);

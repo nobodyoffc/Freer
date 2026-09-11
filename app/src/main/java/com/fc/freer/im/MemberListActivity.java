@@ -24,6 +24,8 @@ import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.data.feipData.Team;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.nobody.NobodyUi;
+import com.fc.freer.nobody.NobodyRegistry;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.FreerApplication;
 import com.fc.freer.R;
@@ -177,6 +179,15 @@ public class MemberListActivity extends BaseCryptoActivity {
         membersRecyclerView.setAdapter(adapter);
         appendPage();
 
+        List<String> memberFids = new java.util.ArrayList<>();
+        for (MemberInfo info : allMembers) memberFids.add(info.fid);
+        bindConsensusNote(memberFids);
+        NobodyUi.observe(this, fids -> {
+            adapter.notifyDataSetChanged();
+            bindConsensusNote(memberFids);
+        });
+        NobodyUi.resolveAsync(memberFids);
+
         membersRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
@@ -190,6 +201,19 @@ public class MemberListActivity extends BaseCryptoActivity {
                 }
             }
         });
+    }
+
+    /**
+     * Label-only: a nobody member's consent can be given by anyone. Counting is
+     * left to the protocol; this only says so.
+     */
+    private void bindConsensusNote(List<String> memberFids) {
+        TextView note = findViewById(R.id.nobodyBanner);
+        if (note == null) return;
+        boolean anyNobody = "team".equals(entityType)
+                && !NobodyRegistry.get().nobodiesOf(memberFids).isEmpty();
+        if (anyNobody) note.setText(R.string.nobody_member_consensus_note);
+        note.setVisibility(anyNobody ? View.VISIBLE : View.GONE);
     }
 
     private void appendPage() {
@@ -406,12 +430,12 @@ public class MemberListActivity extends BaseCryptoActivity {
                         ? primary + " [" + role + "]"
                         : primary;
                 if (hasCid) {
-                    cidText.setText(display);
+                    NobodyUi.setName(cidText, fid, display);
                     cidText.setVisibility(View.VISIBLE);
                     fidText.setVisibility(View.GONE);
                 } else {
                     cidText.setVisibility(View.GONE);
-                    fidText.setText(display);
+                    NobodyUi.setName(fidText, fid, display);
                     fidText.setVisibility(View.VISIBLE);
                 }
             }

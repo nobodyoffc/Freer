@@ -37,10 +37,13 @@ import com.fc.fc_ajdk.utils.ObjectUtils;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -104,6 +107,79 @@ public class FapiClient implements ApiClient {
          * 交易广播成功后的记账回调：从本地库移除已花费的输入并登记找零。
          */
         void onTxSent(String fid, String signedTxHex);
+    }
+
+    /**
+     * Learns which identities are nobodies (prikey published on chain) from
+     * every lookup that passes through any client, so the app never has to
+     * remember to record it screen by screen.
+     */
+    public interface NobodyObserver {
+        /** FIDs known to be nobodies. Publishing a prikey is irreversible. */
+        void onNobodies(Collection<String> fids);
+
+        /**
+         * FIDs checked against the nobody index and not found there. Only an
+         * index check reports these: a Freer lookup may have fetched a subset
+         * of fields, so a missing flag there proves nothing.
+         */
+        void onNotNobodies(Collection<String> fids);
+    }
+
+    private static volatile NobodyObserver nobodyObserver;
+
+    public static void setNobodyObserver(NobodyObserver observer) {
+        nobodyObserver = observer;
+    }
+
+    private static void reportFreers(Collection<Freer> freers) {
+        NobodyObserver observer = nobodyObserver;
+        if (observer == null || freers == null || freers.isEmpty()) return;
+        List<String> nobodies = new ArrayList<>();
+        for (Freer freer : freers) {
+            if (freer == null || freer.getId() == null) continue;
+            if (Boolean.TRUE.equals(freer.getNobody()) || freer.getPrikey() != null) {
+                nobodies.add(freer.getId());
+            }
+        }
+        if (!nobodies.isEmpty()) observer.onNobodies(nobodies);
+    }
+
+    private static void reportNobodyIndex(Collection<String> askedFids, Collection<Nobody> found) {
+        NobodyObserver observer = nobodyObserver;
+        if (observer == null) return;
+        Set<String> nobodies = new HashSet<>();
+        if (found != null) {
+            for (Nobody nobody : found) {
+                if (nobody != null && nobody.getId() != null) nobodies.add(nobody.getId());
+            }
+        }
+        if (!nobodies.isEmpty()) observer.onNobodies(nobodies);
+        if (askedFids != null) {
+            List<String> notNobodies = new ArrayList<>();
+            for (String fid : askedFids) {
+                if (fid != null && !nobodies.contains(fid)) notNobodies.add(fid);
+            }
+            if (!notNobodies.isEmpty()) observer.onNotNobodies(notNobodies);
+        }
+    }
+
+    /** Feed lookup results of the freer and nobody indices to the observer. */
+    private static void observeEntities(Class<?> clazz, Collection<String> askedIds, Collection<?> results) {
+        if (nobodyObserver == null || results == null) return;
+        try {
+            if (clazz == Freer.class) {
+                @SuppressWarnings("unchecked")
+                Collection<Freer> freers = (Collection<Freer>) results;
+                reportFreers(freers);
+            } else if (clazz == Nobody.class) {
+                @SuppressWarnings("unchecked")
+                Collection<Nobody> nobodies = (Collection<Nobody>) results;
+                reportNobodyIndex(askedIds, nobodies);
+            }
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "Nobody observer failed: %s", e.getMessage());
+        }
     }
 
     // 用于自动充值的回调接口
@@ -456,7 +532,9 @@ public class FapiClient implements ApiClient {
         if (response == null || response.getCode() != 0 || response.getData() == null) {
             return null;
         }
-        return ObjectUtils.objectToMap(response.getData(), String.class, clazz);
+        Map<String, T> result = ObjectUtils.objectToMap(response.getData(), String.class, clazz);
+        if (result != null) observeEntities(clazz, ids, result.values());
+        return result;
     }
 
     public <T> T entityById(String entityName, Class<T> clazz, String id){
@@ -475,7 +553,10 @@ public class FapiClient implements ApiClient {
             return null;
         }
 
-        return ObjectUtils.objectToList(response.getData(), clazz);
+        List<T> result = ObjectUtils.objectToList(response.getData(), clazz);
+        // A search never says which ids were absent, so it only reports positives.
+        if (result != null) observeEntities(clazz, null, result);
+        return result;
     }
 
     public FapiResponse search(Fcdsl fcdsl) {
@@ -1008,7 +1089,9 @@ public class FapiClient implements ApiClient {
         if (response == null || response.getCode() != 0 || response.getData() == null) {
             return null;
         }
-        return ObjectUtils.objectToMap(response.getData(), String.class, Freer.class);
+        Map<String, Freer> result = ObjectUtils.objectToMap(response.getData(), String.class, Freer.class);
+        if (result != null) reportFreers(result.values());
+        return result;
     }
     
     /**

@@ -30,6 +30,7 @@ import com.fc.fc_ajdk.data.feipData.ContactOpData;
 import com.fc.fc_ajdk.data.feipData.Feip;
 import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.nobody.NobodyGuard;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.FreerApplication;
 import com.fc.freer.R;
@@ -459,6 +460,12 @@ public class CreateContactActivity extends BaseCryptoActivity {
     }
 
     private void onFidSelected(KeyInfo keyInfo) {
+        // A nobody contact can be impersonated by anyone
+        NobodyGuard.confirm(this, java.util.Collections.singletonList(keyInfo.getId()),
+                R.string.nobody_consequence_contact, () -> selectFid(keyInfo));
+    }
+
+    private void selectFid(KeyInfo keyInfo) {
         selectedFid = keyInfo.getId();
 
         // Convert KeyInfo back to Freer for compatibility with existing logic

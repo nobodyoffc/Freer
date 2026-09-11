@@ -22,6 +22,7 @@ import com.fc.fc_ajdk.data.fcData.Conversation;
 import com.fc.fc_ajdk.data.fcData.ImType;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.nobody.NobodyUi;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.im.adapter.ConversationAdapter;
@@ -141,6 +142,7 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
         adapter = new ConversationAdapter(filteredConversations, this);
         conversationsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         conversationsRecyclerView.setAdapter(adapter);
+        NobodyUi.observe(this, fids -> adapter.notifyDataSetChanged());
         
         swipeRefreshLayout.setOnRefreshListener(this::refreshConversations);
         
@@ -259,6 +261,10 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
         }
 
         resolveCidsForConversations(fidsToResolve);
+
+        List<String> partners = new ArrayList<>();
+        for (Conversation conv : conversations) partners.add(conv.getTargetId());
+        NobodyUi.resolveAsync(partners);
         
         filterConversations(searchEditText.getText().toString());
         swipeRefreshLayout.setRefreshing(false);

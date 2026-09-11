@@ -33,6 +33,8 @@ import com.fc.fc_ajdk.data.fchData.Freer;
 import com.fc.fc_ajdk.utils.Hex;
 import com.fc.fc_ajdk.utils.StringUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.nobody.NobodyUi;
+import com.fc.freer.nobody.NobodyGuard;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.im.SearchFidsOnChainActivity;
@@ -452,7 +454,7 @@ public class CreateMailActivity extends BaseCryptoActivity {
         if (name == null || name.trim().isEmpty()) {
             name = "Unknown Contact";
         }
-        contactName.setText(name);
+        NobodyUi.setName(contactName, selectedContact.getFid(), name);
 
         // Set FID in the titles field
         if(selectedContact.getTitles()!=null)contactTitles.setText(StringUtils.listToString(selectedContact.getTitles()));
@@ -564,6 +566,13 @@ public class CreateMailActivity extends BaseCryptoActivity {
             return;
         }
 
+        // Mail sealed to a nobody can be opened by anyone
+        NobodyGuard.confirm(this, java.util.Collections.singletonList(selectedContact.getFid()),
+                R.string.nobody_consequence_mail, () -> sendMailConfirmed(content));
+    }
+
+    private void sendMailConfirmed(String content) {
+        if (selectedContact == null) return;
         KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
         String senderFid = liveKeyInfo.getId();
 

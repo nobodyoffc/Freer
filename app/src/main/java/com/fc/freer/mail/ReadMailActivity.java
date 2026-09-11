@@ -28,6 +28,7 @@ import com.fc.fc_ajdk.data.feipData.Mail;
 import com.fc.fc_ajdk.utils.FchUtils;
 import com.fc.fc_ajdk.utils.JsonUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.nobody.NobodyUi;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.manager.AvatarManager;
@@ -201,6 +202,8 @@ public class ReadMailActivity extends BaseCryptoActivity {
         setupKeyCard(toAvatar, toCid, toLabel, toId,
                     mail.getTo(), mail.getToName(), "To");
 
+        bindSenderNobodyBanner();
+
         // Setup content with markdown-like formatting
         if (mail.getContent() != null) {
             mailContentTextView.setText(formatContentAsMarkdown(mail.getContent()));
@@ -210,6 +213,19 @@ public class ReadMailActivity extends BaseCryptoActivity {
 
         // Setup other fields
         setupDetailsSection();
+    }
+
+    /** Warn when the mail comes from a nobody; look the sender up if still unknown. */
+    private void bindSenderNobodyBanner() {
+        String from = mail.getFrom();
+        if (from == null || from.equals(myFid)) return;
+        TextView banner = findViewById(R.id.nobodyBanner);
+        NobodyUi.bindBanner(banner, from, R.string.nobody_sender_warning);
+        NobodyUi.resolveAsync(java.util.Collections.singletonList(from), false, ok -> {
+            if (isFinishing() || isDestroyed() || !NobodyUi.isNobody(from)) return;
+            NobodyUi.bindBanner(banner, from, R.string.nobody_sender_warning);
+            setupKeyCard(fromAvatar, fromCid, fromLabel, fromId, from, mail.getFromName(), "From");
+        });
     }
 
     private void setupKeyCard(ImageView avatar, TextView cidText, TextView labelText,
@@ -223,7 +239,7 @@ public class ReadMailActivity extends BaseCryptoActivity {
             if(fid.equals(myFid)){
                 idText.setText(R.string.me);
             }
-            else idText.setText(name);
+            else NobodyUi.setName(idText, fid, name);
 
             // Setup avatar
             setupAvatar(avatar, fid);

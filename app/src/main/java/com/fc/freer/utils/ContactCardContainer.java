@@ -357,7 +357,11 @@ public class ContactCardContainer {
 
         setupAvatar(avatarView, contact.getFid());
         String name = contact.getName();
+        if (Boolean.TRUE.equals(contact.getNobody())) {
+            com.fc.freer.nobody.NobodyRegistry.get().mark(contact.getFid());
+        }
         setTextValue(nameValue, name);
+        com.fc.freer.nobody.NobodyUi.setName(nameValue, contact.getFid(), nameValue.getText());
         setTitlesValue(titlesValue, contact.getTitles());
         setupOnChainIcon(onChainIcon, contact);
     }

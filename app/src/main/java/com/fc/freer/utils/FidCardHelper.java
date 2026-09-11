@@ -12,6 +12,8 @@ import com.fc.fc_ajdk.feature.avatar.AvatarMaker;
 import com.fc.fc_ajdk.utils.FchUtils;
 import com.fc.freer.R;
 import com.fc.freer.manager.AvatarManager;
+import com.fc.freer.nobody.NobodyRegistry;
+import com.fc.freer.nobody.NobodyUi;
 
 /**
  * Utility class for creating and configuring FID cards using the reusable layout
@@ -62,23 +64,23 @@ public class FidCardHelper {
         TextView cdTextView = cardView.findViewById(R.id.fidCd);
         ImageView noPrikeyIconView = cardView.findViewById(R.id.multisigIcon);
 
-        // Set avatar (grayscale marks a nobody FID: leaked/public prikey)
+        // The key's own flag also counts: it may predate the registry
+        if (Boolean.TRUE.equals(keyInfo.getIsNobody())) {
+            NobodyRegistry.get().mark(keyInfo.getId());
+        }
+
+        // Set avatar (marked when the FID is a nobody: leaked/public prikey)
         if (avatar != null) {
             try {
                 byte[] avatarBytes = AvatarMaker.createAvatar(keyInfo.getId(), context);
                 if (avatarBytes != null) {
                     android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeByteArray(avatarBytes, 0, avatarBytes.length);
-                    avatar.setImageBitmap(bitmap);
+                    avatar.setImageBitmap(NobodyUi.avatar(context, keyInfo.getId(), bitmap));
                 } else {
                     avatar.setImageResource(R.drawable.ic_person);
                 }
             } catch (Exception e) {
                 avatar.setImageResource(R.drawable.ic_person);
-            }
-            if (Boolean.TRUE.equals(keyInfo.getIsNobody())) {
-                com.fc.freer.im.NobodyBoard.applyNobodyMark(avatar);
-            } else {
-                com.fc.freer.im.NobodyBoard.clearNobodyMark(avatar);
             }
         }
 
@@ -88,8 +90,9 @@ public class FidCardHelper {
             if (displayName == null || displayName.trim().isEmpty()) {
                 displayName = keyInfo.getId();
             }
-            nameTextView.setText(displayName);
+            NobodyUi.setName(nameTextView, keyInfo.getId(), displayName);
         }
+        NobodyUi.bindBanner(cardView.findViewById(R.id.nobodyBanner), keyInfo.getId(), R.string.nobody_identity_banner);
 
         // Set label or edit icon
         if (labelTextView != null && editIconView != null) {

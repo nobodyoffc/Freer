@@ -14,6 +14,8 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import com.fc.fc_ajdk.constants.Constants;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.data.fcData.Room;
+import com.fc.freer.nobody.NobodyUi;
+import com.fc.freer.nobody.NobodyGuard;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.initiate.SettingManager;
@@ -166,7 +168,10 @@ public class CreateRoomActivity extends BaseCryptoActivity {
                         List<String> selectedFids = result.getData()
                                 .getStringArrayListExtra(SearchFidsOnChainActivity.EXTRA_SELECTED_FIDS);
                         if (selectedFids != null) {
-                            addMembersToContainer(selectedFids);
+                            // Declining keeps the picked members that aren't nobodies
+                            NobodyGuard.confirm(this, selectedFids, R.string.nobody_consequence_room,
+                                    () -> addMembersToContainer(selectedFids),
+                                    () -> addMembersToContainer(withoutNobodies(selectedFids)));
                         }
                     }
                 });
@@ -177,6 +182,14 @@ public class CreateRoomActivity extends BaseCryptoActivity {
         intent.putExtra(SearchFidsOnChainActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_MULTI.name());
         intent.putExtra(SearchFidsOnChainActivity.EXTRA_TITLE, getString(R.string.select_room_members));
         addMemberLauncher.launch(intent);
+    }
+
+    private static List<String> withoutNobodies(List<String> fids) {
+        List<String> kept = new java.util.ArrayList<>();
+        for (String fid : fids) {
+            if (!NobodyUi.isNobody(fid)) kept.add(fid);
+        }
+        return kept;
     }
 
     private void addMembersToContainer(List<String> fids) {

@@ -56,6 +56,7 @@ public class MessageRequestsActivity extends BaseCryptoActivity
         adapter = new MessageRequestAdapter(issues, this);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(adapter);
+        com.fc.freer.nobody.NobodyUi.observe(this, fids -> adapter.notifyDataSetChanged());
 
         loadIssues();
     }
@@ -90,6 +91,10 @@ public class MessageRequestsActivity extends BaseCryptoActivity
         }
         adapter.notifyDataSetChanged();
         emptyText.setVisibility(issues.isEmpty() ? View.VISIBLE : View.GONE);
+
+        java.util.List<String> peers = new java.util.ArrayList<>();
+        for (PendingIssue issue : issues) peers.add(issue.getPeerFid());
+        com.fc.freer.nobody.NobodyUi.resolveAsync(peers);
     }
 
     @Override

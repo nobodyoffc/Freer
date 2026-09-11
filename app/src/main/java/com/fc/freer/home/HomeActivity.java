@@ -10,6 +10,7 @@ import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.data.fchData.Multisig;
 import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.utils.FcDate;
+import com.fc.freer.nobody.NobodyGuard;
 import com.fc.freer.FreerApplication;
 import com.fc.freer.account.CashActivity;
 import com.fc.freer.contact.ContactActivity;
@@ -49,6 +50,8 @@ import com.fc.freer.model.Setting;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.network.NetworkUtils;
 import com.fc.freer.R;
+import com.fc.freer.nobody.NobodyRegistry;
+import com.fc.freer.nobody.NobodyUi;
 import com.fc.freer.manager.DatabaseManager;
 import com.fc.freer.initiate.ConfigureManager;
 import com.fc.fc_ajdk.data.fcData.ImType;
@@ -172,6 +175,12 @@ public class HomeActivity extends AppCompatActivity {
 
             // Set up live FID card
             setupLiveFidCard();
+
+            // Re-mark the card as soon as the live FID is learned to be a nobody
+            NobodyUi.observe(this, fids -> {
+                FidManager manager = FidManager.getInstance();
+                if (manager != null && fids.contains(manager.getLiveFid())) refreshLiveFidCard();
+            });
 
             // Load modules in background after UI is set up
             loadModulesAsync();
@@ -703,6 +712,10 @@ public class HomeActivity extends AppCompatActivity {
             // Get live KeyInfo
             com.fc.fc_ajdk.data.fcData.KeyInfo liveKeyInfo = fidManager.getLiveKeyInfo();
             String liveFid = fidManager.getLiveFid();
+            // The key's own flag also counts: it may predate the registry
+            if (liveKeyInfo != null && Boolean.TRUE.equals(liveKeyInfo.getIsNobody())) {
+                NobodyRegistry.get().mark(liveFid);
+            }
 
             // Find UI elements
             ImageView avatarImageView = findViewById(R.id.fidAvatar);
@@ -713,7 +726,7 @@ public class HomeActivity extends AppCompatActivity {
             TextView balanceTextView = findViewById(R.id.fidBalance);
             TextView cdTextView = findViewById(R.id.fidCd);
             ImageView noPrikeyIconView = findViewById(R.id.multisigIcon);
-            // Set avatar (grayscale marks a nobody FID)
+            // Set avatar (the bitmap carries the nobody mark)
             if (avatarImageView != null) {
                 AvatarManager avatarManager = AvatarManager.getInstance(this);
                 Bitmap avatarBitmap = avatarManager.getAvatarBitmap(liveFid);
@@ -722,12 +735,9 @@ public class HomeActivity extends AppCompatActivity {
                 } else {
                     avatarImageView.setImageResource(R.drawable.ic_person);
                 }
-                if (Boolean.TRUE.equals(liveKeyInfo.getIsNobody())) {
-                    com.fc.freer.im.NobodyBoard.applyNobodyMark(avatarImageView);
-                } else {
-                    com.fc.freer.im.NobodyBoard.clearNobodyMark(avatarImageView);
-                }
             }
+            NobodyUi.bindBanner(findViewById(R.id.nobodyBanner), liveFid, R.string.nobody_self_banner);
+            NobodyGuard.alertOwnKeyIfNeeded(this, liveFid);
 
             // Ensure QR icon is visible
             ImageView qrIconView = findViewById(R.id.fidQrIcon);
@@ -741,7 +751,7 @@ public class HomeActivity extends AppCompatActivity {
                 if (displayName == null || displayName.trim().isEmpty()) {
                     displayName = liveFid;
                 }
-                nameTextView.setText(displayName);
+                NobodyUi.setName(nameTextView, liveFid, displayName);
             }
 
             // Set label or edit icon
@@ -1516,6 +1526,9 @@ public class HomeActivity extends AppCompatActivity {
             // Get fresh KeyInfo
             com.fc.fc_ajdk.data.fcData.KeyInfo liveKeyInfo = fidManager.getLiveKeyInfo();
             String liveFid = fidManager.getLiveFid();
+            if (Boolean.TRUE.equals(liveKeyInfo.getIsNobody())) {
+                NobodyRegistry.get().mark(liveFid);
+            }
 
             // Find UI elements and update with fresh data
             ImageView avatarImageView = findViewById(R.id.fidAvatar);
@@ -1527,7 +1540,7 @@ public class HomeActivity extends AppCompatActivity {
             TextView cdTextView = findViewById(R.id.fidCd);
             ImageView noPrikeyIconView = findViewById(R.id.multisigIcon);
 
-            // Update avatar (grayscale marks a nobody FID)
+            // Update avatar (the bitmap carries the nobody mark)
             if (avatarImageView != null) {
                 AvatarManager avatarManager = AvatarManager.getInstance(this);
                 Bitmap avatarBitmap = avatarManager.getAvatarBitmap(liveFid);
@@ -1536,12 +1549,9 @@ public class HomeActivity extends AppCompatActivity {
                 } else {
                     avatarImageView.setImageResource(R.drawable.ic_person);
                 }
-                if (Boolean.TRUE.equals(liveKeyInfo.getIsNobody())) {
-                    com.fc.freer.im.NobodyBoard.applyNobodyMark(avatarImageView);
-                } else {
-                    com.fc.freer.im.NobodyBoard.clearNobodyMark(avatarImageView);
-                }
             }
+            NobodyUi.bindBanner(findViewById(R.id.nobodyBanner), liveFid, R.string.nobody_self_banner);
+            NobodyGuard.alertOwnKeyIfNeeded(this, liveFid);
 
             // Ensure QR icon is visible
             ImageView qrIconViewRefresh = findViewById(R.id.fidQrIcon);
@@ -1555,7 +1565,7 @@ public class HomeActivity extends AppCompatActivity {
                 if (displayName == null || displayName.trim().isEmpty()) {
                     displayName = liveFid;
                 }
-                nameTextView.setText(displayName);
+                NobodyUi.setName(nameTextView, liveFid, displayName);
                 TimberLogger.d(TAG, "Name TextView updated to: '%s', visibility: %s", displayName, nameTextView.getVisibility() == View.VISIBLE ? "VISIBLE" : "NOT_VISIBLE");
             } else {
                 TimberLogger.w(TAG, "Name TextView is null!");

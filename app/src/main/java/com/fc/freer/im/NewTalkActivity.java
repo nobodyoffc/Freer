@@ -29,6 +29,7 @@ import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.fudp.node.FudpNode;
 import com.fc.fc_ajdk.utils.Hex;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.nobody.NobodyGuard;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.FreerApplication;
 import com.fc.freer.R;
@@ -175,6 +176,20 @@ public class NewTalkActivity extends BaseCryptoActivity {
 
     private void openChatWithFid(String fid) {
         if (fid == null || fid.isEmpty()) return;
+        confirmChatPartner(fid, () -> openChatWithFidConfirmed(fid));
+    }
+
+    /** A nobody partner's side of the chat can be read and written by anyone. */
+    private void confirmChatPartner(String fid, Runnable proceed) {
+        if (NobodyBoard.isDefaultNobody(fid)) {
+            proceed.run();
+            return;
+        }
+        NobodyGuard.confirm(this, java.util.Collections.singletonList(fid),
+                R.string.nobody_consequence_chat, proceed);
+    }
+
+    private void openChatWithFidConfirmed(String fid) {
         try {
             ensureTalkPartner(fid, null, null, null, TalkPartner.SOURCE_CONTACT);
 
@@ -573,6 +588,11 @@ public class NewTalkActivity extends BaseCryptoActivity {
             ToastUtils.makeText(this, getString(R.string.please_select_a_fid));
             return;
         }
+        confirmChatPartner(selectedFid, this::openSelectedChat);
+    }
+
+    private void openSelectedChat() {
+        if (selectedFid == null) return;
 
         String displayName = null;
         String pubkey = null;

@@ -310,7 +310,7 @@
     <string name="key_detected_cipher">Encrypted. Input its password.</string>
     <string name="key_detected_backup">Key backup. Tap save to import.</string>
     <string name="key_non_password_cipher">Encrypted, but not with a password. It can\'t be imported here.</string>
-    <string name="key_bad_prikey">Looks like a private key, but it isn\'t valid. Check for a typo.</string>
+    <string name="key_bad_prikey">Looks like a prikey, but it isn\'t valid. Check for a typo.</string>
     <string name="key_bad_pubkey">Looks like a public key, but it isn\'t valid. Check for a typo.</string>
     <string name="key_bad_fid">Looks like an FID, but the checksum is wrong. Check for a typo.</string>
     <string name="key_multiple">One key at a time. Use a key backup JSON for several.</string>
@@ -573,7 +573,7 @@
     <string name="key_already_exists_message">A key with this ID already exists. Do you want to replace it?</string>
     <string name="keys_generated">%d keys generated</string>
     <string name="choose_derivation_method">Choose Derivation Method</string>
-    <string name="choose_derivation_method_message">Select how to derive the private key from your phrase.</string>
+    <string name="choose_derivation_method_message">Select how to derive the prikey from your phrase.</string>
     <string name="derivation_kdf_argon2id">Argon2id (Recommended)</string>
     <string name="derivation_sha256">SHA256</string>
     <string name="derivation_sha256_warning_title">Warning: SHA256 is Insecure</string>
@@ -1303,7 +1303,7 @@
     <string name="app_published_successfully">App published successfully! TX: %s</string>
     <string name="failed_to_publish_app">Failed to publish app</string>
     <string name="cannot_sign_transaction">Cannot sign transaction</string>
-    <string name="failed_to_get_private_key">Failed to get private key</string>
+    <string name="failed_to_get_private_key">Failed to get prikey</string>
 
     <!-- Update App Activity -->
     <string name="update_app">Update App</string>
@@ -2201,7 +2201,7 @@
     <string name="no_disk_services_found">No DISK services found</string>
     <string name="service_has_no_disk">This service does not have DISK component</string>
     <string name="disk_not_configured_prompt">No DISK service configured. Please select a DISK service for data storage.</string>
-    <string name="data_requires_main_fid">Data is only available for the main FID, which holds the private key for encryption.</string>
+    <string name="data_requires_main_fid">Data is only available for the main FID, which holds the prikey for encryption.</string>
     <string name="use_default_server_as_disk">Use the default server as your DISK service? Choose another to pick a different one.</string>
     <string name="choose_another">Choose another</string>
     <string name="publishing_disk_setting">Publishing DISK setting onchain…</string>
@@ -2311,7 +2311,7 @@
     <string name="toast_contact_already_onchain">Contact is already on-chain</string>
     <string name="toast_no_live_key">No live key available</string>
     <string name="toast_invalid_public_key">Invalid public key</string>
-    <string name="toast_failed_get_prikey_signing">Failed to get private key for transaction signing</string>
+    <string name="toast_failed_get_prikey_signing">Failed to get prikey for transaction signing</string>
     <string name="toast_no_fids_in_list">No FIDs found in list</string>
     <string name="toast_completed_processing_fids">Completed processing %1$d FIDs</string>
     <string name="toast_stopped_at_fid">Stopped at FID %1$d of %2$d</string>
@@ -2332,27 +2332,27 @@
     <string name="toast_contacts_recovered_local">Contacts recovered locally</string>
     <string name="toast_contacts_recovered_offchain">Contacts recovered successfully (off-chain)</string>
     <string name="toast_failed_recover_contacts">Failed to recover contacts: %1$s</string>
-    <string name="toast_invalid_prikey_format">Invalid private key format</string>
+    <string name="toast_invalid_prikey_format">Invalid prikey format</string>
     <string name="toast_prikey_no_match_fid">Private key does not match current FID</string>
-    <string name="toast_error_processing_prikey">Error processing private key: %1$s</string>
+    <string name="toast_error_processing_prikey">Error processing prikey: %1$s</string>
     <string name="toast_failed_decrypt_detail">Failed to decrypt: %1$s</string>
-    <string name="toast_invalid_decrypted_prikey">Invalid decrypted private key</string>
-    <string name="toast_decrypted_prikey_mismatch">Decrypted private key does not match current FID</string>
-    <string name="toast_error_decrypting_prikey">Error decrypting private key: %1$s</string>
+    <string name="toast_invalid_decrypted_prikey">Invalid decrypted prikey</string>
+    <string name="toast_decrypted_prikey_mismatch">Decrypted prikey does not match current FID</string>
+    <string name="toast_error_decrypting_prikey">Error decrypting prikey: %1$s</string>
     <string name="toast_phrase_no_match_fid">Phrase does not generate the current FID</string>
     <string name="toast_error_processing_phrase">Error processing phrase: %1$s</string>
     <string name="toast_config_unavailable">Configuration not available</string>
     <string name="toast_encryption_key_unavailable">Encryption key not available</string>
-    <string name="toast_failed_encrypt_prikey">Failed to encrypt private key: %1$s</string>
+    <string name="toast_failed_encrypt_prikey">Failed to encrypt prikey: %1$s</string>
     <string name="toast_fid_manager_unavailable">FidManager not available</string>
     <string name="toast_live_keyinfo_unavailable">Live KeyInfo not available</string>
     <string name="toast_prikey_saved">Private key saved successfully</string>
-    <string name="toast_failed_save_prikey">Failed to save private key</string>
-    <string name="toast_error_saving_prikey">Error saving private key: %1$s</string>
+    <string name="toast_failed_save_prikey">Failed to save prikey</string>
+    <string name="toast_error_saving_prikey">Error saving prikey: %1$s</string>
     <string name="toast_no_master_yet">No master yet</string>
     <string name="toast_api_service_unavailable">API service not available</string>
     <string name="toast_no_master_announcement">No master announcement found</string>
-    <string name="toast_no_cipher_prikey">No cipher private key found</string>
+    <string name="toast_no_cipher_prikey">No cipher prikey found</string>
     <string name="toast_error_loading_master_announcement">Error loading master announcement: %1$s</string>
     <string name="toast_error_processing_master">Error processing master: %1$s</string>
     <string name="toast_fid_selected">FID selected</string>
@@ -2369,9 +2369,9 @@
     <string name="toast_deleted_contacts_local">Deleted %1$d off-chain contacts locally</string>
     <string name="toast_failed_delete_contacts_onchain">Failed to delete contacts on-chain: %1$s</string>
     <string name="toast_contacts_deleted_local">Contacts deleted locally</string>
-    <string name="toast_invalid_private_key">Invalid private key</string>
+    <string name="toast_invalid_private_key">Invalid prikey</string>
     <string name="toast_password_empty">Password is empty</string>
-    <string name="toast_failed_decrypt_prikey">Failed to decrypt private key</string>
+    <string name="toast_failed_decrypt_prikey">Failed to decrypt prikey</string>
     <string name="toast_failed_convert_multisig_contact">Failed to convert multisig to contact</string>
     <string name="toast_unexpected_error">Unexpected error</string>
     <string name="toast_tx_well_signed_build">The TX is well signed! Build it.</string>
@@ -2380,7 +2380,7 @@
     <string name="toast_key_not_part_multisig">Selected key is not part of this multisig transaction</string>
     <string name="toast_failed_get_key_info_of">Failed to get the key info of %1$s</string>
     <string name="toast_no_active_key_decrypt">No active key available for decryption</string>
-    <string name="toast_failed_get_private_key">Failed to get private key</string>
+    <string name="toast_failed_get_private_key">Failed to get prikey</string>
     <string name="toast_error_showing_content">Error showing content: %1$s</string>
     <string name="toast_failed_decrypt_content">Failed to decrypt content</string>
     <string name="toast_error_decrypting_content">Error decrypting content: %1$s</string>
@@ -2432,8 +2432,8 @@
 
     <!-- First-FCH request board (default nobody freer) -->
     <string name="first_fch_board_name">First FCH Board</string>
-    <string name="nobody_board_education">This is a public request board on a nobody identity: its private key is public, so everything here can be read — and written — by anyone. Only use it to ask for your first FCH. You never need to pay, click a link, or share anything to receive FCH; your only proof is your own balance increasing.</string>
-    <string name="nobody_partner_warning">This identity is a nobody: its private key is public, so messages from it can be written by anyone and cannot be trusted.</string>
+    <string name="nobody_board_education">This is a public request board on a nobody identity: its prikey is public, so everything here can be read — and written — by anyone. Only use it to ask for your first FCH. You never need to pay, click a link, or share anything to receive FCH; your only proof is your own balance increasing.</string>
+    <string name="nobody_partner_warning">This identity is a nobody: its prikey is public, so messages from it can be written by anyone and cannot be trusted.</string>
     <string name="nobody_content_hidden">[Content from an unverifiable (nobody) identity is not shown]</string>
     <string name="im_send_only_no_dock">Send-only mode: you have no receive (DOCK) server yet, so you can send messages but cannot receive replies. Answers to a first-FCH request arrive as coins in your wallet.</string>
     <string name="talk_send_only_banner">Send-only mode — set up your receive server</string>
@@ -2470,7 +2470,6 @@
     <string name="failed_to_refresh">Failed to refresh</string>
     <string name="warning">Warning</string>
     <string name="send_anyway">Send Anyway</string>
-    <string name="nobody_recipient_warning">The private key of the following recipient(s) has been made public on chain. Any funds sent there can be taken by anyone:\n\n%1$s\n\nSend anyway?</string>
     <string name="consensus_doc_hint">Pick a data document or enter its DID</string>
     <string name="consensus_doc_not_local">The chosen consensus document isn\'t available locally. Add it in Data first.</string>
     <string name="server_setup_never">Never</string>
@@ -2508,4 +2507,32 @@
     <string name="reselect_inputs_other_sender">Only the current identity\'s cash can be picked as inputs</string>
     <string name="selected_cash_not_spendable">Some selected cash is conflicted or still time-locked</string>
     <string name="selected_inputs_spent_reselect">Some inputs are already spent. Cash is refreshed; reselect the inputs and send again.</string>
+
+    <!-- Nobody: an identity whose prikey is published on chain -->
+    <string name="nobody_warning_title">Nobody identity</string>
+    <string name="nobody_checking">Checking identities…</string>
+    <string name="proceed_anyway">Proceed Anyway</string>
+    <string name="nobody_list_intro">Private key published on chain:</string>
+    <string name="nobody_consequence_send">Anything sent to it can be taken by anyone.</string>
+    <string name="nobody_consequence_send_from">The sender\'s prikey is public. Anyone can spend the same cash first, so this transaction may never confirm.</string>
+    <string name="nobody_consequence_encrypt">Anyone can decrypt what you encrypt to it.</string>
+    <string name="nobody_consequence_mail">Anyone can read this mail and reply as the recipient.</string>
+    <string name="nobody_consequence_multisig">Anyone can sign as this member, so the multisig needs fewer real signatures than it appears.</string>
+    <string name="nobody_consequence_master">Setting a master publishes your prikey encrypted to the master. Anyone can decrypt it and take this identity for good.</string>
+    <string name="nobody_consequence_team">Anyone can read the team\'s messages and act as these members, including giving their consent.</string>
+    <string name="nobody_consequence_room">Anyone can read the room\'s messages and speak as these members.</string>
+    <string name="nobody_consequence_team_owner">Anyone could run the team as its owner.</string>
+    <string name="nobody_consequence_rate">Anyone can act as it, so its reputation means nothing. The coin days you destroy to rate it are wasted.</string>
+    <string name="nobody_consequence_contact">Anyone can speak as it, change its CID, and read what you send it.</string>
+    <string name="nobody_consequence_chat">Anyone can read this conversation and write as it.</string>
+    <string name="nobody_consequence_import">Anyone can spend this key\'s funds, read its messages and act as it. Use it only as a public identity.</string>
+    <string name="nobody_identity_banner">Nobody: this identity\'s prikey is public. Anyone can act as it.</string>
+    <string name="nobody_self_banner">This identity\'s prikey is public. Anyone can control it. It may be anyone.</string>
+    <string name="nobody_receive_warning">This address\'s prikey is public. Anything paid here can be taken by anyone.</string>
+    <string name="nobody_own_key_alert_title">Your prikey is public</string>
+    <string name="nobody_own_key_alert_message">The prikey of %1$s has been published on chain. Anyone can spend its funds, read its messages and act as it. Move your funds to a key only you hold.</string>
+    <string name="nobody_signature_note">Valid, but the signer is a nobody: its prikey is public, so anyone could have signed this. It proves nothing.</string>
+    <string name="nobody_sender_warning">The sender is a nobody: its prikey is public, so anyone could have sent this.</string>
+    <string name="nobody_inviter_warning">The inviter is a nobody: its prikey is public, so anyone could have sent this invitation.</string>
+    <string name="nobody_member_consensus_note">Nobody members\' prikeys are public: anyone can give their consent.</string>
 </resources>

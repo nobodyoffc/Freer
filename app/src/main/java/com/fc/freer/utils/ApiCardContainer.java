@@ -136,7 +136,7 @@ public class ApiCardContainer {
         String owner = apiProvider.getOwner();
         if (owner != null && KeyTools.isGoodFid(owner)) {
             ownerContainer.setVisibility(View.VISIBLE);
-            ownerTextView.setText(owner);
+            com.fc.freer.nobody.NobodyUi.setName(ownerTextView, owner, owner);
 
             // Load owner avatar
             Bitmap ownerAvatarBitmap = avatarManager.getAvatarBitmap(owner);
@@ -161,7 +161,7 @@ public class ApiCardContainer {
             // Convert pubkey to FID
             try {
                 String dealerFid = KeyTools.pubkeyToFchAddr(dealerPubkey);
-                dealerTextView.setText(dealerFid);
+                com.fc.freer.nobody.NobodyUi.setName(dealerTextView, dealerFid, dealerFid);
 
                 // Load dealer avatar
                 Bitmap dealerAvatarBitmap = avatarManager.getAvatarBitmap(dealerFid);
@@ -537,7 +537,7 @@ public class ApiCardContainer {
             String owner = apiProvider.getOwner();
             if (owner != null && KeyTools.isGoodFid(owner)) {
                 ownerContainer.setVisibility(View.VISIBLE);
-                ownerTextView.setText(owner);
+                com.fc.freer.nobody.NobodyUi.setName(ownerTextView, owner, owner);
 
                 Bitmap ownerAvatarBitmap = avatarManager.getAvatarBitmap(owner);
                 if (ownerAvatarBitmap != null) {
@@ -559,7 +559,7 @@ public class ApiCardContainer {
 
                 try {
                     String dealerFid = KeyTools.pubkeyToFchAddr(dealerPubkey);
-                    dealerTextView.setText(dealerFid);
+                    com.fc.freer.nobody.NobodyUi.setName(dealerTextView, dealerFid, dealerFid);
 
                     Bitmap dealerAvatarBitmap = avatarManager.getAvatarBitmap(dealerFid);
                     if (dealerAvatarBitmap != null) {
@@ -717,7 +717,7 @@ public class ApiCardContainer {
             String owner = apiProvider.getOwner();
             if (owner != null && KeyTools.isGoodFid(owner)) {
                 ownerContainer.setVisibility(View.VISIBLE);
-                ownerTextView.setText(owner);
+                com.fc.freer.nobody.NobodyUi.setName(ownerTextView, owner, owner);
 
                 Bitmap ownerAvatarBitmap = avatarManager.getAvatarBitmap(owner);
                 if (ownerAvatarBitmap != null) {
@@ -736,7 +736,7 @@ public class ApiCardContainer {
 
                 try {
                     String dealerFid = KeyTools.pubkeyToFchAddr(dealerPubkey);
-                    dealerTextView.setText(dealerFid);
+                    com.fc.freer.nobody.NobodyUi.setName(dealerTextView, dealerFid, dealerFid);
 
                     Bitmap dealerAvatarBitmap = avatarManager.getAvatarBitmap(dealerFid);
                     if (dealerAvatarBitmap != null) {

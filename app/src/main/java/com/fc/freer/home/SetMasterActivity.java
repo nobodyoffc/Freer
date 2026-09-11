@@ -13,6 +13,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.fc.fc_ajdk.data.fchData.Freer;
+import com.fc.freer.nobody.NobodyGuard;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.utils.ChooseMode;
 import com.fc.freer.utils.KeyCardContainer;
@@ -422,6 +423,16 @@ public class SetMasterActivity extends BaseCryptoActivity {
     
     
     private void confirmSetMaster() {
+        if (selectedMasterFid == null || selectedMasterFreer == null) {
+            ToastUtils.makeText(this, getString(R.string.no_master_selected));
+            return;
+        }
+        // The master receives this identity's prikey; a nobody master exposes it to anyone
+        NobodyGuard.confirm(this, java.util.Collections.singletonList(selectedMasterFid),
+                R.string.nobody_consequence_master, this::confirmSetMasterChecked);
+    }
+
+    private void confirmSetMasterChecked() {
         if (selectedMasterFid == null || selectedMasterFreer == null) {
             ToastUtils.makeText(this, getString(R.string.no_master_selected));
             return;

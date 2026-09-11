@@ -9,6 +9,8 @@ import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.data.fchData.Freer;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.nobody.NobodyRegistry;
+import com.fc.freer.nobody.NobodyGuard;
 import com.fc.freer.R;
 import com.fc.freer.im.ImManager;
 import com.fc.freer.im.PendingIssueManager;
@@ -640,8 +642,16 @@ public class FidManager {
 
                         KeyInfo updatedKeyInfo = KeyInfo.updateFromCid(freerInfo,currentKeyInfo);
 
-                        if(updatedKeyInfo.getPrikey()!=null)
+                        if(updatedKeyInfo.getPrikey()!=null || Boolean.TRUE.equals(freerInfo.getNobody()))
                             updatedKeyInfo.setNobody(Boolean.TRUE);
+
+                        // The live key's prikey is published: say so once, loudly
+                        if (Boolean.TRUE.equals(updatedKeyInfo.getIsNobody())) {
+                            NobodyRegistry.get().mark(liveFid);
+                            if (context instanceof Activity) {
+                                NobodyGuard.alertOwnKeyIfNeeded((Activity) context, liveFid);
+                            }
+                        }
 
                         TimberLogger.d(TAG, "Updated KeyInfo after fromCid - Cash: %s, Balance: %s, CD: %s",
                             updatedKeyInfo.getCash(), updatedKeyInfo.getBalance(), updatedKeyInfo.getCd());

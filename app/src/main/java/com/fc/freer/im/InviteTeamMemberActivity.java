@@ -14,6 +14,7 @@ import com.fc.fc_ajdk.data.feipData.Team;
 import com.fc.fc_ajdk.data.feipData.TeamOpData;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.nobody.NobodyGuard;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.initiate.SettingManager;
@@ -240,7 +241,9 @@ public class InviteTeamMemberActivity extends BaseCryptoActivity {
             return;
         }
 
-        carveInvite(liveKeyInfo, toInvite, notify);
+        // A nobody member lets anyone read the team and consent in its name
+        NobodyGuard.confirm(this, toInvite, R.string.nobody_consequence_team,
+                () -> carveInvite(liveKeyInfo, toInvite, notify), this::finish);
     }
 
     private void carveInvite(KeyInfo liveKeyInfo, List<String> fidList, List<String> notify) {

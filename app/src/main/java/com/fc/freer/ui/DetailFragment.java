@@ -291,9 +291,33 @@ public class DetailFragment extends Fragment {
         
         // Add the avatar ID container to the detail container
         detailContainer.addView(avatarIdContainer);
+
+        addNobodyBanner();
         
         // Add other fields
         addEntityFields(currentEntity);
+    }
+
+    /** Say plainly, above the fields, when this identity's prikey is public. */
+    private void addNobodyBanner() {
+        // A Contact is an FcSubject too, but its id is the contact's, not the FID
+        String fid = null;
+        Boolean flagged = null;
+        if (currentEntity instanceof com.fc.fc_ajdk.data.feipData.Contact) {
+            com.fc.fc_ajdk.data.feipData.Contact contact = (com.fc.fc_ajdk.data.feipData.Contact) currentEntity;
+            fid = contact.getFid();
+            flagged = contact.getNobody();
+        } else if (currentEntity instanceof com.fc.fc_ajdk.data.fcData.FcSubject) {
+            com.fc.fc_ajdk.data.fcData.FcSubject subject = (com.fc.fc_ajdk.data.fcData.FcSubject) currentEntity;
+            fid = subject.getId();
+            flagged = subject.getNobody();
+        }
+        if (Boolean.TRUE.equals(flagged)) com.fc.freer.nobody.NobodyRegistry.get().mark(fid);
+        if (fid == null || !com.fc.freer.nobody.NobodyUi.isNobody(fid)) return;
+        TextView banner = (TextView) LayoutInflater.from(requireContext())
+                .inflate(R.layout.view_nobody_banner, detailContainer, false);
+        com.fc.freer.nobody.NobodyUi.bindBanner(banner, fid, R.string.nobody_identity_banner);
+        detailContainer.addView(banner);
     }
 
     private void loadAvatar() {
@@ -307,7 +331,8 @@ public class DetailFragment extends Fragment {
                 if (avatarBytes != null) {
                     Bitmap bitmap = BitmapFactory.decodeByteArray(avatarBytes, 0, avatarBytes.length);
                     if (bitmap != null) {
-                        avatarView.setImageBitmap(bitmap);
+                        avatarView.setImageBitmap(com.fc.freer.nobody.NobodyUi.avatar(
+                                avatarView.getContext(), currentEntity.getId(), bitmap));
                         avatarView.setScaleType(ImageView.ScaleType.CENTER_CROP);
                         // Add click listener to show avatar dialog
                         avatarView.setOnClickListener(v -> {

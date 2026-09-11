@@ -85,6 +85,9 @@
                 android:layout_marginBottom="12dp"
                 android:layout_marginTop="2dp" />
 
+            <!-- Shown when the peer is a nobody -->
+            <include layout="@layout/view_nobody_banner" />
+
             <TextView
                 android:id="@+id/label_created_at"
                 android:layout_width="wrap_content"

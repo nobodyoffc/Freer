@@ -27,6 +27,8 @@ import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.utils.FchUtils;
 import com.fc.fc_ajdk.utils.JsonUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.nobody.NobodyUi;
+import com.fc.freer.nobody.NobodyGuard;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.account.CashActivity;
@@ -155,8 +157,8 @@ public class RateFreerActivity extends BaseCryptoActivity {
         freerIdValue.setText(currentFreer.getId() != null ? currentFreer.getId() : "-");
 
         String cid = currentFreer.getCid();
-        if (cid != null && !cid.isEmpty()) {
-            freerCidValue.setText(cid);
+        if ((cid != null && !cid.isEmpty()) || NobodyUi.isNobody(currentFreer.getId())) {
+            NobodyUi.setName(freerCidValue, currentFreer.getId(), cid);
             freerCidValue.setVisibility(View.VISIBLE);
         } else {
             freerCidValue.setVisibility(View.GONE);
@@ -333,6 +335,13 @@ public class RateFreerActivity extends BaseCryptoActivity {
             return;
         }
 
+        // Rating a nobody spends CDD on a reputation anyone can wear
+        NobodyGuard.confirm(this, java.util.Collections.singletonList(currentFreer.getId()),
+                R.string.nobody_consequence_rate, () -> submitRatingConfirmed(rate));
+    }
+
+    private void submitRatingConfirmed(String rate) {
+        if (currentFreer == null || currentFreer.getId() == null) return;
         KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
         if (liveKeyInfo == null) {
             ToastUtils.makeText(this, R.string.no_active_fid);

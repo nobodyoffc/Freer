@@ -317,6 +317,12 @@ public class KeyCardContainer {
             }
         });
 
+        // The key's own flag also counts: it may predate the registry
+        if (Boolean.TRUE.equals(keyInfo.getIsNobody())) {
+            com.fc.freer.nobody.NobodyRegistry.get().mark(keyInfo.getId());
+        }
+        boolean nobody = com.fc.freer.nobody.NobodyUi.isNobody(keyInfo.getId());
+
         try {
             AvatarManager avatarManager = AvatarManager.getInstance(context);
             android.graphics.Bitmap avatarBitmap = avatarManager.getAvatarBitmap(keyInfo.getId());
@@ -332,9 +338,9 @@ public class KeyCardContainer {
         // Handle CID visibility - only show if CID exists and is not empty
         String cid = keyInfo.getCid();
         if (keyCid != null) {
-            if (cid != null && !cid.isEmpty()) {
+            if ((cid != null && !cid.isEmpty()) || nobody) {
                 keyCid.setVisibility(VISIBLE);
-                keyCid.setText(cid);
+                com.fc.freer.nobody.NobodyUi.setName(keyCid, keyInfo.getId(), cid);
             } else {
                 keyCid.setVisibility(View.GONE);
             }
@@ -351,7 +357,7 @@ public class KeyCardContainer {
 
         // Hide entire CID/label layout if both are empty
         if (cidLabelLayout != null) {
-            boolean hasCid = (cid != null && !cid.isEmpty());
+            boolean hasCid = (cid != null && !cid.isEmpty()) || nobody;
             boolean hasLabel = (label != null && !label.isEmpty());
             if (!hasCid && !hasLabel) {
                 cidLabelLayout.setVisibility(View.GONE);

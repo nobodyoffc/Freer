@@ -33,7 +33,13 @@
 	<color name="info">#2196F3</color>
 	<color name="warning">#FF9800</color>
 	<color name="error">#FF0000</color>
-	
+
+	<!-- Nobody (published prikey) mark: avatar badge, name chip, banners -->
+	<color name="nobody_mark">#E65100</color>
+	<color name="nobody_on_mark">#FFFFFF</color>
+	<color name="nobody_banner_background">#FFF3E0</color>
+	<color name="nobody_banner_text">#BF360C</color>
+
 	<!-- DataActivity colors -->
 	<color name="card_background">#FFFFFF</color>
 	<color name="text_primary">#212121</color>

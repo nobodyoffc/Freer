@@ -25,4 +25,6 @@
 	<color name="selected_card_background">#666666</color>
     <color name="container_outline">#777777</color>
     <color name="background">#333333</color>
+    <color name="nobody_banner_background">#3E2723</color>
+    <color name="nobody_banner_text">#FFAB91</color>
 </resources> 

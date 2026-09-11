@@ -81,6 +81,8 @@ import com.fc.freer.im.dock.DockServiceRegistry;
 import com.fc.freer.ui.DetailActivity;
 import com.fc.freer.ui.WaitingDialog;
 import com.fc.freer.utils.DialogUtils;
+import com.fc.freer.nobody.NobodyGuard;
+import com.fc.freer.nobody.NobodyUi;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.ServicePickerUtils;
 import com.fc.freer.utils.ChooseMode;
@@ -93,8 +95,10 @@ import com.orhanobut.hawk.Hawk;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class ChatActivity extends BaseCryptoActivity
         implements ImManager.ImListener, MessageAdapter.MessageInteractionListener {
@@ -149,6 +153,9 @@ public class ChatActivity extends BaseCryptoActivity
     /** No own DOCK: sending works (direct put to recipient's DOCK), receiving doesn't. */
     private boolean sendOnlyMode = false;
     private ImageView toolbarAvatarView;
+    private TextView toolbarTitleView;
+    private CharSequence toolbarTitleText;
+    private boolean partnerNobodyNoticeShown;
     private boolean strangerConfirmShown = false;
     private WaitingDialog leaveTeamWaitingDialog;
     private ActivityResultLauncher<Intent> filePickerLauncher;
@@ -237,6 +244,7 @@ public class ChatActivity extends BaseCryptoActivity
         
         adapter = new MessageAdapter(messages, null, imType, this);
         messagesRecyclerView.setAdapter(adapter);
+        NobodyUi.observe(this, this::onNobodiesLearned);
         
         micButton = findViewById(R.id.mic_button);
         recordingOverlay = findViewById(R.id.recording_overlay);
@@ -509,10 +517,16 @@ public class ChatActivity extends BaseCryptoActivity
         });
 
         toolbarAvatarView = avatarView;
-        if (NobodyBoard.isKnownNobody(targetId)) {
-            NobodyBoard.applyNobodyMark(avatarView);
-        }
+        toolbarTitleView = titleView;
+        toolbarTitleText = titleView.getText();
+        NobodyUi.setName(titleView, targetId, toolbarTitleText);
         loadToolbarAvatar(avatarView, targetId);
+    }
+
+    /** Re-draw the P2P toolbar once the partner is learned to be a nobody. */
+    private void refreshPartnerNobodyMark() {
+        if (toolbarTitleView != null) NobodyUi.setName(toolbarTitleView, targetId, toolbarTitleText);
+        if (toolbarAvatarView != null) loadToolbarAvatar(toolbarAvatarView, targetId);
     }
 
     private void setupGroupToolbar(FrameLayout avatarContainer,
@@ -759,41 +773,59 @@ public class ChatActivity extends BaseCryptoActivity
      * the default nobody, a trust warning for any other nobody partner.
      */
     private void addChatNoticesIfNeeded() {
+        resolveSpeakerNobodies(messages);
         if (imType != ImType.P2P) return;
         if (sendOnlyMode) {
             addSystemMessage(getString(R.string.im_send_only_no_dock));
         }
         if (NobodyBoard.isDefaultNobody(targetId)) {
+            partnerNobodyNoticeShown = true;
             addSystemMessage(getString(R.string.nobody_board_education));
         } else if (NobodyBoard.isKnownNobody(targetId)) {
-            addSystemMessage(getString(R.string.nobody_partner_warning));
-            if (toolbarAvatarView != null) NobodyBoard.applyNobodyMark(toolbarAvatarView);
+            showPartnerNobodyNotice();
         } else {
-            resolvePartnerNobodyAsync();
+            NobodyUi.resolveAsync(Collections.singletonList(targetId));
         }
     }
 
-    /** Check on-chain whether the P2P partner is a nobody and mark the UI if so. */
-    private void resolvePartnerNobodyAsync() {
-        final String fid = targetId;
-        new Thread(() -> {
-            try {
-                FapiClient fapiClient = (FapiClient) ApiCenter.getInstance()
-                        .getClient(Service.ServiceType.FAPI_No1_NrC7);
-                if (fapiClient == null) return;
-                Freer freer = fapiClient.getFreer(fid);
-                if (freer == null || !Boolean.TRUE.equals(freer.getNobody())) return;
-                NobodyBoard.markNobody(fid);
-                runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed() || !fid.equals(targetId)) return;
-                    addSystemMessage(getString(R.string.nobody_partner_warning));
-                    if (toolbarAvatarView != null) NobodyBoard.applyNobodyMark(toolbarAvatarView);
-                    adapter.notifyDataSetChanged();
-                });
-            } catch (Exception e) {
-                TimberLogger.w(TAG, "Nobody check failed for %s: %s", fid, e.getMessage());
+    /** The trust warning for a nobody P2P partner, once per screen. */
+    private void showPartnerNobodyNotice() {
+        if (partnerNobodyNoticeShown) return;
+        partnerNobodyNoticeShown = true;
+        addSystemMessage(getString(R.string.nobody_partner_warning));
+        refreshPartnerNobodyMark();
+    }
+
+    /**
+     * Look up whether the speakers are nobodies. Whatever is learned — from here or
+     * any other lookup — reaches {@link #onNobodiesLearned}, which hides their
+     * actionable content and marks them.
+     */
+    private void resolveSpeakerNobodies(List<ImMessage> list) {
+        Set<String> speakers = new HashSet<>();
+        String me = myFid();
+        for (ImMessage message : list) {
+            String senderId = message.getSenderId();
+            if (senderId != null && !senderId.isEmpty() && !senderId.equals(me)) {
+                speakers.add(senderId);
             }
-        }).start();
+        }
+        if (imType == ImType.P2P && targetId != null) speakers.add(targetId);
+        NobodyUi.resolveAsync(speakers);
+    }
+
+    private String myFid() {
+        FidManager fidManager = FidManager.getInstance();
+        return fidManager != null ? fidManager.getLiveFid() : null;
+    }
+
+    private void onNobodiesLearned(Set<String> fids) {
+        if (isFinishing() || isDestroyed()) return;
+        if (imType == ImType.P2P && fids.contains(targetId)
+                && !NobodyBoard.isDefaultNobody(targetId)) {
+            showPartnerNobodyNotice();
+        }
+        if (adapter != null) adapter.notifyDataSetChanged();
     }
 
     private boolean hasChannelInLocalHome() {
@@ -1477,6 +1509,7 @@ public class ChatActivity extends BaseCryptoActivity
                 messages.add(message);
                 adapter.notifyItemInserted(messages.size() - 1);
                 scrollToBottom();
+                resolveSpeakerNobodies(Collections.singletonList(message));
                 
                 if (imManager != null) {
                     imManager.markConversationAsRead(imType, targetId);
@@ -2546,10 +2579,11 @@ public class ChatActivity extends BaseCryptoActivity
                         ArrayList<String> fids = result.getData().getStringArrayListExtra(
                                 ChooseFidActivity.EXTRA_SELECTED_FIDS);
                         if (fids != null && !fids.isEmpty()) {
-                            broadcastTeamOp(
-                                    TeamOpData.makeAppoint(targetId, fids.toArray(new String[0])),
-                                    R.string.managers_appointed_successfully,
-                                    R.string.failed_to_appoint_managers);
+                            NobodyGuard.confirm(this, fids, R.string.nobody_consequence_team,
+                                    () -> broadcastTeamOp(
+                                            TeamOpData.makeAppoint(targetId, fids.toArray(new String[0])),
+                                            R.string.managers_appointed_successfully,
+                                            R.string.failed_to_appoint_managers));
                         }
                     }
                 });
@@ -2592,11 +2626,13 @@ public class ChatActivity extends BaseCryptoActivity
                                 SearchFidsOnChainActivity.EXTRA_SELECTED_FIDS);
                         if (fids != null && !fids.isEmpty()) {
                             String transferee = fids.get(0);
-                            broadcastTeamOpWithNotification(
-                                    TeamOpData.makeTransfer(targetId, transferee),
-                                    R.string.team_transferred_successfully,
-                                    R.string.failed_to_transfer_team,
-                                    transferee);
+                            NobodyGuard.confirm(this, Collections.singletonList(transferee),
+                                    R.string.nobody_consequence_team_owner,
+                                    () -> broadcastTeamOpWithNotification(
+                                            TeamOpData.makeTransfer(targetId, transferee),
+                                            R.string.team_transferred_successfully,
+                                            R.string.failed_to_transfer_team,
+                                            transferee));
                         }
                     }
                 });
@@ -2620,7 +2656,7 @@ public class ChatActivity extends BaseCryptoActivity
                         ArrayList<String> fids = result.getData().getStringArrayListExtra(
                                 SearchFidsOnChainActivity.EXTRA_SELECTED_FIDS);
                         if (fids != null && !fids.isEmpty() && imManager != null) {
-                            new Thread(() -> {
+                            NobodyGuard.confirm(this, fids, R.string.nobody_consequence_room, () -> new Thread(() -> {
                                 int addedCount = imManager.addRoomMembers(targetId, fids);
                                 runOnUiThread(() -> {
                                     if (addedCount > 0) {
@@ -2630,7 +2666,7 @@ public class ChatActivity extends BaseCryptoActivity
                                         ToastUtils.makeText(this, getString(R.string.failed_to_add_member));
                                     }
                                 });
-                            }).start();
+                            }).start());
                         }
                     }
                 });
@@ -2669,7 +2705,7 @@ public class ChatActivity extends BaseCryptoActivity
                         ArrayList<String> fids = result.getData().getStringArrayListExtra(
                                 ChooseFidActivity.EXTRA_SELECTED_FIDS);
                         if (fids != null && !fids.isEmpty() && imManager != null) {
-                            new Thread(() -> {
+                            NobodyGuard.confirm(this, fids, R.string.nobody_consequence_room, () -> new Thread(() -> {
                                 int count = imManager.shareRoomInfoToMembers(targetId, fids);
                                 runOnUiThread(() -> {
                                     if (count > 0) {
@@ -2678,7 +2714,7 @@ public class ChatActivity extends BaseCryptoActivity
                                         ToastUtils.makeText(this, getString(R.string.room_info_share_failed));
                                     }
                                 });
-                            }).start();
+                            }).start());
                         }
                     }
                 });
@@ -2690,7 +2726,7 @@ public class ChatActivity extends BaseCryptoActivity
                         ArrayList<String> fids = result.getData().getStringArrayListExtra(
                                 ChooseFidActivity.EXTRA_SELECTED_FIDS);
                         if (fids != null && !fids.isEmpty() && imManager != null) {
-                            new Thread(() -> {
+                            NobodyGuard.confirm(this, fids, R.string.nobody_consequence_room, () -> new Thread(() -> {
                                 int count = imManager.shareRoomSymkeyToMembers(targetId, fids);
                                 runOnUiThread(() -> {
                                     if (count > 0) {
@@ -2701,7 +2737,7 @@ public class ChatActivity extends BaseCryptoActivity
                                         ToastUtils.makeText(this, getString(R.string.symkey_share_failed));
                                     }
                                 });
-                            }).start();
+                            }).start());
                         }
                     }
                 });

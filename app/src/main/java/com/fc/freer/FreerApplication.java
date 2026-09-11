@@ -101,6 +101,9 @@ public class FreerApplication extends Application {
         String rootDir = MMKV.initialize(this);
         TimberLogger.d("FreerApp", "MMKV initialized with root dir: " + rootDir);
 
+        // Remember nobodies (published prikeys) learned from any lookup, across restarts
+        com.fc.freer.nobody.NobodyUi.install();
+
         // Initialize Hawk at the application level (kept for migration purposes)
         Hawk.init(this).build();
         

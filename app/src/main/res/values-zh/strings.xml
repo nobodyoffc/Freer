@@ -2389,9 +2389,9 @@
 
     <!-- First-FCH request board (default nobody freer) -->
     <string name="first_fch_board_name">首币求助板</string>
-    <string name="nobody_board_education">这是一个建立在 nobody 身份上的公开求助板：它的私钥是公开的，这里的内容任何人都能看到、也能冒名发布。它只用于求取你的第一笔 FCH。领取 FCH 永远不需要付款、点击链接或提供任何信息；唯一的凭证是你自己的余额增加。</string>
-    <string name="nobody_partner_warning">该身份是 nobody：私钥公开，任何人都可以用它发消息，其内容不可信。</string>
-    <string name="nobody_content_hidden">[来自不可验证（nobody）身份的内容已隐藏]</string>
+    <string name="nobody_board_education">这是一个建立在明人身份上的公开求助板：它的私钥是公开的，这里的内容任何人都能看到、也能冒名发布。它只用于求取你的第一笔 FCH。领取 FCH 永远不需要付款、点击链接或提供任何信息；唯一的凭证是你自己的余额增加。</string>
+    <string name="nobody_partner_warning">该身份是明人：私钥公开，任何人都可以用它发消息，其内容不可信。</string>
+    <string name="nobody_content_hidden">[来自不可验证（明人）身份的内容已隐藏]</string>
     <string name="im_send_only_no_dock">只发模式：你还没有接收（DOCK）服务器，可以发送消息但收不到回复。首币求助的回应会以到账的形式出现在你的钱包里。</string>
     <string name="talk_send_only_banner">只发模式 — 去设置接收服务器</string>
     <string name="newcomer_requests">查看新人求助</string>
@@ -2428,7 +2428,6 @@
     <string name="failed_to_refresh">刷新失败</string>
     <string name="warning">警告</string>
     <string name="send_anyway">仍然发送</string>
-    <string name="nobody_recipient_warning">以下收款人的私钥已在链上公开，发送到该地址的任何资金都可能被任何人取走：\n\n%1$s\n\n仍然发送吗？</string>
     <string name="consensus_doc_hint">选择一个数据文档或输入其 DID</string>
     <string name="consensus_doc_not_local">所选的共识文档在本地不可用，请先在“数据”中添加。</string>
     <string name="server_setup_never">不再提示</string>
@@ -2467,4 +2466,32 @@
     <string name="reselect_inputs_other_sender">只能选择当前身份的钞票作为输入</string>
     <string name="selected_cash_not_spendable">所选钞票中有冲突或尚未解锁的</string>
     <string name="selected_inputs_spent_reselect">部分输入已被花费。钞票已刷新，请重选输入后再发送</string>
+
+    <!-- 明人：私钥已在链上公开的身份 -->
+    <string name="nobody_warning_title">明人身份</string>
+    <string name="nobody_checking">正在核查身份…</string>
+    <string name="proceed_anyway">仍然继续</string>
+    <string name="nobody_list_intro">私钥已在链上公开：</string>
+    <string name="nobody_consequence_send">发送给它的任何资产都可能被任何人取走。</string>
+    <string name="nobody_consequence_send_from">发送方的私钥是公开的。任何人都可以抢先花掉同样的钞票，这笔交易可能永远无法确认。</string>
+    <string name="nobody_consequence_encrypt">任何人都能解密你加密给它的内容。</string>
+    <string name="nobody_consequence_mail">任何人都能读取这封邮件，并以收件人的身份回复。</string>
+    <string name="nobody_consequence_multisig">任何人都能以该成员身份签名，这个多签实际需要的真实签名比看上去少。</string>
+    <string name="nobody_consequence_master">设置主人会把你的私钥加密给主人后公开上链。任何人都能解密它，从而永久接管这个身份。</string>
+    <string name="nobody_consequence_team">任何人都能读取团队消息，并以这些成员的身份行事，包括代其表示同意。</string>
+    <string name="nobody_consequence_room">任何人都能读取群组消息，并以这些成员的身份发言。</string>
+    <string name="nobody_consequence_team_owner">任何人都可以作为团队所有者管理团队。</string>
+    <string name="nobody_consequence_rate">任何人都能冒充它，它的声誉没有意义。为评价它而销毁的币天将被浪费。</string>
+    <string name="nobody_consequence_contact">任何人都能冒充它发言、修改它的 CID，并读取你发给它的内容。</string>
+    <string name="nobody_consequence_chat">任何人都能读取这段对话，并以它的身份发消息。</string>
+    <string name="nobody_consequence_import">任何人都能花掉这个密钥的资金、读取它的消息并冒充它。只把它当作公开身份使用。</string>
+    <string name="nobody_identity_banner">明人：该身份的私钥是公开的，任何人都可以冒充它。</string>
+    <string name="nobody_self_banner">当前身份的私钥是公开的。任何人都可以控制它。</string>
+    <string name="nobody_receive_warning">该地址的私钥是公开的，任何人都可以控制它。它可能是任何人。</string>
+    <string name="nobody_own_key_alert_title">你的私钥已公开</string>
+    <string name="nobody_own_key_alert_message">%1$s 的私钥已在链上公开。任何人都可以控制它，转走其资产。</string>
+    <string name="nobody_signature_note">签名有效，但签名者是明人：其私钥公开，任何人都可能签出这个签名，它证明不了任何事。</string>
+    <string name="nobody_sender_warning">发送者是明人：其私钥公开，任何人都可能发出这条内容。</string>
+    <string name="nobody_inviter_warning">邀请者是明人：其私钥公开，任何人都可能发出这个邀请。</string>
+    <string name="nobody_member_consensus_note">明人成员的私钥是公开的：任何人都能代其表示同意。</string>
 </resources>

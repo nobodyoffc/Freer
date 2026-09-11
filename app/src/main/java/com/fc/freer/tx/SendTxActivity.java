@@ -18,6 +18,8 @@ import android.widget.TextView;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.fc_ajdk.data.fchData.Cash;
 import com.fc.fc_ajdk.data.fchData.Nobody;
+import com.fc.freer.nobody.NobodyGuard;
+import com.fc.freer.nobody.NobodyUi;
 import com.fc.fc_ajdk.data.fchData.Tx;
 import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
@@ -38,6 +40,7 @@ import com.fc.freer.manager.FidManager;
 import com.fc.freer.tx.view.TxOutputCard;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -151,14 +154,11 @@ public class SendTxActivity extends BaseCryptoActivity {
         new Thread(() -> {
             try {
                 FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
-                fidNobodyMap = fapiClient.checkNobodies(new ArrayList<>(toIdSet));
-                if (fidNobodyMap != null) {
-                    for (Map.Entry<String, Nobody> entry : fidNobodyMap.entrySet()) {
-                        if (entry.getValue() != null) {
-                            com.fc.freer.im.NobodyBoard.markNobody(entry.getKey());
-                        }
-                    }
+                // Recipients and the sender; the lookup records nobodies in NobodyRegistry
+                if (senderKeyInfo != null && senderKeyInfo.getId() != null) {
+                    toIdSet.add(senderKeyInfo.getId());
                 }
+                fidNobodyMap = fapiClient.checkNobodies(new ArrayList<>(toIdSet));
                 if (fapiClient != null && fapiClient.getBestHeight() != null) {
                     bestHeight = fapiClient.getBestHeight();
                 }
@@ -243,45 +243,28 @@ public class SendTxActivity extends BaseCryptoActivity {
                     return;
                 }
 
-                // Warn before broadcasting to a "nobody": a FID whose private key is
-                // public on chain, so any funds sent there can be taken by anyone.
-                List<Cash> nobodyRecipients = getNobodyRecipients();
-                if (!nobodyRecipients.isEmpty()) {
-                    showNobodyConfirmDialog(nobodyRecipients);
-                    return;
-                }
-
-                performSend();
+                // Before broadcasting: a "nobody" is a FID whose private key is public
+                // on chain. Funds sent to one can be taken by anyone, and cash spent
+                // from one can be spent first by anyone.
+                String senderFid = senderKeyInfo != null ? senderKeyInfo.getId() : null;
+                NobodyGuard.confirm(this, getRecipientFids(senderFid), R.string.nobody_consequence_send,
+                        () -> NobodyGuard.confirm(this,
+                                senderFid == null ? Collections.emptyList() : Collections.singletonList(senderFid),
+                                R.string.nobody_consequence_send_from, this::performSend));
             });
         }
     }
 
-    /**
-     * Collects the intended output recipients (not change) whose FID is a "nobody",
-     * i.e. an address whose private key has been published on chain.
-     */
-    private List<Cash> getNobodyRecipients() {
-        List<Cash> nobodies = new ArrayList<>();
+    /** The output recipients, excluding change back to the sender. */
+    private List<String> getRecipientFids(String senderFid) {
+        List<String> fids = new ArrayList<>();
         if (rawTxInfo != null && rawTxInfo.getOutputs() != null) {
             for (Cash output : rawTxInfo.getOutputs()) {
-                if (output.getOwner() != null && isNobody(output.getOwner())) {
-                    nobodies.add(output);
-                }
+                String owner = output.getOwner();
+                if (owner != null && !owner.equals(senderFid)) fids.add(owner);
             }
         }
-        return nobodies;
-    }
-
-    private void showNobodyConfirmDialog(List<Cash> nobodyRecipients) {
-        StringBuilder sb = new StringBuilder();
-        for (Cash cash : nobodyRecipients) {
-            sb.append(cash.getOwner()).append("  ").append(cash.getAmount()).append(" F\n");
-        }
-        DialogUtils.show(new AlertDialog.Builder(this)
-                .setTitle(R.string.warning)
-                .setMessage(getString(R.string.nobody_recipient_warning, sb.toString().trim()))
-                .setNegativeButton(R.string.cancel, null)
-                .setPositiveButton(R.string.send_anyway, (dialog, which) -> performSend()));
+        return fids;
     }
 
     /**
@@ -454,12 +437,7 @@ public class SendTxActivity extends BaseCryptoActivity {
     }
 
     private boolean isNobody(String fid) {
-        boolean isNobody = false;
-        if(fidNobodyMap!=null){
-            Nobody nobody = fidNobodyMap.get(fid);
-            isNobody = nobody!=null;
-        }
-        return isNobody;
+        return NobodyUi.isNobody(fid);
     }
 
     private void setupText() {

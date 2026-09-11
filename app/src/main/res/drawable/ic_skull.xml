@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nobody mark: an identity whose private key is published on chain (FEIP4 records its "death"). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M12,2C6.48,2 2,6.03 2,11c0,3.05 1.64,5.64 4,7.19V21c0,0.55 0.45,1 1,1h10c0.55,0 1,-0.45 1,-1v-2.81c2.36,-1.55 4,-4.14 4,-7.19C22,6.03 17.52,2 12,2Z M6.3,11.3a2.2,2.2 0,1 0,4.4 0a2.2,2.2 0,1 0,-4.4 0Z M13.3,11.3a2.2,2.2 0,1 0,4.4 0a2.2,2.2 0,1 0,-4.4 0Z M12,14.2L10.7,16.6H13.3Z M9.9,19.2h0.9v2.1h-0.9Z M13.2,19.2h0.9v2.1h-0.9Z" />
+</vector>

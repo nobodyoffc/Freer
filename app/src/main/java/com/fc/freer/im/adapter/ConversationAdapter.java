@@ -210,7 +210,7 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
             if (displayName == null || displayName.isEmpty()) {
                 displayName = conversation.getTargetId();
             }
-            name.setText(displayName);
+            com.fc.freer.nobody.NobodyUi.setName(name, conversation.getTargetId(), displayName);
             
             // Avatar
             //
@@ -242,14 +242,6 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
             } else {
                 avatar.setBackgroundResource(R.drawable.avatar_background);
                 avatar.setClipToOutline(true);
-            }
-
-            // Nobody identities (public private key) render black-and-white.
-            if (conversation.getType() == ImType.P2P
-                    && com.fc.freer.im.NobodyBoard.isKnownNobody(targetId)) {
-                com.fc.freer.im.NobodyBoard.applyNobodyMark(avatar);
-            } else {
-                com.fc.freer.im.NobodyBoard.clearNobodyMark(avatar);
             }
 
             AvatarManager avatarManager = AvatarManager.getInstance(itemView.getContext());

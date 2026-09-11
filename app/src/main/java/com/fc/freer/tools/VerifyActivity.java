@@ -11,6 +11,8 @@ import com.fc.fc_ajdk.core.crypto.KeyTools;
 import com.fc.fc_ajdk.data.fcData.AlgorithmId;
 import com.fc.fc_ajdk.data.fcData.Signature;
 import com.fc.fc_ajdk.utils.Hex;
+import com.fc.freer.utils.DialogUtils;
+import com.fc.freer.nobody.NobodyUi;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.ui.IoIconsView;
@@ -133,6 +135,7 @@ public class VerifyActivity extends BaseCryptoActivity {
             // Update the result icon
             if (isValid) {
                 resultIcon.setImageResource(R.drawable.ic_verify_success);
+                warnIfSignerIsNobody(signature.getFid());
             } else {
                 resultIcon.setImageResource(R.drawable.ic_verify_fail);
             }
@@ -142,4 +145,16 @@ public class VerifyActivity extends BaseCryptoActivity {
         }
     }
 
-} 
+    /** A valid signature by a nobody proves nothing: anyone holds that key. */
+    private void warnIfSignerIsNobody(String signerFid) {
+        if (signerFid == null || !KeyTools.isGoodFid(signerFid)) return;
+        NobodyUi.resolveAsync(java.util.Collections.singletonList(signerFid), true, ok -> {
+            if (isFinishing() || isDestroyed() || !NobodyUi.isNobody(signerFid)) return;
+            DialogUtils.show(new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(R.string.nobody_warning_title)
+                    .setMessage(R.string.nobody_signature_note)
+                    .setPositiveButton(R.string.ok, null));
+        });
+    }
+
+}

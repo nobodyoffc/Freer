@@ -30,6 +30,7 @@ import com.fc.freer.im.FileShareHelper;
 import com.fc.freer.im.ImManager;
 import com.fc.freer.im.JoinTeamActivity;
 import com.fc.freer.im.NobodyBoard;
+import com.fc.freer.nobody.NobodyUi;
 import com.fc.freer.im.voice.VoiceMessageHelper;
 import com.fc.freer.im.voice.VoicePlayer;
 import com.fc.freer.manager.AvatarManager;
@@ -321,7 +322,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
 
                     if (showSender && senderId != null) {
                         String displayId = truncateFid(senderId);
-                        senderName.setText(displayId);
+                        NobodyUi.setName(senderName, senderId, displayId);
                         senderName.setVisibility(View.VISIBLE);
                     } else {
                         senderName.setVisibility(View.GONE);
@@ -689,13 +690,8 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                             senderAvatar.setImageTintList(null);
                             senderAvatar.setPadding(0, 0, 0, 0);
                         }
-                        if (NobodyBoard.isKnownNobody(fid)) {
-                            NobodyBoard.applyNobodyMark(senderAvatar);
-                        } else {
-                            NobodyBoard.clearNobodyMark(senderAvatar);
-                        }
                         if (resolveName && finalCid != null && !finalCid.isEmpty()) {
-                            senderName.setText(finalCid);
+                            NobodyUi.setName(senderName, fid, finalCid);
                         }
                     });
                 } catch (Exception ignored) {
@@ -721,10 +717,8 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                 FapiClient fapiClient = (FapiClient) apiCenter.getClient(Service.ServiceType.FAPI_No1_NrC7);
                 if (fapiClient == null) return null;
 
+                // The lookup itself records a nobody in NobodyRegistry
                 Freer freer = fapiClient.getFreer(fid);
-                if (freer != null && Boolean.TRUE.equals(freer.getNobody())) {
-                    NobodyBoard.markNobody(fid);
-                }
                 if (freer != null && freer.getCid() != null && !freer.getCid().isEmpty()) {
                     if (cidFidManager != null) {
                         cidFidManager.add(fid, freer.getCid());

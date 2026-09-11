@@ -24,6 +24,7 @@ import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.data.feipData.Team;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.nobody.NobodyGuard;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.initiate.SettingManager;
@@ -548,6 +549,13 @@ public class JoinTeamActivity extends BaseCryptoActivity {
      * against {@code Team.consensusId}. Legacy teams without a consensusId join directly.
      */
     private void joinTeam(Team team) {
+        // A team owned by a nobody can be run by anyone
+        NobodyGuard.confirm(this,
+                team.getOwner() == null ? Collections.emptyList() : Collections.singletonList(team.getOwner()),
+                R.string.nobody_consequence_team_owner, () -> joinTeamConfirmed(team));
+    }
+
+    private void joinTeamConfirmed(Team team) {
         if (team.getConsensusId() == null || team.getConsensusId().isEmpty()) {
             doJoin(team);
             return;

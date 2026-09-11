@@ -13,6 +13,7 @@ import android.widget.TextView;
 import androidx.appcompat.app.AlertDialog;
 
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.nobody.NobodyUi;
 import com.fc.freer.R;
 import com.fc.freer.manager.AvatarManager;
 import com.fc.freer.utils.DialogUtils;
@@ -68,8 +69,16 @@ public class TeamInviteDialog {
         }
         String teamName = data.teamName != null ? data.teamName : "";
         String teamId = data.teamId != null ? data.teamId : "";
-        messageText.setText(activity.getString(R.string.team_invite_notification_message,
-                senderAlias, teamName.isEmpty() ? teamId : teamName));
+        String message = activity.getString(R.string.team_invite_notification_message,
+                senderAlias, teamName.isEmpty() ? teamId : teamName);
+        String peerFid = issue.getPeerFid();
+        NobodyUi.setName(messageText, peerFid, message);
+        // Anyone can invite in a nobody's name
+        NobodyUi.bindBannerResolving(dialogView.findViewById(R.id.nobodyBanner), peerFid,
+                R.string.nobody_inviter_warning, () -> {
+                    NobodyUi.setName(messageText, peerFid, message);
+                    loadAvatar(activity, avatarView, peerFid);
+                });
 
         if (!teamId.isEmpty()) {
             detailText.setText(activity.getString(R.string.team_notification_detail, teamId));

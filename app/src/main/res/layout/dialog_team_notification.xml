@@ -49,6 +49,9 @@
         android:ellipsize="end"
         android:layout_marginBottom="8dp" />
 
+    <!-- Shown when the inviter is a nobody -->
+    <include layout="@layout/view_nobody_banner" />
+
     <TextView
         android:id="@+id/countdown_text"
         android:layout_width="match_parent"

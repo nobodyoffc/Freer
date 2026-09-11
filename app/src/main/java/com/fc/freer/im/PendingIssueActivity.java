@@ -47,6 +47,7 @@ public class PendingIssueActivity extends BaseCryptoActivity {
         adapter = new PendingIssueAdapter();
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(adapter);
+        com.fc.freer.nobody.NobodyUi.observe(this, fids -> adapter.notifyDataSetChanged());
 
         adapter.setOnItemClickListener(issue -> {
             hideKeyboard();
@@ -138,6 +139,9 @@ public class PendingIssueActivity extends BaseCryptoActivity {
         List<PendingIssue> issues = pendingIssueManager.getOpenIssues();
         adapter.setItems(issues);
         showEmpty(issues.isEmpty());
+        List<String> peers = new java.util.ArrayList<>();
+        for (PendingIssue issue : issues) peers.add(issue.getPeerFid());
+        com.fc.freer.nobody.NobodyUi.resolveAsync(peers);
         swipeRefreshLayout.setRefreshing(false);
     }
 

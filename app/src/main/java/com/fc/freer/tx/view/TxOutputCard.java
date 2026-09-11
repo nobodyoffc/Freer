@@ -17,6 +17,8 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.fc.fc_ajdk.data.fchData.Cash;
+import com.fc.freer.nobody.NobodyRegistry;
+import com.fc.freer.nobody.NobodyUi;
 import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ToastUtils;
 
@@ -260,22 +262,18 @@ public class TxOutputCard extends CardView {
         fidText.setEnabled(editable);
         amountText.setEnabled(editable);
 
-        // Load avatar (grayscale marks a nobody FID: leaked/public prikey)
+        // A caller's on-chain check (e.g. SendTx's checkNobodies) also counts.
+        // The FID field stays plain text: it is editable and read back as a FID,
+        // so the mark lives on the avatar only.
+        if (nobody) NobodyRegistry.get().mark(cash.getOwner());
+
+        // Load avatar (marked when the FID is a nobody: leaked/public prikey)
         try {
             byte[] avatarBytes = AvatarMaker.makeAvatar(cash.getOwner(),context);
             Bitmap avatar = BitmapFactory.decodeByteArray(avatarBytes, 0, avatarBytes.length);
-            avatarImage.setImageBitmap(avatar);
+            avatarImage.setImageBitmap(NobodyUi.avatar(context, cash.getOwner(), avatar));
         } catch (IOException e) {
             ToastUtils.makeText(context, R.string.failed_to_load_avatar);
-        }
-        // Grey the avatar if the recipient is a nobody: either flagged by the
-        // caller (e.g. SendTx's on-chain checkNobodies) or already known to be a
-        // nobody app-wide (default nobody board, contacts marked nobody, etc.).
-        boolean isNobodyFid = nobody || com.fc.freer.im.NobodyBoard.isKnownNobody(cash.getOwner());
-        if (isNobodyFid) {
-            com.fc.freer.im.NobodyBoard.applyNobodyMark(avatarImage);
-        } else {
-            com.fc.freer.im.NobodyBoard.clearNobodyMark(avatarImage);
         }
     }
 

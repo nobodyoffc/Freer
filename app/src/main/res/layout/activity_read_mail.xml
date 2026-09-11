@@ -48,6 +48,9 @@
 
         </LinearLayout>
 
+            <!-- Shown when the sender is a nobody -->
+            <include layout="@layout/view_nobody_banner" />
+
             <!-- Content Section -->
             <TextView
                 android:layout_width="wrap_content"

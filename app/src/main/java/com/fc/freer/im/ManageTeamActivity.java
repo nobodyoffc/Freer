@@ -16,6 +16,7 @@ import com.fc.fc_ajdk.data.feipData.Team;
 import com.fc.fc_ajdk.data.feipData.TeamOpData;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.nobody.NobodyGuard;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.im.handler.TeamHandler;
@@ -161,8 +162,9 @@ public class ManageTeamActivity extends BaseCryptoActivity {
     }
 
     private void appointManagers(String[] fids) {
-        broadcastTeamOp(TeamOpData.makeAppoint(teamId, fids),
-                R.string.managers_appointed_successfully, R.string.failed_to_appoint_managers);
+        NobodyGuard.confirm(this, java.util.Arrays.asList(fids), R.string.nobody_consequence_team,
+                () -> broadcastTeamOp(TeamOpData.makeAppoint(teamId, fids),
+                        R.string.managers_appointed_successfully, R.string.failed_to_appoint_managers));
     }
 
     private void cancelAppointment(String[] fids) {
@@ -171,9 +173,11 @@ public class ManageTeamActivity extends BaseCryptoActivity {
     }
 
     private void transferTeam(String transferee) {
-        broadcastTeamOpWithNotification(TeamOpData.makeTransfer(teamId, transferee),
-                R.string.team_transferred_successfully, R.string.failed_to_transfer_team,
-                transferee);
+        NobodyGuard.confirm(this, java.util.Collections.singletonList(transferee),
+                R.string.nobody_consequence_team_owner,
+                () -> broadcastTeamOpWithNotification(TeamOpData.makeTransfer(teamId, transferee),
+                        R.string.team_transferred_successfully, R.string.failed_to_transfer_team,
+                        transferee));
     }
 
     private void broadcastTeamOpWithNotification(TeamOpData opData, int successMsgId, int failMsgId,

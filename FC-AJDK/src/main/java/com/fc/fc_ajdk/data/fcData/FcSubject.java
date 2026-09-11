@@ -38,7 +38,7 @@ public class FcSubject extends FcEntity {
         addFieldToMap(fieldMap, "cid", "CID", "CID");
         addFieldToMap(fieldMap, "pubkey", "Pubkey", "公钥");
         addFieldToMap(fieldMap, "usedCids", "Used CIDs", "曾用CID");
-        addFieldToMap(fieldMap, "isNobody", "Nobody", "无名");
+        addFieldToMap(fieldMap, "isNobody", "Nobody", "明人");
 
         return fieldMap;
     }

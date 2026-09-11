@@ -17,6 +17,7 @@ import com.fc.fc_ajdk.core.crypto.KeyTools;
 import com.fc.fc_ajdk.data.fcData.AlgorithmId;
 import com.fc.fc_ajdk.data.feipData.Contact;
 import com.fc.fc_ajdk.utils.Hex;
+import com.fc.freer.nobody.NobodyGuard;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.im.SearchFidsOnChainActivity;
@@ -207,7 +208,22 @@ public class EncryptActivity extends BaseCryptoActivity {
                 return;
             }
 
-            cryptoDataByte = createEncryptedData(text, actualKey, keyType);
+            if (keyType.equals("pubKey")) {
+                // Encrypting to a nobody's pubkey is readable by anyone
+                NobodyGuard.confirmPubkeys(this, java.util.Collections.singletonList(actualKey),
+                        R.string.nobody_consequence_encrypt,
+                        () -> showEncrypted(text, actualKey, keyType), null);
+                return;
+            }
+            showEncrypted(text, actualKey, keyType);
+        } catch (Exception e) {
+            showError("Encryption failed: " + e.getMessage());
+        }
+    }
+
+    private void showEncrypted(String text, String key, String keyType) {
+        try {
+            cryptoDataByte = createEncryptedData(text, key, keyType);
             resultText.setText(cryptoDataByte.toNiceJson());
             copyButton.setEnabled(true);
         } catch (Exception e) {

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Warning shown where a nobody (published prikey) is involved. Bound by NobodyUi.bindBanner. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/nobodyBanner"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="10dp"
+    android:background="@drawable/nobody_banner_background"
+    android:drawableStart="@drawable/ic_skull"
+    android:drawablePadding="8dp"
+    android:drawableTint="@color/nobody_banner_text"
+    android:gravity="center_vertical"
+    android:paddingStart="10dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="10dp"
+    android:paddingBottom="8dp"
+    android:textColor="@color/nobody_banner_text"
+    android:textSize="13sp"
+    android:visibility="gone" />

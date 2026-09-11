@@ -16,6 +16,8 @@ import com.fc.fc_ajdk.utils.FchUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
+import com.fc.freer.nobody.NobodyRegistry;
+import com.fc.freer.nobody.NobodyUi;
 import com.fc.freer.manager.AvatarManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.utils.QRCodeGenerator;
@@ -126,7 +128,12 @@ public class ReceiveActivity extends BaseCryptoActivity {
         TextView cdTextView = liveFidCard.findViewById(R.id.fidCd);
         ImageView noPrikeyIconView = liveFidCard.findViewById(R.id.multisigIcon);
 
-        // Set avatar
+        // The key's own flag also counts: it may predate the registry
+        if (Boolean.TRUE.equals(liveKeyInfo.getIsNobody())) {
+            NobodyRegistry.get().mark(liveKeyInfo.getId());
+        }
+
+        // Set avatar (the bitmap carries the nobody mark)
         if (avatarImageView != null) {
             AvatarManager avatarManager = AvatarManager.getInstance(this);
             Bitmap avatarBitmap = avatarManager.getAvatarBitmap(liveFid);
@@ -135,13 +142,8 @@ public class ReceiveActivity extends BaseCryptoActivity {
             } else {
                 avatarImageView.setImageResource(R.drawable.ic_person);
             }
-            // Grayscale marks a nobody FID (leaked/public prikey)
-            if (Boolean.TRUE.equals(liveKeyInfo.getIsNobody())) {
-                com.fc.freer.im.NobodyBoard.applyNobodyMark(avatarImageView);
-            } else {
-                com.fc.freer.im.NobodyBoard.clearNobodyMark(avatarImageView);
-            }
         }
+        NobodyUi.bindBanner(liveFidCard.findViewById(R.id.nobodyBanner), liveFid, R.string.nobody_receive_warning);
 
         // Set name (cid if available, otherwise fid)
         if (nameTextView != null) {
@@ -149,7 +151,7 @@ public class ReceiveActivity extends BaseCryptoActivity {
             if (displayName == null || displayName.trim().isEmpty()) {
                 displayName = liveFid;
             }
-            nameTextView.setText(displayName);
+            NobodyUi.setName(nameTextView, liveKeyInfo.getId(), displayName);
         }
 
         // Set label or edit icon visibility

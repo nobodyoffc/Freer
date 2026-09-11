@@ -105,12 +105,16 @@ public class DetailActivity extends AppCompatActivity {
 
                 // Constrain FID to 15 characters using StringUtils.omitMiddle
 
-                // Set the FID text
-                toolbarFidText.setText(id);
+                // The key's own flag also counts: it may predate the registry
+                if (Boolean.TRUE.equals(liveKeyInfo.getIsNobody())) {
+                    com.fc.freer.nobody.NobodyRegistry.get().mark(liveKeyInfo.getId());
+                }
 
-                // Set up avatar (grayscale marks a nobody FID)
-                boolean isNobody = Boolean.TRUE.equals(liveKeyInfo.getIsNobody());
-                setupToolbarAvatar(toolbarAvatar, liveKeyInfo.getId(), isNobody);
+                // Set the FID text (chip marks a nobody)
+                com.fc.freer.nobody.NobodyUi.setName(toolbarFidText, liveKeyInfo.getId(), id);
+
+                // Set up avatar (the bitmap carries the nobody mark)
+                setupToolbarAvatar(toolbarAvatar, liveKeyInfo.getId());
 
                 // Set up click listener for the avatar to finish current activity and go to HomeActivity
                 toolbarAvatar.setOnClickListener(v -> {
@@ -146,19 +150,12 @@ public class DetailActivity extends AppCompatActivity {
     /**
      * Sets up the avatar in the toolbar
      */
-    private void setupToolbarAvatar(ImageView avatarView, String fid, boolean isNobody) {
+    private void setupToolbarAvatar(ImageView avatarView, String fid) {
         try {
             TimberLogger.d(TAG, "Setting up toolbar avatar for FID: %s", fid);
 
             // Set initial background while avatar loads
             avatarView.setBackgroundColor(getResources().getColor(R.color.accent, getTheme()));
-
-            // Grayscale marks a nobody FID
-            if (isNobody) {
-                com.fc.freer.im.NobodyBoard.applyNobodyMark(avatarView);
-            } else {
-                com.fc.freer.im.NobodyBoard.clearNobodyMark(avatarView);
-            }
 
             // Get avatar manager instance
             AvatarManager avatarManager = AvatarManager.getInstance(this);

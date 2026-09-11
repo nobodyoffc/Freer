@@ -1,19 +1,10 @@
 package com.fc.freer.im;
 
-import android.graphics.ColorMatrix;
-import android.graphics.ColorMatrixColorFilter;
-import android.widget.ImageView;
-
 import com.fc.fc_ajdk.data.fcData.ImMessage;
 import com.fc.fc_ajdk.data.fcData.ImMessageBody;
-import com.fc.fc_ajdk.data.feipData.Contact;
 import com.fc.fc_ajdk.utils.BytesUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
-import com.fc.freer.manager.ContactManager;
-
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import com.fc.freer.nobody.NobodyRegistry;
 
 /**
  * The "first FCH" request board built on the well-known default nobody freer.
@@ -40,13 +31,6 @@ public final class NobodyBoard {
     public static final String FIRST_FCH_REQUEST_PREFIX = "FIRST_FCH_REQUEST|";
     public static final int REQUEST_NOTE_MAX_CHARS = 100;
 
-    /** FIDs known to be nobodies, learned from any source during this session. */
-    private static final Set<String> knownNobodies =
-            Collections.synchronizedSet(new HashSet<>(Collections.singletonList(DEFAULT_NOBODY_FID)));
-
-    /** Negative cache so adapter binds don't re-query the contact DB on the UI thread. */
-    private static final Set<String> knownNotNobodies = Collections.synchronizedSet(new HashSet<>());
-
     /** Lazily decoded {@link #DEFAULT_NOBODY_PRIKEY}. */
     private static byte[] nobodyPrikeyBytes;
 
@@ -56,36 +40,13 @@ public final class NobodyBoard {
         return DEFAULT_NOBODY_FID.equals(fid);
     }
 
-    /** Register a FID discovered to be a nobody (e.g. from an on-chain Freer lookup). */
-    public static void markNobody(String fid) {
-        if (fid != null && !fid.isEmpty()) {
-            knownNobodies.add(fid);
-            knownNotNobodies.remove(fid);
-        }
-    }
-
     /**
-     * Whether the FID is known to be a nobody. Checks the session cache first,
-     * then the local contact DB. Never touches the network — callers that
-     * resolve a Freer from the API should call {@link #markNobody} themselves.
+     * Whether the FID is known to be a nobody. Never touches the network: every
+     * freer or nobody lookup already records what it learns in
+     * {@link NobodyRegistry}.
      */
     public static boolean isKnownNobody(String fid) {
-        if (fid == null || fid.isEmpty()) return false;
-        if (knownNobodies.contains(fid)) return true;
-        if (knownNotNobodies.contains(fid)) return false;
-        try {
-            ContactManager contactManager = ContactManager.getInstance();
-            if (contactManager != null) {
-                Contact contact = contactManager.getContactByFid(fid);
-                if (contact != null && Boolean.TRUE.equals(contact.getNobody())) {
-                    knownNobodies.add(fid);
-                    return true;
-                }
-            }
-        } catch (Exception ignored) {
-        }
-        knownNotNobodies.add(fid);
-        return false;
+        return NobodyRegistry.get().isNobody(fid);
     }
 
     /**
@@ -156,16 +117,5 @@ public final class NobodyBoard {
         String note = sep >= 0 ? rest.substring(sep + 1) : "";
         if (fid.isEmpty() || fid.length() > 40 || note.length() > REQUEST_NOTE_MAX_CHARS) return null;
         return new Request(fid, note, timestamp != null ? timestamp : 0L);
-    }
-
-    /** Render an avatar in black-and-white to mark a nobody identity. */
-    public static void applyNobodyMark(ImageView avatarView) {
-        ColorMatrix matrix = new ColorMatrix();
-        matrix.setSaturation(0f);
-        avatarView.setColorFilter(new ColorMatrixColorFilter(matrix));
-    }
-
-    public static void clearNobodyMark(ImageView avatarView) {
-        avatarView.setColorFilter(null);
     }
 }

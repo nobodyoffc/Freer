@@ -25,6 +25,7 @@ import com.fc.fc_ajdk.data.feipData.TokenOpData;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.utils.JsonUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.nobody.NobodyGuard;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.R;
 import com.fc.freer.im.SearchFidsOnChainActivity;
@@ -322,8 +323,9 @@ public class SendTokenActivity extends BaseCryptoActivity {
             }
         }
 
-        // Perform transfer
-        performTransfer(recipient, amount);
+        // Perform transfer, once any nobody recipient is confirmed
+        NobodyGuard.confirm(this, java.util.Collections.singletonList(recipient),
+                R.string.nobody_consequence_send, () -> performTransfer(recipient, amount));
     }
 
     static int parseDecimal(String decimal) {

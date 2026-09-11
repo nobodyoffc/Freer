@@ -1,5 +1,6 @@
 package com.fc.freer.im;
 
+import com.fc.freer.nobody.NobodyUi;
 import com.fc.freer.utils.DialogUtils;
 
 import android.app.Activity;
@@ -65,8 +66,16 @@ public class RoomInviteDialog {
         String roomName = (data != null && data.roomName != null) ? data.roomName : "";
         String roomId = (data != null && data.roomId != null) ? data.roomId : "";
 
-        messageText.setText(activity.getString(R.string.room_invite_notification_message,
-                senderAlias, roomName.isEmpty() ? roomId : roomName));
+        String message = activity.getString(R.string.room_invite_notification_message,
+                senderAlias, roomName.isEmpty() ? roomId : roomName);
+        String peerFid = issue.getPeerFid();
+        NobodyUi.setName(messageText, peerFid, message);
+        // Anyone can invite in a nobody's name
+        NobodyUi.bindBannerResolving(dialogView.findViewById(R.id.nobodyBanner), peerFid,
+                R.string.nobody_inviter_warning, () -> {
+                    NobodyUi.setName(messageText, peerFid, message);
+                    loadAvatar(activity, avatarView, peerFid);
+                });
 
         if (!roomId.isEmpty()) {
             detailText.setText(activity.getString(R.string.room_invite_notification_detail, roomId));
