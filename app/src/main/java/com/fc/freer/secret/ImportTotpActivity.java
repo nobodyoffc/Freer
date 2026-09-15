@@ -1,5 +1,6 @@
 package com.fc.freer.secret;
 
+import com.fc.freer.utils.WaitingTask;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -159,16 +160,16 @@ public class ImportTotpActivity extends BaseCryptoActivity {
                     inputText = secretJsonInput.getText() != null ? secretJsonInput.getText().toString() : "";
                 }
 
-                List<Secret> secrets = parseTotpInput(inputText);
-                if (secrets != null && !secrets.isEmpty()) {
-                    SecretManager.getInstance().saveAndFinish(this, secrets);
-                } else if (fcEntityImporter.getFinalTList() != null && !fcEntityImporter.getFinalTList().isEmpty()) {
-                    // If we have items in finalTList, it means we're waiting for password input
-                    // The FcEntityImporter will handle the password input and decryption
-                    return;
-                } else {
-                    showToast(getString(R.string.no_secret_found));
-                }
+                // A backup's password ciphers cost one Argon2id run each, so parse off the UI thread.
+                String text = inputText;
+                WaitingTask.run(this, getString(R.string.decrypting), () -> parseTotpInput(text), secrets -> {
+                    if (secrets != null && !secrets.isEmpty()) {
+                        SecretManager.getInstance().saveAndFinish(this, secrets);
+                    } else if (fcEntityImporter.getFinalTList() == null || fcEntityImporter.getFinalTList().isEmpty()) {
+                        // Items in finalTList mean the importer is waiting for a password.
+                        showToast(getString(R.string.no_secret_found));
+                    }
+                });
             } catch (Exception e) {
                 showToast(getString(R.string.no_secret_found));
             }
