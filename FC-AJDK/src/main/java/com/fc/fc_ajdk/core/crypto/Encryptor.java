@@ -618,7 +618,7 @@ public class Encryptor {
     protected static final Logger log = LoggerFactory.getLogger(Encryptor.class);
 
     public Encryptor() {
-        this.algorithmId = FC_AesCbc256_No1_NrC7;
+        this.algorithmId = FC_AesGcm256_No1_NrC7;
     }
 
     public Encryptor(AlgorithmId algorithmId) {
@@ -636,7 +636,7 @@ public class Encryptor {
     public static String encryptFile(String fileName, String pubkeyHex) {
 
         byte[] pubkey = Hex.fromHex(pubkeyHex);
-        Encryptor encryptor = new Encryptor(FC_EccK1AesCbc256_No1_NrC7);
+        Encryptor encryptor = new Encryptor(FC_EccK1AesGcm256_No1_NrC7);
         String tempFileName = FileUtils.getTempFileName();
         CryptoDataByte result1 = encryptor.encryptFileByAsyOneWay(fileName, tempFileName, pubkey);
         if(result1.getCode()!=0)return null;
@@ -651,7 +651,7 @@ public class Encryptor {
     }
 
     public static String encryptBySymkeyToJson(byte[] data, byte[]symkey) {
-        Encryptor encryptor = new Encryptor(FC_AesCbc256_No1_NrC7);
+        Encryptor encryptor = new Encryptor(FC_AesGcm256_No1_NrC7);
         CryptoDataByte cryptoDataByte = encryptor.encryptBySymkey(data,symkey);
         if(cryptoDataByte.getCode()!=0)return null;
         return cryptoDataByte.toJson();
@@ -826,6 +826,11 @@ public class Encryptor {
             if(cryptoDataByte.getKeyName() == null)
                 cryptoDataByte.makeKeyName(key);
 
+            // Preserve a failure reported by the cipher layer (e.g. wrong key
+            // length) instead of overwriting it with success and an empty cipher.
+            if(cryptoDataByte.getCode() != null && cryptoDataByte.getCode() != 0)
+                return cryptoDataByte;
+
             byte[] cipher = bosCipher.toByteArray();
 
             cryptoDataByte.setCipher(cipher);
@@ -943,7 +948,8 @@ public class Encryptor {
             cryptoDataByte.makeSum4();
         }
 
-        cryptoDataByte.set0CodeMessage();
+        if(cryptoDataByte.getCode() == null || cryptoDataByte.getCode() == 0)
+            cryptoDataByte.set0CodeMessage();
         return cryptoDataByte;
     }
 
@@ -1012,7 +1018,10 @@ public class Encryptor {
             }
 
             cryptoDataByte.setType(encryptType);
-            cryptoDataByte.setCodeMessage(CodeMessage.Code0Success);
+            // Preserve a failure reported by the encryption layer instead of
+            // reporting success over it.
+            if(cryptoDataByte.getCode() == null || cryptoDataByte.getCode() == 0)
+                cryptoDataByte.setCodeMessage(CodeMessage.Code0Success);
 
             return cryptoDataByte;
         } catch (IOException e) {
