@@ -1,5 +1,6 @@
 package com.fc.freer.myKeys;
 
+import com.fc.freer.utils.WaitingTask;
 import android.app.ProgressDialog;
 import android.content.Intent;
 import android.net.Uri;
@@ -367,17 +368,18 @@ public class ImportKeyActivity extends BaseCryptoActivity {
         });
         if (password != null) importer.setPassword(password);
 
-        List<KeyInfo> result = null;
-        if (fileUri != null) {
-            try (InputStream is = getContentResolver().openInputStream(fileUri)) {
-                if (is != null) result = importer.importEntity(is);
-            } catch (Exception e) {
-                TimberLogger.e(TAG, "Failed to import key file: %s", e.getMessage());
+        FcEntityImporter<KeyInfo> current = importer;
+        Uri uri = fileUri;
+        String text = textOf(keyInput).trim();
+        // Every password cipher in a backup costs one Argon2id run, so import off the UI thread.
+        WaitingTask.run(this, getString(R.string.decrypting), () -> {
+            if (uri == null) return current.importEntity(text);
+            try (InputStream is = getContentResolver().openInputStream(uri)) {
+                return is == null ? null : current.importEntity(is);
             }
-        } else {
-            result = importer.importEntity(textOf(keyInput).trim());
-        }
-        if (result == null) ToastUtils.makeText(this, getString(R.string.no_key_info_found));
+        }, result -> {
+            if (result == null) ToastUtils.makeText(this, getString(R.string.no_key_info_found));
+        });
     }
 
     private void openFilePicker() {

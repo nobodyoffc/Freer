@@ -233,6 +233,9 @@ package com.fc.freer.utils;
 //}
 
 
+import android.os.Looper;
+import android.os.Handler;
+import android.app.Activity;
 import static com.fc.freer.utils.BackupUtils.readBackup;
 
 import android.content.Context;
@@ -284,7 +287,7 @@ public class FcEntityImporter<T extends FcEntity> {
     public FcEntityImporter(Context context, Class<T> typeClass, OnImportListener<T> listener) {
         this.context = context;
         this.typeClass = typeClass;
-        this.listener = listener;
+        this.listener = onMainThread(listener);
         this.finalTList = new ArrayList<>();
     }
 
@@ -433,7 +436,40 @@ public class FcEntityImporter<T extends FcEntity> {
         }
     }
 
+    /** The importer may run on a background thread; its listener always hears back on the UI thread. */
+    private static <T extends FcEntity> OnImportListener<T> onMainThread(OnImportListener<T> listener) {
+        Handler main = new Handler(Looper.getMainLooper());
+        return new OnImportListener<>() {
+            @Override
+            public void onImportSuccess(List<T> result) {
+                main.post(() -> listener.onImportSuccess(result));
+            }
+
+            @Override
+            public void onImportError(String error) {
+                main.post(() -> listener.onImportError(error));
+            }
+
+            @Override
+            public void onPasswordRequired(Intent intent) {
+                main.post(() -> listener.onPasswordRequired(intent));
+            }
+        };
+    }
+
+    /** Opens the pending ciphers with the entered password. Each costs one Argon2id run, so this works off the UI thread. */
     public void handleInputResult(Intent data) {
+        if (context instanceof Activity activity) {
+            WaitingTask.run(activity, activity.getString(R.string.decrypting), () -> {
+                openPendingCiphers(data);
+                return null;
+            }, null);
+        } else {
+            openPendingCiphers(data);
+        }
+    }
+
+    private void openPendingCiphers(Intent data) {
         if (data == null) {
             listener.onImportError("Input cancelled");
             return;
