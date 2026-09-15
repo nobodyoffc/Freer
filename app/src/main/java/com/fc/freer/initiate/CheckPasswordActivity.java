@@ -37,6 +37,8 @@ public class CheckPasswordActivity extends AppCompatActivity {
     // start two verification threads and launch ChooseCidActivity twice.
     private boolean isVerifying = false;
     private static final String TAG = "CryptoSign";
+    /** Set by ChangePasswordActivity: check the open vault's password and change nothing else. */
+    public static final String FOR_PASSWORD_CHANGE = "for_password_change";
     private static final int QR_CODE_REQUEST_CODE = 1001;
     private static final int REQUEST_CODE_CHOOSE_CID = 1002;
     private ActivityResultLauncher<Intent> createPasswordLauncher;
@@ -215,15 +217,33 @@ public class CheckPasswordActivity extends AppCompatActivity {
         new Thread(() -> {
             try {
                 byte[] passwordBytes = enteredPassword.getBytes();
-                String passwordName = IdNameUtils.makePasswordHashName(passwordBytes);
-                Configure configure = ConfigureManager.getInstance().getConfigure(this, passwordName);
+                if (getIntent().getBooleanExtra(FOR_PASSWORD_CHANGE, false)) {
+                    boolean verified = ConfigureManager.getInstance().verifyPassword(passwordBytes);
+                    runOnUiThread(() -> {
+                        waitingDialog.dismiss();
+                        if (verified) {
+                            setResult(RESULT_OK);
+                            finish();
+                        } else {
+                            isVerifying = false;
+                            verifyButton.setEnabled(true);
+                            ToastUtils.makeText(this, getString(R.string.incorrect_password));
+                        }
+                    });
+                    return;
+                }
+                VaultUnlocker.Result unlocked = VaultUnlocker.unlock(this, passwordBytes, true);
+                Configure configure = unlocked.configure;
+                String passwordName = configure != null ? configure.getPasswordName() : null;
 
                 // Switch back to UI thread for UI operations
                 runOnUiThread(() -> {
                     waitingDialog.dismiss();
 
                     if (configure != null) {
-                        configure.makeSymkeyFromPassword(passwordBytes);
+                        if (unlocked.unreadableRecordId != null) {
+                            ToastUtils.makeText(this, getString(R.string.vault_migration_aborted, unlocked.unreadableRecordId));
+                        }
 
                         // Check if this is from background timeout
                         boolean fromBackgroundTimeout = getIntent().getBooleanExtra(FROM_BACKGROUND_TIMEOUT, false);

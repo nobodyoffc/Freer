@@ -30,6 +30,8 @@ import java.util.Objects;
 public class CreatePasswordActivity extends AppCompatActivity {
 
     public static final String FROM_NEW_PASSWORD = "from_new_password";
+    /** The result extra holding the new password when started for a password change. */
+    public static final String NEW_PASSWORD = "new_password";
     private EditText passwordInput;
     private EditText confirmPasswordInput;
     private TextView errorText;
@@ -164,31 +166,53 @@ public class CreatePasswordActivity extends AppCompatActivity {
         }
 
         byte[] passwordBytes = password.getBytes();
-        String passwordName = IdNameUtils.makePasswordHashName(passwordBytes);
+        boolean forPasswordChange = getIntent().getBooleanExtra(CheckPasswordActivity.FOR_PASSWORD_CHANGE, false);
+        MaterialButton createButton = findViewById(R.id.createButton);
+        createButton.setEnabled(false);
 
-        ConfigureManager configureManager = ConfigureManager.getInstance();
-        Map<String, Configure> configMap = configureManager.loadConfigMap(this);
-        if(configMap.get(passwordName)!=null){
-            ToastUtils.makeText(this,getString(R.string.this_password_existed));
-            return;
-        }
+        // The duplicate check and wrapping the new data key both run Argon2id, so keep them off the UI thread.
+        new Thread(() -> {
+            try {
+                ConfigureManager configureManager = ConfigureManager.getInstance();
+                if (configureManager.passwordExists(this, passwordBytes)) {
+                    runOnUiThread(() -> {
+                        createButton.setEnabled(true);
+                        ToastUtils.makeText(this, getString(R.string.this_password_existed));
+                    });
+                    return;
+                }
+                if (forPasswordChange) {
+                    // ChangePasswordActivity re-wraps the open vault's key; no new vault is made here.
+                    runOnUiThread(() -> {
+                        Intent result = new Intent();
+                        result.putExtra(NEW_PASSWORD, password);
+                        setResult(RESULT_OK, result);
+                        finish();
+                    });
+                    return;
+                }
 
-        // No existing password/config means this is a genuine first-time user.
-        // Capture it before we store the new config below.
-        boolean isFirstUser = configMap.isEmpty();
+                // No existing password/config means this is a genuine first-time user.
+                // Capture it before we store the new config below.
+                boolean isFirstUser = ConfigureManager.loadConfigMap(this).isEmpty();
+                Configure configure = ConfigureManager.createConfigure(passwordBytes);
+                if (!configureManager.storeConfigure(this, configure)) {
+                    throw new IllegalStateException("Failed to save the configuration");
+                }
+                runOnUiThread(() -> openNewVault(configure, isFirstUser));
+            } catch (Exception e) {
+                TimberLogger.e(TAG, "Error creating password: " + e.getMessage(), e);
+                runOnUiThread(() -> {
+                    createButton.setEnabled(true);
+                    showError(getString(R.string.error_creating_password));
+                });
+            }
+        }).start();
+    }
 
-        // Create new Configure object
-        Configure configure = new Configure();
-        configure.makeSymkeyFromPassword(passwordBytes);
-        configure.setPasswordName(passwordName);
-
-        // Get DatabaseManager instance
-        DatabaseManager databaseManager = DatabaseManager.getInstance();
-        databaseManager.setCurrentPasswordName(passwordName);
-
-        // Store the Configure object in ConfigureManager
+    private void openNewVault(Configure configure, boolean isFirstUser) {
+        DatabaseManager.getInstance().setCurrentPasswordName(configure.getPasswordName());
         ConfigureManager.getInstance().setConfigure(configure);
-        ConfigureManager.getInstance().storeConfigure(this, configure);
 
         // Brand-new user (no prior password/config): auto-create a random FID and
         // drop them straight onto Home, skipping the otherwise-empty identity chooser.

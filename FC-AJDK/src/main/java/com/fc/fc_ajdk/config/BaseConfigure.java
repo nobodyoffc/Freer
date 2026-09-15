@@ -32,6 +32,14 @@ public abstract class BaseConfigure extends FcObject {
     protected String passwordName;
     protected String passwordHash;
     protected transient byte[] symkey;
+    /** The vault's data key wrapped under the password (VaultKey). Null for a legacy vault that has not been moved yet. */
+    protected String dekCipher;
+    /** VaultMigration.State while a legacy vault is being moved to a data key; null once that is done. */
+    protected String vaultState;
+    /** The vault id a legacy vault is being moved to. */
+    protected String pendingVaultId;
+    /** The legacy password-derived name whose storage is still to be deleted. */
+    protected String legacyName;
     
     // Ownership
     protected List<String> ownerList;
@@ -149,6 +157,38 @@ public abstract class BaseConfigure extends FcObject {
         this.passwordName = IdNameUtils.makePasswordHashName(passwordBytes);
     }
     
+    public String getDekCipher() {
+        return dekCipher;
+    }
+
+    public void setDekCipher(String dekCipher) {
+        this.dekCipher = dekCipher;
+    }
+
+    public String getVaultState() {
+        return vaultState;
+    }
+
+    public void setVaultState(String vaultState) {
+        this.vaultState = vaultState;
+    }
+
+    public String getPendingVaultId() {
+        return pendingVaultId;
+    }
+
+    public void setPendingVaultId(String pendingVaultId) {
+        this.pendingVaultId = pendingVaultId;
+    }
+
+    public String getLegacyName() {
+        return legacyName;
+    }
+
+    public void setLegacyName(String legacyName) {
+        this.legacyName = legacyName;
+    }
+
     // ==================== Owner Management ====================
     
     public List<String> getOwnerList() {

@@ -4,6 +4,9 @@ import android.content.Intent;
 import android.os.Bundle;
 
 import com.fc.fc_ajdk.core.crypto.CryptoDataByte;
+import com.fc.fc_ajdk.core.crypto.VaultKey;
+import com.fc.fc_ajdk.utils.IdNameUtils;
+import com.fc.freer.manager.FreerVaultStore;
 import com.fc.fc_ajdk.data.fcData.AlgorithmId;
 import com.fc.fc_ajdk.data.fcData.FcEntity;
 import com.fc.fc_ajdk.data.fchData.Cash;
@@ -64,6 +67,7 @@ public class ChangePasswordActivity extends AppCompatActivity {
         // Start the flow
         Intent intent = new Intent(this, CheckPasswordActivity.class);
         intent.putExtra("allow_back_navigation", true); // Allow user to cancel password change
+        intent.putExtra(CheckPasswordActivity.FOR_PASSWORD_CHANGE, true);
         checkPasswordLauncher.launch(intent);
     }
 
@@ -73,6 +77,7 @@ public class ChangePasswordActivity extends AppCompatActivity {
             result -> {
                 if (result.getResultCode() == RESULT_OK) {
                     Intent intent = new Intent(this, CreatePasswordActivity.class);
+                    intent.putExtra(CheckPasswordActivity.FOR_PASSWORD_CHANGE, true);
                     createPasswordLauncher.launch(intent);
                 } else {
                     finish();
@@ -82,14 +87,19 @@ public class ChangePasswordActivity extends AppCompatActivity {
         createPasswordLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
-                if (result.getResultCode() == RESULT_OK) {
+                String newPassword = result.getResultCode() == RESULT_OK && result.getData() != null
+                        ? result.getData().getStringExtra(CreatePasswordActivity.NEW_PASSWORD) : null;
+                if (newPassword != null && oldConfigure.getDekCipher() != null
+                        && !VaultKey.isLegacyName(oldConfigure.getPasswordName())) {
+                    rewrapDataKey(newPassword);
+                } else if (newPassword != null) {
                     new Thread(() -> {
                         Thread.currentThread().setName("PasswordChangeThread");
                         try {
                             showWaitingDialog("Preparing password change...");
 
                             // Get new symKey
-                            Configure newConfigure = ConfigureManager.getInstance().getConfigure();
+                            Configure newConfigure = makeLegacyConfigure(newPassword);
 
                             copyOldConfigure(oldConfigure, newConfigure);
 
@@ -146,6 +156,56 @@ public class ChangePasswordActivity extends AppCompatActivity {
                 }
             }
         );
+    }
+
+    /** A vault with a data key keeps its records and storage; only the wrapping of the key changes. */
+    private void rewrapDataKey(String newPassword) {
+        new Thread(() -> {
+            Thread.currentThread().setName("PasswordChangeThread");
+            String oldDekCipher = oldConfigure.getDekCipher();
+            try {
+                showWaitingDialog("Changing password...");
+                oldConfigure.setDekCipher(VaultKey.wrap(oldConfigure.getSymkey(), ConfigureManager.toChars(newPassword.getBytes())));
+                if (!ConfigureManager.getInstance().storeConfigure(this, oldConfigure)) {
+                    throw new IllegalStateException("Failed to save the configuration");
+                }
+                ConfigureManager.getInstance().setConfigure(oldConfigure);
+
+                runOnUiThread(() -> {
+                    dismissWaitingDialog();
+                    ToastUtils.makeText(this, getString(R.string.password_changed));
+                    setResult(RESULT_OK);
+                    finish();
+                });
+            } catch (Exception e) {
+                oldConfigure.setDekCipher(oldDekCipher);
+                runOnUiThread(() -> {
+                    dismissWaitingDialog();
+                    ToastUtils.makeText(this, getString(R.string.error_during_password_change) + e.getMessage());
+                    setResult(RESULT_CANCELED);
+                    finish();
+                });
+            }
+        }).start();
+    }
+
+    /**
+     * The Configure a legacy vault's password change moves to, made the way CreatePasswordActivity made
+     * one before vaults had data keys. The vault then moves to a data key at its next unlock.
+     */
+    private Configure makeLegacyConfigure(String newPassword) {
+        if (oldConfigure.getPendingVaultId() != null) {
+            // A migration that stopped part way left a copy under a vault id this change abandons.
+            new FreerVaultStore(this, oldConfigure).discard(oldConfigure.getPendingVaultId());
+        }
+        byte[] passwordBytes = newPassword.getBytes();
+        Configure newConfigure = new Configure();
+        newConfigure.makeSymkeyFromPassword(passwordBytes);
+        newConfigure.setPasswordName(IdNameUtils.makePasswordHashName(passwordBytes));
+        DatabaseManager.getInstance().setCurrentPasswordName(newConfigure.getPasswordName());
+        ConfigureManager.getInstance().setConfigure(newConfigure);
+        ConfigureManager.getInstance().storeConfigure(this, newConfigure);
+        return newConfigure;
     }
 
     private void immigrateAllSettings(Configure oldConfigure, Configure newConfigure) {

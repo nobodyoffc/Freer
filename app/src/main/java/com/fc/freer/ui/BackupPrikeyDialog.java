@@ -17,6 +17,7 @@ import androidx.annotation.NonNull;
 
 import com.fc.fc_ajdk.core.crypto.CryptoDataByte;
 import com.fc.fc_ajdk.core.crypto.Encryptor;
+import com.fc.fc_ajdk.core.crypto.Kdf;
 import com.fc.fc_ajdk.core.crypto.KeyTools;
 import com.fc.fc_ajdk.data.fcData.AlgorithmId;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
@@ -29,6 +30,8 @@ import com.fc.freer.utils.QRCodeGenerator;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ToastUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -158,48 +161,71 @@ public class BackupPrikeyDialog extends Dialog {
             TimberLogger.e(TAG, "Failed to convert prikey to Base58: %s", e.getMessage());
             prikeyBase58 = prikeyHex; // Fallback to hex
         }
+        // The ciphers are made on first use, from a password the user enters then.
+    }
 
-        // Encrypt prikey (hex form) to get cipher
-        try {
-            byte[] prikeyBytes = Hex.fromHex(prikeyHex);
-            Encryptor encryptor = new Encryptor(AlgorithmId.FC_AesGcm256_No1_NrC7);
-            CryptoDataByte cryptoDataByte = encryptor.encryptByPasswordHash(prikeyBytes, symkey);
+    /**
+     * Makes the cipher of the form the dialog shows now (hex or Base58Check) from a password the user
+     * enters. It is a Password cipher (Argon2id, AES-256-GCM), so Safe and Freer both decrypt it with
+     * that password. The password must be the vault's, so a typo cannot produce a backup nobody can open.
+     */
+    private void withCipher(Runnable onReady, Runnable onFail) {
+        boolean base58 = base58Checkbox.isChecked();
+        PasswordInputDialog dialog = new PasswordInputDialog(getContext(),
+                getContext().getString(R.string.enter_password_prompt),
+                getContext().getString(R.string.password),
+                new PasswordInputDialog.OnPasswordInputListener() {
+                    @Override
+                    public void onConfirm(String password) {
+                        String text = base58 ? prikeyBase58 : prikeyHex;
+                        if (password == null || password.isEmpty() || text == null) {
+                            ToastUtils.makeText(getContext(), R.string.please_enter_password);
+                            if (onFail != null) onFail.run();
+                            return;
+                        }
+                        byte[] plain = base58 ? text.getBytes(StandardCharsets.UTF_8) : Hex.fromHex(text);
+                        new Thread(() -> {
+                            // Checking the password and deriving the cipher key each run Argon2id.
+                            boolean verified = ConfigureManager.getInstance().verifyPassword(password.getBytes());
+                            String cipher = null;
+                            if (verified) {
+                                Encryptor encryptor = new Encryptor(AlgorithmId.FC_AesGcm256_No1_NrC7);
+                                encryptor.setKdf(Kdf.Argon2id_No1_NrC7);
+                                CryptoDataByte cryptoDataByte = encryptor.encryptByPassword(plain, password.toCharArray());
+                                if (cryptoDataByte.getCode() != null && cryptoDataByte.getCode() == 0) {
+                                    cryptoDataByte.setData(null);
+                                    cryptoDataByte.setSymkey(null);
+                                    cryptoDataByte.setPassword(null);
+                                    cipher = cryptoDataByte.toJson();
+                                } else {
+                                    TimberLogger.e(TAG, "Failed to encrypt prikey: %s", cryptoDataByte.getMessage());
+                                }
+                            }
+                            Arrays.fill(plain, (byte) 0);
+                            String made = cipher;
+                            qrCodeImageView.post(() -> {
+                                if (!isShowing()) return;
+                                if (!verified) {
+                                    ToastUtils.makeText(getContext(), R.string.incorrect_password);
+                                } else if (made == null) {
+                                    ToastUtils.makeText(getContext(), R.string.failed_to_encrypt_prikey);
+                                } else {
+                                    if (base58) prikeyCipherBase58 = made;
+                                    else prikeyCipher = made;
+                                    onReady.run();
+                                    return;
+                                }
+                                if (onFail != null) onFail.run();
+                            });
+                        }).start();
+                    }
 
-            if (cryptoDataByte.getCode() == 0) {
-                prikeyCipher = cryptoDataByte.toJson();
-            } else {
-                TimberLogger.e(TAG, "Failed to encrypt prikey: %s", cryptoDataByte.getMessage());
-                ToastUtils.makeText(getContext(), R.string.failed_to_encrypt_prikey);
-                close();
-                return;
-            }
-        } catch (Exception e) {
-            TimberLogger.e(TAG, "Exception encrypting prikey: %s", e.getMessage());
-            ToastUtils.makeText(getContext(), R.string.failed_to_encrypt_prikey);
-            close();
-            return;
-        }
-
-        // Encrypt the Base58Check (WIF) text so the QR can carry the cipher of that text
-        try {
-            byte[] prikeyBase58Bytes = prikeyBase58.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            Encryptor encryptor = new Encryptor(AlgorithmId.FC_AesGcm256_No1_NrC7);
-            CryptoDataByte cryptoDataByte = encryptor.encryptByPasswordHash(prikeyBase58Bytes, symkey);
-
-            if (cryptoDataByte.getCode() == 0) {
-                prikeyCipherBase58 = cryptoDataByte.toJson();
-            } else {
-                TimberLogger.e(TAG, "Failed to encrypt Base58 prikey: %s", cryptoDataByte.getMessage());
-                ToastUtils.makeText(getContext(), R.string.failed_to_encrypt_prikey);
-                close();
-                return;
-            }
-        } catch (Exception e) {
-            TimberLogger.e(TAG, "Exception encrypting Base58 prikey: %s", e.getMessage());
-            ToastUtils.makeText(getContext(), R.string.failed_to_encrypt_prikey);
-            close();
-            return;
-        }
+                    @Override
+                    public void onCancel() {
+                        if (onFail != null) onFail.run();
+                    }
+                });
+        dialog.show();
     }
 
     private void setupListeners() {
@@ -262,6 +288,11 @@ public class BackupPrikeyDialog extends Dialog {
         if (encryptCheckbox.isChecked()) {
             // Show encrypted cipher of the Base58Check text or the hex text, matching the checkbox
             qrContent = base58Checkbox.isChecked() ? prikeyCipherBase58 : prikeyCipher;
+            if (qrContent == null) {
+                qrCodeImageView.setImageBitmap(null);
+                if (isQrVisible) withCipher(this::updateQRCode, () -> encryptCheckbox.setChecked(false));
+                return;
+            }
         } else {
             // Show plain prikey, honoring the Base58Check/Hex choice
             qrContent = base58Checkbox.isChecked() ? prikeyBase58 : prikeyHex;
@@ -331,7 +362,11 @@ public class BackupPrikeyDialog extends Dialog {
 
     private void copyCipherToClipboard() {
         String cipherToCopy = base58Checkbox.isChecked() ? prikeyCipherBase58 : prikeyCipher;
-        if (cipherToCopy != null && !cipherToCopy.isEmpty()) {
+        if (cipherToCopy == null) {
+            withCipher(this::copyCipherToClipboard, null);
+            return;
+        }
+        if (!cipherToCopy.isEmpty()) {
             ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
             ClipData clip = ClipData.newPlainText("Prikey Cipher", cipherToCopy);
             clipboard.setPrimaryClip(clip);

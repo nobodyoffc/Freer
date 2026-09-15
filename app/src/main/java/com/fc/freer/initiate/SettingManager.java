@@ -213,7 +213,32 @@ public class SettingManager {
 
     @NonNull
     public static String getSettingMapKey(Configure configure) {
-        return configure.getPasswordName() + "_" + SETTINGS_KEY;
+        return settingMapKeyFor(configure.getPasswordName());
+    }
+
+    /** The preferences key of the settings map of the vault named {@code vaultName}. */
+    @NonNull
+    public static String settingMapKeyFor(String vaultName) {
+        return vaultName + "_" + SETTINGS_KEY;
+    }
+
+    /** @return the settings map JSON of the vault named {@code vaultName}, or null if it has none. */
+    public static String readSettingMapJson(Context context, String vaultName) {
+        return settingsPrefs(context).getString(settingMapKeyFor(vaultName), null);
+    }
+
+    /** Writes the settings map JSON of a vault durably. @return false if the write failed. */
+    public static boolean commitSettingMapJson(Context context, String vaultName, String json) {
+        return settingsPrefs(context).edit().putString(settingMapKeyFor(vaultName), json).commit();
+    }
+
+    /** Removes the settings map of a vault durably. @return false if the write failed. */
+    public static boolean removeSettingMapJson(Context context, String vaultName) {
+        return settingsPrefs(context).edit().remove(settingMapKeyFor(vaultName)).commit();
+    }
+
+    private static SharedPreferences settingsPrefs(Context context) {
+        return context.getApplicationContext().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
     }
 
     public static void saveSettingMap(Context context, String key, Map<String, Setting> settingMap) {
