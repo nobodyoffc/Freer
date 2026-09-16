@@ -1,5 +1,7 @@
 # task
 
+
+[x] backup prikey should use kdf
 [x] when creating team, the field of DOCK should be the sid of the DOCK (or BASE if no DOCK) of the mainFid instead of the url
 [x] when user create a new team, should it generate the symkey soon instead of waiting confirmation and the promoting user? 
 [x] combine the prikey importing pages

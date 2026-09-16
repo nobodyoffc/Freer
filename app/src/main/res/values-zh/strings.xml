@@ -2428,7 +2428,7 @@
     <string name="nobody_content_hidden">[来自不可验证（明人）身份的内容已隐藏]</string>
     <string name="im_send_only_no_dock">只发模式：你还没有接收（DOCK）服务器，可以发送消息但收不到回复。首币求助的回应会以到账的形式出现在你的钱包里。</string>
     <string name="talk_send_only_banner">只发模式 — 去设置接收服务器</string>
-    <string name="newcomer_requests">查看新人求助</string>
+    <string name="newcomer_requests">帮助新人</string>
     <string name="newcomer_requests_empty">暂无待处理的首币求助</string>
     <string name="newcomer_requests_loading">正在从求助板加载…</string>
     <string name="newcomer_requests_no_dock">无法连接求助板的 DOCK 服务器</string>

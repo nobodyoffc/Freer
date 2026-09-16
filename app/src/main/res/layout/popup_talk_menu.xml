@@ -42,16 +42,4 @@
         android:clickable="true"
         android:focusable="true" />
 
-    <TextView
-        android:id="@+id/menu_newcomer_requests"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/newcomer_requests"
-        android:textSize="16sp"
-        android:textColor="@color/text"
-        android:padding="12dp"
-        android:background="?android:attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true" />
-
 </LinearLayout>

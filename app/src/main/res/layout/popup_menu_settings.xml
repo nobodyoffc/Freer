@@ -92,6 +92,20 @@
         android:background="?android:attr/listDivider" />
 
     <TextView
+        android:id="@+id/help_beginners"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        android:text="@string/newcomer_requests"
+        android:textColor="?android:attr/textColorPrimary"
+        android:textSize="16sp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?android:attr/listDivider" />
+
+    <TextView
         android:id="@+id/security_guidelines"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

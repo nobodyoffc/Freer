@@ -2471,7 +2471,7 @@
     <string name="nobody_content_hidden">[Content from an unverifiable (nobody) identity is not shown]</string>
     <string name="im_send_only_no_dock">Send-only mode: you have no receive (DOCK) server yet, so you can send messages but cannot receive replies. Answers to a first-FCH request arrive as coins in your wallet.</string>
     <string name="talk_send_only_banner">Send-only mode — set up your receive server</string>
-    <string name="newcomer_requests">Check newcomer requests</string>
+    <string name="newcomer_requests">Help beginners</string>
     <string name="newcomer_requests_empty">No open first-FCH requests</string>
     <string name="newcomer_requests_loading">Loading requests from the board…</string>
     <string name="newcomer_requests_no_dock">The board\'s DOCK server could not be reached</string>

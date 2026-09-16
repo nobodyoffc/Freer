@@ -460,11 +460,6 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
             startActivity(new Intent(this, BlacklistActivity.class));
         });
 
-        popupView.findViewById(R.id.menu_newcomer_requests).setOnClickListener(v -> {
-            popupWindow.dismiss();
-            startActivity(new Intent(this, NewcomerRequestsActivity.class));
-        });
-
         popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         int popupHeight = popupView.getMeasuredHeight();
 
