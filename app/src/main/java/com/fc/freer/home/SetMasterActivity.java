@@ -14,6 +14,9 @@ import android.widget.TextView;
 
 import com.fc.fc_ajdk.data.fchData.Freer;
 import com.fc.freer.nobody.NobodyGuard;
+import com.fc.freer.onboarding.LiveFidRecord;
+import com.fc.freer.onboarding.PendingIdentityCarve;
+import com.fc.freer.onboarding.PendingIdentityCarves;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.utils.ChooseMode;
 import com.fc.freer.utils.KeyCardContainer;
@@ -459,6 +462,49 @@ public class SetMasterActivity extends BaseCryptoActivity {
         // Disable button to prevent double submission
         confirmButton.setEnabled(false);
         confirmButton.setAlpha(0.5f);
+
+        // FEIP6 makes a master write-once: the parser ignores a master carve from a FID that
+        // already has one, after taking the fee. Ask the chain, not the local KeyInfo, which is
+        // written on broadcast and can name a master whose carve never landed.
+        final String masterFid = selectedMasterFid;
+        new Thread(() -> {
+            long now = System.currentTimeMillis();
+            PendingIdentityCarve inFlight = PendingIdentityCarves.of(this)
+                    .getInFlight(mainFid, PendingIdentityCarve.Kind.MASTER, now);
+            String refusal = null;
+            if (inFlight != null) {
+                refusal = getString(R.string.carve_already_pending, inFlight.txid);
+            } else {
+                try {
+                    LiveFidRecord record = LiveFidRecord.fetch(fapiClient, mainFid).record;
+                    String existing = record.master != null ? record.master.trim() : "";
+                    if (!existing.isEmpty()) {
+                        refusal = getString(R.string.master_already_set_on_chain, existing);
+                    }
+                } catch (Exception e) {
+                    TimberLogger.w(TAG, "Could not read master for %s: %s", mainFid, e.getMessage());
+                    refusal = getString(R.string.master_check_failed, e.getMessage());
+                }
+            }
+            final String finalRefusal = refusal;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (finalRefusal != null) {
+                    new com.fc.freer.ui.RemindDialog(this, finalRefusal, true).show();
+                    confirmButton.setEnabled(true);
+                    confirmButton.setAlpha(1.0f);
+                    return;
+                }
+                if (masterFid.equals(selectedMasterFid)) showSetMasterConfirm(fidManager, mainFid);
+                else {
+                    confirmButton.setEnabled(true);
+                    confirmButton.setAlpha(1.0f);
+                }
+            });
+        }).start();
+    }
+
+    private void showSetMasterConfirm(FidManager fidManager, String mainFid) {
         // Show confirmation dialog
         String title = getString(R.string.confirm_set_master);
         String message = getString(R.string.confirm_set_master_message, selectedMasterFid, mainFid);
@@ -507,6 +553,11 @@ public class SetMasterActivity extends BaseCryptoActivity {
                             new TxSender.TxCallback() {
                                 @Override
                                 public void onSuccess(String txId) {
+                                    // Broadcast, not landed: no screen offers this carve again
+                                    // until the chain shows a master or a day passes.
+                                    PendingIdentityCarves.of(SetMasterActivity.this).record(
+                                            PendingIdentityCarve.master(mainFid, selectedMasterFid,
+                                                    txId, System.currentTimeMillis()));
                                     runOnUiThread(() -> {
                                         try {
                                             // Update mainKeyInfo.master and save current setting

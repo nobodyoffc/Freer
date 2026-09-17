@@ -52,16 +52,6 @@
         android:gravity="end">
 
         <Button
-            android:id="@+id/btn_never"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="?android:attr/selectableItemBackground"
-            android:text="@string/server_setup_never"
-            android:textAllCaps="false"
-            android:textColor="@color/text_secondary"
-            android:textSize="15sp" />
-
-        <Button
             android:id="@+id/btn_not_now"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

@@ -59,6 +59,9 @@ import java.util.List;
 public class CreateContactActivity extends BaseCryptoActivity {
     private static final String TAG = "CreateContactActivity";
 
+    /** Optional: a FID to look up and select straight away, e.g. the guide from Getting started. */
+    public static final String EXTRA_FID = "extra_fid";
+
     // FID Search Components
     private TextView searchResultsHint;
     private EditText fidSearchEditText;
@@ -131,6 +134,12 @@ public class CreateContactActivity extends BaseCryptoActivity {
 
         setupButtons();
         setupData();
+
+        String prefillFid = getIntent().getStringExtra(EXTRA_FID);
+        if (prefillFid != null && !prefillFid.isEmpty() && fidSearchEditText != null) {
+            fidSearchEditText.setText(prefillFid);
+            performFidSearch();
+        }
 
         // Setup scan icons for input fields
         TextIconsUtils.setupTextIcons(this, R.id.titlesView, R.id.scanIcon, QR_SCAN_TITLES_REQUEST_CODE);

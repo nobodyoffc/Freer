@@ -94,6 +94,9 @@
         android:id="@+id/liveFidCard"
         layout="@layout/layout_fid_card" />
 
+    <!-- Getting started checklist; hidden unless a step is still to do -->
+    <include layout="@layout/layout_getting_started_card" />
+
     <!-- Bottom Icon Container (3/4 of screen) -->
 
     <androidx.core.widget.NestedScrollView

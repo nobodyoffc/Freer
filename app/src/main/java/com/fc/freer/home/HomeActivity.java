@@ -60,7 +60,6 @@ import com.fc.freer.im.PendingIssueManager;
 import com.fc.freer.ui.PopupMenuHelper;
 import com.fc.freer.ui.PersonPopupMenuHelper;
 import com.fc.freer.ui.RemindDialog;
-import com.fc.freer.ui.BackupPrikeyDialog;
 
 
 public class HomeActivity extends AppCompatActivity {
@@ -79,12 +78,9 @@ public class HomeActivity extends AppCompatActivity {
     private TextView badgeMail;
     private View talkView;
     private View dataView;
-    private boolean serverSetupPrompted = false;
-    // Set once the live FID's on-chain info (incl. home.DISK) has been fetched at least once.
-    // Until then the DISK setup prompt is suppressed: a freshly-added FID's local KeyInfo has
-    // no home entries yet, so isDiskReady() would be a false negative and pop the dialog even
-    // for a FID that already has its servers configured on-chain.
-    private volatile boolean liveFidInfoRefreshed = false;
+    // The getting-started checklist under the live FID card. It replaced the backup, top-up,
+    // CID and server-setup prompts that used to open by themselves.
+    private com.fc.freer.onboarding.GettingStartedCard gettingStartedCard;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -176,6 +172,10 @@ public class HomeActivity extends AppCompatActivity {
             // Set up live FID card
             setupLiveFidCard();
 
+            gettingStartedCard = new com.fc.freer.onboarding.GettingStartedCard(
+                    this, findViewById(R.id.gettingStartedCard), this::refreshLiveFidInfoFromApi);
+            gettingStartedCard.refresh();
+
             // Re-mark the card as soon as the live FID is learned to be a nobody
             NobodyUi.observe(this, fids -> {
                 FidManager manager = FidManager.getInstance();
@@ -184,8 +184,6 @@ public class HomeActivity extends AppCompatActivity {
 
             // Load modules in background after UI is set up
             loadModulesAsync();
-
-            checkPrikeyBackup();
 
         } catch (Exception ex) {
             // Log any exceptions that occur during initialization
@@ -654,52 +652,6 @@ public class HomeActivity extends AppCompatActivity {
             TimberLogger.e(TAG, "Error initializing FidManager: " + ex.getMessage(), ex);
         }
     }
-
-    private void checkPrikeyBackup() {
-        try {
-            Setting currentSetting = SettingManager.getInstance().getCurrentSetting();
-            if (currentSetting == null) {
-                TimberLogger.w(TAG, "No current setting available, skipping state check");
-                return;
-            }
-
-            // Check if prikey backup is required
-            Boolean prikeyBackedUp = (Boolean) currentSetting.getStateMap().get(Setting.KEY_PRIKEY_BACKED_UP);
-
-            // If not backed up (null or false), show backup dialog
-            if (prikeyBackedUp == null || !prikeyBackedUp) {
-                TimberLogger.d(TAG, "Prikey not backed up, showing backup dialog");
-
-                BackupPrikeyDialog backupDialog = new BackupPrikeyDialog(this, new BackupPrikeyDialog.BackupPrikeyListener() {
-                    @Override
-                    public void onDone() {
-                        TimberLogger.d(TAG, "Backup completed by user");
-                        // Update the state to indicate backup is done
-                        currentSetting.getStateMap().put(Setting.KEY_PRIKEY_BACKED_UP, true);
-
-                        // Save the updated setting
-                        SettingManager.getInstance().saveSettings(HomeActivity.this, currentSetting);
-
-                        ToastUtils.makeText(HomeActivity.this, R.string.prikey_backup_completed);
-                    }
-
-                    @Override
-                    public void onLater() {
-                        TimberLogger.d(TAG, "User chose to backup later");
-                        // Don't update the state, dialog will show again next time
-                    }
-                });
-
-                backupDialog.show();
-            } else {
-                TimberLogger.d(TAG, "Prikey already backed up");
-            }
-        } catch (Exception ex) {
-            TimberLogger.e(TAG, "Error checking main FID state: " + ex.getMessage(), ex);
-        }
-    }
-
-
 
     private void setupLiveFidCard() {
         try {
@@ -1313,8 +1265,10 @@ public class HomeActivity extends AppCompatActivity {
             // ContactPolicy, ImManager back-reference, and FudpNode for full functionality.
             imManager.setPendingIssueManager(earlyPim);
             FidManager.getInstance().setImManager(imManager);
-            imManager.setChannelSetupCallback(suggestedUrl ->
-                    runOnUiThread(() -> maybeShowServerSetupPrompt(true)));
+            // No DOCK on the chain: the checklist's DOCK and DISK step is what asks for one.
+            imManager.setChannelSetupCallback(suggestedUrl -> runOnUiThread(() -> {
+                if (gettingStartedCard != null) gettingStartedCard.refresh();
+            }));
             TimberLogger.d(TAG, "ImManager initialized for FID: %s", liveFid);
         }
 
@@ -1429,17 +1383,16 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     /**
-     * Invoked on the UI thread once the live FID's on-chain info (incl. home.DISK) has been
-     * fetched. The KeyInfo home map is now authoritative, so it's safe to evaluate the DISK
-     * server-setup prompt without a false positive for a FID already configured on-chain.
+     * Invoked on the UI thread once a refresh of the live FID's on-chain info has finished. The
+     * checklist is redrawn either way: a FID with no record yet is an answer too, and a failed
+     * refresh leaves what the chain said earlier in this session.
      */
     private void onLiveFidInfoRefreshed(boolean success) {
-        if (!success) {
-            return;
+        if (success) {
+            refreshLiveFidCard();
+        } else if (gettingStartedCard != null) {
+            gettingStartedCard.refresh();
         }
-        liveFidInfoRefreshed = true;
-        refreshLiveFidCard();
-        maybeShowServerSetupPrompt(false);
     }
     
     @Override
@@ -1472,26 +1425,6 @@ public class HomeActivity extends AppCompatActivity {
             return;
         }
 
-        // Handle SetCidActivity completion
-        if (requestCode == 9997) {
-            if (resultCode == RESULT_OK) {
-                // CID was set successfully
-                TimberLogger.d(TAG, "CID set successfully");
-                Setting currentSetting = SettingManager.getInstance().getCurrentSetting();
-                if (currentSetting != null) {
-                    // Mark that user has been prompted to set CID
-                    currentSetting.getStateMap().put(Setting.KEY_PROMOTED_SET_CID, true);
-                    // Save the updated setting
-                    SettingManager.getInstance().saveSettings(this, currentSetting);
-                }
-            } else {
-                // CID setting was cancelled or failed
-                TimberLogger.d(TAG, "CID setting cancelled or failed");
-            }
-            // IMPORTANT: Return immediately - do not execute the RESULT_OK refresh logic below
-            return;
-        }
-
         if (resultCode == RESULT_OK) {
             // Give a small delay to ensure FID switching is complete
             new android.os.Handler().postDelayed(() -> {
@@ -1516,6 +1449,10 @@ public class HomeActivity extends AppCompatActivity {
     }
     
     public void refreshLiveFidCard() {
+        if (gettingStartedCard != null) {
+            gettingStartedCard.setActive(true);
+            gettingStartedCard.refresh();
+        }
         try {
             FidManager fidManager = FidManager.getInstance();
             if (fidManager == null || fidManager.getLiveKeyInfo() == null) {
@@ -1741,93 +1678,6 @@ public class HomeActivity extends AppCompatActivity {
         return com.fc.freer.data.DiskHomeManager.isConfigured(mainKeyInfo);
     }
 
-    /**
-     * Show the combined server-setup prompt at most once per visit when either the
-     * messaging (DOCK) or data (DISK) server is unconfigured. Routes both the
-     * IM-driven (onChannelNotConfigured) and the DISK-unset cases through one guard
-     * so the user isn't double-prompted.
-     */
-    private void maybeShowServerSetupPrompt(boolean includeDock) {
-        if (serverSetupPrompted) return;
-        if (isFinishing() || isDestroyed()) return;
-
-        // The prompt registers home.DOCK/home.DISK for the LIVE FID. A multisig FID has no
-        // key pair — it can't encrypt/decrypt messages and can't sign the HOME TX — so the
-        // setup is meaningless while one is live; prompt again after switching back.
-        if (FidManager.getInstance() != null && FidManager.getInstance().isLiveFidMultisig()) return;
-
-        // Respect a "Not now" dismissal for the rest of the session. Without this the
-        // combined prompt re-pops on every return to Home / funding refresh, because
-        // serverSetupPrompted only guards a single Activity instance and the DISK half
-        // of the prompt stays "unconfigured" whenever the user set only DOCK (e.g. the
-        // current server advertises no disk component, so DISK was left blank). Tapping
-        // "Set up" clears this flag, so engaging with the prompt still works.
-        if (isServerSetupDismissed()) return;
-
-        // A server-setup TX broadcast within the confirmation window suppresses the whole
-        // combined prompt. This is persisted and ImManager-independent, so it holds even
-        // when the user quit and relaunched before the TX confirmed on-chain, and when the
-        // half they left unset (e.g. no disk component) never becomes configured.
-        if (com.fc.freer.data.ServerSetupState.isTxPending(this, FidManager.getInstance().getMainFid())) return;
-
-        // DISK config is a reliable local-home check; DOCK is only considered when the
-        // caller knows the on-chain check ran (the ImManager callback), to avoid a
-        // spurious prompt before ImManager has determined the DOCK state.
-        // The DISK check is only trustworthy once the on-chain home has been fetched; before
-        // that a missing home.DISK entry just means "not loaded yet", not "not configured".
-        boolean needDisk = liveFidInfoRefreshed && !isDiskReady() && !isDiskRegistrationPending();
-        boolean needDock = includeDock && !isImChannelReady() && !isImRegistrationPending();
-        if (!needDisk && !needDock) return;
-
-        serverSetupPrompted = true;
-        com.fc.freer.im.ChannelSetupDialog.show(this, null);
-    }
-
-    private boolean isImRegistrationPending() {
-        Setting setting = SettingManager.getInstance().getCurrentSetting();
-        if (setting == null) return false;
-        ImManager imManager = setting.getImManager();
-        return imManager != null && imManager.isRegistrationPending();
-    }
-
-    /**
-     * Whether the server-setup prompt should stay suppressed: either "Not now" (this
-     * session) or "Never" (persisted permanently for this identity).
-     */
-    private boolean isServerSetupDismissed() {
-        Setting setting = SettingManager.getInstance().getCurrentSetting();
-        if (setting == null) return false;
-        if (setting.isServerSetupDeclined()) return true;
-        ImManager imManager = setting.getImManager();
-        return imManager != null && imManager.isChannelSetupDismissed();
-    }
-
-    private boolean isDiskRegistrationPending() {
-        String fid = FidManager.getInstance().getMainFid();
-        return com.fc.freer.data.DiskHomeManager.isRegistrationPending(this, fid);
-    }
-
-    private boolean isImChannelReady() {
-        if (hasDockInLocalHome()) return true;
-        Setting setting = SettingManager.getInstance().getCurrentSetting();
-        if (setting == null) return false;
-        ImManager imManager = setting.getImManager();
-        return imManager != null && imManager.isChannelConfigured();
-    }
-
-    private boolean hasDockInLocalHome() {
-        com.fc.fc_ajdk.data.fcData.KeyInfo mainKeyInfo = FidManager.getInstance().getMainKeyInfo();
-        if (mainKeyInfo == null || mainKeyInfo.getHome() == null) return false;
-        for (java.util.Map.Entry<String, String> entry : mainKeyInfo.getHome().entrySet()) {
-            String key = entry.getKey();
-            String value = entry.getValue();
-            if (key != null && key.startsWith("DOCK") && value != null && !value.trim().isEmpty()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private void updateBadges() {
         try {
             Setting setting = SettingManager.getInstance().getCurrentSetting();
@@ -1895,6 +1745,12 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        if (gettingStartedCard != null) gettingStartedCard.setActive(false);
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
 
@@ -1922,9 +1778,7 @@ public class HomeActivity extends AppCompatActivity {
         // Register stranger peer callback
         registerStrangerPeerCallback();
 
-        // Prompt to set up servers if DISK is unconfigured (local-home check). The DOCK
-        // case is driven by ImManager's onChannelNotConfigured callback.
-        maybeShowServerSetupPrompt(false);
+        if (gettingStartedCard != null) gettingStartedCard.refresh();
     }
 
     @Override
@@ -1984,10 +1838,7 @@ public class HomeActivity extends AppCompatActivity {
 
         @Override
         public void onChannelNotConfigured(String suggestedUrl) {
-            runOnUiThread(() -> {
-                updateTalkTileState();
-                maybeShowServerSetupPrompt(true);
-            });
+            runOnUiThread(HomeActivity.this::updateTalkTileState);
         }
 
         @Override
@@ -1997,6 +1848,7 @@ public class HomeActivity extends AppCompatActivity {
             runOnUiThread(() -> {
                 updateTalkTileState();
                 updateBadges();
+                if (gettingStartedCard != null) gettingStartedCard.refresh();
                 ToastUtils.showInfo(HomeActivity.this, getString(R.string.im_channel_ready));
             });
         }

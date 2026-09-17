@@ -1,8 +1,5 @@
 package com.fc.freer.data;
 
-import android.app.Activity;
-import android.content.Context;
-import android.content.SharedPreferences;
 
 import com.fc.fc_ajdk.constants.Constants;
 import com.fc.fc_ajdk.core.crypto.CryptoDataByte;
@@ -10,19 +7,13 @@ import com.fc.fc_ajdk.core.crypto.Decryptor;
 import com.fc.fc_ajdk.core.crypto.Encryptor;
 import com.fc.fc_ajdk.data.fcData.AlgorithmId;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
-import com.fc.fc_ajdk.data.feipData.Feip;
-import com.fc.fc_ajdk.data.feipData.HomeOpData;
 import com.fc.fc_ajdk.data.feipData.Service;
-import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.fapi.client.HomeServiceResolver;
 import com.fc.fc_ajdk.utils.Hex;
 import com.fc.fc_ajdk.utils.TimberLogger;
-import com.fc.freer.manager.CashManager;
-import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -49,39 +40,6 @@ public final class DiskHomeManager {
 
     private DiskHomeManager() {}
 
-    // ---- home.DISK registration-pending state ----
-    // Between broadcasting the home.DISK TX and its on-chain confirmation, the local
-    // KeyInfo.home cannot be relied on (FidManager refreshes it from on-chain, which still
-    // lacks the unconfirmed DISK), so the Data setup prompt would re-pop. This persisted,
-    // home-independent flag suppresses that prompt until the TX confirms or the window expires.
-    private static final String REG_PREFS = "disk_registration";
-    private static final String KEY_REG_AT = "disk_reg_at_";
-    private static final long REG_EXPIRY_MS = 15 * 60_000L; // give up after 15 min
-
-    /** Mark that a home.DISK registration TX was just broadcast for this FID. */
-    public static void markRegistrationPending(Context ctx, String fid) {
-        if (ctx == null || fid == null) return;
-        ctx.getSharedPreferences(REG_PREFS, Context.MODE_PRIVATE)
-                .edit().putLong(KEY_REG_AT + fid, System.currentTimeMillis()).apply();
-    }
-
-    /** Whether a home.DISK registration TX is still within its unconfirmed window. */
-    public static boolean isRegistrationPending(Context ctx, String fid) {
-        if (ctx == null || fid == null) return false;
-        long at = ctx.getSharedPreferences(REG_PREFS, Context.MODE_PRIVATE).getLong(KEY_REG_AT + fid, 0L);
-        if (at <= 0L) return false;
-        if (System.currentTimeMillis() - at >= REG_EXPIRY_MS) {
-            clearRegistrationPending(ctx, fid);
-            return false;
-        }
-        return true;
-    }
-
-    public static void clearRegistrationPending(Context ctx, String fid) {
-        if (ctx == null || fid == null) return;
-        ctx.getSharedPreferences(REG_PREFS, Context.MODE_PRIVATE).edit().remove(KEY_REG_AT + fid).apply();
-    }
-
     /**
      * @return true if the live FID has a non-empty {@code home.DISK} entry (configured),
      * regardless of whether it can currently be decrypted.
@@ -91,8 +49,10 @@ public final class DiskHomeManager {
     }
 
     private static String rawValue(KeyInfo liveKeyInfo) {
-        if (liveKeyInfo == null) return null;
-        Map<String, String> home = liveKeyInfo.getHome();
+        return liveKeyInfo != null ? rawValue(liveKeyInfo.getHome()) : null;
+    }
+
+    private static String rawValue(Map<String, String> home) {
         if (home == null) return null;
         String value = home.get(DISK_KEY);
         return (value != null && !value.isEmpty()) ? value : null;
@@ -107,7 +67,14 @@ public final class DiskHomeManager {
      * @return the DISK service SID (64 hex), or null if not configured / undecryptable
      */
     public static String resolveSid(KeyInfo liveKeyInfo, byte[] prikey) {
-        String value = rawValue(liveKeyInfo);
+        return resolveSid(liveKeyInfo != null ? liveKeyInfo.getHome() : null, prikey);
+    }
+
+    /**
+     * {@link #resolveSid(KeyInfo, byte[])} over a home map, such as one just read from the chain.
+     */
+    public static String resolveSid(Map<String, String> home, byte[] prikey) {
+        String value = rawValue(home);
         if (value == null) return null;
 
         // Legacy / plaintext: bare 64-hex SID or "(sid)<hex>"
@@ -160,52 +127,6 @@ public final class DiskHomeManager {
             TimberLogger.e(TAG, "Error encrypting DISK sid: %s", e.getMessage());
             return null;
         }
-    }
-
-    /**
-     * Publish the chosen DISK service SID into the live FID's {@code home.DISK} onchain.
-     * <p>
-     * Existing home entries (FUDP/MAP/ROAD/DOCK/...) are loaded and preserved; only the DISK
-     * entry is added/updated. The SID is encrypted with the FID public key before publishing.
-     *
-     * @param activity     calling activity (for tx UI callbacks)
-     * @param liveKeyInfo  the live FID's KeyInfo (must equal mainFid for Data)
-     * @param sid          the DISK service SID to register
-     * @param prikey       the live FID's private key (for signing)
-     * @param fapiClient   FAPI client to broadcast the tx
-     * @param callback     tx result callback
-     */
-    public static void publish(Activity activity, KeyInfo liveKeyInfo, String sid, byte[] prikey,
-                               FapiClient fapiClient, TxSender.TxCallback callback) {
-        if (liveKeyInfo == null || sid == null || prikey == null) {
-            if (callback != null) callback.onError("Missing keyInfo/sid/prikey");
-            return;
-        }
-
-        String encrypted = encryptSid(sid, liveKeyInfo.getPubkey());
-        if (encrypted == null) {
-            if (callback != null) callback.onError("Failed to encrypt DISK sid");
-            return;
-        }
-
-        // Read-modify-write: preserve all existing home entries, set/replace DISK only.
-        Map<String, String> homeMap = new HashMap<>();
-        if (liveKeyInfo.getHome() != null) {
-            homeMap.putAll(liveKeyInfo.getHome());
-        }
-        homeMap.put(DISK_KEY, encrypted);
-
-        HomeOpData homeOpData = new HomeOpData();
-        homeOpData.setOp(HomeOpData.Op.REGISTER.toLowerCase());
-        homeOpData.setHome(homeMap);
-
-        Feip feip = Feip.fromProtocolName(Feip.FeipProtocol.HOME);
-        feip.setData(homeOpData);
-        String feipJson = feip.toJson();
-
-        TxSender txSender = new TxSender();
-        txSender.carveSimpleFeip(activity, liveKeyInfo.getId(), feipJson, prikey,
-                CashManager.getInstance(), new TxHandler(), fapiClient, callback);
     }
 
     /**

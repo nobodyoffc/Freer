@@ -284,6 +284,48 @@ public class SquareHandler extends BaseHandler {
     }
     
     /**
+     * Whether the chain shows {@code fid} as a member of any square stored here. A square only
+     * carries a birth height once the chain has it, so a create or join still in flight does not
+     * count.
+     */
+    public boolean hasJoinedOnChain(String fid) {
+        if (fid == null) return false;
+        for (Square square : squareCache.values()) {
+            if (square.getBirthHeight() != null && square.getMembers() != null
+                    && square.getMembers().contains(fid)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The txid of a pending create or join. A create's square id is its txid; a join records
+     * its txid in {@code lastTxId} until the chain's copy replaces the square.
+     */
+    public static String pendingTxid(Square square) {
+        return square.getLastTxId() != null ? square.getLastTxId() : square.getId();
+    }
+
+    /**
+     * When a pending create or join was broadcast, epoch ms. Both record it in {@code lastTime}
+     * in milliseconds; a chain {@code lastTime} in seconds reads as long ago, so an older record
+     * is treated as overdue rather than fresh.
+     */
+    public static long pendingBroadcastAt(Square square) {
+        Long t = square.getLastTime();
+        if (t == null) return 0L;
+        return t < 100_000_000_000L ? t * 1000L : t;
+    }
+
+    /** The pending square act on {@code squareId} broadcast less than {@code windowMs} ago, or null. */
+    public Square getRecentPending(String squareId, long nowMs, long windowMs) {
+        Square square = squareId != null ? squareCache.get(squareId) : null;
+        if (square == null || square.getOnChain() != null) return null;
+        return nowMs - pendingBroadcastAt(square) < windowMs ? square : null;
+    }
+
+    /**
      * Check if user is a member of the square.
      */
     public boolean isMember(String squareId, String fid) {
@@ -328,6 +370,8 @@ public class SquareHandler extends BaseHandler {
 
             long maxHeight = lastUpdateHeight;
             for (Square square : squares) {
+                // Read from the chain, so confirmed: left null it would pass for a pending act.
+                square.setOnChain(true);
                 saveSquare(square);
                 if (square.getLastHeight() != null && square.getLastHeight() > maxHeight) {
                     maxHeight = square.getLastHeight();

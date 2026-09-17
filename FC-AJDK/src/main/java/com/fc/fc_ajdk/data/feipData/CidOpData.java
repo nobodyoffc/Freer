@@ -74,10 +74,22 @@ public class CidOpData{
 	}
 
 	public boolean isGoodCidName(String cid) {
-        return cid != null
-                && !cid.isEmpty()
-                && !cid.contains(" ")
-                && !cid.contains("@")
-                && !cid.contains("/");
+        return isGoodName(cid);
     }
+
+	/**
+	 * FEIP3 parsing rule 1: a name must not be empty or contain whitespace, '@', '#' or '/'.
+	 * A carve that breaks it is confirmed, paid for and ignored, so nothing that fails is built.
+	 */
+	public static boolean isGoodName(String name) {
+		if (name == null || name.isEmpty()) return false;
+		for (int i = 0; i < name.length(); ) {
+			int c = name.codePointAt(i);
+			if (Character.isWhitespace(c) || Character.isSpaceChar(c) || c == '@' || c == '#' || c == '/') {
+				return false;
+			}
+			i += Character.charCount(c);
+		}
+		return true;
+	}
 }

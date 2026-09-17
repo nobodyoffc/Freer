@@ -1,6 +1,7 @@
 package com.fc.freer.data;
 
 import android.app.Activity;
+import android.content.Context;
 
 import com.fc.fc_ajdk.constants.Constants;
 import com.fc.fc_ajdk.core.crypto.KeyTools;
@@ -12,10 +13,16 @@ import com.fc.fc_ajdk.data.feipData.HomeOpData;
 import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.utils.Hex;
+import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.R;
 import com.fc.freer.im.ImManager;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.model.Setting;
+import com.fc.freer.onboarding.HomeFeip;
+import com.fc.freer.onboarding.LiveFidRecord;
+import com.fc.freer.onboarding.PendingIdentityCarve;
+import com.fc.freer.onboarding.PendingIdentityCarves;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
 
@@ -28,19 +35,26 @@ import java.util.Map;
  * <p>
  * This logic is shared by both entry points — the one-tap "use current server" path in
  * {@link com.fc.freer.im.ChannelSetupDialog} and the manual {@link ServerSetupActivity} — so
- * they behave identically. In particular, on a successful broadcast it always:
+ * they behave identically.
+ * <p>
+ * <b>FEIP9 register replaces the whole home map.</b> The map carved is the one the chain holds
+ * <i>now</i>, read fresh rather than from the cached KeyInfo, with DOCK and/or DISK laid over
+ * it; a cached copy missing an entry added elsewhere would erase it. When the chain already
+ * says this, nothing is carved.
+ * <p>
+ * On a successful broadcast it always:
  * <ul>
- *   <li>marks DISK usable locally and caches its client, plus a persisted DISK pending flag
- *       ({@link DiskHomeManager#markRegistrationPending});</li>
- *   <li>enters {@link ImManager}'s DOCK pending state ({@link ImManager#onRegistrationTxSent});</li>
- *   <li>sets the persisted, ImManager-independent {@link ServerSetupState} flag that suppresses
- *       the combined server-setup prompt until the TX confirms — so neither entry point
- *       re-prompts (or double-registers) during the confirmation window, even across a restart.</li>
+ *   <li>records the carve in {@link PendingIdentityCarves}, so no screen offers it again until
+ *       the chain shows it or a day passes;</li>
+ *   <li>marks DISK usable locally and caches its client;</li>
+ *   <li>enters {@link ImManager}'s DOCK pending state ({@link ImManager#onRegistrationTxSent}).</li>
  * </ul>
  * A single HOME register TX writes {@code home.DOCK} as a plaintext SID (peers must read it to
  * reach the relay) and {@code home.DISK} as the SID encrypted with the FID public key.
  */
 public final class ServerSetupManager {
+    private static final String TAG = "ServerSetupManager";
+
     private ServerSetupManager() {}
 
     /**
@@ -60,9 +74,32 @@ public final class ServerSetupManager {
         final String dock = dockVal != null ? dockVal.trim() : "";
         final String disk = diskSid != null ? diskSid.trim() : "";
         final boolean settingDock = !dock.isEmpty();
-        final boolean settingDisk = !disk.isEmpty();
+        final String fid = liveKeyInfo.getId();
+        final Context appContext = activity.getApplicationContext();
 
         new Thread(() -> {
+            PendingIdentityCarves pendingCarves = PendingIdentityCarves.of(appContext);
+            PendingIdentityCarve inFlight = pendingCarves.getInFlight(
+                    fid, PendingIdentityCarve.Kind.HOME, System.currentTimeMillis());
+            if (inFlight != null) {
+                if (uiCallback != null) {
+                    uiCallback.onError(appContext.getString(R.string.carve_already_pending, inFlight.txid));
+                }
+                return;
+            }
+
+            FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
+            LiveFidRecord onChain;
+            try {
+                onChain = LiveFidRecord.fetch(fapiClient, fid).record;
+            } catch (Exception e) {
+                TimberLogger.w(TAG, "Could not read home for %s: %s", fid, e.getMessage());
+                if (uiCallback != null) {
+                    uiCallback.onError(appContext.getString(R.string.server_setup_home_unreadable, e.getMessage()));
+                }
+                return;
+            }
+
             // A brand-new FID that has never spent has no pubkey published on-chain, so
             // KeyInfo.pubkey is null. The DISK SID is encrypted to that pubkey, so derive it
             // from the private key we hold.
@@ -72,23 +109,27 @@ public final class ServerSetupManager {
                 liveKeyInfo.setPubkey(pubkey);
             }
 
-            // Read-modify-write: preserve existing home entries; set DOCK (plaintext) and/or
-            // DISK (encrypted) in a single HOME register TX.
-            Map<String, String> homeMap = new HashMap<>();
-            if (liveKeyInfo.getHome() != null) homeMap.putAll(liveKeyInfo.getHome());
-            if (settingDock) homeMap.put(Constants.DOCK_NO1_NRC7, dock);
-
-            final String diskEnc;
-            if (settingDisk) {
-                diskEnc = DiskHomeManager.encryptSid(disk, pubkey);
+            Map<String, String> changes = new HashMap<>();
+            if (settingDock) changes.put(Constants.DOCK_NO1_NRC7, dock);
+            boolean settingDisk = false;
+            // The DISK value is encrypted afresh each time, so compare the SID it holds, not the
+            // bytes: re-encrypting the same SID would be a paid carve that changes nothing.
+            if (!disk.isEmpty() && !disk.equals(DiskHomeManager.resolveSid(onChain.home, prikey))) {
+                String diskEnc = DiskHomeManager.encryptSid(disk, pubkey);
                 if (diskEnc == null) {
                     if (uiCallback != null) uiCallback.onError("Failed to encrypt DISK sid");
                     return;
                 }
-                homeMap.put(DiskHomeManager.DISK_KEY, diskEnc);
-            } else {
-                diskEnc = null;
+                changes.put(DiskHomeManager.DISK_KEY, diskEnc);
+                settingDisk = true;
             }
+
+            final Map<String, String> homeMap = HomeFeip.merged(onChain.home, changes);
+            if (homeMap == null) {
+                if (uiCallback != null) uiCallback.onError(appContext.getString(R.string.server_setup_home_unchanged));
+                return;
+            }
+            final boolean diskChanged = settingDisk;
 
             HomeOpData homeOpData = new HomeOpData();
             homeOpData.setOp(HomeOpData.Op.REGISTER.toLowerCase());
@@ -98,34 +139,25 @@ public final class ServerSetupManager {
             String feipJson = feip.toJson();
 
             TxSender txSender = new TxSender();
-            txSender.carveSimpleFeip(activity, liveKeyInfo.getId(), feipJson, prikey,
-                    CashManager.getInstance(), new TxHandler(),
-                    (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7),
+            txSender.carveSimpleFeip(activity, fid, feipJson, prikey,
+                    CashManager.getInstance(), new TxHandler(), fapiClient,
                     new TxSender.TxCallback() {
                         @Override
                         public void onSuccess(String txId) {
+                            pendingCarves.record(PendingIdentityCarve.home(
+                                    fid, homeMap, txId, System.currentTimeMillis()));
                             // Bookkeeping (resolveAndCacheDiskClient does a blocking UDP request)
                             // runs off the callback thread.
                             new Thread(() -> {
-                                if (settingDisk) {
-                                    Map<String, String> localHome = liveKeyInfo.getHome() != null
-                                            ? new HashMap<>(liveKeyInfo.getHome()) : new HashMap<>();
-                                    localHome.put(DiskHomeManager.DISK_KEY, diskEnc);
-                                    liveKeyInfo.setHome(localHome);
+                                if (diskChanged) {
+                                    liveKeyInfo.setHome(new HashMap<>(homeMap));
                                     DiskHomeManager.resolveAndCacheDiskClient(liveKeyInfo, prikey);
-                                    DiskHomeManager.markRegistrationPending(
-                                            activity.getApplicationContext(), liveKeyInfo.getId());
                                 }
                                 if (settingDock) {
                                     Setting setting = SettingManager.getInstance().getCurrentSetting();
                                     ImManager im = setting != null ? setting.getImManager() : null;
                                     if (im != null) im.onRegistrationTxSent(txId);
                                 }
-                                // Persisted, ImManager-independent suppression of the combined
-                                // prompt until the TX confirms (survives an app restart within the
-                                // window). Set for BOTH entry points so neither re-registers.
-                                ServerSetupState.markTxBroadcast(
-                                        activity.getApplicationContext(), liveKeyInfo.getId());
                                 if (uiCallback != null) uiCallback.onSuccess(txId);
                             }).start();
                         }
@@ -143,6 +175,11 @@ public final class ServerSetupManager {
                         @Override
                         public void onUnbroadcasted(String signedTxHex) {
                             if (uiCallback != null) uiCallback.onUnbroadcasted(signedTxHex);
+                        }
+
+                        @Override
+                        public void onCancelled() {
+                            if (uiCallback != null) uiCallback.onCancelled();
                         }
                     });
         }).start();

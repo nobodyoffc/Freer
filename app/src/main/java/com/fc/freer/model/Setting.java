@@ -37,11 +37,10 @@ public class Setting extends BaseSetting implements ClientConfig {
     private transient ImManager imManager;
 
     // Freer-specific constants
-    public static final String KEY_PROMOTED_TOP_UP = "promotedTopUp";
-    public static final String KEY_PROMOTED_SET_CID = "promotedSetCid";
-    // Set when the user taps "Never" on the server-setup prompt: suppress it permanently
-    // for this identity (unlike "Not now", which only lasts the session).
-    public static final String KEY_SERVER_SETUP_DECLINED = "serverSetupDeclined";
+    // Getting-started checklist: the steps skipped (comma-joined OnboardingStep keys) and
+    // whether the checklist was ever shown here with a required step still open.
+    public static final String KEY_ONBOARDING_SKIPPED = "onboardingSkipped";
+    public static final String KEY_ONBOARDING_STARTED = "onboardingStarted";
     public static final String KEY_API_PAID_TIME_PREFIX = "apiPaidTime_";
     public static final String KEY_LAST_TEAM_UPDATE_HEIGHT = "lastTeamUpdateHeight";
     public static final String KEY_LAST_GROUP_UPDATE_HEIGHT = "lastGroupUpdateHeight";
@@ -425,15 +424,42 @@ public class Setting extends BaseSetting implements ClientConfig {
         putSetting(KEY_LAST_GROUP_UPDATE_HEIGHT, height);
     }
 
-    /** Whether the user permanently opted out of the server-setup prompt ("Never"). */
-    public boolean isServerSetupDeclined() {
-        Object v = getStateMap().get(KEY_SERVER_SETUP_DECLINED);
-        if (v instanceof Boolean) return (Boolean) v;
-        return v != null && Boolean.parseBoolean(v.toString());
+    /** Whether the user has taken a copy of the main prikey. Only the user can say so. */
+    public boolean isPrikeyBackedUp() {
+        return readStateBoolean(KEY_PRIKEY_BACKED_UP);
     }
 
-    public void setServerSetupDeclined(boolean declined) {
-        getStateMap().put(KEY_SERVER_SETUP_DECLINED, declined);
+    public void setPrikeyBackedUp(boolean backedUp) {
+        getStateMap().put(KEY_PRIKEY_BACKED_UP, backedUp);
+    }
+
+    /** Getting-started steps left undone for good. Names this build does not know are dropped. */
+    public java.util.Set<com.fc.freer.onboarding.OnboardingStep> getOnboardingSkipped() {
+        Object v = getStateMap().get(KEY_ONBOARDING_SKIPPED);
+        return com.fc.freer.onboarding.OnboardingStep.parseKeys(v != null ? v.toString() : null);
+    }
+
+    public void setOnboardingSkipped(java.util.Set<com.fc.freer.onboarding.OnboardingStep> skipped) {
+        getStateMap().put(KEY_ONBOARDING_SKIPPED, com.fc.freer.onboarding.OnboardingStep.joinKeys(skipped));
+    }
+
+    /**
+     * Whether the checklist has ever been shown here with a required step open. See
+     * {@link com.fc.freer.onboarding.Onboarding#shouldShow} for why an identity that was already
+     * set up never sees it.
+     */
+    public boolean isOnboardingStarted() {
+        return readStateBoolean(KEY_ONBOARDING_STARTED);
+    }
+
+    public void setOnboardingStarted(boolean started) {
+        getStateMap().put(KEY_ONBOARDING_STARTED, started);
+    }
+
+    private boolean readStateBoolean(String key) {
+        Object v = getStateMap().get(key);
+        if (v instanceof Boolean) return (Boolean) v;
+        return v != null && Boolean.parseBoolean(v.toString());
     }
 
     /**

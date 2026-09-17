@@ -18,6 +18,8 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import com.fc.fc_ajdk.constants.FieldNames;
+import com.fc.fc_ajdk.constants.Values;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.fc_ajdk.data.apipData.Fcdsl;
 import com.fc.fc_ajdk.data.fcData.Conversation;
@@ -38,6 +40,7 @@ import com.fc.freer.manager.AvatarManager;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.Setting;
+import com.fc.freer.onboarding.PendingIdentityCarve;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.SecurePrikeyManager;
@@ -92,7 +95,10 @@ public class JoinSquareActivity extends BaseCryptoActivity {
             }
 
             @Override
-            public void afterTextChanged(Editable s) {}
+            public void afterTextChanged(Editable s) {
+                // Clearing the search returns to the popular squares.
+                if (s.toString().trim().isEmpty()) loadPopularSquares();
+            }
         });
 
         searchEditText.setOnEditorActionListener((v, actionId, event) -> {
@@ -103,6 +109,13 @@ public class JoinSquareActivity extends BaseCryptoActivity {
             }
             return false;
         });
+    }
+
+    @Override
+    protected void onCreate(android.os.Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        // Null when the base class redirected to re-authentication instead of building views.
+        if (searchResultsLayout != null) loadPopularSquares();
     }
 
     @Override
@@ -118,14 +131,58 @@ public class JoinSquareActivity extends BaseCryptoActivity {
         });
 
         clearButton.setOnClickListener(v -> {
+            // Emptying the box reloads the popular squares (see the text watcher).
             searchEditText.setText("");
-            searchResultsLayout.removeAllViews();
             hideKeyboard();
         });
     }
 
     @Override
     protected void handleQrScanResult(int requestCode, String qrContent) {}
+
+    /** Bumped on every list load, so a slow reply cannot overwrite a newer list. */
+    private int listGeneration = 0;
+
+    /**
+     * The squares with the most members, for someone who does not know a name to search for.
+     * <p>
+     * <b>Members, not tCdd.</b> FEIP19's tCdd is a running total of every create, join, update
+     * and leave, so it never falls: an emptied square keeps it, a war over the square's name
+     * inflates it, and one large join buys it outright. memberNum is who is there now. Ties go to
+     * the square the chain touched most recently, then to the id so the order is stable.
+     */
+    private void loadPopularSquares() {
+        FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
+        if (fapiClient == null) return;
+        final int generation = ++listGeneration;
+        searchResultsLayout.removeAllViews();
+        new Thread(() -> {
+            List<Square> squares = null;
+            try {
+                Fcdsl fcdsl = new Fcdsl();
+                fcdsl.addSort(FieldNames.MEMBER_NUM, Values.DESC);
+                fcdsl.addSort(FieldNames.LAST_HEIGHT, Values.DESC);
+                fcdsl.addSort(FieldNames.ID, Values.DESC);
+                fcdsl.addSize(20);
+                squares = fapiClient.entitySearch(SQUARE, fcdsl, Square.class);
+            } catch (Exception e) {
+                TimberLogger.e(TAG, "Popular squares failed: %s", e.getMessage());
+            }
+            final List<Square> result = squares;
+            runOnUiThread(() -> {
+                if (generation != listGeneration || isFinishing() || isDestroyed()) return;
+                if (!searchEditText.getText().toString().trim().isEmpty()) return;
+                searchResultsLayout.removeAllViews();
+                if (result == null || result.isEmpty()) return;
+                TextView header = new TextView(this);
+                header.setText(R.string.popular_squares);
+                header.setTextColor(getResources().getColor(R.color.hint, null));
+                header.setPadding(4, 8, 4, 16);
+                searchResultsLayout.addView(header);
+                for (Square square : result) addSquareCard(square);
+            });
+        }).start();
+    }
 
     private void performSearch() {
         String query = searchEditText.getText().toString().trim();
@@ -140,6 +197,7 @@ public class JoinSquareActivity extends BaseCryptoActivity {
             ToastUtils.makeText(this, getString(R.string.im_not_ready_try_later));
             return;
         }
+        final int generation = ++listGeneration;
 
         new Thread(() -> {
             try {
@@ -149,6 +207,7 @@ public class JoinSquareActivity extends BaseCryptoActivity {
                 List<Square> squares = fapiClient.entitySearch(SQUARE, fcdsl, Square.class);
 
                 runOnUiThread(() -> {
+                    if (generation != listGeneration) return;
                     if (squares == null || squares.isEmpty()) {
                         TextView noResults = new TextView(this);
                         noResults.setText(R.string.no_conversations);
@@ -303,18 +362,38 @@ public class JoinSquareActivity extends BaseCryptoActivity {
             contentLayout.addView(alreadyMember);
         }
 
+        // A join broadcast in the last day is still confirming: joining again would pay twice.
+        boolean joinPending = !isMember && hasRecentPendingJoin(square.getId());
+        if (joinPending) {
+            TextView pendingTag = new TextView(this);
+            pendingTag.setText(R.string.square_join_pending);
+            pendingTag.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+            pendingTag.setTextColor(hintColor);
+            contentLayout.addView(pendingTag);
+        }
+
         card.addView(contentLayout);
 
         card.setOnClickListener(v -> {
             hideKeyboard();
             if (isMember) {
                 openChat(square.getId(), square.getName());
+            } else if (joinPending) {
+                ToastUtils.makeText(this, getString(R.string.square_join_pending));
             } else {
                 joinSquare(square);
             }
         });
 
         searchResultsLayout.addView(card);
+    }
+
+    private boolean hasRecentPendingJoin(String squareId) {
+        Setting setting = SettingManager.getInstance().getCurrentSetting();
+        ImManager im = setting != null ? setting.getImManager() : null;
+        SquareHandler handler = im != null ? im.getSquareHandler() : null;
+        return handler != null && handler.getRecentPending(squareId,
+                System.currentTimeMillis(), PendingIdentityCarve.OVERDUE_MS) != null;
     }
 
     private void setDefaultAvatar(ImageView avatarView, float density) {
@@ -356,6 +435,10 @@ public class JoinSquareActivity extends BaseCryptoActivity {
                                 ImManager im = setting.getImManager();
                                 SquareHandler squareHandler = im.getSquareHandler();
                                 if (squareHandler != null) {
+                                    // Until the chain's copy replaces it, the square carries
+                                    // this join's txid and broadcast time.
+                                    square.setLastTxId(txId);
+                                    square.setLastTime(System.currentTimeMillis());
                                     squareHandler.savePendingSquare(square);
                                 }
                                 // Create the conversation immediately so the joined square is

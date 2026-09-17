@@ -1079,6 +1079,23 @@ public class FapiClient implements ApiClient {
         return entitySearch("freer", fcdsl, Freer.class);
     }
     
+    /**
+     * {@code base.freerByIds} with the whole reply kept: its code (404 means none of the FIDs
+     * has a record yet, which is an answer rather than a failure) and the height the index
+     * answered at. Nobody marks are reported as {@link #freerByIds} reports them.
+     */
+    public FapiResponse freerByIdsResponse(List<String> fids) {
+        Fcdsl fcdsl = new Fcdsl();
+        fcdsl.addIds(fids);
+        FapiResponse response = query("base.freerByIds", fcdsl);
+        if (response != null && response.getCode() != null && response.getCode() == 0
+                && response.getData() != null) {
+            Map<String, Freer> result = ObjectUtils.objectToMap(response.getData(), String.class, Freer.class);
+            if (result != null) reportFreers(result.values());
+        }
+        return response;
+    }
+
     public Map<String, Freer> freerByIds(List<String> fids) {
         if (fids == null || fids.isEmpty()) {
             return new HashMap<>();

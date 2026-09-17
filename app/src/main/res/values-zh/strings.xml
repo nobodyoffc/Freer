@@ -587,7 +587,7 @@
     <string name="feip_handler_not_available">FEIP处理器不可用</string>
     <string name="fid_manager_not_available">FID管理器不可用</string>
     <string name="confirm_set_master">确认设置主人</string>
-    <string name="confirm_set_master_message">将%s设置为%s的主人？\n\n这将把私钥加密上链。主人可以解密该私钥。</string>
+    <string name="confirm_set_master_message">将%s设置为%s的主人？\n\n这将把私钥加密上链。主人可以解密该私钥。\n\n此操作是永久的：按FEIP6，一个FID只能设置一次主人，之后无法更改或撤销。</string>
     <string name="master_set_successfully">主人设置成功！\n交易ID: %s</string>
     <string name="failed_to_set_master">设置主人失败: %s</string>
 
@@ -2464,7 +2464,6 @@
     <string name="send_anyway">仍然发送</string>
     <string name="consensus_doc_hint">选择一个数据文档或输入其 DID</string>
     <string name="consensus_doc_not_local">所选的共识文档在本地不可用，请先在“数据”中添加。</string>
-    <string name="server_setup_never">不再提示</string>
 
 
     <!-- Team consensus lifecycle -->
@@ -2528,4 +2527,53 @@
     <string name="nobody_sender_warning">发送者是明人：其私钥公开，任何人都可能发出这条内容。</string>
     <string name="nobody_inviter_warning">邀请者是明人：其私钥公开，任何人都可能发出这个邀请。</string>
     <string name="nobody_member_consensus_note">明人成员的私钥是公开的：任何人都能代其表示同意。</string>
+
+    <!-- Getting started checklist -->
+    <string name="getting_started_title">新手入门</string>
+    <string name="getting_started_progress">已完成 %1$d / %2$d</string>
+    <string name="gs_step_backup_prikey">备份私钥</string>
+    <string name="gs_step_first_fch">获得第一笔FCH</string>
+    <string name="gs_step_register_cid">注册CID</string>
+    <string name="gs_step_set_home">设置DOCK和DISK</string>
+    <string name="gs_step_add_guide">把引路人加为联系人</string>
+    <string name="gs_step_join_square">加入一个群组</string>
+    <string name="gs_explain_backup_prikey">私钥是这个身份属于你的唯一证明，而它只存在于这部手机上。手机丢了，身份也就没了，没有人能补发。请抄一份在纸上，或存成可以放在任何地方的加密文件。</string>
+    <string name="gs_explain_first_fch">上链、名字和消息都要付手续费，所以空的FID暂时做不了什么。可以在公开的“第一笔FCH”求助板上求助，或请别人直接转币到你的地址。给你转来第一笔币的人就是你的引路人。</string>
+    <string name="gs_explain_register_cid">CID是别人找到你的名字，比如 Alice_VkUV。末尾的几个字符取自你的FID，保证不重复。注册CID也会把你的公钥放上链，公钥上链之前，没有人能给你写信。</string>
+    <string name="gs_explain_set_home">DOCK在你离线时替你保存消息，DISK保存你的文件。两者都在链上登记之前，别人无处联系你。</string>
+    <string name="gs_explain_add_guide">引路人给你转来了第一笔币。他是你在这里唯一已经认识的人，把他加为联系人吧。</string>
+    <string name="gs_explain_join_square">群组是任何人都能加入的公开群聊。找一个你感兴趣的，打个招呼。</string>
+    <string name="gs_status_skipped">已跳过</string>
+    <string name="gs_status_checking">正在查询链上状态…</string>
+    <string name="gs_status_pending">等待上链确认</string>
+    <string name="gs_status_stalled">一天后仍未上链</string>
+    <string name="gs_status_after">需先完成“%s”</string>
+    <string name="gs_status_coin_days">你的币还在积累币天：%1$d / %2$d CD</string>
+    <string name="gs_status_coin_days_one_day">你的币还在积累币天：%1$d / %2$d CD，大约还需 1 天</string>
+    <string name="gs_status_coin_days_days">你的币还在积累币天：%1$d / %2$d CD，大约还需 %3$d 天</string>
+    <string name="gs_note_pending">已上链广播，等待确认；确认后会自动打勾。</string>
+    <string name="gs_note_stalled">广播一天后仍未上链，交易可能失败了。请先查一下，再重试。</string>
+    <string name="gs_txid">交易 %s</string>
+    <string name="gs_action_backup">立即备份</string>
+    <string name="gs_action_get_fch">获取FCH</string>
+    <string name="gs_action_register_cid">注册</string>
+    <string name="gs_action_set_home">设置</string>
+    <string name="gs_action_add_contact">加为联系人</string>
+    <string name="gs_action_guide_details">详情</string>
+    <string name="gs_action_browse_squares">浏览群组</string>
+    <string name="gs_action_skip">跳过</string>
+    <string name="gs_your_fid">你的FID：%s</string>
+    <string name="gs_guide_fid">引路人：%s</string>
+    <!-- Identity carves -->
+    <string name="carve_already_pending">已经上链广播，正在等待确认（交易 %s）。如果一天后仍未上链，请重试。</string>
+    <string name="server_setup_home_unreadable">无法从链上读取你的服务登记，未上链：%s</string>
+    <string name="server_setup_home_unchanged">链上已经是这个DOCK和DISK，无需上链。</string>
+    <string name="master_already_set_on_chain">链上记录显示这个FID的主人已经是 %s。按FEIP6，主人一经设置便不可更改，再次上链只会白付手续费并被忽略。</string>
+    <string name="master_check_failed">无法在链上查询现有主人，未上链：%s</string>
+    <string name="cid_name_rule">CID名字不能为空，也不能包含空格、@、# 或 /。</string>
+    <string name="cid_preview_reactivate">%s（你以前用过的CID，将重新启用）</string>
+    <string name="cid_preview_limit">%1$s 将是第五个CID，而一个FID最多只能有 %2$d 个。请输入你用过的名字来重新启用它。</string>
+    <string name="cid_preview_unavailable">“%s”的所有CID都已被占用，请换个名字。</string>
+    <string name="popular_squares">成员最多</string>
+    <string name="square_join_pending">已申请加入，等待上链确认</string>
 </resources>

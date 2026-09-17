@@ -14,7 +14,6 @@ import android.widget.TextView;
 
 import com.fc.fc_ajdk.core.fch.RawTxInfo;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
-import com.fc.fc_ajdk.data.feipData.CidOpData;
 import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.utils.FchUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
@@ -22,6 +21,10 @@ import com.fc.freer.R;
 import com.fc.freer.feip.FeipHandler;
 import com.fc.freer.manager.AvatarManager;
 import com.fc.freer.manager.FidManager;
+import com.fc.freer.onboarding.CidFeip;
+import com.fc.freer.onboarding.LiveFidRecord;
+import com.fc.freer.onboarding.PendingIdentityCarve;
+import com.fc.freer.onboarding.PendingIdentityCarves;
 
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.freer.manager.CashManager;
@@ -66,6 +69,8 @@ public class SetCidActivity extends com.fc.freer.BaseCryptoActivity {
     private KeyInfo liveKeyInfo;
     private String liveFid;
     private String generatedCid;
+    /** The name {@link #generatedCid} was previewed for. */
+    private String checkedName;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -247,118 +252,109 @@ public class SetCidActivity extends com.fc.freer.BaseCryptoActivity {
             }
         }
 
-        if(checkIfExceed4Cids())nameInput.setHint(getString(R.string.input_the_name_of_any_used_cid));
+        showInFlightCarve();
     }
 
     private void setupListeners() {
         // TextWatcher removed - checking now done via Check button
     }
 
-    private boolean checkCidName() {
-        if (yourCidLabel == null || yourCidValue == null || liveFid == null) {
-            ToastUtils.showError(this, getString(R.string.error_no_live_fid));
-            return false;
-        }
-
-        String inputName = nameInput.getText().toString();
-        if (inputName.trim().isEmpty()) {
-            yourCidLabel.setVisibility(VISIBLE);
-            yourCidValue.setText("");
-            yourCidValue.setVisibility(VISIBLE);
-            yourCidTick.setVisibility(GONE);
-            generatedCid = null;
-            ToastUtils.showWarning(this, getString(R.string.please_enter_valid_name));
-            return false;
-        }
-
-        String trimmedName = inputName.trim();
-
-        // Validate CID name
-        CidOpData cidOpData = new CidOpData();
-        if (!cidOpData.isGoodCidName(trimmedName)) {
-            yourCidLabel.setVisibility(VISIBLE);
-            yourCidValue.setText(getString(R.string.invalid_name));
-            yourCidValue.setVisibility(VISIBLE);
-            yourCidTick.setVisibility(VISIBLE);
-            generatedCid = null;
-            ToastUtils.showWarning(this, getString(R.string.invalid_name));
-            return false;
-        }
-
-        // Generate CID with last 4 chars of FID
-        String fidSuffix = liveFid.length() >= 4 ? liveFid.substring(liveFid.length() - 4) : liveFid;
-        generatedCid = trimmedName + "_" + fidSuffix;
-
+    /**
+     * If a CID carve from this FID is still waiting for the chain, say so and keep the carve
+     * button off: a second press would pay a second fee for the same name.
+     */
+    private boolean showInFlightCarve() {
+        PendingIdentityCarve inFlight = liveFid == null ? null : PendingIdentityCarves.of(this)
+                .getInFlight(liveFid, PendingIdentityCarve.Kind.CID, System.currentTimeMillis());
+        if (inFlight == null) return false;
         yourCidLabel.setVisibility(VISIBLE);
-        yourCidValue.setText(generatedCid);
         yourCidValue.setVisibility(VISIBLE);
-        yourCidTick.setVisibility(VISIBLE);
-        // Check if CID is available
-        checkCidAvailability(generatedCid, trimmedName, 4);
-        return true; // Initial validation passed, availability check is async
+        yourCidValue.setText(getString(R.string.carve_already_pending, inFlight.txid));
+        yourCidTick.setVisibility(GONE);
+        setCarveButton(false);
+        return true;
     }
 
-    private void checkCidAvailability(String cidToCheck, String baseName, int suffixLength) {
-        if (checkIfExceed4Cids()){
-            setCarveButton(false);
+    private void checkCidName() {
+        generatedCid = null;
+        checkedName = null;
+        setCarveButton(false);
+        if (yourCidLabel == null || yourCidValue == null || liveFid == null) {
+            ToastUtils.showError(this, getString(R.string.error_no_live_fid));
             return;
         }
-        if (liveFid == null) {
-            setCarveButton(false);
+        if (showInFlightCarve()) return;
+
+        String name = nameInput.getText().toString().trim();
+        yourCidLabel.setVisibility(VISIBLE);
+        yourCidValue.setVisibility(VISIBLE);
+        yourCidTick.setVisibility(GONE);
+        if (name.isEmpty()) {
+            yourCidValue.setText("");
+            ToastUtils.showWarning(this, getString(R.string.please_enter_valid_name));
             return;
         }
-        if(nameInput.getText().toString().isEmpty()){
-            setCarveButton(false);
+        if (!CidFeip.isGoodName(name)) {
+            yourCidValue.setText(getString(R.string.cid_name_rule));
             return;
         }
-        // Run availability check in background
+        yourCidValue.setText(getString(R.string.gs_status_checking));
+
+        // FEIP3 decides the suffix on the indexer. Run the same rule against the chain now:
+        // this FID's own usedCids read fresh (a CID registered elsewhere counts toward the
+        // limit), and every candidate checked against other FIDs that have ever used it.
         new Thread(() -> {
+            CidFeip.Preview preview = null;
+            String error = null;
             try {
                 FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
-                if (fapiClient == null) {
-                    runOnUiThread(() -> {
-                        ToastUtils.showError(this, getString(R.string.error_no_api_client));
-                        setCarveButton(false);
-                    });
-                    return;
-                }
-
-                String ownerFid = fapiClient.getFidByUsedCid(cidToCheck);
-
-                runOnUiThread(() -> {
-                    if (ownerFid != null) {
-                        // CID is already taken, try with longer suffix
-                        if (suffixLength < liveFid.length()) {
-                            int newSuffixLength = Math.min(suffixLength + 1, liveFid.length());
-                            String newFidSuffix = liveFid.substring(liveFid.length() - newSuffixLength);
-                            String newCid = baseName + "_" + newFidSuffix;
-                            generatedCid = newCid;
-                            yourCidLabel.setVisibility(VISIBLE);
-                            yourCidValue.setText(newCid);
-                            yourCidValue.setVisibility(VISIBLE);
-                            yourCidTick.setVisibility(VISIBLE);
-                            setCarveButton(false);
-                            // Check the new CID
-                            checkCidAvailability(newCid, baseName, newSuffixLength);
-                        } else {
-                            // Even with full FID as suffix, still taken
-                            generatedCid = null;
-                            setCarveButton(false);
-                        }
-                    } else {
-                        // CID is available
-                        setCarveButton(true);
-                    }
-                });
-
+                if (fapiClient == null) throw new IllegalStateException(getString(R.string.error_no_api_client));
+                LiveFidRecord own = LiveFidRecord.fetch(fapiClient, liveFid).record;
+                preview = CidFeip.preview(name, liveFid, own.usedCids, fapiClient::getFidByUsedCid);
             } catch (Exception e) {
                 TimberLogger.e(TAG, "Error checking CID availability: " + e.getMessage(), e);
-                runOnUiThread(() -> {
-                    ToastUtils.showError(this, getString(R.string.error_checking_cid_availability));
-                    setCarveButton(false);
-                });
+                error = e.getMessage();
             }
+            final CidFeip.Preview result = preview;
+            final String failure = error;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                // The user edited the name while the chain was being asked; that answer is stale.
+                if (!name.equals(nameInput.getText().toString().trim())) return;
+                if (result == null) {
+                    yourCidValue.setText("");
+                    ToastUtils.showError(this, getString(R.string.error_checking_cid_availability)
+                            + (failure != null ? ": " + failure : ""));
+                    return;
+                }
+                showPreview(name, result);
+            });
         }).start();
+    }
+
+    private void showPreview(String name, CidFeip.Preview preview) {
+        switch (preview.kind) {
+            case NEW:
+                yourCidValue.setText(preview.cid);
+                break;
+            case REACTIVATE:
+                yourCidValue.setText(getString(R.string.cid_preview_reactivate, preview.cid));
+                break;
+            case LIMIT_REACHED:
+                yourCidValue.setText(getString(R.string.cid_preview_limit, preview.cid, CidFeip.MAX_USED_CIDS));
+                break;
+            case UNAVAILABLE:
+            default:
+                yourCidValue.setText(getString(R.string.cid_preview_unavailable, name));
+                break;
+        }
+        boolean carvable = preview.isCarvable();
+        yourCidTick.setVisibility(carvable ? VISIBLE : GONE);
+        if (carvable) {
+            generatedCid = preview.cid;
+            checkedName = name;
+        }
+        setCarveButton(carvable);
     }
 
     private void setCarveButton(boolean enabled) {
@@ -370,37 +366,20 @@ public class SetCidActivity extends com.fc.freer.BaseCryptoActivity {
         carveButton.setEnabled(enabled);
     }
 
-
-    private boolean checkIfExceed4Cids() {
-        if(liveKeyInfo!=null && liveKeyInfo.getUsedCids()!=null && liveKeyInfo.getUsedCids().size()==4){
-            String inputName = nameInput.getText().toString();
-            boolean good = false;
-            for(String cid:liveKeyInfo.getUsedCids()){
-                if(inputName.equals(cid.substring(0,cid.indexOf("_")))){
-                    good=true;
-                    break;
-                }
-            }
-
-            if(!good){
-                ToastUtils.makeText(this, getString(R.string.no_more_than_4_used_cids_allowed));
-                nameInput.setHint(getString(R.string.input_the_name_of_any_used_cid));
-                return true;
-            }
-        }
-        return false;
-    }
-
     private void carveCid() {
-        if (generatedCid == null || generatedCid.trim().isEmpty()) {
+        String name = nameInput.getText().toString().trim();
+        if (generatedCid == null || checkedName == null || !checkedName.equals(name)) {
+            // Only a name the chain was just asked about may be carved.
+            setCarveButton(false);
             ToastUtils.showWarning(this, getString(R.string.please_enter_valid_name));
             return;
         }
+        if (showInFlightCarve()) return;
 
         try {
             // Create FEIP JSON for CID registration using FeipHandler
             FeipHandler feipHandler = new FeipHandler();
-            String feipJson = feipHandler.cidRegister(nameInput.getText().toString().trim());
+            String feipJson = feipHandler.cidRegister(name);
 
             if (feipJson == null || feipJson.trim().isEmpty()) {
                 ToastUtils.showError(this, getString(R.string.error_creating_transaction));
@@ -424,9 +403,12 @@ public class SetCidActivity extends com.fc.freer.BaseCryptoActivity {
                     txSender.carveSimpleFeip(this, liveKeyInfo.getId(), feipJson, prikey, cashManager, new TxHandler(), (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7), new TxSender.TxCallback() {
                         @Override
                         public void onSuccess(String txId) {
+                            // Not written into the KeyInfo: the parser picks the suffix, and the
+                            // carve counts only once the chain shows it. The next refresh of the
+                            // FID's record clears this and brings the CID in.
+                            PendingIdentityCarves.of(SetCidActivity.this).record(PendingIdentityCarve.cid(
+                                    liveFid, name, txId, System.currentTimeMillis()));
                             runOnUiThread(() -> {
-                                liveKeyInfo.setCid(generatedCid);
-
                                 setResult(RESULT_OK);
                                 finish();
                             });
@@ -496,9 +478,9 @@ public class SetCidActivity extends com.fc.freer.BaseCryptoActivity {
 
     @Override
     protected void setupButtons() {
-        // Never button - mark as promoted to stop future CID prompts
+        // "Never" silenced an automatic CID prompt that the getting-started checklist replaced.
         if (neverButton != null) {
-            neverButton.setOnClickListener(v -> markPromotedSetCid());
+            neverButton.setVisibility(GONE);
         }
 
         // Check button
@@ -512,39 +494,6 @@ public class SetCidActivity extends com.fc.freer.BaseCryptoActivity {
                 // Check the input first before carving
                     carveCid();
             });
-        }
-    }
-
-    /**
-     * Mark that the user has been prompted to set CID and chose "Never"
-     * This will prevent future prompts from showing
-     */
-    private void markPromotedSetCid() {
-        try {
-            com.fc.freer.initiate.SettingManager settingManager = com.fc.freer.initiate.SettingManager.getInstance();
-            com.fc.freer.model.Setting currentSetting = settingManager.getCurrentSetting();
-
-            if (currentSetting != null) {
-                // Mark as promoted in the state map
-                if (currentSetting.getStateMap() == null) {
-                    currentSetting.setStateMap(new java.util.HashMap<>());
-                }
-                currentSetting.getStateMap().put(com.fc.freer.model.Setting.KEY_PROMOTED_SET_CID, true);
-
-                // Save the updated setting
-                settingManager.saveSettings(this, currentSetting);
-
-                TimberLogger.d(TAG, "Marked KEY_PROMOTED_SET_CID as true to stop future CID prompts");
-                ToastUtils.makeText(this, getString(R.string.setting_saved));
-
-                // Close the activity
-                finish();
-            } else {
-                ToastUtils.showError(this, getString(R.string.error_no_current_setting));
-            }
-        } catch (Exception e) {
-            TimberLogger.e(TAG, "Error marking promoted set CID: " + e.getMessage(), e);
-            ToastUtils.showError(this, getString(R.string.error_saving_settings) + ": " + e.getMessage());
         }
     }
 }

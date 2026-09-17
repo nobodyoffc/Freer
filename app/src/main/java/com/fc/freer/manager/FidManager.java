@@ -11,6 +11,8 @@ import com.fc.fc_ajdk.data.fchData.Freer;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.nobody.NobodyRegistry;
 import com.fc.freer.nobody.NobodyGuard;
+import com.fc.freer.onboarding.LiveFidRecord;
+import com.fc.freer.onboarding.PendingIdentityCarves;
 import com.fc.freer.R;
 import com.fc.freer.im.ImManager;
 import com.fc.freer.im.PendingIssueManager;
@@ -579,7 +581,6 @@ public class FidManager {
                 ApiCenter apiCenter = ApiCenter.getInstance();
                 if (apiCenter == null) {
                     TimberLogger.w(TAG, "ApiCenter not available for freerInfo refresh");
-                    // Do not show topUp dialog: we don't know if liveFid has zero balance without API
                     postRefreshResult(context, onComplete, false);
                     return;
                 }
@@ -587,7 +588,6 @@ public class FidManager {
                 FapiClient fapiClient = (FapiClient) apiCenter.getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.FAPI_No1_NrC7);
                 if (fapiClient == null) {
                     TimberLogger.w(TAG, "FAPI client not available for freerInfo refresh (client=null)");
-                    // Do not show topUp dialog: default fapiClient not ready, we don't know balance
                     postRefreshResult(context, onComplete, false);
                     return;
                 }
@@ -611,35 +611,26 @@ public class FidManager {
                 }
                 if (!fapiClient.isConnected()) {
                     TimberLogger.w(TAG, "FAPI client not connected after waiting %d ms for freerInfo refresh", CONNECT_WAIT_MS);
-                    // Do not show topUp dialog: still can't reach the network, we don't know balance
                     postRefreshResult(context, onComplete, false);
                     return;
                 }
 
-                // Fetch fresh freerInfo from API
-                Freer freerInfo = fapiClient.getFreer(liveFid);
+                // Fetch fresh freerInfo from API. One reply gives the record and the height it
+                // was read at; a 404 is an answer (the FID holds nothing yet), not a failure.
+                LiveFidRecord.Fetched fetched = LiveFidRecord.fetch(fapiClient, liveFid);
+                // What the getting-started checklist reads: the chain as it stood in this
+                // session. A CID, master or home carve it now shows has nothing left to wait for.
+                LiveFidRecord.confirm(fetched.record);
+                PendingIdentityCarves.of(context).reconcile(fetched.record);
+                Freer freerInfo = fetched.freer;
 
                 if (freerInfo != null) {
                     TimberLogger.d(TAG, "API returned freerInfo for FID %s - Cash: %s, Balance: %s, CD: %s",
                         liveFid, freerInfo.getCash(), freerInfo.getBalance(), freerInfo.getCd());
 
-                    // Check if balance is zero or null - show topup prompt if needed
-                    Long balance = freerInfo.getBalance();
-                    if (balance == null || balance == 0) {
-                        checkTopUpIfNeeded(context);
-                    } else {
-                        // Funded (e.g. the first FCH just arrived on a request-board
-                        // ask): if no DOCK is registered yet the user is still
-                        // unreachable — prompt the server setup now.
-                        checkDockSetupAfterFunding(context, freerInfo);
-                    }
-
                     // Update KeyInfo with fresh data while preserving user-specific data
                     KeyInfo currentKeyInfo = getLiveKeyInfo();
                     if (currentKeyInfo != null) {
-                        TimberLogger.d(TAG, "Current KeyInfo before update - Cash: %s, Balance: %s, CD: %s",
-                            currentKeyInfo.getCash(), currentKeyInfo.getBalance(), currentKeyInfo.getCd());
-
                         KeyInfo updatedKeyInfo = KeyInfo.updateFromCid(freerInfo,currentKeyInfo);
 
                         if(updatedKeyInfo.getPrikey()!=null || Boolean.TRUE.equals(freerInfo.getNobody()))
@@ -653,24 +644,9 @@ public class FidManager {
                             }
                         }
 
-                        TimberLogger.d(TAG, "Updated KeyInfo after fromCid - Cash: %s, Balance: %s, CD: %s",
-                            updatedKeyInfo.getCash(), updatedKeyInfo.getBalance(), updatedKeyInfo.getCd());
-
                         // Update in FidManager and save
                         if (updateKeyInfo(context, liveFid, updatedKeyInfo)) {
                             TimberLogger.d(TAG, "Successfully updated KeyInfo for FID: %s", liveFid);
-
-                            // Verify the updated KeyInfo is correct
-                            KeyInfo verifyKeyInfo = getLiveKeyInfo();
-                            TimberLogger.d(TAG, "Verification - KeyInfo after save - Cash: %s, Balance: %s, CD: %s",
-                                verifyKeyInfo != null ? verifyKeyInfo.getCash() : "null KeyInfo",
-                                verifyKeyInfo != null ? verifyKeyInfo.getBalance() : "null KeyInfo",
-                                verifyKeyInfo != null ? verifyKeyInfo.getCd() : "null KeyInfo");
-
-                            // Check if CID needs to be set (after we have fresh API data)
-                            checkSetCidIfNeeded(context, freerInfo);
-
-                            // Refresh succeeded and KeyInfo was updated
                             postRefreshResult(context, onComplete, true);
                         } else {
                             TimberLogger.w(TAG, "Failed to update KeyInfo for FID: %s", liveFid);
@@ -681,8 +657,7 @@ public class FidManager {
                         postRefreshResult(context, onComplete, false);
                     }
                 } else {
-                    TimberLogger.w(TAG, "Failed to fetch freerInfo for live FID: %s", liveFid);
-                    checkTopUpIfNeeded(context);
+                    TimberLogger.i(TAG, "No on-chain record yet for live FID: %s", liveFid);
                     postRefreshResult(context, onComplete, false);
                 }
             } catch (Exception e) {
@@ -702,247 +677,6 @@ public class FidManager {
             ((Activity) context).runOnUiThread(deliver);
         } else {
             new Handler(Looper.getMainLooper()).post(deliver);
-        }
-    }
-
-    /** FIDs already prompted for DOCK setup after funding, once per app run. */
-    private static final java.util.Set<String> dockPromptedFids =
-            java.util.Collections.synchronizedSet(new java.util.HashSet<>());
-
-    /**
-     * A freshly funded FID without home.DOCK can send but not receive messages
-     * (send-only mode). Now that it can afford the registration TX, prompt the
-     * server setup once per app run. Typical path: a newcomer asked for their
-     * first FCH on the request board and the coins just arrived.
-     */
-    private void checkDockSetupAfterFunding(Context context, Freer freerInfo) {
-        try {
-            String mainFid = getMainFid();
-            if (mainFid == null || dockPromptedFids.contains(mainFid)) return;
-
-            // The prompt registers the home entries of the live FID; a multisig FID has no
-            // key pair for encryption and no prikey to sign with, so skip it while one is live.
-            if (isLiveFidMultisig()) return;
-
-            // A recently-broadcast server-setup TX suppresses the prompt until it confirms,
-            // independent of ImManager and across app restarts within the window.
-            if (com.fc.freer.data.ServerSetupState.isTxPending(context, mainFid)) return;
-
-            Map<String, String> home = freerInfo.getHome();
-            if (home != null) {
-                for (Map.Entry<String, String> entry : home.entrySet()) {
-                    String key = entry.getKey();
-                    String value = entry.getValue();
-                    if (key != null && key.startsWith("DOCK")
-                            && value != null && !value.trim().isEmpty()) {
-                        return; // DOCK already registered
-                    }
-                }
-            }
-
-            Setting currentSetting = SettingManager.getInstance().getCurrentSetting();
-            // Permanently opted out via "Never": don't prompt at all.
-            if (currentSetting != null && currentSetting.isServerSetupDeclined()) return;
-            com.fc.freer.im.ImManager imManager =
-                    currentSetting != null ? currentSetting.getImManager() : null;
-            // Suppress while a registration TX is in flight, or if the user already
-            // tapped "Not now" on the server-setup prompt this session.
-            if (imManager != null
-                    && (imManager.isRegistrationPending() || imManager.isChannelSetupDismissed())) return;
-
-            if (context instanceof android.app.Activity activity) {
-                if (activity.isFinishing() || activity.isDestroyed()) return;
-                dockPromptedFids.add(mainFid);
-                activity.runOnUiThread(() -> {
-                    if (!activity.isFinishing() && !activity.isDestroyed()) {
-                        com.fc.freer.im.ChannelSetupDialog.show(activity, null);
-                    }
-                });
-            }
-        } catch (Exception e) {
-            TimberLogger.e(TAG, "Error checking DOCK setup after funding: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Check if top-up prompt should be shown based on balance
-     * Shows TopupPromptDialog if:
-     * 1. User has not already been prompted for top-up
-     * 2. Main KeyInfo balance is null or 0
-     */
-    private void checkTopUpIfNeeded(Context context) {
-        try {
-            TimberLogger.i(TAG, "checkTopUpIfNeeded called. cashManager field=%s, CashManager.getInstance()=%s",
-                    cashManager != null ? "set(dbSize=" + cashManager.getCashDBSize() + ")" : "null",
-                    CashManager.getInstance() != null ? "set(dbSize=" + CashManager.getInstance().getCashDBSize() + ")" : "null");
-            
-            Setting currentSetting = SettingManager.getInstance().getCurrentSetting();
-            if (currentSetting == null) {
-                TimberLogger.w(TAG, "No current setting available, skipping topUp check");
-                return;
-            }
-
-            // Check if user has already been prompted for topUp
-            Boolean promotedTopUp = (Boolean) currentSetting.getStateMap().get(com.fc.freer.model.Setting.KEY_PROMOTED_TOP_UP);
-            if (promotedTopUp != null && promotedTopUp) {
-                TimberLogger.d(TAG, "User has already been prompted for topUp, skipping");
-                return;
-            }
-
-            // Get main KeyInfo
-            KeyInfo mainKeyInfo = getMainKeyInfo();
-            if (mainKeyInfo == null) {
-                TimberLogger.w(TAG, "Main KeyInfo not available, skipping topUp check");
-                return;
-            }
-
-            // Check if balance is null or 0
-            Long balance = mainKeyInfo.getBalance();
-            if (balance == null || balance == 0) {
-                // Before showing "ask FCH from others" dialog, check local CashManager
-                // Try instance field first, then static singleton (it may be initialized before reloadManagers)
-                CashManager cm = cashManager;
-                if (cm == null) {
-                    cm = CashManager.getInstance();
-                    TimberLogger.d(TAG, "checkTopUpIfNeeded: cashManager field is null, static CashManager.getInstance()=%s",
-                            cm != null ? "available" : "null");
-                }
-                if (cm != null) {
-                    long dbSize = cm.getCashDBSize();
-                    boolean hasValid = cm.hasValidCashes();
-                    TimberLogger.i(TAG, "checkTopUpIfNeeded: CashManager dbSize=%d, hasValidCashes=%b", dbSize, hasValid);
-                    if (hasValid) {
-                        TimberLogger.i(TAG, "On-chain balance is zero but local CashManager has valid cashes (%d). Skipping topUp dialog.", dbSize);
-                        return;
-                    }
-                } else {
-                    TimberLogger.w(TAG, "checkTopUpIfNeeded: CashManager not available at all (both field and singleton are null)");
-                }
-
-                TimberLogger.d(TAG, "Balance is zero and no local cashes, showing topUp prompt dialog");
-
-                String mainFid = getMainFid();
-                if (mainFid == null) {
-                    TimberLogger.w(TAG, "Main FID not available, skipping topUp prompt");
-                    return;
-                }
-
-                // Show top up prompt dialog on main thread
-                if (context instanceof android.app.Activity activity) {
-                    if (activity.isFinishing() || activity.isDestroyed()) {
-                        TimberLogger.w(TAG, "Activity is finishing/destroyed, skipping topUp prompt");
-                        return;
-                    }
-                    activity.runOnUiThread(() -> {
-                        if (!activity.isFinishing() && !activity.isDestroyed()) {
-                            showTopupPromptDialog(context, currentSetting, mainFid);
-                        }
-                    });
-                } else {
-                    TimberLogger.w(TAG, "Context is not an Activity, skipping topUp prompt dialog");
-                }
-            } else {
-                TimberLogger.d(TAG, "Balance is not zero (%d), skipping topUp prompt", balance);
-            }
-        } catch (Exception ex) {
-            TimberLogger.e(TAG, "Error checking topUp: " + ex.getMessage(), ex);
-        }
-    }
-
-    /**
-     * Show the topup prompt dialog
-     */
-    private void showTopupPromptDialog(Context context, Setting currentSetting, String mainFid) {
-        try {
-            if (context instanceof android.app.Activity activity
-                    && (activity.isFinishing() || activity.isDestroyed())) {
-                TimberLogger.w(TAG, "Activity no longer valid, skipping topUp dialog");
-                return;
-            }
-            com.fc.freer.ui.TopupPromptDialog topUpDialog = new com.fc.freer.ui.TopupPromptDialog(context, mainFid, () -> {
-                TimberLogger.d(TAG, "User chose to ignore topUp prompt");
-                // Update the state to indicate user has been prompted
-                currentSetting.getStateMap().put(com.fc.freer.model.Setting.KEY_PROMOTED_TOP_UP, true);
-
-                // Save the updated setting
-                SettingManager.getInstance().saveSettings(context, currentSetting);
-            });
-
-            topUpDialog.show();
-        } catch (Exception e) {
-            TimberLogger.e(TAG, "Error showing topup prompt dialog: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Check if SetCidActivity should be shown based on fresh API data
-     * Shows SetCidActivity if:
-     * 1. User has not already been prompted to set CID
-     * 2. CID is not set (null or empty from API)
-     * 3. Balance is greater than 0
-     */
-    private void checkSetCidIfNeeded(Context context, Freer freerInfo) {
-        try {
-            Setting currentSetting = SettingManager.getInstance().getCurrentSetting();
-            if (currentSetting == null) {
-                TimberLogger.w(TAG, "No current setting available, skipping CID check");
-                return;
-            }
-
-            // Check if user has already been prompted to set CID
-            Boolean promotedSetCid = (Boolean) currentSetting.getStateMap().get(com.fc.freer.model.Setting.KEY_PROMOTED_SET_CID);
-            if (promotedSetCid != null && promotedSetCid) {
-                TimberLogger.d(TAG, "User has already been prompted to set CID, skipping");
-                return;
-            }
-
-            // Check if CID is null or empty from API data
-            String cid = freerInfo.getCid();
-            if (cid != null && !cid.trim().isEmpty()) {
-                TimberLogger.d(TAG, "CID already set: %s, skipping CID prompt", cid);
-                return;
-            }
-
-            // Check if balance is greater than 0
-            Long balance = freerInfo.getBalance();
-            if (balance == null || balance <= 0) {
-                TimberLogger.d(TAG, "Balance is zero or null (%s), skipping CID prompt", balance);
-                return;
-            }
-
-            // All conditions met - show SetCidActivity on main thread
-            TimberLogger.d(TAG, "CID is not set and balance is positive (%d), showing SetCidActivity", balance);
-
-            if (context instanceof android.app.Activity) {
-                ((android.app.Activity) context).runOnUiThread(() -> {
-                    showSetCidActivity(context);
-                });
-            } else {
-                Handler mainHandler = new Handler(Looper.getMainLooper());
-                mainHandler.post(() -> {
-                    showSetCidActivity(context);
-                });
-            }
-
-        } catch (Exception ex) {
-            TimberLogger.e(TAG, "Error checking CID: " + ex.getMessage(), ex);
-        }
-    }
-
-    /**
-     * Show SetCidActivity
-     */
-    private void showSetCidActivity(Context context) {
-        try {
-            if (!(context instanceof android.app.Activity)) {
-                TimberLogger.w(TAG, "Context is not an Activity, cannot show SetCidActivity");
-                return;
-            }
-
-            android.content.Intent intent = new android.content.Intent(context, com.fc.freer.home.SetCidActivity.class);
-            ((android.app.Activity) context).startActivityForResult(intent, 9997); // Using 9997 as request code for SetCidActivity
-        } catch (Exception e) {
-            TimberLogger.e(TAG, "Error showing SetCidActivity: " + e.getMessage(), e);
         }
     }
 }

@@ -23,23 +23,30 @@ import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ToastUtils;
 
 /**
- * Prompts the user to set up their messaging (DOCK) and data (DISK) servers. DOCK is the only
+ * Lets the user set up their messaging (DOCK) and data (DISK) servers. Opened from the
+ * getting-started checklist, which replaced the automatic prompt. DOCK is the only
  * supported messaging channel because phones rarely have a fixed reachable IP (which FUDP
- * requires). Offers four choices:
+ * requires). Offers three choices:
  * <ul>
  *   <li><b>Use this server</b> — one tap: register the current FAPI server as DOCK (and DISK
  *       if it advertises a disk component) directly, without opening the setup screen.</li>
  *   <li><b>Advanced</b> — opens {@link com.fc.freer.data.ServerSetupActivity} for manual entry.</li>
  *   <li><b>Not now</b> — dismisses for this session ({@link ImManager#setChannelSetupDismissed}).</li>
- *   <li><b>Never</b> — opts out permanently for this identity ({@link Setting#setServerSetupDeclined}).</li>
  * </ul>
  * The one-tap path and the Advanced path share {@link ServerSetupManager}, so both broadcast the
- * same TX and set the same pending/suppression flags; the combined prompt won't re-pop while the
- * TX confirms.
+ * same TX, merged over the home map the chain holds now, and record the same pending carve.
  */
 public class ChannelSetupDialog {
 
     public static void show(Activity activity, String suggestedDockUrl) {
+        show(activity, suggestedDockUrl, null);
+    }
+
+    /**
+     * @param onBroadcast run on the UI thread once the one-tap registration has been broadcast,
+     *                    so the caller can show it as waiting for the chain; may be null
+     */
+    public static void show(Activity activity, String suggestedDockUrl, Runnable onBroadcast) {
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
 
         // Resolving the base server's SID / disk capability may touch the network, so do it off
@@ -48,11 +55,12 @@ public class ChannelSetupDialog {
             ApiCenter api = ApiCenter.getInstance();
             final String baseSid = api.getBaseServiceSid();
             final boolean baseHasDisk = api.baseHasDiskComponent();
-            activity.runOnUiThread(() -> showDialog(activity, baseSid, baseHasDisk));
+            activity.runOnUiThread(() -> showDialog(activity, baseSid, baseHasDisk, onBroadcast));
         }).start();
     }
 
-    private static void showDialog(Activity activity, String baseSid, boolean baseHasDisk) {
+    private static void showDialog(Activity activity, String baseSid, boolean baseHasDisk,
+                                   Runnable onBroadcast) {
         if (activity.isFinishing() || activity.isDestroyed()) return;
 
         View view = LayoutInflater.from(activity).inflate(R.layout.dialog_channel_setup, null);
@@ -60,7 +68,6 @@ public class ChannelSetupDialog {
         Button useServer = view.findViewById(R.id.btn_use_server);
         Button advanced = view.findViewById(R.id.btn_advanced);
         Button notNow = view.findViewById(R.id.btn_not_now);
-        Button never = view.findViewById(R.id.btn_never);
 
         final boolean canUseBase = baseSid != null && !baseSid.isEmpty();
         if (canUseBase) {
@@ -80,7 +87,7 @@ public class ChannelSetupDialog {
 
         useServer.setOnClickListener(v -> {
             dialog.dismiss();
-            acceptDefault(activity, baseSid, baseHasDisk);
+            acceptDefault(activity, baseSid, baseHasDisk, onBroadcast);
         });
         advanced.setOnClickListener(v -> {
             dialog.dismiss();
@@ -90,16 +97,13 @@ public class ChannelSetupDialog {
             markDismissed(true);
             dialog.dismiss();
         });
-        never.setOnClickListener(v -> {
-            markDeclined(activity);
-            dialog.dismiss();
-        });
 
         DialogUtils.show(dialog);
     }
 
     /** One-tap: register the current server as DOCK (and DISK if available) directly. */
-    private static void acceptDefault(Activity activity, String baseSid, boolean baseHasDisk) {
+    private static void acceptDefault(Activity activity, String baseSid, boolean baseHasDisk,
+                                      Runnable onBroadcast) {
         KeyInfo liveKeyInfo = FidManager.getInstance() != null
                 ? FidManager.getInstance().getLiveKeyInfo() : null;
         if (liveKeyInfo == null) {
@@ -123,7 +127,8 @@ public class ChannelSetupDialog {
                 new TxSender.TxCallback() {
                     @Override
                     public void onSuccess(String txId) {
-                        // TxSender already toasts "sent"; the shared helper set the pending flags.
+                        // TxSender already toasts "sent"; the shared helper recorded the pending carve.
+                        if (onBroadcast != null) activity.runOnUiThread(onBroadcast);
                     }
 
                     @Override
@@ -158,18 +163,6 @@ public class ChannelSetupDialog {
         ImManager im = setting.getImManager();
         if (im != null) {
             im.setChannelSetupDismissed(dismissed);
-        }
-    }
-
-    /** Permanently opt out for this identity and persist the choice. */
-    private static void markDeclined(Activity activity) {
-        Setting setting = SettingManager.getInstance().getCurrentSetting();
-        if (setting == null) return;
-        setting.setServerSetupDeclined(true);
-        SettingManager.getInstance().saveSettings(activity.getApplicationContext(), setting);
-        ImManager im = setting.getImManager();
-        if (im != null) {
-            im.setChannelSetupDismissed(true);
         }
     }
 }
