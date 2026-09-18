@@ -158,6 +158,20 @@ public class OnboardingTest {
     }
 
     @Test
+    public void anAskForFirstFchIsPendingUntilCoinsArrive() {
+        LiveFidRecord fresh = LiveFidRecord.of("FNewcomer", null, 4_100_000L);
+        OnboardingFacts facts = new OnboardingFacts(true, fresh);
+        facts.pending.put(OnboardingStep.FIRST_FCH, new OnboardingFacts.Pending(null, false));
+        assertEquals(OnboardingStatus.pending(null), status(facts, OnboardingStep.FIRST_FCH));
+
+        facts.pending.put(OnboardingStep.FIRST_FCH, new OnboardingFacts.Pending(null, true));
+        assertEquals("an ask a day old just reopens", OnboardingStatus.OPEN, status(facts, OnboardingStep.FIRST_FCH));
+
+        facts.chain = funded();
+        assertEquals(OnboardingStatus.DONE, status(facts, OnboardingStep.FIRST_FCH));
+    }
+
+    @Test
     public void aPendingCarveOverADayOldStallsAndReopens() {
         OnboardingFacts facts = new OnboardingFacts(true, funded());
         facts.pending.put(OnboardingStep.SET_HOME, new OnboardingFacts.Pending("tx3", true));

@@ -875,6 +875,12 @@ public class ChatActivity extends BaseCryptoActivity
                 addSystemMessage(getString(R.string.requesting_symkey_from_owner));
                 imManager.requestTeamSymkey(targetId);
             }
+        } else if (isSymkeyRequired() && groupHasDock) {
+            // Holding *a* key is not holding *every* key. Messages sealed
+            // before a rotation this device missed stay unreadable, and
+            // nothing above notices because hasSymkey() is satisfied. Ask
+            // for the versions those messages actually name.
+            imManager.requestMissingSymkeys(targetId);
         }
     }
 

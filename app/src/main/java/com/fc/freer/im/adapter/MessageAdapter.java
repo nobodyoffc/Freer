@@ -240,6 +240,12 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
             String time = message.getTimestamp() != null
                     ? TIME_FORMAT.format(new Date(message.getTimestamp()))
                     : "";
+            // Live messages are signed by their author and checked on arrival
+            // (FIMP0V3). A shared history file carries no signatures, so who
+            // wrote an imported row rests on whoever shared the file.
+            if (message.getStatus() == MessageStatus.IMPORTED) {
+                time = itemView.getContext().getString(R.string.im_imported_unverified, time);
+            }
 
             if (isOutgoing) {
                 incomingContainer.setVisibility(View.GONE);

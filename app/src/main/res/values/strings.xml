@@ -2468,6 +2468,7 @@
     <string name="first_fch_board_name">First FCH Board</string>
     <string name="nobody_board_education">This is a public request board on a nobody identity: its prikey is public, so everything here can be read — and written — by anyone. Only use it to ask for your first FCH. You never need to pay, click a link, or share anything to receive FCH; your only proof is your own balance increasing.</string>
     <string name="nobody_partner_warning">This identity is a nobody: its prikey is public, so messages from it can be written by anyone and cannot be trusted.</string>
+    <string name="im_imported_unverified">%1$s · Imported, unverified</string>
     <string name="nobody_content_hidden">[Content from an unverifiable (nobody) identity is not shown]</string>
     <string name="im_send_only_no_dock">Send-only mode: you have no receive (DOCK) server yet, so you can send messages but cannot receive replies. Answers to a first-FCH request arrive as coins in your wallet.</string>
     <string name="talk_send_only_banner">Send-only mode — set up your receive server</string>
@@ -2485,7 +2486,7 @@
     <string name="newcomer_requests_newcomers">Newcomers</string>
     <string name="newcomer_requests_total">Total</string>
     <string name="newcomer_requests_too_many_outputs">Too many cashes: reduce the count or the number of newcomers</string>
-    <string name="ask_first_fch">Ask on First FCH Board</string>
+    <string name="ask_first_fch">Ask help</string>
     <string name="first_fch_request_sent_as">Your message is posted publicly as a first-FCH request for %1$s</string>
     <string name="first_fch_confirm_title">Ask for your first FCH</string>
     <string name="first_fch_safety_notice">Send a request for help to an open identity; anyone could see your request. Wait for someone to send you an FCH.</string>
@@ -2587,12 +2588,14 @@
     <string name="gs_status_skipped">Skipped</string>
     <string name="gs_status_checking">Checking the chain…</string>
     <string name="gs_status_pending">Waiting for the chain</string>
+    <string name="gs_status_fch_asked">Waiting for coins</string>
     <string name="gs_status_stalled">Not on the chain after a day</string>
     <string name="gs_status_after">After “%s”</string>
     <string name="gs_status_coin_days">Your coins are still aging: %1$d of %2$d CD</string>
     <string name="gs_status_coin_days_one_day">Your coins are still aging: %1$d of %2$d CD, about 1 day to go</string>
     <string name="gs_status_coin_days_days">Your coins are still aging: %1$d of %2$d CD, about %3$d days to go</string>
     <string name="gs_note_pending">Carved. Waiting for the chain to confirm it; this ticks itself once it does.</string>
+    <string name="gs_note_fch_asked">Asked. Waiting for someone to send coins to your FID; this ticks itself once they arrive.</string>
     <string name="gs_note_stalled">Still not on the chain a day after it was carved. The transaction may have failed. Check it, then try again.</string>
     <string name="gs_txid">tx %s</string>
     <string name="gs_action_backup">Back up now</string>

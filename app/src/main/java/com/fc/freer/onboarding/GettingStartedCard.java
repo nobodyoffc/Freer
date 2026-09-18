@@ -160,6 +160,11 @@ public final class GettingStartedCard {
         }
 
         long now = System.currentTimeMillis();
+        Long askedAt = FirstFchAsks.askedAt(activity, liveFid);
+        if (askedAt != null) {
+            facts.pending.put(OnboardingStep.FIRST_FCH,
+                    new OnboardingFacts.Pending(null, now - askedAt >= PendingIdentityCarve.OVERDUE_MS));
+        }
         PendingIdentityCarves carves = PendingIdentityCarves.of(activity);
         PendingIdentityCarve cid = carves.get(liveFid, PendingIdentityCarve.Kind.CID);
         if (cid != null) {
@@ -345,8 +350,12 @@ public final class GettingStartedCard {
             case PENDING:
                 note.setVisibility(View.VISIBLE);
                 note.setTextColor(activity.getColor(R.color.hint));
-                note.setText(R.string.gs_note_pending);
-                showCopyable(copyable, activity.getString(R.string.gs_txid, shortId(status.txid, 8, 8)), status.txid);
+                if (status.txid == null) {
+                    note.setText(R.string.gs_note_fch_asked);
+                } else {
+                    note.setText(R.string.gs_note_pending);
+                    showCopyable(copyable, activity.getString(R.string.gs_txid, shortId(status.txid, 8, 8)), status.txid);
+                }
                 break;
             case STALLED:
                 note.setVisibility(View.VISIBLE);
@@ -357,7 +366,8 @@ public final class GettingStartedCard {
                 break;
         }
 
-        if (status.isActionable()) {
+        // Asking again is free, so an ask waiting on coins keeps its way back to the FID and board.
+        if (status.isActionable() || item.step == OnboardingStep.FIRST_FCH) {
             addActions(inflater, row.findViewById(R.id.stepActions), copyable, item, ob, liveFid);
         }
         return row;
@@ -371,9 +381,11 @@ public final class GettingStartedCard {
                 addButton(inflater, actions, R.string.gs_action_backup, this::openBackup);
                 break;
             case FIRST_FCH:
-                showCopyable(copyable, activity.getString(R.string.gs_your_fid, shortId(liveFid, 4, 4)), liveFid);
-                addButton(inflater, actions, R.string.gs_action_get_fch,
-                        () -> new TopupPromptDialog(activity, liveFid, null).show());
+                showCopyable(copyable, activity.getString(R.string.gs_your_fid, shortId(liveFid, 4, 4)), liveFid,
+                        () -> onFirstFchAsked(liveFid));
+                addButton(inflater, actions, R.string.gs_action_get_fch, () -> new TopupPromptDialog(activity, liveFid, null)
+                        .setOnAskedListener(() -> onFirstFchAsked(liveFid))
+                        .show());
                 break;
             case REGISTER_CID:
                 // While the coins are still aging the note says why; a button into a form that
@@ -423,6 +435,10 @@ public final class GettingStartedCard {
     }
 
     private void showCopyable(TextView view, String display, String value) {
+        showCopyable(view, display, value, null);
+    }
+
+    private void showCopyable(TextView view, String display, String value, Runnable afterCopy) {
         view.setVisibility(View.VISIBLE);
         view.setText(display);
         view.setOnClickListener(v -> {
@@ -430,7 +446,14 @@ public final class GettingStartedCard {
             if (clipboard == null) return;
             clipboard.setPrimaryClip(ClipData.newPlainText("id", value));
             ToastUtils.makeText(activity, R.string.copied);
+            if (afterCopy != null) afterCopy.run();
         });
+    }
+
+    /** Asked on the board or copied the FID to hand out: the step waits for coins from here. */
+    private void onFirstFchAsked(String liveFid) {
+        FirstFchAsks.record(activity, liveFid);
+        if (!activity.isFinishing() && !activity.isDestroyed()) refresh();
     }
 
     // ---- actions ----
@@ -522,7 +545,8 @@ public final class GettingStartedCard {
         switch (status.kind) {
             case SKIPPED: return activity.getString(R.string.gs_status_skipped);
             case UNKNOWN: return activity.getString(R.string.gs_status_checking);
-            case PENDING: return activity.getString(R.string.gs_status_pending);
+            case PENDING:
+                return activity.getString(status.txid == null ? R.string.gs_status_fch_asked : R.string.gs_status_pending);
             case STALLED: return activity.getString(R.string.gs_status_stalled);
             case WAITING_STEP:
                 return activity.getString(R.string.gs_status_after, activity.getString(titleOf(status.waitStep)));

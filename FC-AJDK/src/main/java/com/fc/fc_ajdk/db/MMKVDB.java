@@ -1048,8 +1048,11 @@ public class MMKVDB<T extends FcEntity> implements LocalDB<T> {
     @Override
     public <V> V getFromMap(String mapName, String key) {
         readLock.lock();
-        if (mapTypes.get(mapName) == null) return null;
         try {
+            // Inside the try: returning before it left the lock held, and the next
+            // write on this thread then blocked forever (a read lock cannot be
+            // upgraded), taking every other reader and writer down with it.
+            if (mapTypes.get(mapName) == null) return null;
             // Try to get from cache first
             V value = null;
             MapQueue<Object, Object> map = getNamedMap(mapName);

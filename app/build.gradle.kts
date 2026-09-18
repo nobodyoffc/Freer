@@ -25,8 +25,8 @@ android {
         applicationId = "com.fc.freer"
         minSdk = 28
         targetSdk = 34
-        versionCode = 30102
-        versionName = "3.1.2"
+        versionCode = 30201
+        versionName = "3.2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

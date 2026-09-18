@@ -84,6 +84,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
     
     // Database
     private LocalDB<ImMessage> messagesDb;
+    /** Target and replay checks on everything that arrives (FIMP0V3 §3.5). */
+    private InboundGuard inboundGuard;
     private LocalDB<Conversation> conversationsDb;
     private LocalDB<TalkPartner> talkPartnersDb;
     
@@ -137,7 +139,22 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
 
     private static final long SYMKEY_REQUEST_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes
     private final Map<String, Long> symkeyRequestTimestamps = new ConcurrentHashMap<>();
-    private final Set<String> pendingSymkeyNonces = ConcurrentHashMap.newKeySet();
+
+    /**
+     * How long a symkey request's nonce stays answerable.
+     *
+     * <p><b>A nonce outlives the first reply that uses it.</b> A
+     * SYMKEY_HISTORY request (FIMP4V3 §5.2) is answered with one SYMKEY per
+     * version, all carrying the same requestId, so consuming the nonce on the
+     * first reply would make every later one arrive as an unsolicited share
+     * from a non-owner -- and be discarded. A batch of six would deliver one
+     * key. Replay is not what this set defends against in any case:
+     * {@link InboundGuard} drops a repeated (senderId, id) long before here,
+     * and this only separates "a key I asked for" from "a key pushed at me".
+     */
+    private static final long SYMKEY_NONCE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+    /** Nonce -> when it was issued. */
+    private final Map<String, Long> pendingSymkeyNonces = new ConcurrentHashMap<>();
     private final Set<String> pendingRoomInfoNonces = ConcurrentHashMap.newKeySet();
     
     /**
@@ -326,10 +343,12 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         teamHandler = new TeamHandler(context, liveFid);
         roomHandler = new RoomHandler(context, liveFid);
 
-        // P2P seals each body to its recipient rather than with a shared key,
-        // so the handler needs the private key itself — see BaseHandler's
-        // per-route encryption table.
+        // Every handler signs what it sends (FIMP0V3), so every handler needs
+        // the private key. P2P also seals each body to its recipient with it.
         p2pHandler.setUserPrikey(userPrikey);
+        squareHandler.setUserPrikey(userPrikey);
+        teamHandler.setUserPrikey(userPrikey);
+        roomHandler.setUserPrikey(userPrikey);
         
         // Wire TalkPartner lookup into P2P handler
         p2pHandler.setTalkPartnerProvider(this::getTalkPartner);
@@ -370,6 +389,10 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         dockScheduler = new DockFetchScheduler(dockRegistry, liveFid);
         dockRouter = new DockItemRouter(liveFid);
         dockRouter.setHandlers(p2pHandler, squareHandler, teamHandler, roomHandler);
+        inboundGuard = new InboundGuard(liveFid, messagesDb);
+        dockRouter.setInboundGuard(inboundGuard);
+        int pruned = inboundGuard.prune();
+        if (pruned > 0) TimberLogger.d(TAG, "Forgot %d replay records past retention", pruned);
 
         // Wire dock availability checker so group handlers verify target dock
         // connectivity before sending (prevents sending when fetch would fail)
@@ -986,6 +1009,22 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             return true;
         }
 
+        if (ct == ContentType.REQUEST && message.getRequestType() == RequestType.SYMKEY_HISTORY) {
+            TimberLogger.i(TAG, "Received symkey history request from %s: %s",
+                    message.getSenderId(), message.getContent());
+            boolean handled = false;
+            if (teamHandler != null) {
+                handled = teamHandler.handleSymkeyHistoryRequest(message);
+            }
+            if (!handled && roomHandler != null) {
+                handled = roomHandler.handleSymkeyHistoryRequest(message);
+            }
+            if (!handled) {
+                TimberLogger.d(TAG, "Symkey history request not handled (not a member, or none of the versions held)");
+            }
+            return true;
+        }
+
         if (ct == ContentType.REQUEST && message.getRequestType() == RequestType.ROOM_INFO) {
             TimberLogger.i(TAG, "Received room info request from %s: %s", message.getSenderId(), message.getContent());
             boolean handled = false;
@@ -1026,7 +1065,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             }
 
             if (!isFromOwner) {
-                if (nonce == null || !pendingSymkeyNonces.contains(nonce)) {
+                if (nonce == null || !isSymkeyNoncePending(nonce)) {
                     TimberLogger.d(TAG, "Ignoring symkey from non-owner %s without matching request nonce", senderFid);
                     return true;
                 }
@@ -1041,9 +1080,10 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 handled = roomHandler.handleSymkeyShare(message);
             }
             if (handled) {
-                if (nonce != null) {
-                    pendingSymkeyNonces.remove(nonce);
-                }
+                // Deliberately NOT removed: a SYMKEY_HISTORY answer is several
+                // shares under one nonce, and consuming it here would discard
+                // every one after the first. It expires on its own instead.
+                pruneSymkeyNonces();
                 if (symkeyEntityId != null) {
                     String finalEntityId = symkeyEntityId;
                     symkeyRequestTimestamps.keySet().removeIf(k -> k.startsWith(finalEntityId + ":"));
@@ -1110,6 +1150,123 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 for (ImListener l : listeners) l.onMessagesRedecrypted(entityId, redecrypted);
             });
         }
+    }
+
+    /**
+     * The symkey versions this entity's stored messages need and this device
+     * does not hold, ascending.
+     *
+     * <p>Read from the stored messages rather than from the current version,
+     * because the versions that cannot be opened are characteristically
+     * <em>older</em> than the one held. A member who joined after several
+     * rotations has the newest key and none of the ones before it.
+     */
+    private List<Long> missingSymkeyVersions(String entityId) {
+        List<Long> missing = new ArrayList<>();
+        if (entityId == null || symkeyStore == null || messagesDb == null) return missing;
+
+        ImType entityType = null;
+        if (teamHandler != null && teamHandler.getTeam(entityId) != null) {
+            entityType = ImType.TEAM;
+        } else if (roomHandler != null && roomHandler.getRoom(entityId) != null) {
+            entityType = ImType.ROOM;
+        }
+        if (entityType == null) return missing;
+
+        List<String> index = messagesDb.getAllFromList(conversationIndexKey(entityType, entityId));
+        if (index == null || index.isEmpty()) return missing;
+
+        java.util.TreeSet<Long> wanted = new java.util.TreeSet<>();
+        for (String msgId : index) {
+            ImMessage msg = messagesDb.get(msgId);
+            if (msg == null || msg.getBody() == null) continue;
+            if (msg.getContent() != null && !msg.getContent().startsWith("[Encrypted")) continue;
+            Long version = msg.getSymkeyVersion();
+            long v = version != null ? version : 1L;
+            if (!symkeyStore.hasSymkey(entityId, v)) wanted.add(v);
+        }
+        missing.addAll(wanted);
+        return missing;
+    }
+
+    /**
+     * Ask the entity's owner for every symkey version its stored messages need
+     * and this device lacks -- FIMP4V3 §7.4 / FIMP2V3 §7.4, one request per
+     * version.
+     *
+     * <p>This is what recovers a conversation that was already sealed before
+     * the key ever arrived. The per-message hook in the handlers only fires as
+     * a message arrives; nothing revisited what was already on disk, so a
+     * member missing an old version had no path back to it.
+     */
+    public void requestMissingSymkeys(String entityId) {
+        if (entityId == null) return;
+        executor.execute(() -> {
+            List<Long> missing = missingSymkeyVersions(entityId);
+            if (missing.isEmpty()) return;
+            TimberLogger.i(TAG, "Entity %s is missing symkey versions %s; asking", entityId, missing);
+            if (missing.size() == 1) {
+                requestTeamSymkey(entityId, missing.get(0));
+            } else {
+                // One message naming them all, rather than one per version on
+                // the owner's DOCK at our expense -- and a burst their cooldown
+                // would be right to throttle. FIMP4V3 §5.2.
+                requestSymkeyHistory(entityId, missing);
+            }
+        });
+    }
+
+    /**
+     * Ask the entity's owner for several symkey versions in one request --
+     * FIMP4V3 §5.2, FIMP2V3 §5.3. The answer is one SYMKEY per version the
+     * owner holds, all under this request's nonce.
+     */
+    public void requestSymkeyHistory(String entityId, List<Long> versions) {
+        if (entityId == null || versions == null || versions.isEmpty()) return;
+        executor.execute(() -> {
+            String content = SymkeyStore.historyRequestContent(entityId, versions);
+            if (content == null) return;
+
+            String ownerFid = null;
+            if (teamHandler != null) {
+                Team team = teamHandler.loadTeamInfo(entityId);
+                if (team != null) ownerFid = team.getOwner();
+            }
+            if (ownerFid == null && roomHandler != null) {
+                com.fc.fc_ajdk.data.fcData.Room room = roomHandler.getRoom(entityId);
+                if (room != null) ownerFid = room.getOwner();
+            }
+            if (ownerFid == null) {
+                TimberLogger.w(TAG, "Cannot request symkey history: entity %s or owner not found", entityId);
+                return;
+            }
+
+            // One cooldown for the batch, keyed on the whole list: asking for
+            // {1,2,3} is one question, and re-asking it a second later is the
+            // repeat the cooldown is for.
+            if (isSymkeyRequestOnCooldown(entityId, ownerFid, (long) content.hashCode())) {
+                TimberLogger.d(TAG, "Symkey history request for %s on cooldown, skipping", entityId);
+                return;
+            }
+            if (!hasReachableChannels(ownerFid)) {
+                TimberLogger.w(TAG, "Owner %s has no reachable channels, skipping symkey history request", ownerFid);
+                return;
+            }
+
+            String nonce = generateSymkeyNonce();
+            ImMessage request = ImMessage.createRequest(
+                    ImType.P2P, liveFid, ownerFid, RequestType.SYMKEY_HISTORY, content);
+            request.setRequestId(nonce);
+
+            MessageQueue.SendResult result = p2pHandler.send(request);
+            if (result == MessageQueue.SendResult.SUCCESS) {
+                rememberSymkeyNonce(nonce);
+                TimberLogger.i(TAG, "Sent symkey history request for %s %s to owner %s (nonce=%s)",
+                        entityId, versions, ownerFid, nonce);
+            } else {
+                TimberLogger.w(TAG, "Failed to send symkey history request for %s: %s", entityId, result);
+            }
+        });
     }
 
     /**
@@ -1420,8 +1577,11 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         return false;
     }
 
-    private boolean isSymkeyRequestOnCooldown(String entityId, String targetFid) {
-        String key = entityId + ":" + targetFid;
+    private boolean isSymkeyRequestOnCooldown(String entityId, String targetFid, Long version) {
+        // The version is part of the key, so asking for v1 is not silenced by
+        // a recent ask for v6. FIMP4V3 §7.4 rate-limits per (entity, version)
+        // for exactly this reason: they are different questions.
+        String key = entityId + ":" + (version != null ? version : "current") + ":" + targetFid;
         Long lastTime = symkeyRequestTimestamps.get(key);
         if (lastTime != null && System.currentTimeMillis() - lastTime < SYMKEY_REQUEST_COOLDOWN_MS) {
             return true;
@@ -1434,11 +1594,43 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         return UUID.randomUUID().toString().replace("-", "").substring(0, 16);
     }
 
+    /** Remember a nonce we are expecting one or more answers under. */
+    private void rememberSymkeyNonce(String nonce) {
+        if (nonce == null) return;
+        pendingSymkeyNonces.put(nonce, System.currentTimeMillis());
+        pruneSymkeyNonces();
+    }
+
+    /** Whether we asked something that would be answered under this nonce. */
+    private boolean isSymkeyNoncePending(String nonce) {
+        Long issued = pendingSymkeyNonces.get(nonce);
+        if (issued == null) return false;
+        if (System.currentTimeMillis() - issued >= SYMKEY_NONCE_TTL_MS) {
+            pendingSymkeyNonces.remove(nonce);
+            return false;
+        }
+        return true;
+    }
+
+    private void pruneSymkeyNonces() {
+        long cutoff = System.currentTimeMillis() - SYMKEY_NONCE_TTL_MS;
+        pendingSymkeyNonces.entrySet().removeIf(e -> e.getValue() == null || e.getValue() < cutoff);
+    }
+
     /**
      * Send a symkey request to the entity owner (team or room).
      * Called when a member enters an encrypted chat without the symkey.
      */
     public void requestTeamSymkey(String entityId) {
+        requestTeamSymkey(entityId, null);
+    }
+
+    /**
+     * Send a symkey request to the entity owner (team or room).
+     *
+     * @param version the version wanted, or null for whatever the owner holds now
+     */
+    public void requestTeamSymkey(String entityId, Long version) {
         if (entityId == null) return;
         executor.execute(() -> {
             String ownerFid = null;
@@ -1458,9 +1650,15 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 return;
             }
 
+            // "Already available" has to mean the version asked for. Guarding
+            // on "any key at all" is why a member holding v2..v6 and missing
+            // v1 never asked for anything: it held a key, so every request was
+            // suppressed before it was built.
             SymkeyStore store = getSymkeyStore();
-            if (store != null && store.hasSymkey(entityId)) {
-                TimberLogger.d(TAG, "Symkey already available for %s", entityId);
+            if (store != null
+                    && (version != null ? store.hasSymkey(entityId, version) : store.hasSymkey(entityId))) {
+                TimberLogger.d(TAG, "Symkey%s already available for %s",
+                        version != null ? " v" + version : "", entityId);
                 return;
             }
 
@@ -1472,7 +1670,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             // Skipping it here is what left a re-installed owner permanently
             // unable to read their own team.
 
-            if (isSymkeyRequestOnCooldown(entityId, ownerFid)) {
+            if (isSymkeyRequestOnCooldown(entityId, ownerFid, version)) {
                 TimberLogger.d(TAG, "Symkey request for %s to %s on cooldown, skipping", entityId, ownerFid);
                 return;
             }
@@ -1486,18 +1684,22 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 return;
             }
 
+            // FIMP4V3 §5.1 defines the content as "<id>" or "<id>:<version>".
+            // ":latest" was neither -- a responder parsing the version would
+            // read it as malformed, and ours only ever ignored it.
             String nonce = generateSymkeyNonce();
             ImMessage request = ImMessage.createRequest(
                     ImType.P2P, liveFid, ownerFid,
                     RequestType.SYMKEY,
-                    entityId + ":latest"
+                    SymkeyStore.requestContent(entityId, version)
             );
             request.setRequestId(nonce);
 
             MessageQueue.SendResult result = p2pHandler.send(request);
             if (result == MessageQueue.SendResult.SUCCESS) {
-                pendingSymkeyNonces.add(nonce);
-                TimberLogger.i(TAG, "Sent symkey request for %s to owner %s (nonce=%s)", entityId, ownerFid, nonce);
+                rememberSymkeyNonce(nonce);
+                TimberLogger.i(TAG, "Sent symkey request for %s%s to owner %s (nonce=%s)",
+                        entityId, version != null ? " v" + version : "", ownerFid, nonce);
             } else {
                 TimberLogger.w(TAG, "Failed to send symkey request for %s to owner %s: %s", entityId, ownerFid, result);
             }
@@ -1509,6 +1711,15 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
      * Works for both team and room entities.
      */
     public void requestSymkeyFromMembers(String entityId, List<String> targetFids) {
+        requestSymkeyFromMembers(entityId, targetFids, null);
+    }
+
+    /**
+     * Send symkey requests to specific members, naming a version.
+     *
+     * @param version the version wanted, or null for whatever the member holds now
+     */
+    public void requestSymkeyFromMembers(String entityId, List<String> targetFids, Long version) {
         if (entityId == null || targetFids == null || targetFids.isEmpty()) return;
         if (fapiClient == null) return;
 
@@ -1519,7 +1730,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             for (String targetFid : targetFids) {
                 // Our own FID is a legitimate target: another device of this
                 // identity may hold the key this one is missing.
-                if (isSymkeyRequestOnCooldown(entityId, targetFid)) {
+                if (isSymkeyRequestOnCooldown(entityId, targetFid, version)) {
                     TimberLogger.d(TAG, "Symkey request for %s to %s on cooldown, skipping", entityId, targetFid);
                     continue;
                 }
@@ -1534,14 +1745,15 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 ImMessage request = ImMessage.createRequest(
                         ImType.P2P, liveFid, targetFid,
                         RequestType.SYMKEY,
-                        entityId + ":latest"
+                        SymkeyStore.requestContent(entityId, version)
                 );
                 request.setRequestId(nonce);
 
                 MessageQueue.SendResult result = p2pHandler.send(request);
                 if (result == MessageQueue.SendResult.SUCCESS) {
-                    pendingSymkeyNonces.add(nonce);
-                    TimberLogger.i(TAG, "Sent symkey request for %s to member %s (nonce=%s)", entityId, targetFid, nonce);
+                    rememberSymkeyNonce(nonce);
+                    TimberLogger.i(TAG, "Sent symkey request for %s%s to member %s (nonce=%s)",
+                            entityId, version != null ? " v" + version : "", targetFid, nonce);
                     sent++;
                 } else {
                     TimberLogger.w(TAG, "Failed to send symkey request to %s: %s", targetFid, result);
@@ -1912,6 +2124,10 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 
                 if (message.getId() == null) {
                     message.setIdFromLong(fudpMessageId);
+                }
+
+                if (inboundGuard != null && !inboundGuard.admit(message, null)) {
+                    return;
                 }
                 
                 if (message.getType() == ImType.P2P && senderFid != null) {
@@ -2381,6 +2597,10 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 
                 if (messages != null) {
                     for (ImMessage msg : messages) {
+                        if (inboundGuard != null
+                                && !inboundGuard.admit(msg, Collections.singletonList(targetId))) {
+                            continue;
+                        }
                         messagesDb.put(msg.getId(), msg);
                         updateConversation(msg);
                     }

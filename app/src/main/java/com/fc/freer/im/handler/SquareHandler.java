@@ -83,7 +83,11 @@ public class SquareHandler extends BaseHandler {
         }
         
         try {
-            byte[] data = message.toWireBytes();
+            byte[] data = signedWire(message);
+            if (data == null) {
+                notifyError("Cannot sign square message");
+                return SendResult.FAIL_PERMANENT;
+            }
             
             java.util.List<String> recipients = new java.util.ArrayList<>();
             recipients.add(squareId);

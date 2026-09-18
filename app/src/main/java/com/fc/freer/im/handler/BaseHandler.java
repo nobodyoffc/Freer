@@ -43,15 +43,37 @@ public abstract class BaseHandler {
     protected SymkeyStore symkeyStore;
 
     /**
-     * The live FID's private key, for the one job the symkey store cannot do:
-     * sealing a P2P body to a specific recipient (AsyTwoWay needs our private
-     * half, not a shared secret). Set by ImManager alongside
-     * {@link SymkeyStore#setUserPrikey(byte[])}.
+     * The live FID's private key. Every handler signs each envelope it sends
+     * with it (FIMP0V3, see {@link #signedWire}), and the P2P handler also
+     * seals bodies to a specific recipient with it (AsyTwoWay needs our
+     * private half, not a shared secret). Set on all four handlers by
+     * ImManager alongside {@link SymkeyStore#setUserPrikey(byte[])}.
      */
     protected byte[] userPrikey;
 
     public void setUserPrikey(byte[] prikey) {
         this.userPrikey = prikey;
+    }
+
+    /**
+     * The message as it goes on the wire: FIMP0V3 envelope, signed with the
+     * live FID's key. Every receiver checks that signature before anything
+     * else, so an envelope that cannot be signed is not sent at all.
+     *
+     * @return the signed bytes, or null when there is no key or the encode
+     *         fails (an over-long field, or a sender that is not the live FID)
+     */
+    protected byte[] signedWire(ImMessage message) {
+        if (userPrikey == null) {
+            TimberLogger.e(TAG, "Cannot sign message %s: no private key for %s", message.getId(), liveFid);
+            return null;
+        }
+        try {
+            return message.toWireBytes(userPrikey);
+        } catch (RuntimeException e) {
+            TimberLogger.e(TAG, "Cannot encode message %s: %s", message.getId(), e.getMessage());
+            return null;
+        }
     }
 
 
@@ -88,7 +110,17 @@ public abstract class BaseHandler {
     }
 
     public interface SymkeyRequester {
-        void requestSymkey(String entityId);
+        /**
+         * Ask for the symkey of {@code entityId}.
+         *
+         * @param version the version that could not be opened, or null to ask
+         *                for whatever the responder currently holds. Naming it
+         *                is what FIMP4V3 §7.4 requires: a request with no
+         *                version is answered with the responder's current key,
+         *                which is usually the one this device already has, so a
+         *                member missing an older version would never recover it.
+         */
+        void requestSymkey(String entityId, Long version);
     }
 
     /**

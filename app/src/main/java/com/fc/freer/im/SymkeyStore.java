@@ -232,6 +232,151 @@ public class SymkeyStore {
     public boolean hasSymkey(String entityId, long version) {
         return db.get(entityId + "_" + version) != null;
     }
+
+    /**
+     * What a {@code RequestType.SYMKEY} request is asking for.
+     *
+     * <p>FIMP4V3 §5.1 and FIMP2V3 §5.2 define the request content as
+     * {@code "<entityId>"} for the current version, or
+     * {@code "<entityId>:<version>"} for a specific one.
+     */
+    public static final class Asked {
+        public final String entityId;
+        /** The version asked for, or null for "whatever you have now". */
+        public final Long version;
+
+        Asked(String entityId, Long version) {
+            this.entityId = entityId;
+            this.version = version;
+        }
+    }
+
+    /**
+     * Parse a symkey request's content into the entity and the version it names.
+     *
+     * <p><b>The version used to be parsed off and thrown away.</b> This method's
+     * caller read the entity id out of {@code "<id>:<version>"} and then answered
+     * with {@link #getCurrentVersion(String)} regardless, so asking for an older
+     * key — the only reason to name a version, since messages sealed before a
+     * rotation cannot be read without it — was impossible to express. A member
+     * holding every version but the one they needed was handed the one they
+     * already had, every time they asked.
+     *
+     * <p>A version that is not a positive integer is treated as <b>absent</b>
+     * rather than as a bad request: answering with the current key is what this
+     * protocol did before versions could be named, so it stays the compatible
+     * reading of anything unrecognised after the colon.
+     *
+     * @return the parsed request, or null when there is no entity id
+     */
+    public static Asked parseRequest(String content) {
+        if (content == null || content.isEmpty()) return null;
+        int colonIdx = content.indexOf(':');
+        if (colonIdx < 0) return new Asked(content, null);
+        String entityId = content.substring(0, colonIdx);
+        if (entityId.isEmpty()) return null;
+        String tail = content.substring(colonIdx + 1);
+        try {
+            long version = Long.parseLong(tail);
+            return new Asked(entityId, version >= 1 ? version : null);
+        } catch (NumberFormatException e) {
+            return new Asked(entityId, null);
+        }
+    }
+
+    /**
+     * Build a symkey request's content, naming a version when one is wanted.
+     * See {@link #parseRequest(String)}.
+     */
+    public static String requestContent(String entityId, Long version) {
+        if (version == null || version < 1) return entityId;
+        return entityId + ":" + version;
+    }
+
+    /**
+     * The most versions one {@code SYMKEY_HISTORY} request may ask for.
+     *
+     * <p><b>A bound is a security property, not tidiness.</b> Every version
+     * named costs the responder one asymmetric seal and one message on
+     * somebody's DOCK, paid for by the responder. An unbounded list is an
+     * amplifier: one small request naming ten thousand versions would have a
+     * member's device seal and pay to send ten thousand replies. No real entity
+     * has been rotated this many times, so the cap costs nothing legitimate.
+     */
+    public static final int MAX_HISTORY_VERSIONS = 64;
+
+    /**
+     * Build the content of a batch request -- FIMP4V3 §5.2, FIMP2V3 §5.3:
+     * {@code "<entityId>:<v1>,<v2>,…"}.
+     *
+     * <p>Versions are de-duplicated and sorted, so the same set always produces
+     * the same request, and capped at {@link #MAX_HISTORY_VERSIONS}. Returns
+     * null when no version is worth asking for -- a batch naming none has no
+     * meaning, and the caller wants {@link #requestContent(String, Long)}.
+     */
+    public static String historyRequestContent(String entityId, List<Long> versions) {
+        if (entityId == null || entityId.isEmpty() || versions == null) return null;
+        java.util.TreeSet<Long> wanted = new java.util.TreeSet<>();
+        for (Long version : versions) {
+            if (version != null && version >= 1) wanted.add(version);
+        }
+        if (wanted.isEmpty()) return null;
+        StringBuilder sb = new StringBuilder(entityId).append(':');
+        int count = 0;
+        for (Long version : wanted) {
+            if (count >= MAX_HISTORY_VERSIONS) break;
+            if (count > 0) sb.append(',');
+            sb.append(version);
+            count++;
+        }
+        return sb.toString();
+    }
+
+    /** What a batch request is asking for. */
+    public static final class AskedHistory {
+        public final String entityId;
+        public final List<Long> versions;
+
+        AskedHistory(String entityId, List<Long> versions) {
+            this.entityId = entityId;
+            this.versions = versions;
+        }
+    }
+
+    /**
+     * Parse a batch request's content.
+     *
+     * <p>Unreadable entries are <b>skipped rather than failing the request</b>:
+     * a list of eight versions with one piece of nonsense in it is still seven
+     * keys somebody needs, and refusing the whole thing helps nobody. A request
+     * whose every entry is unreadable yields null, because there is then nothing
+     * to answer.
+     */
+    public static AskedHistory parseHistoryRequest(String content) {
+        if (content == null || content.isEmpty()) return null;
+        int colonIdx = content.indexOf(':');
+        if (colonIdx < 0) return null;
+        String entityId = content.substring(0, colonIdx);
+        if (entityId.isEmpty()) return null;
+
+        java.util.TreeSet<Long> wanted = new java.util.TreeSet<>();
+        for (String part : content.substring(colonIdx + 1).split(",")) {
+            try {
+                long version = Long.parseLong(part.trim());
+                if (version >= 1) wanted.add(version);
+            } catch (NumberFormatException ignored) {
+                // Skipped, not fatal -- see the note above.
+            }
+        }
+        if (wanted.isEmpty()) return null;
+
+        List<Long> versions = new ArrayList<>();
+        for (Long version : wanted) {
+            if (versions.size() >= MAX_HISTORY_VERSIONS) break;
+            versions.add(version);
+        }
+        return new AskedHistory(entityId, versions);
+    }
     
     /**
      * Create cipher for sharing symkey with another FID.

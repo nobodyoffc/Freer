@@ -50,15 +50,6 @@
                 android:background="@drawable/bg_input_view"
                 android:padding="12dp" />
 
-            <!-- Ask on the first-FCH request board -->
-            <Button
-                android:id="@+id/topupAskBoardButton"
-                style="@style/ButtonStyle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/ask_first_fch"
-                android:layout_marginBottom="8dp" />
-
         </LinearLayout>
 
     </ScrollView>
@@ -81,22 +72,24 @@
             android:visibility="gone"
             />
 
+        <!-- Ask on the first-FCH request board -->
+        <Button
+            android:id="@+id/topupAskBoardButton"
+            style="@style/ButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/ask_first_fch"
+            android:layout_marginEnd="8dp" />
+
         <!-- Copy Button -->
         <Button
             android:id="@+id/topupCopyButton"
             style="@style/ButtonStyle"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="@string/copy_fid"
-            android:layout_marginEnd="8dp" />
-
-        <!-- OK Button -->
-        <Button
-            android:id="@+id/topupOkButton"
-            style="@style/ButtonStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/ok" />
+            android:layout_weight="1"
+            android:text="@string/copy_fid" />
 
     </LinearLayout>
 

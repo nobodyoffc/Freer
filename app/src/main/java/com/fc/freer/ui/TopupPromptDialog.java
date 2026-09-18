@@ -52,6 +52,8 @@ public class TopupPromptDialog {
     private final Context context;
     private final String fid;
     private final OnIgnoreListener ignoreListener;
+    private Runnable askedListener;
+    private Button askBoardButton;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private AlertDialog dialog;
 
@@ -75,6 +77,16 @@ public class TopupPromptDialog {
         this.ignoreListener = ignoreListener;
     }
 
+    /** Called on the main thread once the FID is copied or the board request is posted. */
+    public TopupPromptDialog setOnAskedListener(Runnable listener) {
+        this.askedListener = listener;
+        return this;
+    }
+
+    private void notifyAsked() {
+        if (askedListener != null) askedListener.run();
+    }
+
     /**
      * Show the dialog
      */
@@ -94,8 +106,7 @@ public class TopupPromptDialog {
             ImageView qrCodeImageView = dialogView.findViewById(R.id.topupQrCode);
             Button ignoreButton = dialogView.findViewById(R.id.topupIgnoreButton);
             Button copyButton = dialogView.findViewById(R.id.topupCopyButton);
-            Button okButton = dialogView.findViewById(R.id.topupOkButton);
-            Button askBoardButton = dialogView.findViewById(R.id.topupAskBoardButton);
+            askBoardButton = dialogView.findViewById(R.id.topupAskBoardButton);
 
             // Set FID text
             if (fidTextView != null) {
@@ -140,23 +151,16 @@ public class TopupPromptDialog {
                 });
             }
 
-            if (okButton != null) {
-                okButton.setOnClickListener(v -> {
-                    dismiss();
-                });
-            }
-
             if (askBoardButton != null) {
                 // Zero-balance users can still post a request on the public
                 // first-FCH board (the default nobody freer's DOCK inbox). The
-                // request is posted directly — no chat, and each FID may ask once.
-                askBoardButton.setOnClickListener(v -> {
-                    if (hasAlreadyAsked()) {
-                        showPostedMessage();
-                    } else {
-                        showAskBoardConfirm();
-                    }
-                });
+                // request is posted directly — no chat, and each FID may ask once, so the
+                // button stays disabled once the request is on the board.
+                if (hasAlreadyAsked()) {
+                    disableAskBoardButton();
+                } else {
+                    askBoardButton.setOnClickListener(v -> showAskBoardConfirm());
+                }
             }
 
             // Show the dialog
@@ -180,6 +184,13 @@ public class TopupPromptDialog {
 
     private void markAsked() {
         askPrefs().edit().putBoolean(KEY_ASKED + fid, true).apply();
+    }
+
+    private void disableAskBoardButton() {
+        if (askBoardButton == null) return;
+        askBoardButton.setEnabled(false);
+        // ButtonStyle's flat tint has no disabled state, so dim it by hand.
+        askBoardButton.setAlpha(0.5f);
     }
 
     /**
@@ -250,6 +261,8 @@ public class TopupPromptDialog {
             im.sendFirstFchBoardRequest(note, success -> {
                 if (success) {
                     markAsked();
+                    disableAskBoardButton();
+                    notifyAsked();
                     showPostedMessage();
                 } else {
                     ToastUtils.makeText(context, R.string.first_fch_send_failed);
@@ -259,9 +272,9 @@ public class TopupPromptDialog {
     }
 
     /**
-     * Confirmation shown after a successful post (and whenever the user asks
-     * again from the same FID): the request is on the board, now wait for
-     * someone to send FCH — or ask people you know to send to this FID.
+     * Confirmation shown after a successful post: the request is on the
+     * board, now wait for someone to send FCH — or ask people you know to
+     * send to this FID.
      */
     private void showPostedMessage() {
         if (context instanceof android.app.Activity activity
@@ -293,6 +306,7 @@ public class TopupPromptDialog {
             ClipData clip = ClipData.newPlainText("FID", fid);
             clipboard.setPrimaryClip(clip);
             ToastUtils.makeText(context, R.string.copied);
+            notifyAsked();
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error copying FID to clipboard: " + e.getMessage(), e);
             ToastUtils.showError(context, context.getString(R.string.toast_error_copying_fid));

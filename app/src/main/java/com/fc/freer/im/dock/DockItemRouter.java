@@ -7,6 +7,7 @@ import com.fc.fc_ajdk.data.fcData.DockItem;
 import com.fc.fc_ajdk.data.fcData.ImMessage;
 import com.fc.fc_ajdk.db.LocalDB;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.im.InboundGuard;
 import com.fc.freer.im.handler.SquareHandler;
 import com.fc.freer.im.handler.P2pHandler;
 import com.fc.freer.im.handler.RoomHandler;
@@ -46,6 +47,13 @@ public class DockItemRouter {
     private final Set<String> processedDockIds = ConcurrentHashMap.newKeySet();
 
     private UnknownItemCallback unknownItemCallback;
+
+    /** Target and replay checks (FIMP0V3 §3.5). Null checks nothing. */
+    private InboundGuard inboundGuard;
+
+    public void setInboundGuard(InboundGuard guard) {
+        this.inboundGuard = guard;
+    }
 
     public interface UnknownItemCallback {
         void onUnknownDockItem(DockItem item);
@@ -131,6 +139,10 @@ public class DockItemRouter {
 
             message.setDockId(item.getId());
             message.setDeliveryMethod(DeliveryMethod.DOCK_STORED);
+
+            if (inboundGuard != null && !inboundGuard.admit(message, item.getRecipients())) {
+                return false;
+            }
 
             if (message.getType() == null) {
                 TimberLogger.w(TAG, "ImMessage from dock item %s has no type", item.getId());

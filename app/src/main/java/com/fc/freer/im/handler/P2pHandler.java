@@ -104,7 +104,11 @@ public class P2pHandler extends BaseHandler {
         boolean useFudp = setting != null && setting.isUseFudpDirect();
         boolean useRoad = setting != null && setting.isUseRoadRelay();
 
-        byte[] envelope = message.toWireBytes();
+        byte[] envelope = signedWire(message);
+        if (envelope == null) {
+            notifyError("Cannot sign message");
+            return SendResult.FAIL_PERMANENT;
+        }
 
         // 1. Optional FUDP_DIRECT.
         if (useFudp && isFudpAllowed() && hasTargetFudpRegistered(targetFid) && fudpNode != null) {
@@ -388,7 +392,7 @@ public class P2pHandler extends BaseHandler {
         // dataBase64", which meant every inline binary went out in the clear.
         // In v2 both payloads are one body, so this test cannot miss one.
         if (message.getContent() == null && message.getData() == null) {
-            return message.toWireBytes();
+            return signedWire(message);
         }
 
         if (userPrikey == null) {
@@ -414,14 +418,9 @@ public class P2pHandler extends BaseHandler {
             TimberLogger.e(TAG, "Failed to seal message for %s", targetFid);
             return null;
         }
-        try {
-            return outgoing.toWireBytes();
-        } catch (RuntimeException e) {
-            // An over-long field now throws instead of wrapping. v1 truncated
-            // the length and corrupted everything after it.
-            TimberLogger.e(TAG, "Cannot encode message %s: %s", message.getId(), e.getMessage());
-            return null;
-        }
+        // An over-long field throws instead of wrapping (v1 truncated the
+        // length and corrupted everything after it); signedWire logs it.
+        return signedWire(outgoing);
     }
 
     /**

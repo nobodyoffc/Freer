@@ -12,7 +12,7 @@
 [x] DISK/DOCK自动注册
 
 [] 需要做一个协议、代码、服务、应用管理版本系统
-[] 发送交易设置dock后不应该再显示设置dock提示；
+[x] 发送交易设置dock后不应该再显示设置dock提示；
 [x] 注册cid后，设置dock失败，确认后才恢复。
 [] set master 'no enough CD.'
 [x] search in usedCids

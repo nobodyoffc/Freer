@@ -45,8 +45,7 @@ public final class Onboarding {
         List<Item> list = new ArrayList<>();
         list.add(new Item(OnboardingStep.BACKUP_PRIKEY,
                 facts.prikeyBackedUp ? OnboardingStatus.DONE : OnboardingStatus.OPEN));
-        list.add(new Item(OnboardingStep.FIRST_FCH, funded == null ? OnboardingStatus.UNKNOWN
-                : funded ? OnboardingStatus.DONE : OnboardingStatus.OPEN));
+        list.add(new Item(OnboardingStep.FIRST_FCH, firstFchStep(facts, funded)));
 
         String cid = chain != null && chain.cid != null ? chain.cid.trim() : "";
         list.add(new Item(OnboardingStep.REGISTER_CID,
@@ -78,6 +77,17 @@ public final class Onboarding {
                     carveStep(facts, OnboardingStep.JOIN_SQUARE, facts.joinedSquare, funded, cdWait)));
         }
         items = Collections.unmodifiableList(list);
+    }
+
+    /**
+     * Pending after an ask, until the coins come. An ask costs nothing, so a day on it just
+     * reopens the step instead of warning that something failed.
+     */
+    private static OnboardingStatus firstFchStep(OnboardingFacts facts, Boolean funded) {
+        if (funded == null) return OnboardingStatus.UNKNOWN;
+        if (funded) return OnboardingStatus.DONE;
+        OnboardingFacts.Pending asked = facts.pending.get(OnboardingStep.FIRST_FCH);
+        return asked != null && !asked.overdue ? OnboardingStatus.pending(null) : OnboardingStatus.OPEN;
     }
 
     /**

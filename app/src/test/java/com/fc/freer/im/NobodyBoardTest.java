@@ -49,7 +49,7 @@ public class NobodyBoardTest {
         // Exactly what P2pHandler puts on the wire for anything routed through a
         // third party — here, the board's DOCK server.
         assertTrue(ImMessageBody.sealForPeer(post, senderPrikey, boardPubkey, false));
-        byte[] wire = post.toWireBytes();
+        byte[] wire = post.toWireBytes(senderPrikey);
 
         assertTrue("a fetched post arrives sealed",
                 ImMessage.fromWireBytes(wire).isSealed());
@@ -71,7 +71,7 @@ public class NobodyBoardTest {
                 NobodyBoard.buildFirstFchRequest(senderFid, ""));
         post.setIdFromLong(2L);
 
-        ImMessage opened = NobodyBoard.openBoardMessage(post.toWireBytes());
+        ImMessage opened = NobodyBoard.openBoardMessage(post.toWireBytes(requesterPrikey()));
         assertNotNull(opened);
         assertNotNull(NobodyBoard.parseFirstFchRequest(opened.getContent(), 0L));
     }

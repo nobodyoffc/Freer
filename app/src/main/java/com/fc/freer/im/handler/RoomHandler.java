@@ -18,6 +18,7 @@ import com.fc.fc_ajdk.db.LocalDB;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.im.MessageQueue.SendResult;
+import com.fc.freer.im.SymkeyStore;
 import com.fc.freer.manager.DatabaseManager;
 import com.fc.freer.utils.ApiCenter;
 
@@ -124,11 +125,9 @@ public class RoomHandler extends BaseHandler {
             }
             message.setSymkeyVersion(outgoing.getSymkeyVersion());
 
-            byte[] data;
-            try {
-                data = outgoing.toWireBytes();
-            } catch (RuntimeException e) {
-                notifyError("Message too large to encode: " + e.getMessage());
+            byte[] data = signedWire(outgoing);
+            if (data == null) {
+                notifyError("Cannot sign or encode room message");
                 return SendResult.FAIL_PERMANENT;
             }
             
@@ -211,7 +210,9 @@ public class RoomHandler extends BaseHandler {
             } else {
                 message.setContent("[Encrypted - missing symkey(v" + version + ")]");
                 if (symkeyRequester != null) {
-                    symkeyRequester.requestSymkey(roomId);
+                    // The version this message needs, not "the current one":
+                    // FIMP2V3 §7.4 step 1.
+                    symkeyRequester.requestSymkey(roomId, version);
                 }
             }
         }
@@ -256,8 +257,9 @@ public class RoomHandler extends BaseHandler {
         String requesterFid = requestMsg.getSenderId();
         if (requesterFid == null) return false;
 
-        int colonIdx = content.indexOf(':');
-        String roomId = colonIdx > 0 ? content.substring(0, colonIdx) : content;
+        SymkeyStore.Asked asked = SymkeyStore.parseRequest(content);
+        if (asked == null) return false;
+        String roomId = asked.entityId;
 
         Room room = getRoom(roomId);
         if (room == null) return false;
@@ -274,8 +276,62 @@ public class RoomHandler extends BaseHandler {
             return false;
         }
 
-        long version = symkeyStore.getCurrentVersion(roomId);
+        // A named version is answered with that version or not at all —
+        // see TeamHandler.handleSymkeyRequest for why silence beats
+        // substituting the current key.
+        long version = asked.version != null ? asked.version : symkeyStore.getCurrentVersion(roomId);
+        if (!symkeyStore.hasSymkey(roomId, version)) {
+            TimberLogger.d(TAG, "Asked for room %s symkey v%d, which is not held", roomId, version);
+            return false;
+        }
 
+        return shareVersion(roomId, version, requesterFid, requestMsg.getRequestId());
+    }
+
+    /**
+     * Handle a SYMKEY_HISTORY request -- FIMP2V3 §5.3.
+     *
+     * <p>One SYMKEY reply per version we hold, all carrying the request's id.
+     * Versions we do not hold are absent from the answer rather than failing
+     * it; see TeamHandler.handleSymkeyHistoryRequest.
+     *
+     * @return true if at least one version was shared
+     */
+    public boolean handleSymkeyHistoryRequest(ImMessage requestMsg) {
+        if (requestMsg == null || requestMsg.getContent() == null) return false;
+        if (fapiClient == null || symkeyStore == null) return false;
+
+        String requesterFid = requestMsg.getSenderId();
+        if (requesterFid == null) return false;
+
+        SymkeyStore.AskedHistory asked = SymkeyStore.parseHistoryRequest(requestMsg.getContent());
+        if (asked == null) return false;
+        String roomId = asked.entityId;
+
+        Room room = getRoom(roomId);
+        if (room == null) return false;
+        if (isInactive(room)) {
+            TimberLogger.d(TAG, "Symkey history denied: room %s is closed", roomId);
+            return false;
+        }
+        if (!room.isMember(liveFid)) return false;
+        if (!room.isMember(requesterFid)) {
+            TimberLogger.w(TAG, "Symkey history denied for room %s: %s is not a member", roomId, requesterFid);
+            return false;
+        }
+
+        int shared = 0;
+        for (Long version : asked.versions) {
+            if (version == null || !symkeyStore.hasSymkey(roomId, version)) continue;
+            if (shareVersion(roomId, version, requesterFid, requestMsg.getRequestId())) shared++;
+        }
+        TimberLogger.i(TAG, "Shared %d of %d asked symkey versions for room %s with %s",
+                shared, asked.versions.size(), roomId, requesterFid);
+        return shared > 0;
+    }
+
+    /** Seal one version to a member and send it. Shared by §5.2 and §5.3. */
+    private boolean shareVersion(String roomId, long version, String requesterFid, String requestId) {
         try {
             String memberPubkey = fapiClient.getPubkey(requesterFid);
             if (memberPubkey == null) {
@@ -289,8 +345,8 @@ public class RoomHandler extends BaseHandler {
             String symkeyData = roomId + ":" + cipher;
             ImMessage shareMsg = ImMessage.createSymkey(
                     ImType.P2P, liveFid, requesterFid, symkeyData, version);
-            if (requestMsg.getRequestId() != null) {
-                shareMsg.setRequestId(requestMsg.getRequestId());
+            if (requestId != null) {
+                shareMsg.setRequestId(requestId);
             }
 
             if (p2pSender != null) {

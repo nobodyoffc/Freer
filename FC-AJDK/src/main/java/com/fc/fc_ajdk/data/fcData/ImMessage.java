@@ -3,6 +3,12 @@ package com.fc.fc_ajdk.data.fcData;
 import com.fc.fc_ajdk.utils.JsonUtils;
 import com.google.gson.annotations.JsonAdapter;
 
+import com.fc.fc_ajdk.core.crypto.Hash;
+import com.fc.fc_ajdk.core.crypto.KeyTools;
+import com.fc.fc_ajdk.core.fch.SchnorrSignature;
+
+import org.bitcoinj.core.ECKey;
+
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -119,7 +125,16 @@ public class ImMessage extends FcEntity {
      * both directions.
      */
     public static final byte WIRE_MAGIC = (byte) 0xF1;
-    public static final byte WIRE_VERSION = (byte) 0x02;
+    public static final byte WIRE_VERSION = (byte) 0x03;
+
+    /**
+     * FIMP0V3: every envelope ends with the author's 33-byte compressed pubkey
+     * and a 64-byte Schnorr signature. Mandatory, so it has no flag.
+     */
+    public static final int SIGNATURE_TRAILER_SIZE = 33 + 64;
+
+    /** Prefixed to the signed bytes, so a message signature is never valid for anything else. */
+    private static final byte[] SIGNATURE_TAG = "FIMP-SIG".getBytes(StandardCharsets.UTF_8);
 
     /** Shortest legal encoding: magic, version, header, empty ids, no flags. */
     private static final int WIRE_HEADER_SIZE = 16;
@@ -392,17 +407,25 @@ public class ImMessage extends FcEntity {
     // ========== Binary wire serialization ==========
 
     /**
-     * Serialize to the FIMP v2 compact binary envelope.
+     * Serialize to the FIMP v3 compact binary envelope, signed with the
+     * sender's prikey.
      *
      * <pre>
-     *   magic(1)=0xF1 version(1)=0x02
+     *   magic(1)=0xF1 version(1)=0x03
      *   type(1) contentType(1)
      *   senderId(lenPfx8) targetId(lenPfx8)
      *   timestamp(8) flags(2)
      *   [body(lenPfx32)]
      *   [symkeyVersion(4)] [requestType(1)]
      *   [requestId] [replyToId] [threadId] [id]   -- each lenPfx16
+     *   senderPubkey(33) signature(64)            -- FIMP0V3 trailer
      * </pre>
+     *
+     * <p><b>Signed, always.</b> The sender field is text anyone can write, and
+     * the servers a message passes through cannot vouch for it (a DOCK forward
+     * re-puts it under the forwarding server's own identity). So the author
+     * signs SHA256(SHA256("FIMP-SIG" || everything before the trailer)) with
+     * the key of senderId, and a receiver verifies before reading anything.
      *
      * <p><b>One private field.</b> `content` and `data` are not fields here at
      * all: they are framed together into the body (see bodyFraming()), and it
@@ -418,7 +441,37 @@ public class ImMessage extends FcEntity {
      *
      * @throws IllegalStateException if a field cannot be length-prefixed
      */
-    public byte[] toWireBytes() {
+    public byte[] toWireBytes(byte[] prikey) {
+        byte[] unsigned = unsignedWireBytes();
+        ECKey key = ECKey.fromPrivate(prikey);
+        byte[] pubkey = key.getPubKey();
+        String signer = KeyTools.pubkeyToFchAddr(pubkey);
+        if (senderId == null || !senderId.equals(signer)) {
+            // Signing another FID's message would produce an envelope every
+            // receiver discards; failing here names the bug at its source.
+            throw new IllegalStateException("Cannot sign a message from " + senderId + " with the key of " + signer);
+        }
+        byte[] signature = SchnorrSignature.schnorr_sign(signatureHash(unsigned, unsigned.length), key.getPrivKey());
+        ByteBuffer out = ByteBuffer.allocate(unsigned.length + SIGNATURE_TRAILER_SIZE);
+        out.put(unsigned);
+        out.put(pubkey);
+        out.put(signature);
+        return out.array();
+    }
+
+    /** SHA256(SHA256("FIMP-SIG" || envelope[0, length))), as FTSP24 hashes a message. */
+    private static byte[] signatureHash(byte[] envelope, int length) {
+        byte[] input = new byte[SIGNATURE_TAG.length + length];
+        System.arraycopy(SIGNATURE_TAG, 0, input, 0, SIGNATURE_TAG.length);
+        System.arraycopy(envelope, 0, input, SIGNATURE_TAG.length, length);
+        return Hash.sha256x2(input);
+    }
+
+    /**
+     * The envelope up to, not including, the signature trailer: what the
+     * signature covers. Only {@link #toWireBytes(byte[])} puts it on the wire.
+     */
+    byte[] unsignedWireBytes() {
         // A sealed body is carried as-is; an unsealed one is framed here.
         //
         // EMPTY COUNTS AS ABSENT. The framing records a length, not a presence,
@@ -512,7 +565,9 @@ public class ImMessage extends FcEntity {
     }
 
     /**
-     * Deserialize a FIMP v2 envelope.
+     * Deserialize a FIMP v3 envelope and verify who wrote it. An envelope
+     * whose signature is missing, is not the named sender's, or does not
+     * verify is rejected like any other malformed input.
      *
      * <p>A sealed body lands in `body` and stays sealed; `content` and `data`
      * are populated only once something opens it. An unsealed body is unframed
@@ -522,7 +577,7 @@ public class ImMessage extends FcEntity {
      * restored; otherwise the caller sets it from the FUDP message ID or the
      * ROAD/DOCK header.
      *
-     * @throws IllegalArgumentException on anything that is not a v2 envelope
+     * @throws IllegalArgumentException on anything that is not a signed v3 envelope
      */
     public static ImMessage fromWireBytes(byte[] wire) {
         if (wire == null || wire.length < WIRE_HEADER_SIZE) {
@@ -590,6 +645,34 @@ public class ImMessage extends FcEntity {
         } catch (BufferUnderflowException e) {
             throw new IllegalArgumentException("Wire data ended mid-field", e);
         }
+
+        // FIMP0V3 §3.5: nothing about the message is trusted until its author
+        // is. The signature covers every byte before the trailer.
+        int signedLength = buf.position();
+        if (buf.remaining() != SIGNATURE_TRAILER_SIZE) {
+            throw new IllegalArgumentException("Expected a " + SIGNATURE_TRAILER_SIZE
+                    + "-byte signature trailer, found " + buf.remaining() + " bytes");
+        }
+        byte[] pubkey = new byte[33];
+        byte[] signature = new byte[64];
+        buf.get(pubkey);
+        buf.get(signature);
+        String signer;
+        try {
+            signer = KeyTools.pubkeyToFchAddr(pubkey);
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("Signature trailer carries an unreadable pubkey", e);
+        }
+        if (msg.getSenderId() == null || !msg.getSenderId().equals(signer)) {
+            throw new IllegalArgumentException("Signed by " + signer + ", not by the sender it names");
+        }
+        boolean valid;
+        try {
+            valid = SchnorrSignature.schnorr_verify(signatureHash(wire, signedLength), pubkey, signature);
+        } catch (RuntimeException e) {
+            valid = false;
+        }
+        if (!valid) throw new IllegalArgumentException("Signature does not verify");
 
         return msg;
     }
