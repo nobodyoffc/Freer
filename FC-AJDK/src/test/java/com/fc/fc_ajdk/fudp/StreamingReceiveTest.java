@@ -8,6 +8,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.fc.fc_ajdk.fudp.message.MessageCodec;
 import com.fc.fc_ajdk.fudp.message.MessageType;
+import com.fc.fc_ajdk.fudp.message.NotifyMessage;
 import com.fc.fc_ajdk.fudp.message.ResponseMessage;
 import com.fc.fc_ajdk.fudp.node.AssembledMessage;
 import com.fc.fc_ajdk.fudp.node.MessageFrameAssembler;
@@ -27,8 +28,9 @@ import java.util.Random;
 
 /**
  * Validates the streaming-receive path off-device: assembler spill-to-disk, the
- * file-backed {@link ResponseMessage} decode/offset math, and byte-exact recovery of
- * a large binary payload — the parts that cannot be exercised by a single-process run.
+ * file-backed {@link ResponseMessage} and {@link NotifyMessage} decode/offset math,
+ * and byte-exact recovery of a large binary payload — the parts that cannot be
+ * exercised by a single-process run.
  */
 public class StreamingReceiveTest {
 
@@ -69,6 +71,28 @@ public class StreamingReceiveTest {
         long dataOffset = payloadOffset + 2L;
         long dataLength = payloadLength - 2;
         return new long[]{dataOffset, dataLength, status, MessageCodec.peekMessageId(header)};
+    }
+
+    /**
+     * Mirror of FudpNode.handleIncomingFileBacked's NOTIFY header parse; returns
+     * [dataOffset, dataLength, dataType, messageId].
+     */
+    private static long[] decodeNotifyHeader(AssembledMessage msg) throws IOException {
+        int headBytes = (int) Math.min(msg.length(), FIXED_HEADER + 10L + 5L);
+        byte[] header = msg.readHeader(headBytes);
+        assertEquals(MessageType.NOTIFY, MessageCodec.peekType(header));
+        Varint.DecodeResult vr = Varint.decode(header, FIXED_HEADER);
+        long payloadLength = vr.value;
+        int payloadOffset = FIXED_HEADER + vr.bytesConsumed;
+        int dataType = header[payloadOffset] & 0xFF;
+        long declaredLen = ((long) (header[payloadOffset + 1] & 0xFF) << 24)
+                | ((long) (header[payloadOffset + 2] & 0xFF) << 16)
+                | ((long) (header[payloadOffset + 3] & 0xFF) << 8)
+                | ((long) (header[payloadOffset + 4] & 0xFF));
+        long dataOffset = payloadOffset + 5L;
+        long dataLength = payloadLength - 5;
+        assertEquals("declared dataLen should match the framed payload", declaredLen, dataLength);
+        return new long[]{dataOffset, dataLength, dataType, MessageCodec.peekMessageId(header)};
     }
 
     /** Stream the binary out of a file-backed response exactly as FapiClient does. */
@@ -168,5 +192,49 @@ public class StreamingReceiveTest {
         assertEquals(2, msgs.size());
         assertEquals(1L, ((ResponseMessage) MessageCodec.decode(msgs.get(0).bytes())).getMessageId());
         assertEquals(2L, ((ResponseMessage) MessageCodec.decode(msgs.get(1).bytes())).getMessageId());
+    }
+
+    /**
+     * A NOTIFY above the spill threshold must survive the file-backed path. NOTIFY
+     * carries the peer-to-peer IM envelope, and this side used to drop every
+     * file-backed message that was not a RESPONSE — the payload was reassembled in
+     * full and then discarded, so a large message simply vanished.
+     */
+    @Test
+    public void largeNotifySpillsAndRecoversPayloadExactly() throws Exception {
+        byte[] payload = new byte[300_000];
+        new Random(99).nextBytes(payload);
+
+        long msgId = 0x0BADC0FFEE0DDF00L;
+        NotifyMessage sent = new NotifyMessage(payload, NotifyMessage.DATA_TYPE_JSON);
+        sent.setMessageId(msgId);
+        byte[] wire = MessageCodec.encode(sent);
+
+        File tmp = new File(System.getProperty("java.io.tmpdir"), "fudp-test-notify-" + System.nanoTime());
+        //noinspection ResultOfMethodCallIgnored
+        tmp.mkdirs();
+        MessageFrameAssembler a = new MessageFrameAssembler(64L * 1024 * 1024, 4096, tmp);
+
+        List<AssembledMessage> msgs = feed(a, wire, 7000);
+        assertEquals(1, msgs.size());
+        AssembledMessage m = msgs.get(0);
+        assertTrue("expected spill to disk", m.isFileBacked());
+        assertEquals(wire.length, m.length());
+
+        long[] h = decodeNotifyHeader(m);
+        assertEquals(NotifyMessage.DATA_TYPE_JSON, h[2]);
+        assertEquals(msgId, h[3]);
+        assertEquals(payload.length, h[1]);
+
+        NotifyMessage n = new NotifyMessage();
+        n.setFileBackedData(m.file(), h[0], h[1]);
+        assertTrue(n.isFileBacked());
+        assertEquals(payload.length, n.dataLength());
+
+        // getData() is what NodeEventListener.onNotifyReceived is handed.
+        assertArrayEquals(payload, n.getData());
+
+        n.deleteBackingFile();
+        assertFalse(m.file().exists());
     }
 }

@@ -1090,18 +1090,24 @@ public class FudpNode implements Protocol.PacketListener {
     private static final int FUDP_FIXED_HEADER = 10;
 
     /**
-     * Decode and route a large, file-backed message. Only RESPONSE payloads are
-     * delivered file-backed (large downloads); the small framing headers are read
-     * from the front of the temp file and the bulk data is left on disk for the
-     * consumer to stream. On any failure — or for a non-RESPONSE large message,
-     * which this side never legitimately receives — the temp file is deleted.
+     * Decode and route a large, file-backed message. RESPONSE payloads (large
+     * downloads) are delivered as a file-backed {@link ResponseMessage} so the
+     * consumer can stream them; NOTIFY payloads (large one-way sends, which carry
+     * peer-to-peer IM envelopes) are delivered as a file-backed
+     * {@link NotifyMessage} through the same path as an in-memory NOTIFY, so a
+     * NOTIFY that asked for one still gets its NOTIFY_ACK. The small framing
+     * headers are read from the front of the temp file and the bulk data is left
+     * on disk. On any failure — or for a message type that is never legitimately
+     * large here — the temp file is deleted.
      */
     private void handleIncomingFileBacked(ConnectionContext ctx, AssembledMessage message) {
         String peerId = ctx.peerId();
         boolean handedOff = false;
         try {
             long total = message.length();
-            int headBytes = (int) Math.min(total, FUDP_FIXED_HEADER + 10L + 2L); // header + max varint + status
+            // header + max varint + the largest leading scalar block we parse here:
+            // status(2) for RESPONSE, dataType(1)+dataLen(4) for NOTIFY.
+            int headBytes = (int) Math.min(total, FUDP_FIXED_HEADER + 10L + 5L);
             byte[] header = message.readHeader(headBytes);
 
             MessageType type = MessageCodec.peekType(header);
@@ -1112,35 +1118,74 @@ public class FudpNode implements Protocol.PacketListener {
             long payloadLength = vr.value;
             int payloadOffset = FUDP_FIXED_HEADER + vr.bytesConsumed;
 
-            if (type != MessageType.RESPONSE) {
-                TimberLogger.w(TAG, "[FudpNode] Dropping large file-backed %s message from %s (len=%d): only RESPONSE "
-                        + "is supported on the streaming receive path", type, peerId, total);
+            if (type == MessageType.RESPONSE) {
+                if (payloadLength < 2 || payloadOffset + 2 > header.length) {
+                    TimberLogger.e(TAG, "[FudpNode] Malformed large RESPONSE from %s (len=%d, payloadLen=%d)",
+                            peerId, total, payloadLength);
+                    return;
+                }
+
+                int statusCode = ((header[payloadOffset] & 0xFF) << 8) | (header[payloadOffset + 1] & 0xFF);
+                long dataOffset = payloadOffset + 2L;
+                long dataLength = payloadLength - 2;
+
+                ResponseMessage response = new ResponseMessage();
+                response.setMessageId(msgId);
+                response.setFlags(flags);
+                response.setStatusCode(statusCode);
+                response.setFileBackedData(message.file(), dataOffset, dataLength);
+
+                TimberLogger.d(TAG, "[FudpNode] Routing file-backed RESPONSE from %s (messageId=%d, dataLen=%d, spill=%s)",
+                        peerId, msgId, dataLength, message.file().getName());
+
+                // Ownership of the temp file transfers to the response (consumer deletes it,
+                // or MessageHandler deletes it if there is no waiter).
+                handedOff = true;
+                messageHandler.handleDecodedMessage(peerId, ctx.connectionId(), response,
+                        (int) Math.min(Integer.MAX_VALUE, total));
                 return;
             }
-            if (payloadLength < 2 || payloadOffset + 2 > header.length) {
-                TimberLogger.e(TAG, "[FudpNode] Malformed large RESPONSE from %s (len=%d, payloadLen=%d)",
-                        peerId, total, payloadLength);
+
+            if (type == MessageType.NOTIFY) {
+                // payload = [dataType(1)][dataLen(4)][data]; both scalars sit in the header window.
+                if (payloadLength < 5 || payloadOffset + 5 > header.length) {
+                    TimberLogger.e(TAG, "[FudpNode] Malformed large NOTIFY from %s (len=%d, payloadLen=%d)",
+                            peerId, total, payloadLength);
+                    return;
+                }
+                int dataType = header[payloadOffset] & 0xFF;
+                long declaredLen = ((long) (header[payloadOffset + 1] & 0xFF) << 24)
+                        | ((long) (header[payloadOffset + 2] & 0xFF) << 16)
+                        | ((long) (header[payloadOffset + 3] & 0xFF) << 8)
+                        | ((long) (header[payloadOffset + 4] & 0xFF));
+                long dataOffset = payloadOffset + 5L;
+                long dataLength = payloadLength - 5;
+                if (declaredLen != dataLength) {
+                    TimberLogger.e(TAG, "[FudpNode] Malformed large NOTIFY from %s (len=%d): declared dataLen=%d "
+                            + "but payload carries %d", peerId, total, declaredLen, dataLength);
+                    return;
+                }
+
+                NotifyMessage notify = new NotifyMessage();
+                notify.setMessageId(msgId);
+                notify.setFlags(flags);
+                notify.setDataType(dataType);
+                notify.setFileBackedData(message.file(), dataOffset, dataLength);
+
+                TimberLogger.d(TAG, "[FudpNode] Routing file-backed NOTIFY from %s (messageId=%d, dataType=%d, dataLen=%d, spill=%s)",
+                        peerId, msgId, dataType, dataLength, message.file().getName());
+                // handedOff stays false on purpose: handleNotifyMessage delivers a byte[]
+                // to the listener via NotifyMessage.getData(), so nothing downstream owns
+                // the spill file and the finally-block below deletes it.
+                handleNotifyMessage(peerId, ctx.connectionId(), notify);
                 return;
             }
 
-            int statusCode = ((header[payloadOffset] & 0xFF) << 8) | (header[payloadOffset + 1] & 0xFF);
-            long dataOffset = payloadOffset + 2L;
-            long dataLength = payloadLength - 2;
-
-            ResponseMessage response = new ResponseMessage();
-            response.setMessageId(msgId);
-            response.setFlags(flags);
-            response.setStatusCode(statusCode);
-            response.setFileBackedData(message.file(), dataOffset, dataLength);
-
-            TimberLogger.d(TAG, "[FudpNode] Routing file-backed RESPONSE from %s (messageId=%d, dataLen=%d, spill=%s)",
-                    peerId, msgId, dataLength, message.file().getName());
-
-            // Ownership of the temp file transfers to the response (consumer deletes it,
-            // or MessageHandler deletes it if there is no waiter).
-            handedOff = true;
-            messageHandler.handleDecodedMessage(peerId, ctx.connectionId(), response,
-                    (int) Math.min(Integer.MAX_VALUE, total));
+            // REQUEST is not served on this side, and NOTIFY_ACK, PING, PONG and ERROR are
+            // small by construction -- a >16 MB one is malformed or hostile. Drop it and
+            // reclaim the spill file.
+            TimberLogger.w(TAG, "[FudpNode] Dropping large file-backed %s message from %s (len=%d): unexpected type "
+                    + "on the streaming receive path", type, peerId, total);
         } catch (Exception e) {
             TimberLogger.e(TAG, String.format("[FudpNode] Error processing file-backed message from %s: %s",
                     peerId, e.getMessage()), e);
