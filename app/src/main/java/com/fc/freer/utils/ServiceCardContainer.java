@@ -443,11 +443,7 @@ public class ServiceCardContainer {
         }
 
         // Format type
-        if (service.fetchServiceType() != null) {
-            setTextValue(typeValue, service.fetchServiceType().toString());
-        } else {
-            setTextValue(typeValue, "");
-        }
+        setTextValue(typeValue, service.getType() != null ? service.getType() : "");
 
         // Format tCdd
         if (service.gettCdd() != null) {

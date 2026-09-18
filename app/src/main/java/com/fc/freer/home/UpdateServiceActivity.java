@@ -294,8 +294,8 @@ public class UpdateServiceActivity extends BaseCryptoActivity {
         if (currentService.getLocalNames() != null && !currentService.getLocalNames().isEmpty()) {
             localNamesInput.setText(formatStringMap(currentService.getLocalNames()));
         }
-        if (currentService.fetchServiceType() != null) {
-            typeInput.setText(currentService.fetchServiceType().name());
+        if (currentService.getType() != null) {
+            typeInput.setText(currentService.getType());
         }
         if (currentService.getDesc() != null) {
             descInput.setText(currentService.getDesc());
@@ -480,7 +480,7 @@ public class UpdateServiceActivity extends BaseCryptoActivity {
         updatedService.setStdName(stdName);
         if (localNames != null) updatedService.setLocalNames(localNames);
         if (!desc.isEmpty()) updatedService.setDesc(desc);
-        if (!type.isEmpty()) updatedService.makeServiceType(Service.ServiceType.valueOf(type));
+        if (!type.isEmpty()) updatedService.setType(type);
         if (!ver.isEmpty()) updatedService.setVer(ver);
         if (apiGroups != null) updatedService.setComponents(apiGroups);
         if (urls != null) updatedService.setHome(urls);
@@ -656,7 +656,7 @@ public class UpdateServiceActivity extends BaseCryptoActivity {
                                         updatedService.setStdName(stdName);
                                         if (localNames != null) updatedService.setLocalNames(localNames);
                                         if (!desc.isEmpty()) updatedService.setDesc(desc);
-                                        if (!type.isEmpty()) updatedService.makeServiceType(Service.ServiceType.valueOf(type));
+                                        if (!type.isEmpty()) updatedService.setType(type);
                                         if (!ver.isEmpty()) updatedService.setVer(ver);
                                         if (apiGroups != null) updatedService.setComponents(apiGroups);
                                         if (urls != null) updatedService.setHome(urls);

@@ -365,7 +365,7 @@ public class CreateServiceActivity extends BaseCryptoActivity {
         newService.setStdName(stdName);
         if (localNames != null) newService.setLocalNames(localNames);
         if (!desc.isEmpty()) newService.setDesc(desc);
-        if (!type.isEmpty()) newService.makeServiceType(Service.ServiceType.valueOf(type));
+        if (!type.isEmpty()) newService.setType(type);
         if (!ver.isEmpty()) newService.setVer(ver);
         if (components != null) newService.setComponents(components);
         if (urls != null) newService.setHome(urls);
@@ -502,7 +502,7 @@ public class CreateServiceActivity extends BaseCryptoActivity {
                                 carvedService.setStdName(stdName);
                                 if (localNames != null) carvedService.setLocalNames(localNames);
                                 if (!desc.isEmpty()) carvedService.setDesc(desc);
-                                if (!type.isEmpty()) carvedService.makeServiceType(Service.ServiceType.valueOf(type));
+                                if (!type.isEmpty()) carvedService.setType(type);
                                 if (!ver.isEmpty()) carvedService.setVer(ver);
                                 if (apiGroups != null) carvedService.setComponents(apiGroups);
                                 if (urls != null) carvedService.setHome(urls);

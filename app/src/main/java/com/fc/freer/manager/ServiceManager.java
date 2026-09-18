@@ -550,7 +550,7 @@ public class ServiceManager extends FcManager<Service> {
             }
 
             // Search in type
-            if (!matches && service.fetchServiceType() != null && service.fetchServiceType().toString().toLowerCase().contains(query.toLowerCase())) {
+            if (!matches && service.getType() != null && service.getType().toLowerCase().contains(query.toLowerCase())) {
                 matches = true;
             }
 
