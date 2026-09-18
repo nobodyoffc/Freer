@@ -1,5 +1,6 @@
 package com.fc.fc_ajdk.fudp.crypto;
 
+import com.fc.fc_ajdk.constants.CodeMessage;
 import com.fc.fc_ajdk.core.crypto.Algorithm.Ecc256K1AesGcm256;
 import com.fc.fc_ajdk.core.crypto.CryptoDataByte;
 import com.fc.fc_ajdk.core.crypto.Decryptor;
@@ -272,6 +273,11 @@ public class CryptoManager {
             result.setPubkeyA(localPublicKey);
             result.setPubkeyB(peerPublicKey);
             result.setAlg(DEFAULT_ASY_ALGORITHM);
+            // The fallback Encryptor marks a successful bundle with Code0Success.
+            // Mark it here too, so a caller that inspects the code cannot mistake
+            // a fast-path success for a failure. The code is status only; it is
+            // not serialised into the bundle.
+            result.setCodeMessage(CodeMessage.Code0Success);
 
             return result;
         } catch (Exception e) {
