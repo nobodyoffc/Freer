@@ -19,6 +19,18 @@
         android:focusable="true" />
 
     <TextView
+        android:id="@+id/menu_consensus_doc"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/consensus_document"
+        android:textSize="16sp"
+        android:textColor="@color/text"
+        android:padding="12dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <TextView
         android:id="@+id/menu_owner_menu"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

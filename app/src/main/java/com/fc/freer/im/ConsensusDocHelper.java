@@ -278,6 +278,75 @@ public class ConsensusDocHelper {
         return defaultFile.exists() ? defaultFile : null;
     }
 
+    /**
+     * Keep a verified download: move it into the data store under its content id and register it,
+     * so the bytes that were paid for and hash-checked are read locally next time instead of being
+     * fetched again — and so the member can open the file from Data like any other.
+     * <p>
+     * Only the caller's own temp file is moved; the store's files are never touched here.
+     * Must be called on a background thread.
+     *
+     * @return the stored file, or null on failure (see {@link #getLastError()})
+     */
+    public File adoptDownloadedDoc(Context context, File temp, String did, String name, String mimeType) {
+        if (temp == null || !temp.exists()) {
+            lastError = "No downloaded document to keep";
+            return null;
+        }
+        if (did == null || did.isEmpty()) {
+            lastError = "No content id for the downloaded document";
+            return null;
+        }
+        try {
+            File dataDir = new File(context.getFilesDir(), "data");
+            //noinspection ResultOfMethodCallIgnored
+            dataDir.mkdirs();
+            File localFile = new File(dataDir, did);
+            if (localFile.exists()) {
+                //noinspection ResultOfMethodCallIgnored
+                temp.delete();
+            } else if (!temp.renameTo(localFile)) {
+                // Fallback for a cross-filesystem rename: the cache and the files directory are
+                // usually the same volume, but nothing promises it.
+                copy(temp, localFile);
+                //noinspection ResultOfMethodCallIgnored
+                temp.delete();
+            }
+            registerLocalDoc(did, localFile, name, mimeType);
+            return localFile;
+        } catch (Exception e) {
+            lastError = "Failed to keep the downloaded document: " + e.getMessage();
+            TimberLogger.e(TAG, lastError);
+            return null;
+        }
+    }
+
+    /**
+     * A cached copy of a stored document under a readable name, for handing to another app.
+     * <p>
+     * The store names its files by their hash and nothing else, so an app receiving one has no
+     * extension to go on and no name worth showing. The copy lives in the cache, which the
+     * FileProvider already serves, and the store's own file is left alone.
+     */
+    public static File namedCopy(Context context, File source, String name) throws java.io.IOException {
+        File dir = new File(context.getCacheDir(), "consensus");
+        //noinspection ResultOfMethodCallIgnored
+        dir.mkdirs();
+        File target = new File(dir, name);
+        if (target.exists() && target.length() == source.length()) return target;
+        copy(source, target);
+        return target;
+    }
+
+    private static void copy(File from, File to) throws java.io.IOException {
+        try (InputStream in = new FileInputStream(from);
+             FileOutputStream out = new FileOutputStream(to)) {
+            byte[] buf = new byte[64 * 1024];
+            int n;
+            while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+        }
+    }
+
     /** A document imported into the local HAT store: its content id and the file holding it. */
     public static class ImportedDoc {
         public final String did;
@@ -404,19 +473,27 @@ public class ConsensusDocHelper {
         }
     }
 
-    /** Register (or refresh) the HAT for a document held in the local data store. */
-    private void registerLocalDoc(String did, File localFile, String name, String mimeType) {
+    /**
+     * Register (or refresh) the HAT for a document held in the local data store.
+     * <p>
+     * A name and a type are filled in when the HAT has none — a HAT created by
+     * {@link #downloadDoc} carries only the id, and the name is what later gives an
+     * extensionless, hash-named file something for another app to go on.
+     */
+    public void registerLocalDoc(String did, File localFile, String name, String mimeType) {
         Hat hat = hatManager.getHatById(did);
         if (hat == null) {
             hat = new Hat();
             hat.setId(did);
-            hat.setName(name);
-            hat.setSize(localFile.length());
             hat.setBorn(System.currentTimeMillis());
             hat.setState(Hat.DataState.ACTIVE);
-            if (mimeType != null) hat.setTypes(Collections.singletonList(mimeType));
             hatManager.addHat(hat);
         }
+        if (name != null && (hat.getName() == null || hat.getName().isEmpty())) hat.setName(name);
+        if (mimeType != null && (hat.getTypes() == null || hat.getTypes().isEmpty())) {
+            hat.setTypes(Collections.singletonList(mimeType));
+        }
+        hat.setSize(localFile.length());
         hat.setLast(System.currentTimeMillis());
         List<String> locas = hat.getLocas();
         if (locas == null) locas = new ArrayList<>();

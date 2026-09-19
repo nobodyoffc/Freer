@@ -2533,6 +2533,23 @@
     <string name="consensus_template_name">team_consensus.md</string>
     <string name="consensus_template"># Team consensus\n\n## Purpose\nWhat this team exists to do.\n\n## Membership\nWho may join, how members are invited, and what is expected of them.\n\n## Decisions\nHow the team decides things, and who decides what.\n\n## Managers\nWhat managers may do, and how they are appointed or removed.\n\n## Changing this consensus\nHow this document may be amended. Changing it requires every member to sign the new version, or leave the team.\n\n## Leaving\nHow a member leaves, and what happens to their obligations.</string>
     <string name="consensus_no_disk_to_read">not on this device, and the team has no DISK to read it from</string>
+
+    <!-- Reading a team's consensus document -->
+    <string name="consensus_doc_none_named">This team names no consensus document</string>
+    <string name="consensus_too_large_detail">This consensus document is %1$s — too large to show here. It was downloaded and verified against the team\'s consensus ID.</string>
+    <string name="consensus_not_text_detail">This consensus document is %1$s (%2$s). It was downloaded and verified against the team\'s consensus ID, but it is not text, so it cannot be shown here.</string>
+    <string name="consensus_kind_pdf">a PDF</string>
+    <string name="consensus_kind_doc">an older Word document</string>
+    <string name="consensus_kind_rtf">an RTF document</string>
+    <string name="consensus_kind_png">a PNG image</string>
+    <string name="consensus_kind_jpeg">a JPEG image</string>
+    <string name="consensus_kind_gif">a GIF image</string>
+    <string name="consensus_kind_docx">a Word document</string>
+    <string name="consensus_kind_xlsx">an Excel workbook</string>
+    <string name="consensus_kind_pptx">a PowerPoint deck</string>
+    <string name="consensus_kind_odt">an OpenDocument text document</string>
+    <string name="consensus_kind_zip">a zip archive</string>
+    <string name="consensus_kind_unknown">a file of a type this app does not recognise</string>
     <string name="invite_skipped_members">%1$d already in the team, skipped</string>
     <string name="invite_notification_resent">Already invited; invitation re-sent</string>
     <string name="invite_nobody_to_invite">Nobody new to invite</string>

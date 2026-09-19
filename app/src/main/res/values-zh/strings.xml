@@ -2492,6 +2492,23 @@
     <string name="consensus_template_name">team_consensus.md</string>
     <string name="consensus_template"># 团队共识\n\n## 宗旨\n本团队存在的目的。\n\n## 成员\n谁可以加入，如何邀请成员，以及对成员的要求。\n\n## 决策\n团队如何做决定，由谁决定什么。\n\n## 管理员\n管理员的权限，以及如何任命或撤销。\n\n## 共识的变更\n本文件如何修订。变更后，所有成员都必须签署新版本，否则须退出团队。\n\n## 退出\n成员如何退出，以及其义务如何处理。</string>
     <string name="consensus_no_disk_to_read">本机没有该文件，且团队没有可读取的 DISK</string>
+
+    <!-- 阅读团队共识文档 -->
+    <string name="consensus_doc_none_named">本团队没有指定共识文档</string>
+    <string name="consensus_too_large_detail">该共识文档有 %1$s，过大，无法在此显示。文件已下载并通过共识 ID 校验。</string>
+    <string name="consensus_not_text_detail">该共识文档是%1$s（%2$s）。文件已下载并通过共识 ID 校验，但它不是文本，无法在此显示。</string>
+    <string name="consensus_kind_pdf">PDF 文件</string>
+    <string name="consensus_kind_doc">旧版 Word 文档</string>
+    <string name="consensus_kind_rtf">RTF 文档</string>
+    <string name="consensus_kind_png">PNG 图片</string>
+    <string name="consensus_kind_jpeg">JPEG 图片</string>
+    <string name="consensus_kind_gif">GIF 图片</string>
+    <string name="consensus_kind_docx">Word 文档</string>
+    <string name="consensus_kind_xlsx">Excel 工作簿</string>
+    <string name="consensus_kind_pptx">PowerPoint 演示文稿</string>
+    <string name="consensus_kind_odt">OpenDocument 文本文档</string>
+    <string name="consensus_kind_zip">ZIP 压缩包</string>
+    <string name="consensus_kind_unknown">本应用无法识别类型的文件</string>
     <string name="invite_skipped_members">%1$d 人已在团队中，已跳过</string>
     <string name="invite_notification_resent">已邀请过，已重新发送邀请通知</string>
     <string name="invite_nobody_to_invite">没有可邀请的新成员</string>

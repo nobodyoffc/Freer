@@ -2482,6 +2482,15 @@ public class ChatActivity extends BaseCryptoActivity
             openMemberList();
         });
 
+        // Reading the consensus is offered to every member, not gated on owner or manager:
+        // it is the one part of the team they are on chain as having agreed to, and reading
+        // costs no carve. The team record read when the menu was built is what the viewer
+        // gets, so it cannot drift onto something else while the download runs.
+        menuView.findViewById(R.id.menu_consensus_doc).setOnClickListener(v -> {
+            popup.dismiss();
+            openConsensusDoc(team);
+        });
+
         View ownerMenuItem = menuView.findViewById(R.id.menu_owner_menu);
         if (isOwner) {
             ownerMenuItem.setVisibility(View.VISIBLE);
@@ -2522,6 +2531,29 @@ public class ChatActivity extends BaseCryptoActivity
         menuView.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
         popup.showAsDropDown(anchor, 0, -(anchor.getHeight() + menuView.getMeasuredHeight()));
+    }
+
+    /**
+     * Show the team's consensus document, read-only. Writing a new one is a transaction and
+     * stays in {@link UpdateTeamActivity}.
+     * <p>
+     * A team with no consensus id says so rather than offering the template a new team starts
+     * from: boilerplate is the wrong thing to show in the one place a team's own words belong.
+     */
+    private void openConsensusDoc(Team team) {
+        String consensusId = team != null ? team.getConsensusId() : null;
+        if (consensusId == null || consensusId.isEmpty()) {
+            ToastUtils.makeText(this, getString(R.string.consensus_doc_none_named));
+            return;
+        }
+        if (liveFid == null) {
+            ToastUtils.makeText(this, getString(R.string.no_active_fid));
+            return;
+        }
+        ConsensusDocViewer.fetchAndShow(this, HatManager.getInstance(this, liveFid),
+                getString(R.string.consensus_document), consensusId,
+                Collections.singletonList(ConsensusDocHelper.resolveTeamDiskSid(team)),
+                0, null);
     }
 
     // ── Owner sub-menu ──────────────────────────────────────────────────
