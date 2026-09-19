@@ -524,6 +524,7 @@ public class ImMessage extends FcEntity {
         checkLen16(replyToIdBytes, "replyToId");
         checkLen16(threadIdBytes, "threadId");
         checkLen16(messageIdBytes, "id");
+        checkSymkeyVersion(symkeyVersion);
 
         int size = 1 + 1                                       // magic + version
                 + 1 + 1                                        // type + contentType
@@ -554,7 +555,7 @@ public class ImMessage extends FcEntity {
             buf.putInt(wireBody.length);
             buf.put(wireBody);
         }
-        if (symkeyVersion != null) buf.putInt(symkeyVersion.intValue());
+        if (symkeyVersion != null) buf.putInt((int) (symkeyVersion & 0xFFFFFFFFL));
         if (requestType != null) buf.put((byte) requestType.ordinal());
         if (requestIdBytes != null) writeLenPfx16(buf, requestIdBytes);
         if (replyToIdBytes != null) writeLenPfx16(buf, replyToIdBytes);
@@ -633,7 +634,14 @@ public class ImMessage extends FcEntity {
             }
             // Sign-extended, as v1 did: the field is a Long that the wire
             // carries in 32 bits, so a version past 2^31 arrives negative.
-            if ((flags & FLAG_SYMKEY_VERSION) != 0) msg.setSymkeyVersion((long) buf.getInt());
+            // Unsigned: a version is the second it was minted in
+            // (FIMP0V2 Symkey id), and `(long) getInt()` made every key
+            // minted after January 2038 arrive negative -- which is not a
+            // version, so it would have been rejected. Read this way the
+            // field is good until 2106, and no byte on the wire changes.
+            if ((flags & FLAG_SYMKEY_VERSION) != 0) {
+                msg.setSymkeyVersion(buf.getInt() & 0xFFFFFFFFL);
+            }
             if ((flags & FLAG_REQUEST_TYPE) != 0) {
                 int rtOrd = buf.get() & 0xFF;
                 if (rtOrd < RequestType.values().length) msg.setRequestType(RequestType.values()[rtOrd]);
@@ -746,6 +754,21 @@ public class ImMessage extends FcEntity {
     }
 
     // Wire format helpers
+
+    /**
+     * A symkeyVersion must fit the wire's unsigned 32 bits.
+     *
+     * <p><b>Refused rather than truncated.</b> A version is a lookup key:
+     * wrapping one silently produces a message naming a key that cannot be
+     * found, and the sender has no way to know. The range holds every mint
+     * time until 2106.
+     */
+    private static void checkSymkeyVersion(Long version) {
+        if (version != null && (version < 0L || version > 0xFFFFFFFFL)) {
+            throw new IllegalStateException(
+                    "symkeyVersion " + version + " does not fit the wire's unsigned 32 bits");
+        }
+    }
 
     private static void checkLen8(byte[] value, String field) {
         if (value != null && value.length > 0xFF) {
