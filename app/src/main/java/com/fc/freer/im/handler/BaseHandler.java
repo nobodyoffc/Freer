@@ -7,6 +7,8 @@ import com.fc.fc_ajdk.data.fcData.ImType;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.fudp.node.FudpNode;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.im.KeyAskStore;
+import com.fc.freer.im.KeyLedger;
 import com.fc.freer.im.SymkeyStore;
 import com.fc.freer.im.dock.DockServiceRegistry;
 
@@ -41,6 +43,28 @@ public abstract class BaseHandler {
     protected FudpNode fudpNode;
     protected FapiClient fapiClient;
     protected SymkeyStore symkeyStore;
+
+    /**
+     * Where every key in and out is recorded -- FIMP §9.7. Set alongside the store; a handler
+     * that answers a request writes here whether it shared or refused, because a refusal is
+     * part of the same record.
+     */
+    protected KeyLedger keyLedger;
+
+    public void setKeyLedger(KeyLedger ledger) {
+        this.keyLedger = ledger;
+    }
+
+    /**
+     * The questions this device has outstanding. A handler that stores a key clears the ask it
+     * answered -- on the key being <b>stored</b>, not on it arriving, since a cipher that would
+     * not open left us no better off.
+     */
+    protected KeyAskStore keyAskStore;
+
+    public void setKeyAskStore(KeyAskStore store) {
+        this.keyAskStore = store;
+    }
 
     /**
      * The live FID's private key. Every handler signs each envelope it sends
@@ -113,14 +137,18 @@ public abstract class BaseHandler {
         /**
          * Ask for the symkey of {@code entityId}.
          *
-         * @param version the version that could not be opened, or null to ask
-         *                for whatever the responder currently holds. Naming it
-         *                is what FIMP4V3 §7.4 requires: a request with no
-         *                version is answered with the responder's current key,
-         *                which is usually the one this device already has, so a
-         *                member missing an older version would never recover it.
+         * @param version  the version that could not be opened, or null to ask
+         *                 for whatever the responder currently holds. Naming it
+         *                 is what FIMP4V3 §7.4 requires: a request with no
+         *                 version is answered with the responder's current key,
+         *                 which is usually the one this device already has, so a
+         *                 member missing an older version would never recover it.
+         * @param fromFid  who to put the question to, or null for the entity's
+         *                 owner. On filing a sealed message we cannot open, this
+         *                 is <b>its sender</b>: they provably hold that key,
+         *                 whereas the owner may have rotated past it or be gone.
          */
-        void requestSymkey(String entityId, Long version);
+        void requestSymkey(String entityId, Long version, String fromFid);
     }
 
     /**
@@ -187,6 +215,23 @@ public abstract class BaseHandler {
         this.controlSender = sender;
     }
     
+    /**
+     * Open a sealed body with whichever key held at this version actually opens it.
+     *
+     * <p>Two keys may share one version -- two devices of one owner minting in the same second
+     * -- so a version names <i>candidates</i> rather than a key, and the body's AES-GCM tag is
+     * what decides between them. In every real case there is one candidate and one attempt.
+     *
+     * @return true when the message now carries its plaintext
+     */
+    protected boolean openSealed(ImMessage message, String entityId, long version) {
+        if (message == null || symkeyStore == null) return false;
+        for (byte[] symkey : symkeyStore.getSymkeys(entityId, version)) {
+            if (com.fc.fc_ajdk.data.fcData.ImMessageBody.openWithSymkey(message, symkey)) return true;
+        }
+        return false;
+    }
+
     /**
      * Get the type this handler manages.
      */

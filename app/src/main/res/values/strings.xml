@@ -2202,10 +2202,10 @@
     <string name="im_connecting">Connecting to messaging…</string>
     <string name="im_not_ready_retry">Messaging is not ready</string>
     <string name="asking_symkey">Asking for symkey…</string>
-    <string name="symkey_received_version">Symkey received (v%d)</string>
+    <string name="symkey_received_version">Symkey received — the one from %1$s</string>
     <string name="im_channel_ready">Messaging is ready</string>
     <string name="asking_room_info">Asking for room info…</string>
-    <string name="room_info_received_symkey">Room info received (symkey v%d)</string>
+    <string name="room_info_received_symkey">Room info received — symkey from %1$s</string>
 
     <string name="dock_url_empty">Please enter a DOCK URL</string>
 
@@ -2637,4 +2637,41 @@
     <string name="cid_preview_unavailable">Every CID for “%s” is taken. Try another name.</string>
     <string name="popular_squares">Most members</string>
     <string name="square_join_pending">Join sent, waiting for the chain</string>
+
+    <!-- Symkey identity (docs/SYMKEY_IDENTITY_SPEC.md §6-7) -->
+    <string name="symkey_version_legacy">v%1$d</string>
+    <string name="symkey_legacy_chip">legacy</string>
+    <string name="symkey_sealed_from">Sealed with the symkey from %1$s — not held here</string>
+    <string name="symkey_sealed_unknown">Sealed — the key is not held here</string>
+    <string name="symkey_ask_for_this">Ask for this symkey…</string>
+    <string name="symkey_asked_again_in">Asked just now — again in %1$ds</string>
+    <string name="symkey_ask_sent">Asked for the symkey from %1$s</string>
+    <string name="symkey_ask_not_sent">Could not ask for that symkey right now</string>
+    <string name="symkey_ask_banner_one">Waiting for the symkey from %1$s — asked %2$s</string>
+    <string name="symkey_ask_banner_many">Waiting for %1$d symkeys — last asked %2$s</string>
+    <string name="symkey_ask_banner_who">Asked: %1$s</string>
+    <string name="symkey_ask_more">Ask more members…</string>
+    <string name="symkey_ask_give_up">Give up</string>
+    <string name="symkey_ask_gave_up">Stopped asking</string>
+    <string name="symkey_exchange">Symkey exchange…</string>
+    <string name="symkey_exchange_title">Symkey exchange</string>
+    <string name="symkey_leak_radius">%1$d people hold a key to this conversation</string>
+    <string name="symkey_leak_radius_none">No key for this conversation has been given out or taken in from this device</string>
+    <string name="symkey_ledger_empty">Nothing recorded yet</string>
+    <string name="symkey_ledger_sent">gave to %1$s</string>
+    <string name="symkey_ledger_received">got from %1$s</string>
+    <string name="symkey_ledger_repeats">×%1$d, last %2$s</string>
+    <string name="symkey_ledger_solicited">asked for</string>
+    <string name="symkey_ledger_unsolicited">unasked</string>
+    <string name="symkey_outcome_shared">shared</string>
+    <string name="symkey_outcome_stored">stored</string>
+    <string name="symkey_outcome_duplicate">already held</string>
+    <string name="symkey_outcome_refused">refused</string>
+    <string name="symkey_outcome_unreadable">would not open</string>
+    <string name="symkey_outcome_not_held">not held</string>
+    <string name="symkey_outcome_not_a_member">not a member</string>
+    <string name="symkey_outcome_no_pubkey">no pubkey</string>
+    <string name="symkey_version_copied">Copied %1$s</string>
+    <string name="symkey_ask_which_version">Asking for the symkey from %1$s</string>
+    <string name="symkey_cooldown_row">asked %1$s — again in %2$ds</string>
 </resources>

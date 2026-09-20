@@ -27,11 +27,19 @@ public class AskSymkeyActivity extends BaseCryptoActivity {
     public static final String EXTRA_ENTITY_ID = "extra_entity_id";
     public static final String EXTRA_ENTITY_TYPE = "extra_entity_type";
 
+    /**
+     * The one version wanted, when the ask came from a sealed row that names it. Absent means
+     * "everything this transcript is missing", which is what the menu entry asks for.
+     */
+    public static final String EXTRA_VERSION = "extra_version";
+
     private LinearLayout membersLayout;
     private ImageButton requestButton;
     private String entityId;
     private String entityType;
     private String liveFid;
+    /** Null when this is an ask for whatever is missing rather than for one named key. */
+    private Long version;
     private final List<CheckBox> memberCheckBoxes = new ArrayList<>();
 
     @Override
@@ -55,6 +63,8 @@ public class AskSymkeyActivity extends BaseCryptoActivity {
             finish();
             return;
         }
+        long named = getIntent().getLongExtra(EXTRA_VERSION, 0L);
+        version = named > 0 ? named : null;
 
         Setting setting = SettingManager.getInstance().getCurrentSetting();
         if (setting == null) {
@@ -64,7 +74,12 @@ public class AskSymkeyActivity extends BaseCryptoActivity {
         liveFid = setting.getMainFid();
 
         TextView headerView = new TextView(this);
-        headerView.setText(getString(R.string.select_members_to_ask_symkey));
+        // One version named is a single question about one key, and the header says which --
+        // as a time, because that is what the version is.
+        headerView.setText(version != null
+                ? getString(R.string.symkey_ask_which_version,
+                        SymkeyVersionText.prose(this, version))
+                : getString(R.string.select_members_to_ask_symkey));
         headerView.setTextSize(14);
         headerView.setTextColor(getResources().getColor(R.color.hint, null));
         headerView.setPadding(0, 0, 0, 16);
@@ -189,6 +204,18 @@ public class AskSymkeyActivity extends BaseCryptoActivity {
             textColumn.addView(selfHint);
         }
 
+        // The cooldown is per person, so it belongs on the person's row. Shown rather than
+        // enforced silently: a checkbox that quietly did nothing would read as broken.
+        long remaining = cooldownFor(fid);
+        if (remaining > 0) {
+            TextView cooldown = new TextView(this);
+            cooldown.setText(getString(R.string.symkey_cooldown_row,
+                    lastAskedFor(fid), (remaining + 999) / 1000));
+            cooldown.setTextSize(12);
+            cooldown.setTextColor(getResources().getColor(R.color.hint, null));
+            textColumn.addView(cooldown);
+        }
+
         item.addView(textColumn);
 
         item.setOnClickListener(v -> {
@@ -217,6 +244,32 @@ public class AskSymkeyActivity extends BaseCryptoActivity {
         }).start();
     }
 
+    private long cooldownFor(String fid) {
+        KeyAskStore asks = keyAskStore();
+        if (asks == null) return 0;
+        return asks.cooldownRemaining(KeyAskStore.Kind.SYMKEY, entityId,
+                version != null ? version : KeyAskStore.CURRENT, fid);
+    }
+
+    private String lastAskedFor(String fid) {
+        KeyAskStore asks = keyAskStore();
+        KeyAskStore.KeyAsk ask = asks != null
+                ? asks.get(KeyAskStore.Kind.SYMKEY, entityId,
+                        version != null ? version : KeyAskStore.CURRENT)
+                : null;
+        Long at = ask != null ? ask.getAskedAt().get(fid) : null;
+        if (at == null) return "";
+        return android.text.format.DateUtils.getRelativeTimeSpanString(
+                at, System.currentTimeMillis(),
+                android.text.format.DateUtils.MINUTE_IN_MILLIS).toString();
+    }
+
+    private KeyAskStore keyAskStore() {
+        Setting setting = SettingManager.getInstance().getCurrentSetting();
+        ImManager imManager = setting != null ? setting.getImManager() : null;
+        return imManager != null ? imManager.getKeyAskStore() : null;
+    }
+
     private void sendSymkeyRequests() {
         List<String> selectedFids = new ArrayList<>();
         for (CheckBox cb : memberCheckBoxes) {
@@ -238,7 +291,21 @@ public class AskSymkeyActivity extends BaseCryptoActivity {
 
         requestButton.setEnabled(false);
         ImManager imManager = setting.getImManager();
-        imManager.requestSymkeyFromMembers(entityId, selectedFids);
+        if (version != null) {
+            imManager.requestSymkeyFromMembers(entityId, selectedFids, version);
+        } else {
+            // Nothing named: ask each of them for every version this transcript is missing,
+            // in one request each, rather than for "the symkey" -- which is the one they
+            // already hold.
+            List<Long> missing = imManager.missingSymkeyVersions(entityId);
+            if (missing.isEmpty()) {
+                imManager.requestSymkeyFromMembers(entityId, selectedFids);
+            } else {
+                for (String fid : selectedFids) {
+                    imManager.requestSymkeys(entityId, missing, fid);
+                }
+            }
+        }
 
         ToastUtils.makeText(this, getString(R.string.symkey_requests_sent, selectedFids.size()));
         finish();

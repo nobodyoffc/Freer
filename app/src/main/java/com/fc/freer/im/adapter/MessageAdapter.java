@@ -29,7 +29,10 @@ import com.fc.freer.R;
 import com.fc.freer.im.FileShareHelper;
 import com.fc.freer.im.ImManager;
 import com.fc.freer.im.JoinTeamActivity;
+import com.fc.freer.im.KeyAskStore;
 import com.fc.freer.im.NobodyBoard;
+import com.fc.freer.im.SealedRow;
+import com.fc.freer.im.SymkeyVersionText;
 import com.fc.freer.nobody.NobodyUi;
 import com.fc.freer.im.voice.VoiceMessageHelper;
 import com.fc.freer.im.voice.VoicePlayer;
@@ -54,6 +57,15 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         void onOpenHat(Hat hat);
         void onDownloadHat(Hat hat);
         void onMessageLongPress(ImMessage message, View anchorView);
+
+        /**
+         * The "Ask for this symkey…" on a sealed row, scoped to <b>that</b> version.
+         *
+         * <p>A sealed row names the one key that would open it, so the ask it offers names that
+         * key too. Asking for "the symkey" would fetch the current one, which is usually the
+         * one this device already holds.
+         */
+        void onAskForSymkey(ImMessage message, long version);
     }
 
     private final List<ImMessage> messages;
@@ -63,6 +75,23 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
 
     /** Live HAT download progress per hatId: [bytesReceived, totalBytes]. */
     private final java.util.Map<String, long[]> hatDownloads = new java.util.HashMap<>();
+
+    /**
+     * What this transcript has already asked for, so a sealed row can show the cooldown rather
+     * than a button that silently does nothing. The courier asks the sender the moment the row
+     * is filed, so by the time a person reads it the question has usually already gone out.
+     */
+    private KeyAskStore keyAskStore;
+    private String entityId;
+
+    /** The sealed versions on screen, so a date is only qualified by a clock when it has to be. */
+    private final Set<Long> sealedVersions = new HashSet<>();
+    private int sealedVersionsFor = -1;
+
+    public void setSymkeyAsks(KeyAskStore store, String entityId) {
+        this.keyAskStore = store;
+        this.entityId = entityId;
+    }
 
     private static final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("yy-MM-dd HH:mm", Locale.getDefault());
 
@@ -141,12 +170,86 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         boolean showSender = !isP2P && !isOutgoing && currentSender != null &&
                 (position == 0 || !currentSender.equals(prevSender));
 
-        holder.bind(message, isOutgoing, showSender, isP2P, listener, hatDownloads);
+        holder.bind(message, isOutgoing, showSender, isP2P, listener, hatDownloads,
+                sealedRowText(holder.itemView.getContext(), message, listener));
     }
 
     @Override
     public int getItemCount() {
         return messages.size();
+    }
+
+    /**
+     * What a row stands in for while its key is missing: when that key was minted, and a way to
+     * ask for it.
+     *
+     * <p>The ask is <b>not gated on the cooldown being clear</b> -- it shows the countdown and
+     * stops responding instead. The courier asks the sender automatically the moment the row is
+     * filed, so by the time a person reads it the question has usually already gone out, and a
+     * button that silently did nothing would read as broken.
+     *
+     * @return the text, or null when this row is not a sealed placeholder
+     */
+    private CharSequence sealedRowText(Context context, ImMessage message,
+                                       MessageInteractionListener listener) {
+        String content = message.getContent();
+        if (!SealedRow.isPlaceholder(content)) return null;
+
+        Long version = SealedRow.versionOf(content);
+        if (version == null) version = message.getSymkeyVersion();
+        if (version == null) return context.getString(R.string.symkey_sealed_unknown);
+
+        String head = context.getString(R.string.symkey_sealed_from,
+                SymkeyVersionText.prose(context, version, sealedVersions()));
+
+        long remaining = keyAskStore != null && entityId != null
+                ? keyAskStoreRemaining(version) : 0;
+        if (remaining > 0) {
+            return head + "\n" + context.getString(
+                    R.string.symkey_asked_again_in, (remaining + 999) / 1000);
+        }
+
+        android.text.SpannableStringBuilder text = new android.text.SpannableStringBuilder(head);
+        text.append('\n');
+        int start = text.length();
+        text.append(context.getString(R.string.symkey_ask_for_this));
+        final long asked = version;
+        text.setSpan(new android.text.style.ClickableSpan() {
+            @Override
+            public void onClick(@NonNull View widget) {
+                if (listener != null) listener.onAskForSymkey(message, asked);
+            }
+        }, start, text.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return text;
+    }
+
+    /** The shortest wait before anybody can be asked for this version again, in ms. */
+    private long keyAskStoreRemaining(long version) {
+        KeyAskStore.KeyAsk ask = keyAskStore.get(KeyAskStore.Kind.SYMKEY, entityId, version);
+        if (ask == null) return 0;
+        long shortest = Long.MAX_VALUE;
+        for (String fid : ask.getAskedFids()) {
+            long left = keyAskStore.cooldownRemaining(KeyAskStore.Kind.SYMKEY, entityId, version, fid);
+            if (left < shortest) shortest = left;
+        }
+        return shortest == Long.MAX_VALUE ? 0 : shortest;
+    }
+
+    /**
+     * The sealed versions currently on screen. A date alone names two keys when both were
+     * minted on one day, so the clock appears only when it has to.
+     */
+    private Set<Long> sealedVersions() {
+        if (sealedVersionsFor == messages.size()) return sealedVersions;
+        sealedVersions.clear();
+        for (ImMessage m : messages) {
+            if (!SealedRow.isPlaceholder(m.getContent())) continue;
+            Long v = SealedRow.versionOf(m.getContent());
+            if (v == null) v = m.getSymkeyVersion();
+            if (v != null) sealedVersions.add(v);
+        }
+        sealedVersionsFor = messages.size();
+        return sealedVersions;
     }
 
     static class MessageViewHolder extends RecyclerView.ViewHolder {
@@ -180,7 +283,8 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         }
 
         void bind(ImMessage message, boolean isOutgoing, boolean showSender, boolean isP2P,
-                  MessageInteractionListener listener, java.util.Map<String, long[]> hatDownloads) {
+                  MessageInteractionListener listener, java.util.Map<String, long[]> hatDownloads,
+                  CharSequence sealedRow) {
             String senderId = message.getSenderId();
             boolean isSystemMessage = senderId == null || senderId.isEmpty();
 
@@ -237,6 +341,11 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                 content = message.isSealed() ? "[Encrypted]" : "";
             }
 
+            // A version is a time, so the row says when -- not v1789813689, which names nothing
+            // a person can act on. §6. Built by the adapter, which knows the other versions on
+            // screen and what has already been asked for.
+            CharSequence sealedText = senderIsNobody ? null : sealedRow;
+
             String time = message.getTimestamp() != null
                     ? TIME_FORMAT.format(new Date(message.getTimestamp()))
                     : "";
@@ -266,7 +375,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                 } else {
                     outgoingContent.setVisibility(View.VISIBLE);
                     outgoingHatContainer.setVisibility(View.GONE);
-                    outgoingContent.setText(content);
+                    bindText(outgoingContent, content, sealedText);
                 }
 
                 outgoingTime.setText(time);
@@ -315,7 +424,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                 } else {
                     incomingContent.setVisibility(View.VISIBLE);
                     incomingHatContainer.setVisibility(View.GONE);
-                    incomingContent.setText(content);
+                    bindText(incomingContent, content, sealedText);
                 }
 
                 incomingTime.setText(time);
@@ -354,6 +463,17 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                     listener.onMessageLongPress(message, v);
                     return true;
                 });
+            }
+        }
+
+        /** A sealed row's rendered text when there is one, the plain content otherwise. */
+        private void bindText(TextView view, String content, CharSequence sealedText) {
+            if (sealedText != null) {
+                view.setText(sealedText);
+                view.setMovementMethod(android.text.method.LinkMovementMethod.getInstance());
+            } else {
+                view.setMovementMethod(null);
+                view.setText(content);
             }
         }
 

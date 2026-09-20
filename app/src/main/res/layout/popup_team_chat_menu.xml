@@ -68,6 +68,21 @@
         android:clickable="true"
         android:focusable="true" />
 
+    <!-- The ledger of every key this device has given out or taken in (FIMP §9.7). Its own
+         entry rather than something buried behind Members…: it is a scrolling table, and a
+         menu entry is also more discoverable. -->
+    <TextView
+        android:id="@+id/menu_symkey_ledger"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/symkey_exchange"
+        android:textSize="16sp"
+        android:textColor="@color/text"
+        android:padding="12dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true" />
+
     <TextView
         android:id="@+id/menu_request_history"
         android:layout_width="match_parent"

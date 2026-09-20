@@ -17,9 +17,11 @@ import com.fc.fc_ajdk.db.LocalDB;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
 import com.fc.freer.im.ConsensusDocHelper;
+import com.fc.freer.im.KeyLedger;
 import com.fc.freer.im.MessageQueue.SendResult;
 import com.fc.freer.im.PendingIssue;
 import com.fc.freer.im.PendingIssueManager;
+import com.fc.freer.im.SealedRow;
 import com.fc.freer.im.SymkeyStore;
 import com.fc.freer.manager.DatabaseManager;
 
@@ -210,23 +212,23 @@ public class TeamHandler extends BaseHandler {
         // Open if sealed
         if (message.isSealed()) {
             Long version = message.getSymkeyVersion();
-            byte[] symkey = symkeyStore != null 
-                    ? symkeyStore.getSymkey(teamId, version != null ? version : 1L)
-                    : null;
-                    
-            if (symkey != null) {
-                if (ImMessageBody.openWithSymkey(message, symkey)) {
+            long wanted = version != null ? version : 1L;
+
+            if (symkeyStore != null && symkeyStore.hasSymkey(teamId, wanted)) {
+                if (openSealed(message, teamId, wanted)) {
                     message.setBody(null);
                 } else {
                     TimberLogger.w(TAG, "Failed to open team message %s", message.getId());
-                    message.setContent("[Encrypted - missing key]");
+                    message.setContent(SealedRow.placeholder(wanted));
                 }
             } else {
-                message.setContent("[Encrypted - missing symkey(v" + version + ")]");
+                message.setContent(SealedRow.placeholder(wanted));
                 if (symkeyRequester != null) {
-                    // The version this message needs, not "the current one":
-                    // FIMP4V3 §7.4 step 1.
-                    symkeyRequester.requestSymkey(teamId, version);
+                    // The version this message needs, not "the current one"
+                    // (FIMP4V3 §7.4 step 1), and put to its *sender*, who
+                    // provably holds that key -- the owner may have rotated
+                    // past it, or have left.
+                    symkeyRequester.requestSymkey(teamId, wanted, message.getSenderId());
                 }
             }
         }
@@ -264,30 +266,35 @@ public class TeamHandler extends BaseHandler {
     }
     
     /**
-     * Handle a symkey request from a member.
-     * Verifies the requester is a current team member and shares the symkey if so.
+     * Answer a {@code SYMKEY} request -- FIMP4V3 §5.1 and §5.2, now one path.
      *
-     * @return true if the symkey was shared successfully
+     * <p>The content names zero versions ("whatever you hold now"), one, or many; the same
+     * parser reads all three, so {@code SYMKEY_HISTORY} is an accepted alias rather than a
+     * second code path. One reply per version, all carrying the request's id.
+     *
+     * <p><b>A named version is answered with that version or not at all.</b> Substituting our
+     * current key is worse than silence: it looks like a successful exchange, the requester
+     * stores a key it very likely already held, and the messages it cannot read stay unreadable
+     * with nothing to show why. Silence leaves the request outstanding for a member who does
+     * hold it. Equally, versions we lack are simply <b>absent</b> from a batch answer: a batch
+     * of eight where we hold five is five keys the asker needs, and refusing because of the
+     * other three would leave them with none.
+     *
+     * @return true if at least one version was shared
      */
     public boolean handleSymkeyRequest(ImMessage requestMsg) {
         if (requestMsg == null || requestMsg.getContent() == null) return false;
         if (fapiClient == null || symkeyStore == null) return false;
 
-        String content = requestMsg.getContent();
         String requesterFid = requestMsg.getSenderId();
         if (requesterFid == null) return false;
 
-        SymkeyStore.Asked asked = SymkeyStore.parseRequest(content);
+        SymkeyStore.Asked asked = SymkeyStore.parseRequest(requestMsg.getContent());
         if (asked == null) return false;
         String teamId = asked.entityId;
 
         if (!isMember(teamId, liveFid)) {
             TimberLogger.d(TAG, "Ignoring symkey request for team %s: not a member", teamId);
-            return false;
-        }
-
-        if (!symkeyStore.hasSymkey(teamId)) {
-            TimberLogger.d(TAG, "No symkey to share for team %s", teamId);
             return false;
         }
 
@@ -297,79 +304,72 @@ public class TeamHandler extends BaseHandler {
             return false;
         }
 
+        // One membership check for the whole request: it is a property of the
+        // asker, not of any version.
         if (!isMember(teamId, requesterFid)) {
             TimberLogger.w(TAG, "Symkey request denied for team %s: %s is not a member", teamId, requesterFid);
+            if (keyLedger != null) {
+                keyLedger.recordSent(teamId, 0L, requesterFid,
+                        KeyLedger.Outcome.NOT_A_MEMBER, true, requestMsg.getRequestId());
+            }
             return false;
         }
 
-        // A named version is answered with that version or not at all.
-        // Substituting our current key is worse than silence: it looks
-        // like a successful exchange, the requester stores a key it very
-        // likely already held, and the messages it cannot read stay
-        // unreadable with nothing to show why. Silence leaves the
-        // request outstanding for a member who does hold it.
-        long version = asked.version != null ? asked.version : symkeyStore.getCurrentVersion(teamId);
-        if (!symkeyStore.hasSymkey(teamId, version)) {
-            TimberLogger.d(TAG, "Asked for team %s symkey v%d, which is not held", teamId, version);
-            return false;
-        }
+        List<Long> wanted = asked.wantsCurrent()
+                ? (symkeyStore.hasSymkey(teamId)
+                        ? List.of(symkeyStore.getCurrentVersion(teamId)) : List.of())
+                : asked.versions;
 
-        return shareVersion(teamId, version, requesterFid, requestMsg.getRequestId());
-    }
-
-    /**
-     * Handle a SYMKEY_HISTORY request -- FIMP4V3 §5.2.
-     *
-     * <p>One SYMKEY reply per version we actually hold, all carrying the
-     * request's id. <b>Versions we do not hold are simply absent from the
-     * answer</b>, as for a single version: a batch of eight where we hold five
-     * is five keys the asker needs, and refusing because of the other three
-     * would leave them with none.
-     *
-     * @return true if at least one version was shared
-     */
-    public boolean handleSymkeyHistoryRequest(ImMessage requestMsg) {
-        if (requestMsg == null || requestMsg.getContent() == null) return false;
-        if (fapiClient == null || symkeyStore == null) return false;
-
-        String requesterFid = requestMsg.getSenderId();
-        if (requesterFid == null) return false;
-
-        SymkeyStore.AskedHistory asked = SymkeyStore.parseHistoryRequest(requestMsg.getContent());
-        if (asked == null) return false;
-        String teamId = asked.entityId;
-
-        // One membership check for the whole batch: it is a property of the
-        // asker, not of any version.
-        if (!isMember(teamId, liveFid)) return false;
-        if (loadTeamInfo(teamId) == null) return false;
-        if (!isMember(teamId, requesterFid)) {
-            TimberLogger.w(TAG, "Symkey history denied for team %s: %s is not a member", teamId, requesterFid);
+        if (wanted.isEmpty()) {
+            TimberLogger.d(TAG, "No symkey to share for team %s", teamId);
+            if (keyLedger != null) {
+                keyLedger.recordSent(teamId, 0L, requesterFid,
+                        KeyLedger.Outcome.NOT_HELD, true, requestMsg.getRequestId());
+            }
             return false;
         }
 
         int shared = 0;
-        for (Long version : asked.versions) {
-            if (version == null || !symkeyStore.hasSymkey(teamId, version)) continue;
+        for (Long version : wanted) {
+            // The cap counts versions *answered*, not named, so a request
+            // padded with versions we lack cannot buy a larger answer.
+            if (shared >= SymkeyStore.MAX_VERSIONS_PER_REQUEST) break;
+            if (version == null) continue;
+            if (!symkeyStore.hasSymkey(teamId, version)) {
+                TimberLogger.d(TAG, "Asked for team %s symkey v%d, which is not held", teamId, version);
+                if (keyLedger != null) {
+                    keyLedger.recordSent(teamId, version, requesterFid,
+                            KeyLedger.Outcome.NOT_HELD, true, requestMsg.getRequestId());
+                }
+                continue;
+            }
             if (shareVersion(teamId, version, requesterFid, requestMsg.getRequestId())) shared++;
         }
         TimberLogger.i(TAG, "Shared %d of %d asked symkey versions for team %s with %s",
-                shared, asked.versions.size(), teamId, requesterFid);
+                shared, wanted.size(), teamId, requesterFid);
         return shared > 0;
     }
 
-    /** Seal one version to a member and send it. Shared by §5.1 and §5.2. */
+    /** Seal one version to a member and send it. Every outcome, including a refusal, is logged. */
     private boolean shareVersion(String teamId, long version, String requesterFid, String requestId) {
         try {
             String memberPubkey = fapiClient.getPubkey(requesterFid);
             if (memberPubkey == null) {
                 TimberLogger.w(TAG, "Cannot get pubkey for requester %s", requesterFid);
+                if (keyLedger != null) {
+                    keyLedger.recordSent(teamId, version, requesterFid,
+                            KeyLedger.Outcome.NO_PUBKEY, requestId != null, requestId);
+                }
                 return false;
             }
 
             String cipher = symkeyStore.createShareCipher(teamId, version, memberPubkey);
             if (cipher == null) {
                 TimberLogger.w(TAG, "Failed to create share cipher for team %s v%d", teamId, version);
+                if (keyLedger != null) {
+                    keyLedger.recordSent(teamId, version, requesterFid,
+                            KeyLedger.Outcome.NOT_HELD, requestId != null, requestId);
+                }
                 return false;
             }
 
@@ -383,7 +383,12 @@ public class TeamHandler extends BaseHandler {
             if (p2pSender != null) {
                 com.fc.freer.im.MessageQueue.SendResult result = p2pSender.sendP2p(shareMsg);
                 TimberLogger.i(TAG, "Shared symkey v%d for team %s with member %s (result=%s)", version, teamId, requesterFid, result);
-                return result == com.fc.freer.im.MessageQueue.SendResult.SUCCESS;
+                boolean sent = result == com.fc.freer.im.MessageQueue.SendResult.SUCCESS;
+                if (sent && keyLedger != null) {
+                    keyLedger.recordSent(teamId, version, requesterFid,
+                            KeyLedger.Outcome.SHARED, requestId != null, requestId);
+                }
+                return sent;
             } else {
                 TimberLogger.w(TAG, "No P2P sender available for symkey share");
                 return false;
@@ -395,34 +400,33 @@ public class TeamHandler extends BaseHandler {
     }
 
     /**
-     * Handle incoming symkey share message.
-     * Called when the team owner distributes a symkey to this member.
+     * Store a symkey somebody has handed us for a team.
+     *
+     * <p>Nothing about the sender decides whether it is stored -- that was settled before this
+     * is called, by §4.2's rule in ImManager. Here there is no overwrite and no owner flag: a
+     * key at a version already held is either the same key (a no-op) or a second candidate.
+     *
+     * @return what became of it, or null when this is not a team we know
      */
-    public boolean handleSymkeyShare(ImMessage message) {
-        if (message == null || message.getContent() == null) return false;
-        
+    public SymkeyStore.StoreResult handleSymkeyShare(ImMessage message) {
+        if (message == null || message.getContent() == null) return null;
+
         String content = message.getContent();
         int separatorIndex = content.indexOf(':');
-        if (separatorIndex <= 0) return false;
-        
+        if (separatorIndex <= 0) return null;
+
         String entityId = content.substring(0, separatorIndex);
         String cipher = content.substring(separatorIndex + 1);
         long version = message.getSymkeyVersion() != null ? message.getSymkeyVersion() : 1L;
 
         String senderFid = message.getSenderId();
-        if (senderFid == null || !isMember(entityId, senderFid)) {
-            TimberLogger.w(TAG, "Rejected symkey share for team %s: sender %s is not a member", entityId, senderFid);
-            return false;
-        }
-        
-        if (symkeyStore == null) return false;
+        if (senderFid == null || loadTeamInfo(entityId) == null) return null;
 
-        boolean fromOwner = isOwner(entityId, senderFid);
-        boolean success = symkeyStore.receiveSharedSymkey(entityId, version, cipher, fromOwner);
-        if (success) {
-            TimberLogger.d(TAG, "Received symkey v%d for team %s from %s (owner=%s)", version, entityId, senderFid, fromOwner);
-        }
-        return success;
+        if (symkeyStore == null) return null;
+
+        SymkeyStore.StoreResult result = symkeyStore.receiveSharedSymkey(entityId, version, cipher);
+        TimberLogger.d(TAG, "Symkey v%d for team %s from %s: %s", version, entityId, senderFid, result);
+        return result;
     }
     
     /**
@@ -618,17 +622,17 @@ public class TeamHandler extends BaseHandler {
         }
         
         if (symkeyStore == null) return false;
-        
-        long newVersion = symkeyStore.getCurrentVersion(teamId) + 1;
-        byte[] symkey = symkeyStore.generateSymkey(teamId, newVersion);
-        
-        if (symkey == null) {
+
+        // Named by the clock, floored above every version known here -- §1. A counter could
+        // not survive one owner being signed in on two devices, which is by design.
+        SymkeyStore.Minted minted = symkeyStore.mintSymkey(teamId);
+        if (minted == null) {
             notifyError("Failed to generate symkey");
             return false;
         }
-        
-        distributeSymkey(teamId, newVersion);
-        TimberLogger.d(TAG, "Created symkey for team %s version %d", teamId, newVersion);
+
+        distributeSymkey(teamId, minted.version);
+        TimberLogger.d(TAG, "Created symkey for team %s version %d", teamId, minted.version);
         return true;
     }
     
@@ -649,12 +653,16 @@ public class TeamHandler extends BaseHandler {
                 String memberPubkey = fapiClient.getPubkey(memberFid);
                 if (memberPubkey == null) {
                     TimberLogger.w(TAG, "Cannot get pubkey for member %s, skipping symkey distribution", memberFid);
+                    if (keyLedger != null) {
+                        keyLedger.recordSent(teamId, version, memberFid,
+                                KeyLedger.Outcome.NO_PUBKEY, false, null);
+                    }
                     continue;
                 }
                 
                 String cipher = symkeyStore.createShareCipher(teamId, version, memberPubkey);
                 if (cipher == null) continue;
-                
+
                 String symkeyData = teamId + ":" + cipher;
                 ImMessage shareMsg = ImMessage.createSymkey(
                         ImType.P2P,
@@ -668,6 +676,13 @@ public class TeamHandler extends BaseHandler {
                     com.fc.freer.im.MessageQueue.SendResult result = p2pSender.sendP2p(shareMsg);
                     TimberLogger.d(TAG, "Distributed symkey v%d for team %s to %s (result=%s)",
                             version, teamId, memberFid, result);
+                    // The owner's fan-out is how most keys in a team ever travel, so a ledger
+                    // recording only answers to requests would miss the majority of its own
+                    // subject. Unsolicited, because nobody asked.
+                    if (result == com.fc.freer.im.MessageQueue.SendResult.SUCCESS && keyLedger != null) {
+                        keyLedger.recordSent(teamId, version, memberFid,
+                                KeyLedger.Outcome.SHARED, false, null);
+                    }
                 } else {
                     TimberLogger.w(TAG, "No P2P sender available for symkey distribution to %s", memberFid);
                 }

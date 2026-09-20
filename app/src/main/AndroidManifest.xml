@@ -1018,6 +1018,12 @@
             android:windowSoftInputMode="adjustResize"/>
 
         <activity
+            android:name="com.fc.freer.im.SymkeyLedgerActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
             android:name="com.fc.freer.im.ManageTeamActivity"
             android:exported="false"
             android:screenOrientation="portrait"

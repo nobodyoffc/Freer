@@ -18,6 +18,8 @@ import com.fc.fc_ajdk.db.LocalDB;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.im.MessageQueue.SendResult;
+import com.fc.freer.im.KeyLedger;
+import com.fc.freer.im.SealedRow;
 import com.fc.freer.im.SymkeyStore;
 import com.fc.freer.manager.DatabaseManager;
 import com.fc.freer.utils.ApiCenter;
@@ -196,23 +198,22 @@ public class RoomHandler extends BaseHandler {
         
         if (message.isSealed()) {
             Long version = message.getSymkeyVersion();
-            byte[] symkey = symkeyStore != null
-                    ? symkeyStore.getSymkey(roomId, version != null ? version : 1L)
-                    : null;
-            
-            if (symkey != null) {
-                if (ImMessageBody.openWithSymkey(message, symkey)) {
+            long wanted = version != null ? version : 1L;
+
+            if (symkeyStore != null && symkeyStore.hasSymkey(roomId, wanted)) {
+                if (openSealed(message, roomId, wanted)) {
                     message.setBody(null);
                 } else {
                     TimberLogger.w(TAG, "Failed to open room message %s", message.getId());
-                    message.setContent("[Encrypted - decryption failed]");
+                    message.setContent(SealedRow.placeholder(wanted));
                 }
             } else {
-                message.setContent("[Encrypted - missing symkey(v" + version + ")]");
+                message.setContent(SealedRow.placeholder(wanted));
                 if (symkeyRequester != null) {
-                    // The version this message needs, not "the current one":
-                    // FIMP2V3 §7.4 step 1.
-                    symkeyRequester.requestSymkey(roomId, version);
+                    // The version this message needs (FIMP2V3 §7.4 step 1), put
+                    // to its *sender*, who provably holds that key -- the owner
+                    // may have rotated past it, or have left.
+                    symkeyRequester.requestSymkey(roomId, wanted, message.getSenderId());
                 }
             }
         }
@@ -249,15 +250,26 @@ public class RoomHandler extends BaseHandler {
     
     // ========== Symkey request/share ==========
 
+    /**
+     * Answer a {@code SYMKEY} request -- FIMP2V3 §5.2 and §5.3, now one path.
+     *
+     * <p>The content names zero versions ("whatever you hold now"), one, or many, and one
+     * parser reads all three; {@code SYMKEY_HISTORY} is an accepted alias rather than a second
+     * code path. A named version is answered with that version or not at all, and versions we
+     * lack are absent from a batch answer rather than failing it -- see
+     * {@code TeamHandler.handleSymkeyRequest} for why silence beats substituting the current
+     * key.
+     *
+     * @return true if at least one version was shared
+     */
     public boolean handleSymkeyRequest(ImMessage requestMsg) {
         if (requestMsg == null || requestMsg.getContent() == null) return false;
         if (fapiClient == null || symkeyStore == null) return false;
 
-        String content = requestMsg.getContent();
         String requesterFid = requestMsg.getSenderId();
         if (requesterFid == null) return false;
 
-        SymkeyStore.Asked asked = SymkeyStore.parseRequest(content);
+        SymkeyStore.Asked asked = SymkeyStore.parseRequest(requestMsg.getContent());
         if (asked == null) return false;
         String roomId = asked.entityId;
 
@@ -267,80 +279,72 @@ public class RoomHandler extends BaseHandler {
             TimberLogger.d(TAG, "Symkey request denied: room %s is closed", roomId);
             return false;
         }
-
         if (!room.isMember(liveFid)) return false;
-        if (!symkeyStore.hasSymkey(roomId)) return false;
 
         if (!room.isMember(requesterFid)) {
             TimberLogger.w(TAG, "Symkey request denied for room %s: %s is not a member", roomId, requesterFid);
+            if (keyLedger != null) {
+                keyLedger.recordSent(roomId, 0L, requesterFid,
+                        KeyLedger.Outcome.NOT_A_MEMBER, true, requestMsg.getRequestId());
+            }
             return false;
         }
 
-        // A named version is answered with that version or not at all —
-        // see TeamHandler.handleSymkeyRequest for why silence beats
-        // substituting the current key.
-        long version = asked.version != null ? asked.version : symkeyStore.getCurrentVersion(roomId);
-        if (!symkeyStore.hasSymkey(roomId, version)) {
-            TimberLogger.d(TAG, "Asked for room %s symkey v%d, which is not held", roomId, version);
-            return false;
-        }
+        List<Long> wanted = asked.wantsCurrent()
+                ? (symkeyStore.hasSymkey(roomId)
+                        ? List.of(symkeyStore.getCurrentVersion(roomId)) : List.<Long>of())
+                : asked.versions;
 
-        return shareVersion(roomId, version, requesterFid, requestMsg.getRequestId());
-    }
-
-    /**
-     * Handle a SYMKEY_HISTORY request -- FIMP2V3 §5.3.
-     *
-     * <p>One SYMKEY reply per version we hold, all carrying the request's id.
-     * Versions we do not hold are absent from the answer rather than failing
-     * it; see TeamHandler.handleSymkeyHistoryRequest.
-     *
-     * @return true if at least one version was shared
-     */
-    public boolean handleSymkeyHistoryRequest(ImMessage requestMsg) {
-        if (requestMsg == null || requestMsg.getContent() == null) return false;
-        if (fapiClient == null || symkeyStore == null) return false;
-
-        String requesterFid = requestMsg.getSenderId();
-        if (requesterFid == null) return false;
-
-        SymkeyStore.AskedHistory asked = SymkeyStore.parseHistoryRequest(requestMsg.getContent());
-        if (asked == null) return false;
-        String roomId = asked.entityId;
-
-        Room room = getRoom(roomId);
-        if (room == null) return false;
-        if (isInactive(room)) {
-            TimberLogger.d(TAG, "Symkey history denied: room %s is closed", roomId);
-            return false;
-        }
-        if (!room.isMember(liveFid)) return false;
-        if (!room.isMember(requesterFid)) {
-            TimberLogger.w(TAG, "Symkey history denied for room %s: %s is not a member", roomId, requesterFid);
+        if (wanted.isEmpty()) {
+            if (keyLedger != null) {
+                keyLedger.recordSent(roomId, 0L, requesterFid,
+                        KeyLedger.Outcome.NOT_HELD, true, requestMsg.getRequestId());
+            }
             return false;
         }
 
         int shared = 0;
-        for (Long version : asked.versions) {
-            if (version == null || !symkeyStore.hasSymkey(roomId, version)) continue;
+        for (Long version : wanted) {
+            // Counted on versions answered, not named: a request padded with
+            // versions we lack cannot buy a larger answer (FIMP2V3 §9.8).
+            if (shared >= SymkeyStore.MAX_VERSIONS_PER_REQUEST) break;
+            if (version == null) continue;
+            if (!symkeyStore.hasSymkey(roomId, version)) {
+                TimberLogger.d(TAG, "Asked for room %s symkey v%d, which is not held", roomId, version);
+                if (keyLedger != null) {
+                    keyLedger.recordSent(roomId, version, requesterFid,
+                            KeyLedger.Outcome.NOT_HELD, true, requestMsg.getRequestId());
+                }
+                continue;
+            }
             if (shareVersion(roomId, version, requesterFid, requestMsg.getRequestId())) shared++;
         }
         TimberLogger.i(TAG, "Shared %d of %d asked symkey versions for room %s with %s",
-                shared, asked.versions.size(), roomId, requesterFid);
+                shared, wanted.size(), roomId, requesterFid);
         return shared > 0;
     }
 
-    /** Seal one version to a member and send it. Shared by §5.2 and §5.3. */
+    /** Seal one version to a member and send it. Every outcome, including a refusal, is logged. */
     private boolean shareVersion(String roomId, long version, String requesterFid, String requestId) {
         try {
             String memberPubkey = fapiClient.getPubkey(requesterFid);
             if (memberPubkey == null) {
                 TimberLogger.w(TAG, "Cannot get pubkey for requester %s", requesterFid);
+                if (keyLedger != null) {
+                    keyLedger.recordSent(roomId, version, requesterFid,
+                            KeyLedger.Outcome.NO_PUBKEY, requestId != null, requestId);
+                }
                 return false;
             }
 
             String cipher = symkeyStore.createShareCipher(roomId, version, memberPubkey);
-            if (cipher == null) return false;
+            if (cipher == null) {
+                if (keyLedger != null) {
+                    keyLedger.recordSent(roomId, version, requesterFid,
+                            KeyLedger.Outcome.NOT_HELD, requestId != null, requestId);
+                }
+                return false;
+            }
 
             String symkeyData = roomId + ":" + cipher;
             ImMessage shareMsg = ImMessage.createSymkey(
@@ -352,7 +356,12 @@ public class RoomHandler extends BaseHandler {
             if (p2pSender != null) {
                 SendResult result = p2pSender.sendP2p(shareMsg);
                 TimberLogger.i(TAG, "Shared symkey v%d for room %s with member %s (result=%s)", version, roomId, requesterFid, result);
-                return result == SendResult.SUCCESS;
+                boolean sent = result == SendResult.SUCCESS;
+                if (sent && keyLedger != null) {
+                    keyLedger.recordSent(roomId, version, requesterFid,
+                            KeyLedger.Outcome.SHARED, requestId != null, requestId);
+                }
+                return sent;
             } else {
                 TimberLogger.w(TAG, "No P2P sender available for room symkey share");
                 return false;
@@ -363,35 +372,39 @@ public class RoomHandler extends BaseHandler {
         }
     }
 
-    public boolean handleSymkeyShare(ImMessage message) {
-        if (message == null || message.getContent() == null) return false;
+    /**
+     * Store a symkey somebody has handed us for a room.
+     *
+     * <p>Who may hand it over was settled before this is called, by §4.2's rule in ImManager.
+     * Here there is no overwrite and no owner flag: a key at a version already held is either
+     * the same key (a no-op) or a second candidate. That matters more for a room than for a
+     * team, because a room's keys and membership exist nowhere but on its members' devices.
+     *
+     * @return what became of it, or null when this is not a room we know
+     */
+    public SymkeyStore.StoreResult handleSymkeyShare(ImMessage message) {
+        if (message == null || message.getContent() == null) return null;
 
         String content = message.getContent();
         int separatorIndex = content.indexOf(':');
-        if (separatorIndex <= 0) return false;
+        if (separatorIndex <= 0) return null;
 
         String entityId = content.substring(0, separatorIndex);
         String cipher = content.substring(separatorIndex + 1);
 
         Room room = getRoom(entityId);
-        if (room == null) return false;
+        if (room == null) return null;
 
         String senderFid = message.getSenderId();
-        if (senderFid == null || !room.isMember(senderFid)) {
-            TimberLogger.w(TAG, "Rejected symkey share for room %s: sender %s is not a member", entityId, senderFid);
-            return false;
-        }
+        if (senderFid == null) return null;
 
         long version = message.getSymkeyVersion() != null ? message.getSymkeyVersion() : 1L;
 
-        if (symkeyStore == null) return false;
+        if (symkeyStore == null) return null;
 
-        boolean fromOwner = room.isOwner(senderFid);
-        boolean success = symkeyStore.receiveSharedSymkey(entityId, version, cipher, fromOwner);
-        if (success) {
-            TimberLogger.d(TAG, "Received symkey v%d for room %s from %s (owner=%s)", version, entityId, senderFid, fromOwner);
-        }
-        return success;
+        SymkeyStore.StoreResult result = symkeyStore.receiveSharedSymkey(entityId, version, cipher);
+        TimberLogger.d(TAG, "Symkey v%d for room %s from %s: %s", version, entityId, senderFid, result);
+        return result;
     }
 
     /**
@@ -457,8 +470,9 @@ public class RoomHandler extends BaseHandler {
 
             RoomInfo roomInfo = RoomInfo.fromRoom(room);
 
+            long version = 0L;
             if (symkeyStore.hasSymkey(roomId)) {
-                long version = symkeyStore.getCurrentVersion(roomId);
+                version = symkeyStore.getCurrentVersion(roomId);
                 String symkeyCipher = symkeyStore.createShareCipher(roomId, version, targetPubkey);
                 roomInfo.setSymkey(symkeyCipher);
                 roomInfo.setSymkeyVersion(version);
@@ -471,6 +485,13 @@ public class RoomHandler extends BaseHandler {
             if (p2pSender != null) {
                 SendResult result = p2pSender.sendP2p(shareMsg);
                 TimberLogger.i(TAG, "Shared room info for %s with %s (result=%s)", roomId, targetFid, result);
+                // This one funnel carries invitations, membership updates, rotations and
+                // "share the room's details", so a ledger that watched only the request
+                // path would miss most of the keys a room ever hands out.
+                if (result == SendResult.SUCCESS && version != 0 && keyLedger != null) {
+                    keyLedger.recordSent(roomId, version, targetFid,
+                            KeyLedger.Outcome.SHARED, false, null);
+                }
                 return result == SendResult.SUCCESS;
             }
             return false;
@@ -498,8 +519,9 @@ public class RoomHandler extends BaseHandler {
 
             RoomInfo roomInfo = RoomInfo.fromRoom(room);
 
+            long version = 0L;
             if (symkeyStore != null && symkeyStore.hasSymkey(roomId)) {
-                long version = symkeyStore.getCurrentVersion(roomId);
+                version = symkeyStore.getCurrentVersion(roomId);
                 String symkeyCipher = symkeyStore.createShareCipher(roomId, version, targetPubkey);
                 roomInfo.setSymkey(symkeyCipher);
                 roomInfo.setSymkeyVersion(version);
@@ -516,6 +538,10 @@ public class RoomHandler extends BaseHandler {
                 SendResult result = p2pSender.sendP2p(shareMsg);
                 TimberLogger.i(TAG, "Shared room info for %s with %s (requestId=%s, result=%s)",
                         roomId, targetFid, requestId, result);
+                if (result == SendResult.SUCCESS && version != 0 && keyLedger != null) {
+                    keyLedger.recordSent(roomId, version, targetFid,
+                            KeyLedger.Outcome.SHARED, requestId != null, requestId);
+                }
                 return result == SendResult.SUCCESS;
             }
             return false;
@@ -592,9 +618,10 @@ public class RoomHandler extends BaseHandler {
 
                 if (roomInfo.getSymkey() != null && symkeyStore != null) {
                     long version = roomInfo.getSymkeyVersion() != null ? roomInfo.getSymkeyVersion() : 1L;
-                    boolean fromOwner = senderFid.equals(roomInfo.getOwner());
-                    symkeyStore.receiveSharedSymkey(roomId, version, roomInfo.getSymkey(), fromOwner);
-                    TimberLogger.d(TAG, "Stored symkey v%d from room info for %s", version, roomId);
+                    SymkeyStore.StoreResult stored =
+                            symkeyStore.receiveSharedSymkey(roomId, version, roomInfo.getSymkey());
+                    TimberLogger.d(TAG, "Symkey v%d from room info for %s: %s", version, roomId, stored);
+                    noteKeyArrived(roomId, version, senderFid, stored, message.getRequestId());
                 }
 
                 TimberLogger.i(TAG, "Updated existing room info for %s from %s", roomId, senderFid);
@@ -631,9 +658,11 @@ public class RoomHandler extends BaseHandler {
 
             if (roomInfo.getSymkey() != null && symkeyStore != null) {
                 long version = roomInfo.getSymkeyVersion() != null ? roomInfo.getSymkeyVersion() : 1L;
-                boolean fromOwner = roomInfo.getOwner() != null;
-                symkeyStore.receiveSharedSymkey(roomInfo.getId(), version, roomInfo.getSymkey(), fromOwner);
-                TimberLogger.d(TAG, "Stored symkey v%d from accepted room invite for %s", version, roomInfo.getId());
+                SymkeyStore.StoreResult stored =
+                        symkeyStore.receiveSharedSymkey(roomInfo.getId(), version, roomInfo.getSymkey());
+                TimberLogger.d(TAG, "Symkey v%d from accepted room invite for %s: %s",
+                        version, roomInfo.getId(), stored);
+                noteKeyArrived(roomInfo.getId(), version, roomInfo.getOwner(), stored, null);
             }
 
             // Confirm joining to the owner so the owner can clear the pending state
@@ -675,6 +704,26 @@ public class RoomHandler extends BaseHandler {
         }
     }
 
+    /**
+     * Record a room key that arrived inside a {@code ROOM_INFO}, and clear the ask it answered.
+     *
+     * <p>A room's details response carries a key, so it is one of the ways keys actually move
+     * and belongs in the ledger beside the request path. The ask is cleared only on
+     * {@code STORED} or {@code DUPLICATE} -- a cipher that would not open left us no better off.
+     */
+    private void noteKeyArrived(String roomId, long version, String senderFid,
+                                SymkeyStore.StoreResult stored, String requestId) {
+        if (keyLedger != null && senderFid != null) {
+            keyLedger.recordReceived(roomId, version, senderFid,
+                    KeyLedger.outcomeOf(stored), requestId != null, requestId);
+        }
+        if (keyAskStore != null
+                && (stored == SymkeyStore.StoreResult.STORED
+                    || stored == SymkeyStore.StoreResult.DUPLICATE)) {
+            keyAskStore.resolve(roomId, version);
+        }
+    }
+
     // ========== Room Management ==========
     
     /**
@@ -699,8 +748,8 @@ public class RoomHandler extends BaseHandler {
         }
 
         if (symkeyStore != null) {
-            byte[] symkey = symkeyStore.generateSymkey(room.getId(), 1L);
-            if (symkey == null) {
+            // Named by the clock, floored above every version known here -- §1.
+            if (symkeyStore.mintSymkey(room.getId()) == null) {
                 notifyError("Failed to generate room symkey");
                 return null;
             }
@@ -843,11 +892,8 @@ public class RoomHandler extends BaseHandler {
         
         if (symkeyStore == null) return false;
         
-        long newVersion = symkeyStore.getCurrentVersion(roomId) + 1;
-        byte[] symkey = symkeyStore.generateSymkey(roomId, newVersion);
-        
-        if (symkey == null) return false;
-        
+        if (symkeyStore.mintSymkey(roomId) == null) return false;
+
         room.rotateSymkey(null);
         saveRoom(room);
         
@@ -884,8 +930,13 @@ public class RoomHandler extends BaseHandler {
             );
 
             if (p2pSender != null) {
-                p2pSender.sendP2p(shareMsg);
-                TimberLogger.d(TAG, "Distributed symkey v%d for room %s to %s", version, roomId, memberFid);
+                SendResult result = p2pSender.sendP2p(shareMsg);
+                TimberLogger.d(TAG, "Distributed symkey v%d for room %s to %s (result=%s)",
+                        version, roomId, memberFid, result);
+                if (result == SendResult.SUCCESS && keyLedger != null) {
+                    keyLedger.recordSent(roomId, version, memberFid,
+                            KeyLedger.Outcome.SHARED, false, null);
+                }
             }
         } catch (Exception e) {
             TimberLogger.w(TAG, "Failed to distribute room symkey to %s: %s", memberFid, e.getMessage());
@@ -904,10 +955,8 @@ public class RoomHandler extends BaseHandler {
 
         if (symkeyStore == null) return false;
 
-        long newVersion = symkeyStore.getCurrentVersion(roomId) + 1;
-        byte[] symkey = symkeyStore.generateSymkey(roomId, newVersion);
-
-        if (symkey == null) {
+        SymkeyStore.Minted minted = symkeyStore.mintSymkey(roomId);
+        if (minted == null) {
             notifyError("Failed to generate symkey");
             return false;
         }
@@ -920,7 +969,7 @@ public class RoomHandler extends BaseHandler {
             }
         }
 
-        TimberLogger.d(TAG, "Created symkey for room %s version %d", roomId, newVersion);
+        TimberLogger.d(TAG, "Created symkey for room %s version %d", roomId, minted.version);
         return true;
     }
 
@@ -1117,7 +1166,7 @@ public class RoomHandler extends BaseHandler {
         if (room == null || symkey == null) return false;
         
         if (symkeyStore != null) {
-            symkeyStore.storeSymkey(room.getId(), room.getSymkeyVersion(), symkey, true);
+            symkeyStore.storeSymkey(room.getId(), room.getSymkeyVersion(), symkey);
         }
         
         saveRoom(room);

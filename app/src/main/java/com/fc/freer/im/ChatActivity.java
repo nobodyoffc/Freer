@@ -70,6 +70,7 @@ import com.fc.freer.im.handler.TeamHandler;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.mail.CreateMailActivity;
 import com.fc.freer.manager.AvatarManager;
+import com.fc.freer.manager.CidFidManager;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.data.DataSyncManager;
@@ -122,6 +123,16 @@ public class ChatActivity extends BaseCryptoActivity
     private View inputArea;
     
     private TextView chatTypeInfo;
+
+    /**
+     * The outstanding-symkey-ask banner (§7): who was asked, how long ago, and the two things
+     * a person can do about it. An ask with nothing on screen reads as a request that went
+     * nowhere, which is exactly what it used to be.
+     */
+    private LinearLayout symkeyAskBanner;
+    private TextView symkeyAskSummary;
+    private TextView symkeyAskWho;
+
     private LinearLayout channelInfoLayout;
     private TextView channelInfoLeft;
     private TextView channelInfoRight;
@@ -290,11 +301,15 @@ public class ChatActivity extends BaseCryptoActivity
         btnBack = findViewById(R.id.btn_back);
         inputArea = findViewById(R.id.input_area);
         chatTypeInfo = findViewById(R.id.chat_type_info);
+        symkeyAskBanner = findViewById(R.id.symkey_ask_banner);
+        symkeyAskSummary = findViewById(R.id.symkey_ask_summary);
+        symkeyAskWho = findViewById(R.id.symkey_ask_who);
         channelInfoLayout = findViewById(R.id.channel_info_layout);
         channelInfoLeft = findViewById(R.id.channel_info_left);
         channelInfoRight = findViewById(R.id.channel_info_right);
         
         setupChatTypeInfo();
+        setupSymkeyAskBanner();
         setupEmojiPanel();
     }
     
@@ -377,6 +392,132 @@ public class ChatActivity extends BaseCryptoActivity
         });
     }
     
+    // ========== Symkey asks (docs/SYMKEY_IDENTITY_SPEC.md §7) ==========
+
+    private void setupSymkeyAskBanner() {
+        if (symkeyAskBanner == null) return;
+
+        View askMore = findViewById(R.id.symkey_ask_more);
+        if (askMore != null) {
+            askMore.setOnClickListener(v -> {
+                hideKeyboard();
+                openAskSymkey(null);
+            });
+        }
+
+        View giveUp = findViewById(R.id.symkey_ask_give_up);
+        if (giveUp != null) {
+            giveUp.setOnClickListener(v -> {
+                hideKeyboard();
+                KeyAskStore asks = imManager != null ? imManager.getKeyAskStore() : null;
+                if (asks != null) asks.giveUpAll(targetId);
+                ToastUtils.makeText(this, getString(R.string.symkey_ask_gave_up));
+                refreshSymkeyAskBanner();
+            });
+        }
+    }
+
+    /** Repaint the banner from what is actually outstanding. Safe to call from anywhere. */
+    private void refreshSymkeyAskBanner() {
+        if (symkeyAskBanner == null) return;
+        if (imType != ImType.TEAM && imType != ImType.ROOM) {
+            symkeyAskBanner.setVisibility(View.GONE);
+            return;
+        }
+
+        KeyAskStore asks = imManager != null ? imManager.getKeyAskStore() : null;
+        List<KeyAskStore.KeyAsk> outstanding = asks != null ? asks.outstanding(targetId) : null;
+        if (outstanding == null || outstanding.isEmpty()) {
+            symkeyAskBanner.setVisibility(View.GONE);
+            return;
+        }
+
+        Set<String> asked = new java.util.LinkedHashSet<>();
+        long lastAskedAt = 0;
+        Set<Long> versions = new HashSet<>();
+        for (KeyAskStore.KeyAsk ask : outstanding) {
+            asked.addAll(ask.getAskedFids());
+            lastAskedAt = Math.max(lastAskedAt, ask.lastAskedAt());
+            if (ask.getVersion() != null && ask.getVersion() != KeyAskStore.CURRENT) {
+                versions.add(ask.getVersion());
+            }
+        }
+        String when = lastAskedAt > 0
+                ? android.text.format.DateUtils.getRelativeTimeSpanString(
+                        lastAskedAt, System.currentTimeMillis(),
+                        android.text.format.DateUtils.MINUTE_IN_MILLIS).toString()
+                : "";
+
+        // One version names itself by its mint time; several are only a count, because a list
+        // of timestamps in a banner is noise nobody reads.
+        if (outstanding.size() == 1 && versions.size() == 1) {
+            long version = versions.iterator().next();
+            symkeyAskSummary.setText(getString(R.string.symkey_ask_banner_one,
+                    SymkeyVersionText.prose(this, version, versions), when));
+        } else {
+            symkeyAskSummary.setText(getString(R.string.symkey_ask_banner_many,
+                    outstanding.size(), when));
+        }
+
+        if (asked.isEmpty()) {
+            symkeyAskWho.setVisibility(View.GONE);
+        } else {
+            StringBuilder names = new StringBuilder();
+            for (String fid : asked) {
+                if (names.length() > 0) names.append(", ");
+                names.append(displayFid(fid));
+            }
+            symkeyAskWho.setVisibility(View.VISIBLE);
+            symkeyAskWho.setText(getString(R.string.symkey_ask_banner_who, names.toString()));
+        }
+
+        symkeyAskBanner.setVisibility(View.VISIBLE);
+    }
+
+    /** CID when we know one, else the FID elided in the middle. */
+    private String displayFid(String fid) {
+        if (fid == null) return "";
+        CidFidManager cidFidManager = CidFidManager.getInstance();
+        String cid = cidFidManager != null ? cidFidManager.getCidByFid(fid) : null;
+        if (cid != null && !cid.isEmpty()) return cid;
+        if (fid.length() <= 14) return fid;
+        return fid.substring(0, 6) + "…" + fid.substring(fid.length() - 6);
+    }
+
+    /** The member picker, optionally scoped to the one version a row needs. */
+    private void openAskSymkey(Long version) {
+        if (imType != ImType.TEAM && imType != ImType.ROOM) return;
+        Intent intent = new Intent(this, AskSymkeyActivity.class);
+        intent.putExtra(AskSymkeyActivity.EXTRA_ENTITY_ID, targetId);
+        intent.putExtra(AskSymkeyActivity.EXTRA_ENTITY_TYPE, imType == ImType.TEAM ? "team" : "room");
+        if (version != null) intent.putExtra(AskSymkeyActivity.EXTRA_VERSION, version);
+        startActivity(intent);
+    }
+
+    /**
+     * The "Ask for this symkey…" on a sealed row -- §7. Scoped to that row's version, because
+     * that is the one key that would open it; asking for "the symkey" fetches the current one,
+     * which is usually the one this device already holds.
+     */
+    @Override
+    public void onAskForSymkey(ImMessage message, long version) {
+        if (imManager == null) return;
+        String senderFid = message != null ? message.getSenderId() : null;
+
+        // The sender provably holds this key. The owner may have rotated past it, or be gone.
+        if (senderFid != null && !senderFid.equals(liveFid)) {
+            imManager.requestSymkey(targetId, version, senderFid);
+        } else {
+            imManager.requestSymkey(targetId, version, null);
+        }
+        ToastUtils.makeText(this, getString(R.string.symkey_ask_which_version,
+                SymkeyVersionText.prose(this, version)));
+        messagesRecyclerView.postDelayed(() -> {
+            refreshSymkeyAskBanner();
+            adapter.notifyDataSetChanged();
+        }, 400);
+    }
+
     private void setupChatTypeInfo() {
         if (chatTypeInfo == null || imType == null) return;
         
@@ -750,6 +891,8 @@ public class ChatActivity extends BaseCryptoActivity
             imManager.addListener(this);
             imManager.setActiveChatDock(imType, targetId);
             adapter.setLiveFid(liveFid);
+            // So a sealed row can show the cooldown rather than a button that does nothing.
+            adapter.setSymkeyAsks(imManager.getKeyAskStore(), targetId);
             TimberLogger.d(TAG, "ImManager ready for fid=%s, target=%s, type=%s",
                     liveFid, targetId, imType);
 
@@ -1049,7 +1192,8 @@ public class ChatActivity extends BaseCryptoActivity
         
         adapter.notifyDataSetChanged();
         scrollToBottom();
-        
+        refreshSymkeyAskBanner();
+
         imManager.markConversationAsRead(imType, targetId);
     }
     
@@ -1578,8 +1722,11 @@ public class ChatActivity extends BaseCryptoActivity
     public void onSymkeyReceived(String entityId, long version) {
         if (targetId == null || !targetId.equals(entityId)) return;
         runOnUiThread(() -> {
-            addSystemMessage(getString(R.string.symkey_received_version, version));
+            // A version is a time, so this says when the key was minted, not its number.
+            addSystemMessage(getString(R.string.symkey_received_version,
+                    SymkeyVersionText.prose(this, version)));
             if (isSymkeyRequired()) enableSending();
+            refreshSymkeyAskBanner();
         });
     }
 
@@ -1587,8 +1734,10 @@ public class ChatActivity extends BaseCryptoActivity
     public void onRoomInfoReceived(String roomId, long symkeyVersion) {
         if (targetId == null || !targetId.equals(roomId)) return;
         runOnUiThread(() -> {
-            addSystemMessage(getString(R.string.room_info_received_symkey, symkeyVersion));
+            addSystemMessage(getString(R.string.room_info_received_symkey,
+                    SymkeyVersionText.prose(this, symkeyVersion)));
             if (isSymkeyRequired()) enableSending();
+            refreshSymkeyAskBanner();
         });
     }
 
@@ -2202,6 +2351,13 @@ public class ChatActivity extends BaseCryptoActivity
             startActivity(intent);
         });
 
+        menuView.findViewById(R.id.menu_symkey_ledger).setOnClickListener(v -> {
+            popup.dismiss();
+            Intent ledger = new Intent(this, SymkeyLedgerActivity.class);
+            ledger.putExtra(SymkeyLedgerActivity.EXTRA_ENTITY_ID, targetId);
+            startActivity(ledger);
+        });
+
         menuView.findViewById(R.id.menu_request_history).setOnClickListener(v -> {
             popup.dismiss();
             showRequestHistoryMemberPicker();
@@ -2516,6 +2672,13 @@ public class ChatActivity extends BaseCryptoActivity
             intent.putExtra(AskSymkeyActivity.EXTRA_ENTITY_ID, targetId);
             intent.putExtra(AskSymkeyActivity.EXTRA_ENTITY_TYPE, "team");
             startActivity(intent);
+        });
+
+        menuView.findViewById(R.id.menu_symkey_ledger).setOnClickListener(v -> {
+            popup.dismiss();
+            Intent ledger = new Intent(this, SymkeyLedgerActivity.class);
+            ledger.putExtra(SymkeyLedgerActivity.EXTRA_ENTITY_ID, targetId);
+            startActivity(ledger);
         });
 
         menuView.findViewById(R.id.menu_request_history).setOnClickListener(v -> {
@@ -3233,6 +3396,7 @@ public class ChatActivity extends BaseCryptoActivity
 
             retryFailedDocksForCurrentChat();
             promptOpenHistoryRequests();
+            refreshSymkeyAskBanner();
 
             if (isSymkeyRequired() && groupHasDock && hasSymkey()) {
                 if (messageInput != null && !messageInput.isEnabled()) {
