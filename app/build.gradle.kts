@@ -14,10 +14,21 @@ android {
             keyPassword = "android"
         }
         create("release") {
-            storeFile = file("${System.getProperty("user.home")}/.android/freer-debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            // Credentials live outside the repo, in ~/.gradle/gradle.properties.
+            // Nothing here falls back to the debug key: a release that cannot be
+            // signed privately fails in packageRelease instead of shipping.
+            val storePath = providers.gradleProperty("FREER_RELEASE_STORE_FILE").orNull
+            if (!storePath.isNullOrBlank()) {
+                storeFile = file(storePath)
+                storePassword = providers.gradleProperty("FREER_RELEASE_STORE_PASSWORD").orNull
+                keyAlias = providers.gradleProperty("FREER_RELEASE_KEY_ALIAS").orNull
+                keyPassword = providers.gradleProperty("FREER_RELEASE_KEY_PASSWORD").orNull
+            }
+            // v3 carries a rotation proof, so this key can be replaced later
+            // without forcing every user to uninstall. minSdk 28 makes v1 dead weight.
+            enableV1Signing = false
+            enableV2Signing = true
+            enableV3Signing = true
         }
     }
 
@@ -100,4 +111,22 @@ dependencies {
     
     // WorkManager for background tasks
     implementation("androidx.work:work-runtime:2.9.0")
+}
+
+tasks.matching { it.name == "packageRelease" }.configureEach {
+    doFirst {
+        val missing = listOf(
+            "FREER_RELEASE_STORE_FILE",
+            "FREER_RELEASE_STORE_PASSWORD",
+            "FREER_RELEASE_KEY_ALIAS",
+            "FREER_RELEASE_KEY_PASSWORD"
+        ).filter { providers.gradleProperty(it).orNull.isNullOrBlank() }
+        if (missing.isNotEmpty()) {
+            throw GradleException(
+                "Release signing is not configured; missing $missing. " +
+                    "Set these in ~/.gradle/gradle.properties. Release builds are " +
+                    "never signed with the debug key."
+            )
+        }
+    }
 }
