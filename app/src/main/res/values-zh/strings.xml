@@ -2572,6 +2572,7 @@
     <string name="gs_status_coin_days_days">你的币还在积累币天：%1$d / %2$d CD，大约还需 %3$d 天</string>
     <string name="gs_note_pending">已上链广播，等待确认；确认后会自动打勾。</string>
     <string name="gs_note_fch_asked">已求助。等待有人向你的FID转币；到账后会自动打勾。</string>
+    <string name="gs_note_master_pending">设置主人的交易正在上链。区块确认后这一项会自动打勾——在那之前还什么都没备份成，自己再留一份仍然值得。</string>
     <string name="gs_note_stalled">广播一天后仍未上链，交易可能失败了。请先查一下，再重试。</string>
     <string name="gs_txid">交易 %s</string>
     <string name="gs_action_backup">立即备份</string>
@@ -2584,6 +2585,14 @@
     <string name="gs_action_skip">跳过</string>
     <string name="gs_your_fid">你的FID：%s</string>
     <string name="gs_guide_fid">引路人：%s</string>
+    <string name="gs_master_fid">主人：%s</string>
+    <string name="gs_status_backed_up_to_master">已备份给主人 %s</string>
+    <string name="gs_note_backed_up_to_master">已加密给你的主人并写在链上。谁持有那个FID的私钥，谁就能还原这把钥匙——这份备份不怕手机丢失，但并非只有你才打得开。</string>
+    <!-- The master section of the backup dialog -->
+    <string name="backup_master_explain">设置主人，会把这把钥匙加密给另一个FID的公钥后刻上链，那个FID便能还原它。此举永久生效，需付手续费，并把这个身份的一切权利都交给对方——只把主人设给你完全信任的、自己的FID。</string>
+    <string name="backup_master_already">这把钥匙已经加密给你的主人并写在链上。谁持有那个FID的私钥，谁就能还原它——这份备份不怕手机丢失，但并非只有你才打得开。自己再留一份仍然值得。</string>
+    <string name="backup_master_pending">设置主人的交易正在上链。区块确认之前还什么都没备份成——先在上面留一份自己的备份。</string>
+    <string name="backup_master_needs_coins">这个FID还没有币，而每次上链都要付手续费。请先领到第一笔FCH。</string>
     <!-- Identity carves -->
     <string name="carve_already_pending">已经上链广播，正在等待确认（交易 %s）。如果一天后仍未上链，请重试。</string>
     <string name="server_setup_home_unreadable">无法从链上读取你的服务登记，未上链：%s</string>

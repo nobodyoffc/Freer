@@ -8,7 +8,8 @@ import java.util.List;
  * The getting-started checklist, decided.
  * <p>
  * <b>Every tick comes from state, never from the user ticking it.</b> A backup is the user's
- * word because nothing else can know; everything else is on the chain or on this phone, so a
+ * word when nothing else can know — and the chain can know, if a master carve has put the key
+ * there ({@link #getBackupMaster()}); everything else is on the chain or on this phone, so a
  * step done from another device, or before this checklist existed, shows as done without being
  * told.
  * <p>
@@ -31,10 +32,13 @@ public final class Onboarding {
     private final List<Item> items;
     private final String guide;
     private final boolean canCarve;
+    private final String backupMaster;
 
     public Onboarding(OnboardingFacts facts) {
         LiveFidRecord chain = facts.chain;
         guide = chain != null && chain.guide != null && !chain.guide.isEmpty() ? chain.guide : null;
+        String master = chain != null && chain.master != null ? chain.master.trim() : "";
+        backupMaster = master.isEmpty() ? null : master;
 
         // Null while the chain has not answered. A FID that spent everything still has a guide.
         final Boolean funded = chain == null ? null
@@ -43,8 +47,7 @@ public final class Onboarding {
         canCarve = Boolean.TRUE.equals(funded) && cdWait == null;
 
         List<Item> list = new ArrayList<>();
-        list.add(new Item(OnboardingStep.BACKUP_PRIKEY,
-                facts.prikeyBackedUp ? OnboardingStatus.DONE : OnboardingStatus.OPEN));
+        list.add(new Item(OnboardingStep.BACKUP_PRIKEY, backupStep(facts)));
         list.add(new Item(OnboardingStep.FIRST_FCH, firstFchStep(facts, funded)));
 
         String cid = chain != null && chain.cid != null ? chain.cid.trim() : "";
@@ -77,6 +80,23 @@ public final class Onboarding {
                     carveStep(facts, OnboardingStep.JOIN_SQUARE, facts.joinedSquare, funded, cdWait)));
         }
         items = Collections.unmodifiableList(list);
+    }
+
+    /**
+     * The backup, which two things can settle: the user's word that they have a copy, and a
+     * master on the chain, which holds the prikey sealed to it in a record that outlives this
+     * phone.
+     * <p>
+     * A master carve that has only been broadcast is <b>pending, not done</b>: the tick waits
+     * for the block, because the carve can still be dropped or confirmed and ignored. The card
+     * keeps the step's button through it — a copy of your own is free, and the one time it is
+     * most worth having is while the other copy is still a maybe.
+     */
+    private OnboardingStatus backupStep(OnboardingFacts facts) {
+        if (facts.prikeyBackedUp || backupMaster != null) return OnboardingStatus.DONE;
+        OnboardingFacts.Pending pending = facts.pending.get(OnboardingStep.BACKUP_PRIKEY);
+        if (pending == null) return OnboardingStatus.OPEN;
+        return pending.overdue ? OnboardingStatus.stalled(pending.txid) : OnboardingStatus.pending(pending.txid);
     }
 
     /**
@@ -122,6 +142,19 @@ public final class Onboarding {
     /** Whether a carve from this FID would be read now. */
     public boolean canCarve() {
         return canCarve;
+    }
+
+    /**
+     * The master the chain holds for this FID, or null when it has none.
+     * <p>
+     * A master carve publishes this FID's prikey sealed to the master's pubkey, so the key then
+     * exists somewhere this phone is not — which is what {@link OnboardingStep#BACKUP_PRIKEY}
+     * asks for, and why a master ticks it. The card names the master rather than drawing a bare
+     * tick: that copy is only recoverable by whoever holds <i>that</i> FID's prikey, which is a
+     * different promise from a copy in the user's own hands.
+     */
+    public String getBackupMaster() {
+        return backupMaster;
     }
 
     /** The status of {@code step}, or null when the step does not apply. */

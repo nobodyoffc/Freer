@@ -11,7 +11,8 @@ import java.util.TreeSet;
  * build's names, so it must not change.
  * <p>
  * A master is deliberately not a step: it names another FID of your own, which a beginner
- * does not have.
+ * does not have. Setting one does tick {@link #BACKUP_PRIKEY} off, because the carve puts the
+ * prikey on the chain — see {@link Onboarding#getBackupMaster()}.
  */
 public enum OnboardingStep {
     BACKUP_PRIKEY("backupPrikey"),

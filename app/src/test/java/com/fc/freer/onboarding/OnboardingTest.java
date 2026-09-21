@@ -34,6 +34,59 @@ public class OnboardingTest {
         return new Onboarding(facts).statusOf(step);
     }
 
+    /** A funded FID whose chain record names {@code master}. */
+    private static LiveFidRecord withMaster(String master) {
+        return new LiveFidRecord("FNewcomer", true, 100_000_000L, 5L, null, null, GUIDE, master,
+                null, 4_100_000L);
+    }
+
+    // ---- a master is a backup ----
+
+    @Test
+    public void aMasterOnChainBacksThePrikeyUp() {
+        Onboarding ob = new Onboarding(new OnboardingFacts(false, withMaster("FMasterFid11111111111111111111111")));
+
+        assertEquals("the master holds the key, sealed to it, on the chain",
+                OnboardingStatus.DONE, ob.statusOf(OnboardingStep.BACKUP_PRIKEY));
+        assertEquals("the card names who can open that copy",
+                "FMasterFid11111111111111111111111", ob.getBackupMaster());
+    }
+
+    @Test
+    public void aBlankMasterFieldBacksNothingUp() {
+        Onboarding ob = new Onboarding(new OnboardingFacts(false, withMaster("   ")));
+
+        assertEquals(OnboardingStatus.OPEN, ob.statusOf(OnboardingStep.BACKUP_PRIKEY));
+        assertNull(ob.getBackupMaster());
+    }
+
+    @Test
+    public void aMasterCarveOnItsWayLeavesTheBackupWaitingForTheChain() {
+        // Broadcast is not done — the carve can still be dropped — but the step has to say
+        // that something is in flight rather than sit there as if nothing happened.
+        OnboardingFacts facts = new OnboardingFacts(false, funded());
+        facts.pending.put(OnboardingStep.BACKUP_PRIKEY, new OnboardingFacts.Pending("tx1", false));
+
+        assertEquals(OnboardingStatus.pending("tx1"), status(facts, OnboardingStep.BACKUP_PRIKEY));
+        assertNull(new Onboarding(facts).getBackupMaster());
+    }
+
+    @Test
+    public void aMasterCarveOverADayOldStallsTheBackup() {
+        OnboardingFacts facts = new OnboardingFacts(false, funded());
+        facts.pending.put(OnboardingStep.BACKUP_PRIKEY, new OnboardingFacts.Pending("tx1", true));
+
+        assertEquals(OnboardingStatus.stalled("tx1"), status(facts, OnboardingStep.BACKUP_PRIKEY));
+    }
+
+    @Test
+    public void aCopyOfYourOwnStillSettlesTheBackupWhileTheMasterCarveConfirms() {
+        OnboardingFacts facts = new OnboardingFacts(true, funded());
+        facts.pending.put(OnboardingStep.BACKUP_PRIKEY, new OnboardingFacts.Pending("tx1", false));
+
+        assertEquals(OnboardingStatus.DONE, status(facts, OnboardingStep.BACKUP_PRIKEY));
+    }
+
     // ---- the CDD rule ----
 
     @Test

@@ -30,8 +30,9 @@ public final class OnboardingFacts {
     public boolean joinedSquare;
     public final Set<OnboardingStep> skipped = EnumSet.noneOf(OnboardingStep.class);
     /**
-     * Carves broadcast for REGISTER_CID, SET_HOME and JOIN_SQUARE that have not landed, and for
-     * FIRST_FCH an ask for coins (no txid) that none have answered yet.
+     * Carves broadcast for REGISTER_CID, SET_HOME and JOIN_SQUARE that have not landed, for
+     * BACKUP_PRIKEY a master carve on its way to the chain, and for FIRST_FCH an ask for coins
+     * (no txid) that none have answered yet.
      */
     public final Map<OnboardingStep, Pending> pending = new EnumMap<>(OnboardingStep.class);
 

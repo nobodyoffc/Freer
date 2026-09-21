@@ -64,6 +64,21 @@
         android:background="?android:attr/listDivider" />
 
     <TextView
+        android:id="@+id/set_master"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        android:text="@string/set_master"
+        android:textColor="?android:attr/textColorPrimary"
+        android:textSize="16sp" />
+
+    <View
+        android:id="@+id/set_master_divider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?android:attr/listDivider" />
+
+    <TextView
         android:id="@+id/backup_prikey"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

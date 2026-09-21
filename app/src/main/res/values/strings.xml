@@ -2613,6 +2613,7 @@
     <string name="gs_status_coin_days_days">Your coins are still aging: %1$d of %2$d CD, about %3$d days to go</string>
     <string name="gs_note_pending">Carved. Waiting for the chain to confirm it; this ticks itself once it does.</string>
     <string name="gs_note_fch_asked">Asked. Waiting for someone to send coins to your FID; this ticks itself once they arrive.</string>
+    <string name="gs_note_master_pending">Your master carve is on its way to the chain. It ticks this off once a block confirms it — until then nothing is backed up, so a copy of your own is still worth taking.</string>
     <string name="gs_note_stalled">Still not on the chain a day after it was carved. The transaction may have failed. Check it, then try again.</string>
     <string name="gs_txid">tx %s</string>
     <string name="gs_action_backup">Back up now</string>
@@ -2625,6 +2626,14 @@
     <string name="gs_action_skip">Skip</string>
     <string name="gs_your_fid">Your FID: %s</string>
     <string name="gs_guide_fid">Guide: %s</string>
+    <string name="gs_master_fid">Master: %s</string>
+    <string name="gs_status_backed_up_to_master">Backed up to master %s</string>
+    <string name="gs_note_backed_up_to_master">On the chain, sealed to your master. Whoever holds that FID\'s prikey can recover this key — a copy that survives this phone, but not one only you can open.</string>
+    <!-- The master section of the backup dialog -->
+    <string name="backup_master_explain">Setting a master carves this key onto the chain, sealed to another FID\'s pubkey, so that FID can recover it. It is permanent, it costs a fee, and it gives that FID every right this identity has — set one only to a FID of your own that you trust completely.</string>
+    <string name="backup_master_already">This key is already on the chain, sealed to your master. Whoever holds that FID\'s prikey can recover it — a copy that survives this phone, but not one only you can open. A copy of your own is still worth taking.</string>
+    <string name="backup_master_pending">A master carve is on its way to the chain. Until a block confirms it, nothing has been backed up — take a copy above meanwhile.</string>
+    <string name="backup_master_needs_coins">This FID holds no coins, and every carve costs a fee. Get your first FCH first.</string>
     <!-- Identity carves -->
     <string name="carve_already_pending">Already carved and waiting for the chain (tx %s). If it isn\'t there after a day, try again.</string>
     <string name="server_setup_home_unreadable">Couldn\'t read your home from the chain, so nothing was carved: %s</string>

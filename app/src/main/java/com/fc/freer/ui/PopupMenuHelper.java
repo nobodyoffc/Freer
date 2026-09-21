@@ -10,8 +10,12 @@ import android.widget.PopupWindow;
 import android.widget.TextView;
 
 import com.fc.fc_ajdk.data.fchData.Freer;
+import com.fc.freer.home.SetMasterActivity;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.manager.FidManager;
+import com.fc.freer.onboarding.LiveFidRecord;
+import com.fc.freer.onboarding.PendingIdentityCarve;
+import com.fc.freer.onboarding.PendingIdentityCarves;
 import com.fc.freer.model.Configure;
 import com.fc.freer.convert.BroadcastActivity;
 import com.fc.freer.convert.StringConvertActivity;
@@ -139,11 +143,33 @@ public class PopupMenuHelper {
         });
     }
 
+    /**
+     * Whether this FID could still name a master: the main FID, with none on the chain and none
+     * carved in the last day.
+     * <p>
+     * FEIP6 is write-once — the parser ignores a master carve from a FID that already has one,
+     * after the fee is paid — so offering it again would only cost money. A master belongs to
+     * the main FID, so a sub-identity is not asked either. Only what the chain said in this
+     * process counts: the cached KeyInfo is written on broadcast, and hiding the item off that
+     * would leave no way back after a carve that never landed.
+     */
+    private boolean hasNoMasterYet() {
+        FidManager fidManager = FidManager.getInstance();
+        String mainFid = fidManager != null ? fidManager.getMainFid() : null;
+        if (mainFid == null || !mainFid.equals(fidManager.getLiveFid())) return false;
+        if (fidManager.isLiveFidMultisig()) return false;
+        LiveFidRecord record = LiveFidRecord.confirmed(mainFid);
+        if (record != null && record.master != null && !record.master.trim().isEmpty()) return false;
+        return PendingIdentityCarves.of(context).getInFlight(
+                mainFid, PendingIdentityCarve.Kind.MASTER, System.currentTimeMillis()) == null;
+    }
+
     private void setupSettingsMenuItems(View popupView) {
         TextView changePassword = popupView.findViewById(R.id.change_password);
         TextView setCid = popupView.findViewById(R.id.set_cid);
         TextView setApis = popupView.findViewById(R.id.set_apis);
         TextView setDockDisk = popupView.findViewById(R.id.set_dock_disk);
+        TextView setMaster = popupView.findViewById(R.id.set_master);
         TextView backupPrikey = popupView.findViewById(R.id.backup_prikey);
         TextView helpBeginners = popupView.findViewById(R.id.help_beginners);
         TextView security_guidelines = popupView.findViewById(R.id.security_guidelines);
@@ -189,6 +215,20 @@ public class PopupMenuHelper {
             popupWindow.dismiss();
             context.startActivity(new Intent(context, com.fc.freer.data.ServerSetupActivity.class));
         });
+
+        // A master can be named once and never again, so the item is only there while this FID
+        // has none. Once the chain holds one, the way to it is the person menu, which switches
+        // to the master instead of offering a carve the parser would ignore.
+        if (hasNoMasterYet()) {
+            setMaster.setOnClickListener(v -> {
+                popupWindow.dismiss();
+                context.startActivity(new Intent(context, SetMasterActivity.class));
+            });
+        } else {
+            setMaster.setVisibility(View.GONE);
+            View setMasterDivider = popupView.findViewById(R.id.set_master_divider);
+            if (setMasterDivider != null) setMasterDivider.setVisibility(View.GONE);
+        }
 
         helpBeginners.setOnClickListener(v -> {
             popupWindow.dismiss();

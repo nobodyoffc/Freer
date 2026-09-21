@@ -174,6 +174,13 @@ public final class GettingStartedCard {
         if (home != null) {
             facts.pending.put(OnboardingStep.SET_HOME, new OnboardingFacts.Pending(home.txid, home.isOverdue(now)));
         }
+        // A master carve is a backup on its way: the step says so while it confirms, and ticks
+        // itself off the chain record once the block lands.
+        PendingIdentityCarve master = carves.get(liveFid, PendingIdentityCarve.Kind.MASTER);
+        if (master != null) {
+            facts.pending.put(OnboardingStep.BACKUP_PRIKEY,
+                    new OnboardingFacts.Pending(master.txid, master.isOverdue(now)));
+        }
 
         ImManager im = setting.getImManager();
         SquareHandler squares = im != null ? im.getSquareHandler() : null;
@@ -251,7 +258,11 @@ public final class GettingStartedCard {
         if (visible) {
             for (Onboarding.Item item : ob.getItems()) {
                 if (item.status.isSettled() || item.status.kind == OnboardingStatus.Kind.UNKNOWN) continue;
-                if (item.step != OnboardingStep.BACKUP_PRIKEY) readChain = true;
+                // The backup is the one step the chain cannot usually answer — unless a
+                // master carve is on its way, which is exactly what the record will show.
+                if (item.step != OnboardingStep.BACKUP_PRIKEY
+                        || item.status.kind == OnboardingStatus.Kind.PENDING
+                        || item.status.kind == OnboardingStatus.Kind.STALLED) readChain = true;
                 if (item.step == OnboardingStep.JOIN_SQUARE) readSquares = true;
             }
         }
@@ -327,7 +338,7 @@ public final class GettingStartedCard {
         if (status.kind == OnboardingStatus.Kind.SKIPPED) {
             title.setPaintFlags(title.getPaintFlags() | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
         }
-        String line = statusLine(status);
+        String line = statusLine(item, ob);
         statusView.setText(!isOpen && line != null ? line : "");
 
         row.findViewById(R.id.stepHeader).setOnClickListener(v -> {
@@ -345,7 +356,7 @@ public final class GettingStartedCard {
             case WAITING_STEP:
             case WAITING_COIN_DAYS:
                 note.setVisibility(View.VISIBLE);
-                note.setText(line);
+                note.setText(statusLine(status));
                 break;
             case PENDING:
                 note.setVisibility(View.VISIBLE);
@@ -353,7 +364,8 @@ public final class GettingStartedCard {
                 if (status.txid == null) {
                     note.setText(R.string.gs_note_fch_asked);
                 } else {
-                    note.setText(R.string.gs_note_pending);
+                    note.setText(item.step == OnboardingStep.BACKUP_PRIKEY
+                            ? R.string.gs_note_master_pending : R.string.gs_note_pending);
                     showCopyable(copyable, activity.getString(R.string.gs_txid, shortId(status.txid, 8, 8)), status.txid);
                 }
                 break;
@@ -366,8 +378,22 @@ public final class GettingStartedCard {
                 break;
         }
 
-        // Asking again is free, so an ask waiting on coins keeps its way back to the FID and board.
-        if (status.isActionable() || item.step == OnboardingStep.FIRST_FCH) {
+        // A master ticked this step, so say whose key opens that copy — the FID itself,
+        // copyable, because "recoverable" means nothing without knowing by whom.
+        if (item.step == OnboardingStep.BACKUP_PRIKEY && ob.getBackupMaster() != null
+                && status.kind == OnboardingStatus.Kind.DONE) {
+            note.setVisibility(View.VISIBLE);
+            note.setTextColor(activity.getColor(R.color.hint));
+            note.setText(R.string.gs_note_backed_up_to_master);
+            showCopyable(copyable, activity.getString(R.string.gs_master_fid,
+                    shortId(ob.getBackupMaster(), 4, 4)), ob.getBackupMaster());
+        }
+
+        // Asking again is free, so an ask waiting on coins keeps its way back to the FID and
+        // board; and a copy of your own is free too, so a master carve still confirming must
+        // not take the backup button away — it is the one thing that works if that carve fails.
+        if (status.isActionable() || item.step == OnboardingStep.FIRST_FCH
+                || (item.step == OnboardingStep.BACKUP_PRIKEY && !status.isSettled())) {
             addActions(inflater, row.findViewById(R.id.stepActions), copyable, item, ob, liveFid);
         }
         return row;
@@ -539,6 +565,19 @@ public final class GettingStartedCard {
         }
         icon.setText(glyph);
         icon.setTextColor(activity.getColor(color));
+    }
+
+    /**
+     * The trailing line on a collapsed row. A backup ticked by a master says so: a bare tick
+     * would claim the user has a copy, when what exists is a copy only the master can open.
+     */
+    private String statusLine(Onboarding.Item item, Onboarding ob) {
+        if (item.step == OnboardingStep.BACKUP_PRIKEY && ob.getBackupMaster() != null
+                && item.status.kind == OnboardingStatus.Kind.DONE) {
+            return activity.getString(R.string.gs_status_backed_up_to_master,
+                    shortId(ob.getBackupMaster(), 4, 4));
+        }
+        return statusLine(item.status);
     }
 
     private String statusLine(OnboardingStatus status) {

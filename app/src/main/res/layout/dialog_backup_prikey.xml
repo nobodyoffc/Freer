@@ -104,6 +104,45 @@
         android:checked="true"
         android:layout_marginBottom="16dp" />
 
+    <!-- Master: the fourth way out. A pointer to SetMasterActivity, not a button beside the
+         cipher: the carve is permanent, costs a fee, and hands that FID every right this
+         identity has. Hidden for anyone but the main FID; once the chain holds a master it
+         says so instead, because FEIP6 lets a FID name one only once. -->
+    <LinearLayout
+        android:id="@+id/masterContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginBottom="16dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/masterNoteTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="13sp"
+            android:textColor="@color/hint" />
+
+        <TextView
+            android:id="@+id/masterFidTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:fontFamily="monospace"
+            android:textSize="13sp"
+            android:textColor="@color/field_name"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/setMasterButton"
+            style="@style/ButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/set_master"
+            android:visibility="gone" />
+    </LinearLayout>
+
     <!-- Buttons Container -->
     <LinearLayout
         android:id="@+id/buttonsContainer"

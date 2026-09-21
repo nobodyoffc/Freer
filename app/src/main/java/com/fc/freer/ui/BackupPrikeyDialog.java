@@ -1,16 +1,20 @@
 package com.fc.freer.ui;
 
+import android.app.Activity;
 import android.app.Dialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Bundle;
+import android.view.View;
 import android.view.Window;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -24,8 +28,15 @@ import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.utils.Hex;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
+import com.fc.freer.home.SetMasterActivity;
 import com.fc.freer.initiate.ConfigureManager;
 import com.fc.freer.initiate.SettingManager;
+import com.fc.freer.manager.FidManager;
+import com.fc.freer.onboarding.LiveFidRecord;
+import com.fc.freer.onboarding.Onboarding;
+import com.fc.freer.onboarding.OnboardingStatus;
+import com.fc.freer.onboarding.PendingIdentityCarve;
+import com.fc.freer.onboarding.PendingIdentityCarves;
 import com.fc.freer.utils.QRCodeGenerator;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ToastUtils;
@@ -44,6 +55,14 @@ import java.util.List;
  * - Done button - returns "done"
  * - Copy Cipher button - copies encrypted cipher only
  * - Later button - dismisses dialog
+ * <p>
+ * A fourth way out is named but not taken here: <b>setting a master</b> carves this key onto
+ * the chain sealed to another FID's pubkey, which is a copy that outlives this phone. It is a
+ * pointer to {@link SetMasterActivity} and not a button beside Copy Cipher, because it is
+ * permanent, costs a fee, needs coins this FID may not have yet, and hands that FID every right
+ * this identity has — that screen exists to slow the user down, and reaching it in the same
+ * stride as copying a cipher would undo it. Once the chain holds a master the section says so
+ * instead: FEIP6 lets a FID name one only once, so there is nothing left to offer.
  */
 public class BackupPrikeyDialog extends Dialog {
     private static final String TAG = "BackupPrikeyDialog";
@@ -59,6 +78,11 @@ public class BackupPrikeyDialog extends Dialog {
     private Button laterButton;
 
     private FrameLayout qrCodeContainer;
+
+    private LinearLayout masterContainer;
+    private TextView masterNoteTextView;
+    private TextView masterFidTextView;
+    private Button setMasterButton;
 
     private KeyInfo mainKeyInfo;
     private byte[] symkey;
@@ -95,6 +119,7 @@ public class BackupPrikeyDialog extends Dialog {
         initializeViews();
         loadKeyData();
         setupListeners();
+        showMasterSection();
         updateDisplay();
     }
 
@@ -109,6 +134,10 @@ public class BackupPrikeyDialog extends Dialog {
         doneButton = findViewById(R.id.doneButton);
         copyCipherButton = findViewById(R.id.copyCipherButton);
         laterButton = findViewById(R.id.laterButton);
+        masterContainer = findViewById(R.id.masterContainer);
+        masterNoteTextView = findViewById(R.id.masterNoteTextView);
+        masterFidTextView = findViewById(R.id.masterFidTextView);
+        setMasterButton = findViewById(R.id.setMasterButton);
 
         // Initially hide QR code and encrypt checkbox
         qrCodeContainer.setVisibility(android.view.View.GONE);
@@ -273,6 +302,92 @@ public class BackupPrikeyDialog extends Dialog {
             }
             close();
         });
+    }
+
+    /**
+     * Draw the master section for the main FID: what the chain already holds, what is on its
+     * way there, or the offer to carve one — and, when the FID cannot carve yet, why instead of
+     * a button that would fail. A sub-identity gets nothing: a master is the main FID's.
+     */
+    private void showMasterSection() {
+        FidManager fidManager = FidManager.getInstance();
+        String mainFid = fidManager != null ? fidManager.getMainFid() : null;
+        String liveFid = fidManager != null ? fidManager.getLiveFid() : null;
+        if (mainFid == null || !mainFid.equals(liveFid)) return;
+
+        masterContainer.setVisibility(View.VISIBLE);
+        // Only what the chain said in this process. The cached KeyInfo is written on broadcast,
+        // and this section's whole claim is that the copy is *there*.
+        LiveFidRecord record = LiveFidRecord.confirmed(mainFid);
+        String master = record != null && record.master != null ? record.master.trim() : "";
+        if (!master.isEmpty()) {
+            masterNoteTextView.setText(R.string.backup_master_already);
+            showMasterFid(getContext().getString(R.string.gs_master_fid,
+                    shortId(master)), master);
+            return;
+        }
+
+        PendingIdentityCarve pending = PendingIdentityCarves.of(getContext())
+                .getInFlight(mainFid, PendingIdentityCarve.Kind.MASTER, System.currentTimeMillis());
+        if (pending != null) {
+            masterNoteTextView.setText(R.string.backup_master_pending);
+            if (pending.txid != null) {
+                showMasterFid(getContext().getString(R.string.gs_txid, shortId(pending.txid)), pending.txid);
+            }
+            return;
+        }
+
+        String blocker = carveBlocker(record);
+        if (blocker != null) {
+            masterNoteTextView.setText(blocker);
+            return;
+        }
+        masterNoteTextView.setText(R.string.backup_master_explain);
+        setMasterButton.setVisibility(View.VISIBLE);
+        setMasterButton.setOnClickListener(v -> {
+            // The carve screen carries the warnings, and nothing is recorded as backed up on
+            // the way through: the checklist reads a master off the chain record itself.
+            close();
+            Context context = getContext();
+            Intent intent = new Intent(context, SetMasterActivity.class);
+            if (!(context instanceof Activity)) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+        });
+    }
+
+    /** Why a master cannot be carved from this FID yet, or null when it can. */
+    private String carveBlocker(LiveFidRecord record) {
+        // The chain has not answered yet: SetMasterActivity asks again before it carves.
+        if (record == null) return null;
+        long balance = record.balance != null ? record.balance : 0L;
+        long cd = record.cd != null ? record.cd : 0L;
+        if (balance == 0 && cd == 0) return getContext().getString(R.string.backup_master_needs_coins);
+        OnboardingStatus wait = Onboarding.coinDayWait(record);
+        if (wait == null) return null;
+        if (wait.days == null) {
+            return getContext().getString(R.string.gs_status_coin_days, wait.have, wait.need);
+        }
+        if (wait.days == 1) {
+            return getContext().getString(R.string.gs_status_coin_days_one_day, wait.have, wait.need);
+        }
+        return getContext().getString(R.string.gs_status_coin_days_days, wait.have, wait.need, wait.days);
+    }
+
+    private void showMasterFid(String display, String value) {
+        masterFidTextView.setVisibility(View.VISIBLE);
+        masterFidTextView.setText(display);
+        masterFidTextView.setOnClickListener(v -> {
+            ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard == null) return;
+            clipboard.setPrimaryClip(ClipData.newPlainText("id", value));
+            ToastUtils.makeText(getContext(), R.string.copied);
+        });
+    }
+
+    /** Head and tail kept, as every other ID in the app is shortened. */
+    private static String shortId(String id) {
+        if (id == null) return "";
+        return id.length() <= 13 ? id : id.substring(0, 6) + "…" + id.substring(id.length() - 6);
     }
 
     private void updateDisplay() {
