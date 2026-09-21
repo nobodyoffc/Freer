@@ -331,7 +331,17 @@ public class TxSender {
             
             int outputSize = (outputs != null ? outputs.size() : 0);
             int msgSize = (opReturn != null ? opReturn.getBytes().length : 0);
-            
+
+            // A FID whose first coins have only just arrived has an empty cash DB: nothing
+            // fills it but the Cash page, so every carve here failed with "no valid cash"
+            // while the coins sat on the chain. Fill it from the index instead of sending
+            // the user to another screen to do it. The first load also applies the mempool
+            // overlay, which is what picks up a first FCH that no block has confirmed yet.
+            if (!isRetry && !cashManager.hasValidCashes()) {
+                cashManager.refreshCashFromAPI(context);
+                cashManager.commit();
+            }
+
             List<Cash> validCashList = cashManager.getValidCashes(payValue, cdRequired, outputSize, msgSize,
                 feeRate != null ? feeRate :TxHandler.DEFAULT_FEE_RATE, multisig,context);
             
