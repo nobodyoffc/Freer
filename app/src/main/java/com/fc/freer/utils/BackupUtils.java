@@ -3,6 +3,7 @@ package com.fc.freer.utils;
 import static com.fc.fc_ajdk.utils.JsonUtils.readOneJsonFromInputStream;
 
 import com.fc.fc_ajdk.core.crypto.CryptoDataByte;
+import com.fc.fc_ajdk.core.crypto.KeyTools;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.data.feipData.Secret;
 import com.fc.fc_ajdk.utils.JsonUtils;
@@ -56,7 +57,9 @@ public class BackupUtils {
             try {
 
                 BackupKey backupKey = BackupKey.fromJson (json, BackupKey.class);
-                if (backupKey != null &&  (backupKey.getPassword()!=null || backupKey.getSymkey()!=null)){
+                // A backup encrypted with the app password carries only a hint, and is still the key line
+                if (backupKey != null && (backupKey.getPassword()!=null || backupKey.getSymkey()!=null
+                        || (backupKey.getHint()!=null && backupKey.getKeyName()!=null))){
                     objectList.add(backupKey);
                     continue;
                 }
@@ -82,7 +85,8 @@ public class BackupUtils {
                     }
 
                     if(t instanceof KeyInfo keyInfo){
-                        if(keyInfo.getId()==null)continue;
+                        // getId() makes a hash id when none was given, so demand a real FID
+                        if(!KeyTools.isGoodFid(keyInfo.getId()))continue;
                     }
 
                     objectList.add(t);

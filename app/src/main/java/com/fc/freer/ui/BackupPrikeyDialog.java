@@ -213,6 +213,11 @@ public class BackupPrikeyDialog extends Dialog {
                             return;
                         }
                         byte[] plain = base58 ? text.getBytes(StandardCharsets.UTF_8) : Hex.fromHex(text);
+                        // Two Argon2id runs take seconds; without this the tap looks ignored and a
+                        // second tap asks for the password again while the first is still working.
+                        WaitingDialog waiting = new WaitingDialog(getContext(),
+                                getContext().getString(R.string.please_wait));
+                        waiting.show();
                         new Thread(() -> {
                             // Checking the password and deriving the cipher key each run Argon2id.
                             boolean verified = ConfigureManager.getInstance().verifyPassword(password.getBytes());
@@ -233,6 +238,7 @@ public class BackupPrikeyDialog extends Dialog {
                             Arrays.fill(plain, (byte) 0);
                             String made = cipher;
                             qrCodeImageView.post(() -> {
+                                waiting.dismiss();
                                 if (!isShowing()) return;
                                 if (!verified) {
                                     ToastUtils.makeText(getContext(), R.string.incorrect_password);
