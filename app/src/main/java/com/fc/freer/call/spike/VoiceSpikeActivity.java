@@ -291,8 +291,8 @@ public class VoiceSpikeActivity extends AppCompatActivity {
         sb.append(String.format(Locale.US, "      frames %d  dtx-skipped %d  dropped %d%n",
                 capture.framesSent(), capture.dtxSkipped(), transport.sendDrops()));
         sb.append(String.format(Locale.US, "      effects: %s%n", capture.effects()));
-        sb.append(String.format(Locale.US, "recv  datagrams %d  sim-dropped %d  track buffer %d ms%n",
-                transport.received(), transport.simulatedDrops(), playout.trackBufferMs()));
+        sb.append(String.format(Locale.US, "recv  datagrams %d  sim-dropped %d  track buffer %d ms (underruns %d)%n",
+                transport.received(), transport.simulatedDrops(), playout.trackBufferMs(), playout.underruns()));
         if (playout.wrongFrameSize() > 0) {
             sb.append(String.format(Locale.US, "      %d frames of another size: use the same frame size on"
                     + " every phone%n", playout.wrongFrameSize()));

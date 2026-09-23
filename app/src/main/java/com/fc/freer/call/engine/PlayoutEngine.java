@@ -49,6 +49,7 @@ public final class PlayoutEngine {
     private Thread thread;
     private AudioTrack track;
     private volatile int trackBufferMs;
+    private volatile int underruns;
     private volatile long wrongFrameSize;
 
     public PlayoutEngine(int frameMs) {
@@ -70,6 +71,11 @@ public final class PlayoutEngine {
     /** Playout buffer in the AudioTrack, ms: part of mouth-to-ear delay. */
     public int trackBufferMs() {
         return trackBufferMs;
+    }
+
+    /** Times the AudioTrack ran dry, each of which grew {@link #trackBufferMs}. */
+    public int underruns() {
+        return underruns;
     }
 
     /** Frames decoded to a length other than our frame size: the peer uses another frame size. */
@@ -96,6 +102,9 @@ public final class PlayoutEngine {
                 // Two frames: enough to ride out scheduling, no more.
                 .setBufferSizeInBytes(Math.max(minBytes, 2 * frameSamples * 2))
                 .build();
+        // The voice path's minimum buffer is often 80-100 ms, the largest fixed
+        // delay in the call. Use only two frames of it, and grow on underrun.
+        track.setBufferSizeInFrames(Math.min(track.getBufferCapacityInFrames(), 2 * frameSamples));
         trackBufferMs = track.getBufferSizeInFrames() * 1000 / Opus.SAMPLE_RATE;
         running = true;
         track.play();
@@ -159,7 +168,18 @@ public final class PlayoutEngine {
             for (int i = 0; i < frameSamples; i++) out[i] = softClip(mix[i]);
             // Blocks until there is room: this is what paces the loop.
             track.write(out, 0, frameSamples);
+            growOnUnderrun();
         }
+    }
+
+    /** The track ran dry: give it half a frame more, up to what it holds. */
+    private void growOnUnderrun() {
+        int n = track.getUnderrunCount();
+        if (n <= underruns) return;
+        underruns = n;
+        int size = Math.min(track.getBufferCapacityInFrames(), track.getBufferSizeInFrames() + frameSamples / 2);
+        track.setBufferSizeInFrames(size);
+        trackBufferMs = track.getBufferSizeInFrames() * 1000 / Opus.SAMPLE_RATE;
     }
 
     /** Linear below the knee, compressed smoothly towards full scale above it. */
