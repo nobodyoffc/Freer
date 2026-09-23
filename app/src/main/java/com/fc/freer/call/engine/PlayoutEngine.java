@@ -64,7 +64,7 @@ public final class PlayoutEngine {
     public void onFrame(SpikeFrame f, long arrivalMs) {
         Stream s = streams.computeIfAbsent(f.ssrc(), id -> new Stream(id, frameMs));
         s.level = f.level();
-        s.buffer.put(f.seq(), f.timestamp(), f.opus(), !f.voiceActive(), f.afterDtx(), arrivalMs);
+        s.buffer.put(f.seq(), f.timestamp(), f.opus(), !f.voiceActive(), f.afterDtx(), f.level(), arrivalMs);
     }
 
     public Map<Integer, Stream> streams() {

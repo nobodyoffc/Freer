@@ -291,8 +291,8 @@ public class VoiceSpikeActivity extends AppCompatActivity {
         sb.append(String.format(Locale.US, "      frames %d  dtx-skipped %d  dropped %d%n",
                 capture.framesSent(), capture.dtxSkipped(), transport.sendDrops()));
         sb.append(String.format(Locale.US, "      effects: %s%n", capture.effects()));
-        sb.append(String.format(Locale.US, "device  mic->app %s ms   app->speaker %s ms%n",
-                msOrDash(capture.inputLatencyMs()), msOrDash(playout.outputLatencyMs())));
+        sb.append(String.format(Locale.US, "device  mic queue %s ms (dropped %d)   app->speaker %s ms%n",
+                msOrDash(capture.micQueueMs()), capture.micDroppedMs(), msOrDash(playout.outputLatencyMs())));
         sb.append(String.format(Locale.US, "recv  datagrams %d  sim-dropped %d  track buffer %d ms (underruns %d)%n",
                 transport.received(), transport.simulatedDrops(), playout.trackBufferMs(), playout.underruns()));
         if (playout.wrongFrameSize() > 0) {
@@ -306,14 +306,14 @@ public class VoiceSpikeActivity extends AppCompatActivity {
                     quiet >= 2 ? "  (silent " + quiet + "s)" : ""));
             sb.append(String.format(Locale.US, "      loss %.1f%%  fec %d  concealed %d  late %d%n",
                     st.lossPercent(), st.fecRecovered(), st.concealed(), st.late()));
-            sb.append(String.format(Locale.US, "      buffer %d ms / target %d  stretched %d  skipped %d  dtx %d%n",
-                    st.depthMs(), st.targetMs(), st.stretched(), st.skipped(), st.dtxGap()));
+            sb.append(String.format(Locale.US, "      buffer %d ms / target %d  stretched %d  skipped %d (forced %d)  dtx %d%n",
+                    st.depthMs(), st.targetMs(), st.stretched(), st.skipped(), st.forced(), st.dtxGap()));
             // This phone's share of mouth-to-ear, from network arrival to sound. Add
             // the other phone's "mic->app" and one frame for its whole path.
             if (rtt >= 0) {
                 int out = playout.outputLatencyMs() >= 0 ? playout.outputLatencyMs() : playout.trackBufferMs();
                 sb.append(String.format(Locale.US, "      network ~%d + jitter buffer %d + speaker path %d = %d ms"
-                                + " (+ sender's mic->app + %d ms frame)%n",
+                                + " (+ sender's mic path + %d ms frame)%n",
                         rtt / 2, st.depthMs(), out, rtt / 2 + st.depthMs() + out, frameMsOf()));
             }
         }

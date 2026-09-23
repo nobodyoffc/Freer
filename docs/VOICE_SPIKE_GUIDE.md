@@ -99,28 +99,40 @@ Stop and reconsider WebRTC's audio stack, keeping FUDP as the transport
 ## What the stats mean
 
 ```
-RELAY  42s  RTT 180 ms
-send  ssrc 5c893f6a  level -38 dBov  22.4 kbps
-      frames 1050  dtx-skipped 310  dropped 0
-      effects: AEC NS AGC
-recv  datagrams 1011  sim-dropped 0  track buffer 20 ms
+RELAY  42s  RTT 150 ms
+send  ssrc 5c893f6a  level -38 dBov  28.4 kbps
+      frames 2050  dtx-skipped 0  dropped 0
+      effects: AEC NS
+device  mic queue 0 ms (dropped 0)   app->speaker 166 ms
+recv  datagrams 2011  sim-dropped 0  track buffer 40 ms (underruns 0)
 from  ssrc b7136522  level -41 dBov
       loss 4.9%  fec 47  concealed 3  late 1
-      buffer 80 ms / target 60  stretched 12  skipped 5  dtx 290
-      est. one-way ~190 ms + device audio latency
+      buffer 60 ms / target 60  stretched 12  skipped 9 (forced 2)  dtx 0
+      network ~75 + jitter buffer 60 + speaker path 166 = 301 ms (+ sender's mic path + 20 ms frame)
 ```
 
+- **mic queue:** captured audio waiting to be encoded that never drains.
+  Anything over one frame is dropped (`dropped`, in ms). It is *not* the
+  microphone's whole path: the phones tested so far report capture times
+  at read time, so the mic and AEC/NS part cannot be measured from inside.
+- **app->speaker:** from writing a frame to the device playing it: our
+  AudioTrack buffer (`track buffer`) plus the platform's mixer, DSP and
+  driver.
 - **loss:** frames that never arrived, as a share of those that should have.
   **fec** are recovered from the next frame's FEC data. **concealed** are
   covered by Opus PLC.
 - **late:** frames that arrived after their turn, and were discarded.
-- **buffer / target:** the current jitter buffer depth, and the target
-  derived from the last 2 s of jitter (40–300 ms).
+- **buffer / target:** the jitter buffer depth now, and the target derived
+  from the last 2 s of jitter (40–300 ms).
 - **stretched:** concealment played while waiting for a late frame, which
-  grows the delay. **skipped:** silent frames dropped to shrink it again.
+  grows the delay. **skipped:** frames dropped to shrink it again. Quiet
+  frames go first; **forced** ones were dropped mid-speech, after a second
+  over target with no quiet frame to take.
 - **dtx:** frames the sender did not send because it was silent. They are
   not counted as loss.
-- **track buffer:** the AudioTrack's own buffer, part of the delay.
+- **network + jitter buffer + speaker path:** this phone's share of the
+  mouth-to-ear delay. Add the other phone's microphone path (unmeasured,
+  typically 50–150 ms with AEC/NS) and one frame for the total.
 
 On emulators, `skipped` climbs steadily, because headless emulator audio
 does not run at a true 48 kHz. On phones it should stay small.

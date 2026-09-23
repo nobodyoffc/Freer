@@ -3,7 +3,6 @@ package com.fc.freer.call.engine;
 import android.annotation.SuppressLint;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
-import android.media.AudioTimestamp;
 import android.media.MediaRecorder;
 import android.media.audiofx.AcousticEchoCanceler;
 import android.media.audiofx.AutomaticGainControl;
@@ -42,7 +41,7 @@ public final class CaptureEngine {
     private volatile int level = 127;
     private volatile long framesSent, dtxSkipped, bytesSent;
     private volatile String effects = "";
-    private volatile int inputLatencyMs = -1;
+    private volatile MicBacklog backlog;
     private Thread thread;
     private AudioRecord record;
     private Opus.Encoder encoder;
@@ -85,12 +84,23 @@ public final class CaptureEngine {
     }
 
     /**
-     * Sound to samples: how long before we read it the newest sample was
-     * captured, as the device reports it. Covers the mic path, the platform's
-     * AEC/NS and the record buffer. -1 until the device reports a timestamp.
+     * Audio captured but not yet encoded that never drains, ms: a standing
+     * backlog adds that much to every frame. Above one frame it is dropped
+     * ({@link #micDroppedMs}). -1 before the first second.
+     * <p>
+     * Not the device's whole input latency (mic, AEC/NS): phones tested so far
+     * report capture timestamps at read time, so that part cannot be measured
+     * from here.
      */
-    public int inputLatencyMs() {
-        return inputLatencyMs;
+    public int micQueueMs() {
+        MicBacklog b = backlog;
+        return b == null ? -1 : b.queueMs();
+    }
+
+    /** Audio dropped to clear a standing backlog, ms. */
+    public long micDroppedMs() {
+        MicBacklog b = backlog;
+        return b == null ? 0 : b.droppedMs();
     }
 
     /** Which platform effects are active, for the test screen. */
@@ -165,29 +175,25 @@ public final class CaptureEngine {
     private void loop() {
         Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
         short[] pcm = new short[frameSamples];
+        short[] chunk = new short[8 * frameSamples];
+        SampleFifo fifo = new SampleFifo(16 * frameSamples);
+        MicBacklog mic = new MicBacklog(frameSamples);
+        backlog = mic;
         byte[] packet = new byte[Opus.MAX_PACKET];
         long seq = 0;
-        long framesRead = 0;
-        AudioTimestamp ts = new AudioTimestamp();
         boolean afterDtx = false;
         long timestamp = new SecureRandom().nextInt() & 0xffffffffL; // random start per ssrc (§5)
         while (running) {
-            int got = 0;
-            while (got < frameSamples && running) {
-                int n = record.read(pcm, got, frameSamples - got);
-                if (n < 0) {
-                    TimberLogger.e(TAG, "AudioRecord.read failed: %d", n);
-                    running = false;
-                    return;
-                }
-                got += n;
+            // Wait for one frame, then take whatever else is already queued, so
+            // the queue lives in our FIFO where it can be measured.
+            while (fifo.size() < frameSamples && running) {
+                if (!readInto(fifo, chunk, frameSamples - fifo.size(), AudioRecord.READ_BLOCKING)) return;
             }
-            framesRead += frameSamples;
-            if (seq % 25 == 0 && record.getTimestamp(ts, AudioTimestamp.TIMEBASE_MONOTONIC) == AudioRecord.SUCCESS) {
-                // Frame ts.framePosition was captured at ts.nanoTime; our newest is that many frames later.
-                long capturedNs = ts.nanoTime + (framesRead - ts.framePosition) * 1_000_000_000L / Opus.SAMPLE_RATE;
-                inputLatencyMs = (int) ((System.nanoTime() - capturedNs) / 1_000_000);
-            }
+            if (!readInto(fifo, chunk, Math.min(chunk.length, fifo.free()), AudioRecord.READ_NON_BLOCKING)) return;
+            fifo.pop(pcm, frameSamples);
+            int drop = mic.observe(fifo.size(), android.os.SystemClock.elapsedRealtime());
+            if (drop > 0) fifo.drop(drop); // the dropped audio is simply never sent; seq and timestamp run on
+
             if (muted) Arrays.fill(pcm, (short) 0);
             int lvl = SpikeFrame.level(pcm, frameSamples);
             level = lvl;
@@ -210,6 +216,53 @@ public final class CaptureEngine {
             sink.send(wire);
             framesSent++;
             bytesSent += wire.length;
+        }
+    }
+
+    /** @return false if the recorder failed */
+    private boolean readInto(SampleFifo fifo, short[] chunk, int want, int mode) {
+        if (want <= 0) return true;
+        int n = record.read(chunk, 0, want, mode);
+        if (n < 0) {
+            TimberLogger.e(TAG, "AudioRecord.read failed: %d", n);
+            running = false;
+            return false;
+        }
+        fifo.push(chunk, n);
+        return true;
+    }
+
+    /** A ring of 16-bit samples. Only the capture thread uses it. */
+    static final class SampleFifo {
+        private final short[] buf;
+        private int head, size;
+
+        SampleFifo(int capacity) {
+            buf = new short[capacity];
+        }
+
+        int size() {
+            return size;
+        }
+
+        int free() {
+            return buf.length - size;
+        }
+
+        void push(short[] src, int n) {
+            for (int i = 0; i < n; i++) buf[(head + size + i) % buf.length] = src[i];
+            size += n;
+        }
+
+        void pop(short[] dst, int n) {
+            for (int i = 0; i < n; i++) dst[i] = buf[(head + i) % buf.length];
+            drop(n);
+        }
+
+        void drop(int n) {
+            n = Math.min(n, size);
+            head = (head + n) % buf.length;
+            size -= n;
         }
     }
 }

@@ -14,8 +14,12 @@ import java.util.TreeMap;
  *   <li><b>Target delay:</b> the 95th percentile of arrival jitter over the
  *   last 2 s, kept between 40 and 300 ms. Jitter is each frame's transit
  *   time (arrival minus media timestamp) above the window's fastest.</li>
- *   <li><b>Shrinking:</b> by skipping a frame, only one that is silent,
- *   while the buffer is more than two frames over target.</li>
+ *   <li><b>Shrinking:</b> while the buffer is more than two frames over
+ *   target, by skipping a quiet frame: one the sender marked silent, or 15 dB
+ *   below the speaker's recent loudest (the gaps between syllables). If a
+ *   second passes over target without one, a frame is dropped anyway, at most
+ *   one per 200 ms: continuous speech would otherwise keep the extra delay
+ *   until the speaker paused.</li>
  *   <li><b>Growing:</b> when the next frame is late and nothing after it has
  *   arrived, play concealment and wait for it instead of skipping it.</li>
  *   <li><b>Lost frame:</b> recovered from the next frame's FEC when that is
@@ -43,8 +47,13 @@ public final class JitterBuffer {
     static final int WINDOW_MS = 2_000;
     /** Longer than this without a frame is a pause: the next frame starts a new spurt. */
     static final int PAUSE_MS = 200;
+    /** A frame this many dB below the speaker's recent loudest counts as quiet. */
+    static final int QUIET_DB = 15;
+    /** Over target this long with no quiet frame to skip: drop one anyway. */
+    static final int FORCE_AFTER_MS = 1_000;
+    static final int FORCE_GAP_MS = 200;
 
-    private record Entry(byte[] data, boolean silent, boolean afterDtx) {}
+    private record Entry(byte[] data, boolean silent, boolean afterDtx, int level) {}
 
     private final int frameMs;
     private final TreeMap<Long, Entry> frames = new TreeMap<>();
@@ -58,9 +67,12 @@ public final class JitterBuffer {
     private long spurtStartMs;
     private long lastArrivalMs;
     private int waitedFrames;
+    /** Level (-dBov) of the speaker's recent loudest frames; decays towards silence. */
+    private double loudest = 127;
+    private long overSinceMs = -1, lastForcedMs = Long.MIN_VALUE / 2;
 
     // Counters, for the UI and tests.
-    private long received, played, fecRecovered, concealed, dtxGap, late, skipped, stretched, duplicates;
+    private long received, played, fecRecovered, concealed, dtxGap, late, skipped, forced, stretched, duplicates;
 
     public JitterBuffer(int frameMs) {
         this.frameMs = frameMs;
@@ -70,18 +82,21 @@ public final class JitterBuffer {
      * @param timestamp media timestamp, 48 kHz samples
      * @param silent    true for a quiet frame, which is safe to skip
      * @param afterDtx  the sender skipped the frames before this one as DTX
+     * @param level     audio level, -dBov (0 loudest, 127 silence)
      */
     public synchronized void put(long seq, long timestamp, byte[] data, boolean silent, boolean afterDtx,
-                                 long arrivalMs) {
+                                 int level, long arrivalMs) {
         if (seq < nextSeq) {
             late++;
             return;
         }
-        if (frames.putIfAbsent(seq, new Entry(data, silent, afterDtx)) != null) {
+        if (frames.putIfAbsent(seq, new Entry(data, silent, afterDtx, level)) != null) {
             duplicates++;
             return;
         }
         received++;
+        // Follow the speaker's loudest: jump up at once, fall back ~2.5 dB/s.
+        loudest = level < loudest ? level : Math.min(127, loudest + 0.05);
         if (seq > maxSeq) maxSeq = seq;
         if (frames.size() == 1 && !playing) spurtStartMs = arrivalMs;
         lastArrivalMs = arrivalMs;
@@ -103,14 +118,26 @@ public final class JitterBuffer {
             waitedFrames = 0;
         }
 
-        // Shrink: more than two frames over target, and this frame is silent.
+        // Shrink: more than two frames over target. Skip a quiet frame, or after
+        // a second over target with none, any frame.
         long depth = maxSeq - nextSeq + 1;
         long targetFrames = (targetMs() + frameMs - 1) / frameMs;
+        boolean over = depth > targetFrames + 2;
+        if (!over) overSinceMs = -1;
+        else if (overSinceMs < 0) overSinceMs = nowMs;
         Entry head = frames.get(nextSeq);
-        if (depth > targetFrames + 2 && head != null && head.silent && frames.containsKey(nextSeq + 1)) {
-            frames.remove(nextSeq++);
-            skipped++;
-            head = frames.get(nextSeq);
+        if (over && head != null && frames.containsKey(nextSeq + 1)) {
+            boolean quiet = head.silent || head.level >= loudest + QUIET_DB;
+            boolean force = nowMs - overSinceMs >= FORCE_AFTER_MS && nowMs - lastForcedMs >= FORCE_GAP_MS;
+            if (quiet || force) {
+                frames.remove(nextSeq++);
+                skipped++;
+                if (!quiet) {
+                    forced++;
+                    lastForcedMs = nowMs;
+                }
+                head = frames.get(nextSeq);
+            }
         }
         // Far over the ceiling, whatever the content: catch up.
         long maxFrames = MAX_TARGET_MS / frameMs + 2;
@@ -192,17 +219,18 @@ public final class JitterBuffer {
     }
 
     public synchronized Stats stats() {
-        return new Stats(received, played, fecRecovered, concealed, dtxGap, late, skipped, stretched, duplicates,
-                targetMs(), depthMs());
+        return new Stats(received, played, fecRecovered, concealed, dtxGap, late, skipped, forced, stretched,
+                duplicates, targetMs(), depthMs());
     }
 
     /**
      * {@code concealed} and {@code fecRecovered} are frames lost; {@code dtxGap}
      * frames were never sent; {@code stretched} is concealment played while
-     * waiting for a late frame (growing the delay).
+     * waiting for a late frame (growing the delay). {@code skipped} frames were
+     * dropped to shrink it; {@code forced} of them were not quiet.
      */
     public record Stats(long received, long played, long fecRecovered, long concealed, long dtxGap, long late,
-                        long skipped, long stretched, long duplicates, int targetMs, int depthMs) {
+                        long skipped, long forced, long stretched, long duplicates, int targetMs, int depthMs) {
 
         /** Lost frames over frames that should have arrived, in percent. */
         public double lossPercent() {

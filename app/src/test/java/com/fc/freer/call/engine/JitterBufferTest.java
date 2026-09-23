@@ -28,7 +28,12 @@ public class JitterBufferTest {
 
         /** Frame {@code seq} leaves at seq * 20 ms and arrives {@code delay} later. flags: 1 silent, 2 afterDtx. */
         void send(long seq, long delayMs, int flags) {
-            arrivals.add(new long[]{seq * FRAME_MS + delayMs, seq, flags});
+            send(seq, delayMs, flags, (flags & 1) != 0 ? 127 : 30);
+        }
+
+        /** As above, with the frame's level in -dBov. */
+        void send(long seq, long delayMs, int flags, int level) {
+            arrivals.add(new long[]{seq * FRAME_MS + delayMs, seq, flags, level});
         }
 
         void run(long untilMs) {
@@ -37,7 +42,8 @@ public class JitterBufferTest {
             for (long t = 0; t <= untilMs; t++) {
                 while (next < arrivals.size() && arrivals.get(next)[0] <= t) {
                     long[] a = arrivals.get(next++);
-                    jb.put(a[1], a[1] * SAMPLES, new byte[]{(byte) a[1]}, (a[2] & 1) != 0, (a[2] & 2) != 0, a[0]);
+                    jb.put(a[1], a[1] * SAMPLES, new byte[]{(byte) a[1]}, (a[2] & 1) != 0, (a[2] & 2) != 0,
+                            (int) a[3], a[0]);
                 }
                 if (t % FRAME_MS == 5) pulls.add(jb.pull(t).kind()); // playout phase offset from sending
             }
@@ -167,5 +173,39 @@ public class JitterBufferTest {
         assertEquals(100, st.played());
         assertEquals(1, st.duplicates());
         assertEquals(1, st.late());
+    }
+
+    /**
+     * Frames 100-106 are held up and arrive together with frame 107, 140 ms
+     * late: a jitter spike, shorter than a pause. Continuous speech around it.
+     */
+    private static Sim spikeInSpeech(java.util.function.LongToIntFunction level) {
+        Sim s = new Sim();
+        for (long i = 0; i < 700; i++) {
+            long d = i >= 100 && i < 107 ? 30 + (107 - i) * FRAME_MS : 30;
+            s.send(i, d, 0, level.applyAsInt(i));
+        }
+        return s;
+    }
+
+    @Test
+    public void continuousSpeechDoesNotKeepTheExtraDelay() {
+        Sim s = spikeInSpeech(i -> 30); // never quiet
+        s.run(700 * FRAME_MS - 200);    // stop while frames are still flowing
+        JitterBuffer.Stats st = s.stats();
+        assertTrue("it grew for the spike", st.stretched() > 0);
+        assertTrue("with no quiet frame, it dropped some anyway", st.forced() > 0);
+        assertTrue("back near target: depth " + st.depthMs() + ", target " + st.targetMs(),
+                st.depthMs() <= st.targetMs() + 3 * FRAME_MS);
+    }
+
+    @Test
+    public void quietGapsBetweenSyllablesAreSkippedFirst() {
+        Sim s = spikeInSpeech(i -> i % 5 == 0 ? 60 : 30); // a gap 30 dB down every 100 ms
+        s.run(700 * FRAME_MS - 200);
+        JitterBuffer.Stats st = s.stats();
+        assertTrue("it shrank", st.skipped() > 0);
+        assertEquals("only quiet frames were dropped", 0, st.forced());
+        assertTrue("back near target: depth " + st.depthMs(), st.depthMs() <= st.targetMs() + 3 * FRAME_MS);
     }
 }
