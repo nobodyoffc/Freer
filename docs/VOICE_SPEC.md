@@ -6,7 +6,7 @@ implement this document. The same file is kept in both repositories —
 `FreerForMac/VOICE_SPEC.md` and `Freer/docs/VOICE_SPEC.md` — so change both
 together.
 
-Status: **decided; Phase 1 transport implemented in FC-JDK** (branch `fudp-datagram`), not yet ported to FC-AJDK or the Mac, and its gate not yet passed (§14). The answers to the design questions are recorded in §15.
+Status: **decided; Phase 1 done** — the DATAGRAM transport is implemented in FC-JDK, FC-AJDK and the Mac (branch `fudp-datagram` in each), checked against shared vectors, frozen in FUDP7, and its gate passed on 2026-09-23 (§14). Phase 2 is next. The answers to the design questions are recorded in §15.
 
 This is the implementation contract. The protocol documents it adds or
 amends (§13) are written from it once the wire format is frozen at the end
@@ -664,6 +664,8 @@ For scale, at 24 kbps Opus and 40 ms frames:
 
 A meeting with no participants closes after 60 s.
 
+The relay SHOULD keep its UDP receive buffer small, not raise it to absorb bursts. A relay that falls behind should drop frames. A deep buffer instead turns overload into a standing queue: in the Phase 1 bench, a raised `rmem_max` turned a CPU-starved relay's backlog into seconds of delay on every frame. Audio that late is worthless (Decision 1).
+
 ## 8. Meetings in a Room or Team
 
 **Choosing the relay:**
@@ -864,14 +866,15 @@ most, the current call. It cannot reach the wallet.
 
 ## 13. Protocol documents
 
-New documents are written once the wire format is frozen (end of Phase 1).
-Until then, this file is the only source for the DATAGRAM frame. The FUDP1,
-FUDP3 and FUDP4 amendments were made early because they describe behaviour
-that FC-JDK already has, some of which changed for every frame type.
+New documents are written once the wire format they describe is frozen. The
+DATAGRAM frame froze at the end of Phase 1 and is specified in FUDP7; the
+rest waits for Phases 3 and 4. The FUDP1, FUDP3 and FUDP4 amendments were
+made early because they describe behaviour that FC-JDK already has, some of
+which changed for every frame type.
 
 | Document | Change |
 |---|---|
-| `FUDP/FUDP7V1_Datagram.md` | New: §2 of this spec. |
+| `FUDP/FUDP7V1_Datagram.md` | New: §2 of this spec. **Drafted** 2026-09-23; FUDP0 lists it and FUDP1's frame table points to it. |
 | `FUDP/FUDP1V1_CoreTransport.md` | Add `0x10` to the Frame Type Summary, pointing to FUDP7. **Done** 2026-09-22, with the unknown-frame rules and the packet size budget. |
 | `FUDP/FUDP3V1_LossAndCongestion.md` | **Done** 2026-09-22: DATAGRAM not ack-eliciting, ACKs listing untracked numbers, loss gap in tracked packets, RTT sampling, stream rate cap, recording every non-eliciting packet, ACK frames limited to one packet. |
 | `FUDP/FUDP4V1_Security.md` | **Done** 2026-09-22: an unparseable authentic packet is not a decrypt failure. |
@@ -913,17 +916,19 @@ the change needs (`LossyRequestResponseTest`, `WanSimulationThroughputTest`,
    - `DatagramPriorityTest`: during a bulk upload on the same connection, the sender never makes a datagram wait or drops it (the downstream delay is measured and printed); with the upload capped (§9.5), audio delay stays within 5 ms of idle
    - `UnknownFrameTest`: a peer without `0x10` loses only that packet, and the connection survives
    - `DatagramRelayBench`: 1 sender, 60 receivers, 25 to 500 pps. Run explicitly (`-Dtest=DatagramRelayBench`); the delay gate only with `-Dbench.latencyGate=true`
-3. **FC-AJDK:** port the same diff. Most of it applies unchanged. `Protocol.java` and `FudpNode.java` differ between the two copies, so those parts are merged by hand.
-4. **Mac FCTransport:** the same changes.
-5. **vector-gen:** DATAGRAM frame encoding vectors, checked by all three.
+3. **FC-AJDK:** port the same diff. Most of it applies unchanged. `Protocol.java` and `FudpNode.java` differ between the two copies, so those parts are merged by hand. **Done** 2026-09-22 (Freer branch `fudp-datagram`), with the tests, which run on the JUnit Platform. An FC-AJDK node has no file-backed REQUEST path, so a request over 16 MB sent *to* it is dropped: the Android copy of `DatagramPriorityTest` uploads 12 MB.
+4. **Mac FCTransport:** the same changes. **Done** 2026-09-22 (FreerForMac branch `fudp-datagram`), with ports of the tests.
+5. **vector-gen:** DATAGRAM frame encoding vectors, checked by all three. **Done** 2026-09-23: `datagram_frame`, `datagram_payload` and `datagram_max_size` in `fudpVectors.json`, checked by `DatagramVectorTest` in FC-JDK and FC-AJDK and by `DatagramFrameTests` in FCTransport. Each repository keeps a copy of the file; regenerate it in vector-gen and copy it to all three.
 
 **Gate:**
 
 - One server core forwards at least 20 000 datagrams/s, with p99 added delay below 5 ms.
   - "Per core" is forwards per CPU-second of the relay's receive thread. "Added delay" is the wait before the relay's listener runs plus its fan-out to the last receiver.
   - Throughput: **passed** — about 50 000 forwards per CPU-second at 21 000 forwards/s (on a Mac).
-  - Delay: **not yet passed.** On a Mac with the relay, the sender and all 60 receivers in one JVM, p99 varied between runs from under 2 ms to about 10 ms, with no GC to blame: the tail measures that machine's thread scheduling. To be run on a Linux host.
-- The wire format is frozen, and the protocol docs in §13 are drafted.
+  - Delay: **passed** 2026-09-23, three runs in a row. The relay and the sender ran on an OVH VPS in Singapore, and the 60 receivers ran on a VPS in Europe (`-Dbench.role=relay`, `clients -Dbench.part=sender|receivers`). The relay's 60 copies of each datagram went out over its real network interface, while inbound stayed on one clock. In the first run, inbound p99 + hold p99 was 1.0 + 2.9 ms at 25 pps and 1.2 + 2.7 ms at 350 pps (21 000 fwd/s), with nothing lost or dropped. Hold, the relay's own fan-out, is about 25 µs per copy.
+  - Throughput on that host: 32 000 forwards per CPU-second at 350 pps. At 500 pps (30 000 fwd/s) the relay thread used 82% of a core and inbound p99 rose to 18 ms, so one core tops out at about 25–30k fwd/s, roughly five 64-person meetings with three speakers each. That is the ceiling for Phase 4's load test.
+  - Where not to measure: every host on one machine. On a 4-vCPU VPS the 61 client nodes starved the relay thread of CPU, and Linux charged their loopback receive work to it. On a Mac the scheduling tail varied from 2 to 10 ms p99 between runs. With the sender on another continent, internet jitter (about 6 ms one way at p99, Europe to Singapore) swamped the relay's own delay.
+- The wire format is frozen, and the protocol docs in §13 are drafted. **Passed** 2026-09-23 for the DATAGRAM frame: vectors agree across all three implementations and FUDP7 is drafted. The call-layer documents in §13 (FAPI16, FIMP5) describe Phases 3 and 4, and are written when those formats freeze.
 
 ### Phase 2 — Audio spike (Android only)
 

@@ -11,8 +11,10 @@ import com.fc.fc_ajdk.fudp.metrics.MeterListener;
 import com.fc.fc_ajdk.fudp.metrics.MeterRecord;
 import com.fc.fc_ajdk.fudp.packet.Packet;
 import com.fc.fc_ajdk.fudp.packet.frames.AckFrame;
+import com.fc.fc_ajdk.fudp.packet.frames.DatagramFrame;
 import com.fc.fc_ajdk.fudp.packet.frames.StreamFrame;
 import com.fc.fc_ajdk.fudp.stream.Stream;
+import com.fc.fc_ajdk.fudp.transport.DatagramResult;
 import com.fc.fc_ajdk.fudp.util.Varint;
 import com.fc.fc_ajdk.utils.TimberLogger;
 
@@ -920,6 +922,22 @@ public class FudpNode implements Protocol.PacketListener {
         long connId = connection.getConnectionId();
         ConnectionContext ctx = ConnectionContext.of(connection);
 
+        // Datagrams first: they are the latency-sensitive traffic, and a
+        // datagram-only packet needs nothing else below.
+        NodeEventListener datagramListener = eventListener;
+        if (datagramListener != null && packet.hasDatagram()) {
+            for (var frame : packet.getFrames()) {
+                if (frame instanceof DatagramFrame df) {
+                    try {
+                        datagramListener.onDatagram(peerId, connId, df.getData());
+                    } catch (RuntimeException e) {
+                        TimberLogger.w(TAG, "[FudpNode] onDatagram threw for peer %s connection %d: %s",
+                                peerId, connId, e);
+                    }
+                }
+            }
+        }
+
         // Update peer book with current address
         peerBook.updateFromConnection(peerId, connection.getPeerPublicKey(), connection.getPeerAddress());
 
@@ -1521,6 +1539,74 @@ public class FudpNode implements Protocol.PacketListener {
         } catch (IOException e) {
             // Ignore
         }
+    }
+
+    // Datagrams (FUDP7)
+
+    /**
+     * Allow DATAGRAM frames on a connection, with the configured rate budget
+     * ({@link NodeConfig#getDatagramRateBps()}). Call only once the peer has
+     * shown it supports them: an older peer loses every packet carrying one.
+     *
+     * @return false if there is no such connection
+     */
+    public boolean enableDatagrams(long connectionId) {
+        PeerConnection conn = protocol.getConnectionManager().getByConnectionId(connectionId);
+        if (conn == null) return false;
+        conn.getDatagramBudget().setRate(config.getDatagramRateBps());
+        conn.setDatagramsEnabled(true);
+        return true;
+    }
+
+    /**
+     * Override the DATAGRAM rate budget of one connection.
+     *
+     * @return false if there is no such connection
+     */
+    public boolean setDatagramRate(long connectionId, long rateBps) {
+        PeerConnection conn = protocol.getConnectionManager().getByConnectionId(connectionId);
+        if (conn == null) return false;
+        conn.getDatagramBudget().setRate(rateBps);
+        return true;
+    }
+
+    /**
+     * Send one unreliable datagram on a connection. Never blocks, never
+     * retransmits; any result other than SENT means it was dropped.
+     */
+    public DatagramResult sendDatagram(long connectionId, byte[] data) {
+        return protocol.sendDatagram(protocol.getConnectionManager().getByConnectionId(connectionId), data);
+    }
+
+    /**
+     * Send several datagrams on a connection, packed into as few packets as
+     * fit (for a relay forwarding frames that fall due together).
+     */
+    public DatagramResult[] sendDatagrams(long connectionId, List<byte[]> datagrams) {
+        return protocol.sendDatagrams(protocol.getConnectionManager().getByConnectionId(connectionId), datagrams);
+    }
+
+    /**
+     * Cap the rate of stream (reliable) data on a connection, in bits per
+     * second; 0 removes it. DATAGRAM frames are exempt.
+     *
+     * <p>Datagrams go out ahead of stream data at the sender, but a bulk
+     * transfer still fills any queue further along the path, and audio then
+     * waits behind it. A call layer should cap bulk transfers below the path
+     * rate for the duration of a call, or pause them.
+     *
+     * @return false if there is no such connection
+     */
+    public boolean setStreamRateCap(long connectionId, long bitsPerSecond) {
+        PeerConnection conn = protocol.getConnectionManager().getByConnectionId(connectionId);
+        if (conn == null) return false;
+        conn.setStreamRateCapBps(bitsPerSecond);
+        return true;
+    }
+
+    /** Largest datagram payload this node can send in one packet. */
+    public int getMaxDatagramSize() {
+        return protocol.getMaxDatagramSize();
     }
 
     // Internal helpers
