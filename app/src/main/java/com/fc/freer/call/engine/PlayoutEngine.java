@@ -1,6 +1,7 @@
 package com.fc.freer.call.engine;
 
 import android.media.AudioAttributes;
+import android.media.AudioTimestamp;
 import android.media.AudioFormat;
 import android.media.AudioTrack;
 import android.os.Process;
@@ -50,6 +51,8 @@ public final class PlayoutEngine {
     private AudioTrack track;
     private volatile int trackBufferMs;
     private volatile int underruns;
+    private volatile int outputLatencyMs = -1;
+    private long framesWritten;
     private volatile long wrongFrameSize;
 
     public PlayoutEngine(int frameMs) {
@@ -71,6 +74,15 @@ public final class PlayoutEngine {
     /** Playout buffer in the AudioTrack, ms: part of mouth-to-ear delay. */
     public int trackBufferMs() {
         return trackBufferMs;
+    }
+
+    /**
+     * Written to heard: from handing a frame to the AudioTrack to the moment
+     * the device reports presenting it. Covers our buffer, the platform mixer,
+     * DSP and driver. -1 until the device reports a timestamp.
+     */
+    public int outputLatencyMs() {
+        return outputLatencyMs;
     }
 
     /** Times the AudioTrack ran dry, each of which grew {@link #trackBufferMs}. */
@@ -137,6 +149,8 @@ public final class PlayoutEngine {
         short[] pcm = new short[frameSamples];
         int[] mix = new int[frameSamples];
         short[] out = new short[frameSamples];
+        AudioTimestamp ts = new AudioTimestamp();
+        int ticks = 0;
         while (running) {
             long now = SystemClock.elapsedRealtime();
             java.util.Arrays.fill(mix, 0);
@@ -168,8 +182,21 @@ public final class PlayoutEngine {
             for (int i = 0; i < frameSamples; i++) out[i] = softClip(mix[i]);
             // Blocks until there is room: this is what paces the loop.
             track.write(out, 0, frameSamples);
+            framesWritten += frameSamples;
             growOnUnderrun();
+            if (++ticks % 25 == 0) measureOutputLatency(ts);
         }
+    }
+
+    /**
+     * The device presented frame {@code ts.framePosition} at {@code ts.nanoTime};
+     * the last frame written will be presented that many frames later.
+     */
+    private void measureOutputLatency(AudioTimestamp ts) {
+        if (!track.getTimestamp(ts)) return;
+        long queuedFrames = framesWritten - ts.framePosition;
+        long sinceNs = System.nanoTime() - ts.nanoTime;
+        outputLatencyMs = (int) (queuedFrames * 1000 / Opus.SAMPLE_RATE - sinceNs / 1_000_000);
     }
 
     /** The track ran dry: give it half a frame more, up to what it holds. */

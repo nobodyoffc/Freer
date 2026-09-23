@@ -3,6 +3,7 @@ package com.fc.freer.call.engine;
 import android.annotation.SuppressLint;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
+import android.media.AudioTimestamp;
 import android.media.MediaRecorder;
 import android.media.audiofx.AcousticEchoCanceler;
 import android.media.audiofx.AutomaticGainControl;
@@ -41,6 +42,7 @@ public final class CaptureEngine {
     private volatile int level = 127;
     private volatile long framesSent, dtxSkipped, bytesSent;
     private volatile String effects = "";
+    private volatile int inputLatencyMs = -1;
     private Thread thread;
     private AudioRecord record;
     private Opus.Encoder encoder;
@@ -80,6 +82,15 @@ public final class CaptureEngine {
 
     public long bytesSent() {
         return bytesSent;
+    }
+
+    /**
+     * Sound to samples: how long before we read it the newest sample was
+     * captured, as the device reports it. Covers the mic path, the platform's
+     * AEC/NS and the record buffer. -1 until the device reports a timestamp.
+     */
+    public int inputLatencyMs() {
+        return inputLatencyMs;
     }
 
     /** Which platform effects are active, for the test screen. */
@@ -156,6 +167,8 @@ public final class CaptureEngine {
         short[] pcm = new short[frameSamples];
         byte[] packet = new byte[Opus.MAX_PACKET];
         long seq = 0;
+        long framesRead = 0;
+        AudioTimestamp ts = new AudioTimestamp();
         boolean afterDtx = false;
         long timestamp = new SecureRandom().nextInt() & 0xffffffffL; // random start per ssrc (§5)
         while (running) {
@@ -168,6 +181,12 @@ public final class CaptureEngine {
                     return;
                 }
                 got += n;
+            }
+            framesRead += frameSamples;
+            if (seq % 25 == 0 && record.getTimestamp(ts, AudioTimestamp.TIMEBASE_MONOTONIC) == AudioRecord.SUCCESS) {
+                // Frame ts.framePosition was captured at ts.nanoTime; our newest is that many frames later.
+                long capturedNs = ts.nanoTime + (framesRead - ts.framePosition) * 1_000_000_000L / Opus.SAMPLE_RATE;
+                inputLatencyMs = (int) ((System.nanoTime() - capturedNs) / 1_000_000);
             }
             if (muted) Arrays.fill(pcm, (short) 0);
             int lvl = SpikeFrame.level(pcm, frameSamples);
