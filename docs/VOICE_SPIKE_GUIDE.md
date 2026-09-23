@@ -63,13 +63,17 @@ not the LAN.
    Record both channels for 30 s.
 3. **Measure.** Mouth-to-ear delay is the time from each click on channel 1
    to the same click on channel 2. Take the median and the worst.
-4. **Read the estimate.** The screen's `est. one-way` line shows the part
-   the app controls (network ~RTT/2, jitter buffer, AudioTrack buffer, one
-   frame). The rest is the phones' own audio paths.
+4. **Compare with the screens.** Phone B's `network + jitter buffer +
+   speaker path` line, plus one frame, accounts for all but phone A's
+   microphone path, which the phones do not report. The difference from
+   the measured delay is roughly that microphone path.
 
-If the cable is hard to arrange: hold phone A's mic to a speaker playing
-clicks, with the recorder's mic near both that speaker and phone B's earpiece.
-It is less precise, but enough to tell 250 ms from 400 ms.
+Without a cable: record with a third device while saying a sharp "ta" into
+phone A every few seconds. Phone B must be **muted** and in **another room or
+on earphones**; if its speaker can reach phone A's microphone, the call
+feeds back on itself (A's echo canceller only removes A's own playback). The
+recording shows each "ta" twice: directly, with energy above 8 kHz, and from
+phone B, with none. The gap is the mouth-to-ear delay.
 
 ### 2. Intelligible at 5% loss
 
