@@ -2719,4 +2719,31 @@
     <string name="call_record_busy">Busy</string>
     <string name="call_record_cancelled">Cancelled call</string>
     <string name="call_record_answered_elsewhere">Answered on another device</string>
+    <!-- Voice calls: the call screen and notifications -->
+    <string name="call_title">Voice call</string>
+    <string name="menu_voice_call">Voice call</string>
+    <string name="call_answer">Answer</string>
+    <string name="call_decline">Decline</string>
+    <string name="call_hang_up">Hang up</string>
+    <string name="call_mute">Mute</string>
+    <string name="call_speaker">Speaker</string>
+    <string name="call_status_calling">Calling…</string>
+    <string name="call_status_incoming">Incoming call</string>
+    <string name="call_status_connecting">Connecting…</string>
+    <string name="call_e2ee">🔒 End-to-end encrypted</string>
+    <string name="call_relayed_via">Relayed via %1$s</string>
+    <string name="call_relayed_via_rtt">Relayed via %1$s · %2$d ms</string>
+    <string name="call_unverified">Audio claimed to be from %1$s could not be verified, and has been silenced.</string>
+    <string name="call_end_ended">Call ended</string>
+    <string name="call_end_no_relay">No call relay: neither of you has one in your home services.</string>
+    <string name="call_end_busy_here">You are already in a call.</string>
+    <string name="call_end_failed">Call failed: %1$s</string>
+    <string name="call_end_unsupported">Their app cannot take calls.</string>
+    <string name="call_channel_incoming">Incoming calls</string>
+    <string name="call_channel_ongoing">Ongoing call</string>
+    <string name="call_incoming_title">Incoming voice call</string>
+    <string name="call_ongoing_title">Voice call</string>
+    <string name="call_nobody_confirm">This is a nobody FID: anyone may hold its key, so a call with it is only as private as a public square. Call anyway?</string>
+    <string name="call_need_mic">Calls need the microphone.</string>
+    <string name="voice_spike_call_relay">Call relay for real calls (fudp://host:port, debug)</string>
 </resources>

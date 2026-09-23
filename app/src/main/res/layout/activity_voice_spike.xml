@@ -183,6 +183,14 @@
                 android:layout_height="wrap_content"
                 android:text="@string/voice_spike_start" />
 
+            <EditText
+                android:id="@+id/callRelay"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:hint="@string/voice_spike_call_relay"
+                android:inputType="textUri" />
+
             <TextView
                 android:id="@+id/status"
                 android:layout_width="match_parent"

@@ -1,5 +1,6 @@
 package com.fc.freer.im.handler;
 
+import static com.fc.fc_ajdk.constants.Constants.CALL_NO1_NRC7;
 import static com.fc.fc_ajdk.constants.Constants.ROAD_NO1_NRC7;
 
 import android.content.Context;
@@ -338,6 +339,37 @@ public class P2pHandler extends BaseHandler {
             }
         }
         return new RelayRoutes(targetDockUrl, targetRoadUrl, recipientHome, freshHome);
+    }
+
+    /**
+     * The CALL relay for a call to {@code targetFid} (VOICE_SPEC §6.2): my own
+     * {@code home.CALL@No1_NrC7} if I have one, else the callee's, from the
+     * known home or its on-chain freer. Null if neither side has one.
+     */
+    public String resolveCallRelay(String targetFid) {
+        if (fapiClient == null) return null;
+        HomeServiceResolver resolver = fapiClient.getHomeServiceResolver();
+        FidManager fidManager = FidManager.getInstance();
+        com.fc.fc_ajdk.data.fcData.KeyInfo mine = fidManager != null ? fidManager.getMainKeyInfo() : null;
+        if (mine != null && mine.getHome() != null) {
+            String url = resolver.resolveFromHome(mine.getHome(), CALL_NO1_NRC7, fapiClient);
+            if (url != null) return url;
+        }
+        TalkPartner partner = talkPartnerProvider != null ? talkPartnerProvider.getTalkPartner(targetFid) : null;
+        if (partner != null && partner.getHome() != null) {
+            String url = resolver.resolveFromHome(partner.getHome(), CALL_NO1_NRC7, fapiClient);
+            if (url != null) return url;
+        }
+        try {
+            com.fc.fc_ajdk.data.fchData.Freer freer = fapiClient.getFreer(targetFid);
+            if (freer != null && freer.getHome() != null) {
+                persistFreshHome(targetFid, freer.getHome());
+                return resolver.resolveFromHome(freer.getHome(), CALL_NO1_NRC7, fapiClient);
+            }
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "Failed to resolve %s's home for a call: %s", targetFid, e.getMessage());
+        }
+        return null;
     }
 
     /**

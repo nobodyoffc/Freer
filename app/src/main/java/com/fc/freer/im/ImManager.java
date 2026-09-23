@@ -1809,6 +1809,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
     private void startCallSignaller(byte[] userPrikey) {
         callSignaller = new CallSignaller(liveFid, userPrikey, this::sendCallSignal, this::recordCall,
                 System::currentTimeMillis);
+        com.fc.freer.call.CallManager.getInstance(context).attach(liveFid, callSignaller);
         callTicker = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "call-signal-tick");
             t.setDaemon(true);
@@ -1821,6 +1822,11 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 TimberLogger.w(TAG, "Call tick failed: %s", e.getMessage());
             }
         }, 1, 1, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
+    /** The CALL relay for a call to {@code peerFid}, or null. Blocking: not on the main thread. */
+    public String resolveCallRelay(String peerFid) {
+        return p2pHandler == null ? null : p2pHandler.resolveCallRelay(peerFid);
     }
 
     /** Call signalling for this identity; null before {@link #initialize}. */

@@ -2641,4 +2641,31 @@
     <string name="call_record_busy">对方忙</string>
     <string name="call_record_cancelled">已取消的通话</string>
     <string name="call_record_answered_elsewhere">已在其他设备接听</string>
+    <!-- 语音通话：通话界面与通知 -->
+    <string name="call_title">语音通话</string>
+    <string name="menu_voice_call">语音通话</string>
+    <string name="call_answer">接听</string>
+    <string name="call_decline">拒绝</string>
+    <string name="call_hang_up">挂断</string>
+    <string name="call_mute">静音</string>
+    <string name="call_speaker">扬声器</string>
+    <string name="call_status_calling">正在呼叫…</string>
+    <string name="call_status_incoming">来电</string>
+    <string name="call_status_connecting">正在连接…</string>
+    <string name="call_e2ee">🔒 端到端加密</string>
+    <string name="call_relayed_via">经 %1$s 中继</string>
+    <string name="call_relayed_via_rtt">经 %1$s 中继 · %2$d 毫秒</string>
+    <string name="call_unverified">声称来自 %1$s 的声音无法验证，已被静音。</string>
+    <string name="call_end_ended">通话已结束</string>
+    <string name="call_end_no_relay">没有通话中继：双方的主页服务中都没有设置。</string>
+    <string name="call_end_busy_here">你已在通话中。</string>
+    <string name="call_end_failed">通话失败：%1$s</string>
+    <string name="call_end_unsupported">对方的应用无法接听通话。</string>
+    <string name="call_channel_incoming">来电</string>
+    <string name="call_channel_ongoing">通话中</string>
+    <string name="call_incoming_title">语音来电</string>
+    <string name="call_ongoing_title">语音通话</string>
+    <string name="call_nobody_confirm">这是一个 nobody FID：任何人都可能持有它的私钥，与它通话的私密程度与公共广场相同。仍要呼叫吗？</string>
+    <string name="call_need_mic">通话需要麦克风权限。</string>
+    <string name="voice_spike_call_relay">真实通话用的中继（fudp://主机:端口，调试）</string>
 </resources>

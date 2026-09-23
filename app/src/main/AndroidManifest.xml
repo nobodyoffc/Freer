@@ -14,6 +14,14 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Voice calls (VOICE_SPEC §11.1): a foreground service of type microphone and
+         phoneCall, which on Android 14 needs MANAGE_OWN_CALLS; ringing over the lock
+         screen needs a full-screen intent, and notifications on Android 13+. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-feature android:name="android.hardware.camera" android:required="true" />
 
     <application
@@ -322,6 +330,15 @@
             android:exported="false"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
+
+        <activity android:name="com.fc.freer.call.CallActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:screenOrientation="portrait" />
+
+        <service android:name="com.fc.freer.call.CallService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|phoneCall" />
 
         <activity android:name="com.fc.freer.tools.TotpActivity"
             android:exported="false"

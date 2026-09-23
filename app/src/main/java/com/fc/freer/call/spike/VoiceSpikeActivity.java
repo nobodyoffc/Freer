@@ -116,6 +116,17 @@ public class VoiceSpikeActivity extends AppCompatActivity {
             if (capture != null) capture.setMuted(on);
         });
         speaker.setOnCheckedChangeListener((b, on) -> setSpeaker(on));
+        // Real calls (not this test) use this relay when it is set, ahead of the homes on chain.
+        EditText callRelay = findViewById(R.id.callRelay);
+        callRelay.setText(com.fc.freer.call.CallManager.getInstance(this).relayOverride());
+        callRelay.setOnFocusChangeListener((v, focused) -> {
+            if (!focused) com.fc.freer.call.CallManager.getInstance(this).setRelayOverride(callRelay.getText().toString());
+        });
+        if (getIntent().hasExtra("callRelay")) {
+            callRelay.setText(getIntent().getStringExtra("callRelay"));
+            com.fc.freer.call.CallManager.getInstance(this).setRelayOverride(getIntent().getStringExtra("callRelay"));
+        }
+
         applyExtras();
         startStop.setOnClickListener(v -> {
             if (transport != null) stop();
