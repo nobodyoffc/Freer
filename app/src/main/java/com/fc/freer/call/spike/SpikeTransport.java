@@ -43,7 +43,13 @@ public final class SpikeTransport implements AutoCloseable {
         /** Call a HOST phone at its address. */
         CALL,
         /** Join the relay; hear everyone else in it. */
-        RELAY
+        RELAY,
+        /**
+         * No network: this phone's frames go straight to its own playout, so a
+         * recording of a click next to it measures the device's own audio
+         * delay (mic path, frame, jitter buffer, speaker path).
+         */
+        LOOPBACK
     }
 
     public interface Listener {
@@ -81,10 +87,15 @@ public final class SpikeTransport implements AutoCloseable {
 
     /** Blocking: connects before returning. Call off the main thread. */
     public void start() throws Exception {
+        if (mode == Mode.LOOPBACK) {
+            listener.onStatus("loopback: this phone hears itself, with no network");
+            return;
+        }
         byte[] priv = switch (mode) {
             case HOST -> roomKey("host");
             case CALL -> roomKey("caller");
             case RELAY -> randomKey();
+            case LOOPBACK -> throw new IllegalStateException();
         };
         NodeConfig config = new NodeConfig();
         config.setPort(PHONE_PORT);
@@ -125,6 +136,7 @@ public final class SpikeTransport implements AutoCloseable {
             case HOST -> listener.onStatus("waiting on UDP " + PHONE_PORT + " for a caller with room code " + roomCode);
             case CALL -> join(KeyTools.prikeyToPubkey(roomKey("host")), remoteHost, PHONE_PORT, "voice-join");
             case RELAY -> join(KeyTools.prikeyToPubkey(relayKey()), remoteHost, RELAY_PORT, "join");
+            case LOOPBACK -> { }
         }
     }
 
@@ -165,6 +177,13 @@ public final class SpikeTransport implements AutoCloseable {
 
     /** From the capture thread: one frame to every connection. */
     public void send(byte[] frame) {
+        if (mode == Mode.LOOPBACK) {
+            sent.incrementAndGet();
+            received.incrementAndGet();
+            SpikeFrame f = SpikeFrame.decode(frame);
+            if (f != null) listener.onFrame(f, SystemClock.elapsedRealtime());
+            return;
+        }
         for (long conn : connections) {
             if (node.sendDatagram(conn, frame) == DatagramResult.SENT) sent.incrementAndGet();
             else sendDrops.incrementAndGet();

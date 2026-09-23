@@ -2689,6 +2689,7 @@
     <string name="voice_spike_mode_host">Wait for a call (this phone\'s address below)</string>
     <string name="voice_spike_mode_call">Call a waiting phone</string>
     <string name="voice_spike_mode_relay">Join the voice relay</string>
+    <string name="voice_spike_mode_loopback">Loopback on this phone (its own audio delay, no network)</string>
     <string name="voice_spike_room_code">Room code (same on both phones)</string>
     <string name="voice_spike_remote_host">Other phone\'s IP, or the relay host</string>
     <string name="voice_spike_frame_20">20 ms frames</string>

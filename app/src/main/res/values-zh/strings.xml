@@ -2611,6 +2611,7 @@
     <string name="voice_spike_mode_host">等待呼叫（本机地址见下方）</string>
     <string name="voice_spike_mode_call">呼叫等待中的手机</string>
     <string name="voice_spike_mode_relay">加入语音中继</string>
+    <string name="voice_spike_mode_loopback">本机回环（测本机音频延迟，不经网络）</string>
     <string name="voice_spike_room_code">房间码（两台手机相同）</string>
     <string name="voice_spike_remote_host">对方手机 IP 或中继地址</string>
     <string name="voice_spike_frame_20">20 毫秒帧</string>

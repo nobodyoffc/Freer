@@ -127,6 +127,7 @@ public class VoiceSpikeActivity extends AppCompatActivity {
         String mode = in.getStringExtra("mode");
         if ("call".equals(mode)) modeGroup.check(R.id.modeCall);
         else if ("relay".equals(mode)) modeGroup.check(R.id.modeRelay);
+        else if ("loopback".equals(mode)) modeGroup.check(R.id.modeLoopback);
         else if ("host".equals(mode)) modeGroup.check(R.id.modeHost);
         if (in.hasExtra("host")) remoteHost.setText(in.getStringExtra("host"));
         if (in.hasExtra("room")) roomCode.setText(in.getStringExtra("room"));
@@ -143,9 +144,10 @@ public class VoiceSpikeActivity extends AppCompatActivity {
         int checked = modeGroup.getCheckedRadioButtonId();
         SpikeTransport.Mode mode = checked == R.id.modeCall ? SpikeTransport.Mode.CALL
                 : checked == R.id.modeRelay ? SpikeTransport.Mode.RELAY
+                : checked == R.id.modeLoopback ? SpikeTransport.Mode.LOOPBACK
                 : SpikeTransport.Mode.HOST;
         String host = remoteHost.getText().toString().trim();
-        if (mode != SpikeTransport.Mode.HOST && host.isEmpty()) {
+        if ((mode == SpikeTransport.Mode.CALL || mode == SpikeTransport.Mode.RELAY) && host.isEmpty()) {
             Toast.makeText(this, R.string.voice_spike_need_host, Toast.LENGTH_LONG).show();
             return;
         }
@@ -310,10 +312,12 @@ public class VoiceSpikeActivity extends AppCompatActivity {
                     st.depthMs(), st.targetMs(), st.stretched(), st.skipped(), st.forced(), st.dtxGap()));
             // This phone's share of mouth-to-ear, from network arrival to sound. Add
             // the other phone's "mic->app" and one frame for its whole path.
+            boolean loopback = transport.mode() == SpikeTransport.Mode.LOOPBACK;
+            if (loopback) rtt = 0;
             if (rtt >= 0) {
                 int out = playout.outputLatencyMs() >= 0 ? playout.outputLatencyMs() : playout.trackBufferMs();
                 sb.append(String.format(Locale.US, "      network ~%d + jitter buffer %d + speaker path %d = %d ms"
-                                + " (+ sender's mic path + %d ms frame)%n",
+                                + (loopback ? " (+ this phone's mic path + %d ms frame)%n" : " (+ sender's mic path + %d ms frame)%n"),
                         rtt / 2, st.depthMs(), out, rtt / 2 + st.depthMs() + out, frameMsOf()));
             }
         }
