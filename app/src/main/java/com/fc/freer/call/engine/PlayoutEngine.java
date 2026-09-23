@@ -20,8 +20,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class PlayoutEngine {
 
     private static final String TAG = "PlayoutEngine";
-    /** A stream silent this long is dropped, decoder and all. */
-    private static final long STREAM_IDLE_MS = 10_000;
+    /** A stream silent this long is dropped, decoder and all. Long: DTX silences are normal. */
+    private static final long STREAM_IDLE_MS = 120_000;
     /** Mix above this is compressed rather than clipped. */
     private static final int KNEE = 24_576;
 

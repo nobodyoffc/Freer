@@ -124,6 +124,7 @@ public final class JitterBuffer {
 
         if (head != null) {
             frames.remove(nextSeq++);
+            stretched += waitedFrames; // the wait paid off: the delay grew by that much
             waitedFrames = 0;
             played++;
             return new Pull(Kind.FRAME, head.data);
@@ -132,14 +133,16 @@ public final class JitterBuffer {
         // Missing. Nothing newer has arrived: it is late, or the sender paused.
         if (frames.isEmpty()) {
             if (nowMs - lastArrivalMs > PAUSE_MS) {
-                // A pause: stop, and let the next frame start a new spurt.
+                // A pause: stop, and let the next frame start a new spurt. The
+                // wait was the end of speech, not growth, so it is not counted.
                 playing = false;
+                waitedFrames = 0;
                 return Pull.NOTHING;
             }
             if (waitedFrames * frameMs < MAX_TARGET_MS) {
-                // Grow: conceal and wait for it rather than skip it.
+                // Grow: conceal and wait for it rather than skip it. Counted in
+                // `stretched` once the wait ends in the frame or its loss.
                 waitedFrames++;
-                stretched++;
                 return Pull.CONCEAL;
             }
         }
@@ -148,13 +151,14 @@ public final class JitterBuffer {
         var following = frames.ceilingEntry(nextSeq);
         if (following != null && following.getValue().afterDtx) {
             nextSeq++;
-            waitedFrames = 0;
+            waitedFrames = 0; // waiting through DTX grew nothing
             dtxGap++;
             return Pull.CONCEAL;
         }
 
         // Lost: something after it is here (or we waited long enough).
         nextSeq++;
+        stretched += waitedFrames;
         waitedFrames = 0;
         Entry next = frames.get(nextSeq);
         if (next != null) {

@@ -61,6 +61,7 @@ public final class SpikeTransport implements AutoCloseable {
     private final List<Long> connections = new CopyOnWriteArrayList<>();
     private volatile double simulatedLoss;
     private FudpNode node;
+    private java.util.concurrent.ScheduledExecutorService pinger;
 
     private final AtomicLong sent = new AtomicLong(), sendDrops = new AtomicLong();
     private final AtomicLong received = new AtomicLong(), simulatedDrops = new AtomicLong();
@@ -127,6 +128,29 @@ public final class SpikeTransport implements AutoCloseable {
         }
     }
 
+    /**
+     * DATAGRAM frames are never acknowledged, so they never update the RTT
+     * estimate; without this it stays at whatever the join measured. One
+     * small request a second keeps it current (and keeps Wi-Fi power saving
+     * from batching the path).
+     */
+    private void startPinging(String peerFid) {
+        pinger = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "voice-spike-ping");
+            t.setDaemon(true);
+            return t;
+        });
+        pinger.scheduleWithFixedDelay(() -> {
+            FudpNode n = node;
+            if (n == null) return;
+            try {
+                n.request(peerFid, "ping", new byte[1]).get(3, TimeUnit.SECONDS);
+            } catch (Exception ignored) {
+                // a missed ping only leaves the RTT a second older
+            }
+        }, 1, 1, TimeUnit.SECONDS);
+    }
+
     private void join(byte[] peerPub, String host, int port, String service) throws Exception {
         String peerFid = KeyTools.pubkeyToFchAddr(peerPub);
         node.addPeer(peerFid, peerPub, host, port);
@@ -135,6 +159,7 @@ public final class SpikeTransport implements AutoCloseable {
         long conn = node.getProtocol().getConnectionManager().getAnyConnection(peerFid).getConnectionId();
         node.enableDatagrams(conn);
         connections.add(conn);
+        startPinging(peerFid);
         listener.onStatus("connected to " + host + ":" + port);
     }
 
@@ -175,6 +200,7 @@ public final class SpikeTransport implements AutoCloseable {
 
     @Override
     public void close() {
+        if (pinger != null) pinger.shutdownNow();
         if (node == null) return;
         if (mode == Mode.RELAY) {
             try {

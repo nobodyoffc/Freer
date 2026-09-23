@@ -299,7 +299,9 @@ public class VoiceSpikeActivity extends AppCompatActivity {
         }
         for (PlayoutEngine.Stream s : playout.streams().values()) {
             JitterBuffer.Stats st = s.buffer.stats();
-            sb.append(String.format(Locale.US, "%nfrom  ssrc %08x  level -%d dBov%n", s.ssrc, s.level()));
+            long quiet = (android.os.SystemClock.elapsedRealtime() - s.buffer.lastArrivalMs()) / 1000;
+            sb.append(String.format(Locale.US, "%nfrom  ssrc %08x  level -%d dBov%s%n", s.ssrc, s.level(),
+                    quiet >= 2 ? "  (silent " + quiet + "s)" : ""));
             sb.append(String.format(Locale.US, "      loss %.1f%%  fec %d  concealed %d  late %d%n",
                     st.lossPercent(), st.fecRecovered(), st.concealed(), st.late()));
             sb.append(String.format(Locale.US, "      buffer %d ms / target %d  stretched %d  skipped %d  dtx %d%n",
