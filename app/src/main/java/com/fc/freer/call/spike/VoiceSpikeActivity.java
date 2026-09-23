@@ -170,7 +170,7 @@ public class VoiceSpikeActivity extends AppCompatActivity {
         transport = new SpikeTransport(this, mode, roomCode.getText().toString().trim(), host,
                 new SpikeTransport.Listener() {
                     @Override
-                    public void onFrame(com.fc.freer.call.engine.SpikeFrame frame, long arrivalMs) {
+                    public void onFrame(com.fc.freer.call.engine.EncodedFrame frame, long arrivalMs) {
                         PlayoutEngine p = playout;
                         if (p != null) p.onFrame(frame, arrivalMs);
                     }

@@ -33,6 +33,15 @@ public record SpikeFrame(int flags, int ssrc, long seq, long timestamp, int leve
         return (flags & FLAG_DTX) != 0;
     }
 
+    public static SpikeFrame of(EncodedFrame f) {
+        int flags = (f.voiceActive() ? FLAG_VAD : 0) | (f.afterDtx() ? FLAG_DTX : 0);
+        return new SpikeFrame(flags, f.ssrc(), f.seq(), f.timestamp(), f.level(), f.opus());
+    }
+
+    public EncodedFrame toEncoded() {
+        return new EncodedFrame(ssrc, seq, timestamp, level, voiceActive(), afterDtx(), opus);
+    }
+
     public byte[] encode() {
         ByteBuffer b = ByteBuffer.allocate(HEADER + opus.length);
         b.put((byte) KIND).put((byte) flags).putInt(0).putInt(ssrc).putLong(seq)
