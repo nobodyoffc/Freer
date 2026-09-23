@@ -21,6 +21,12 @@ android {
     buildFeatures {
         buildConfig = true
     }
+
+    // JUnit 5 tests (the FUDP tests shared with FC-JDK) run on the JUnit
+    // Platform; the vintage engine keeps the JUnit 4 tests running too.
+    testOptions {
+        unitTests.all { it.useJUnitPlatform() }
+    }
 }
 
 dependencies {
@@ -36,6 +42,7 @@ dependencies {
     // Testing
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
     testImplementation("junit:junit:4.13.2")
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.10.1")
 
     // Logging
     implementation("org.slf4j:slf4j-api:2.0.9")

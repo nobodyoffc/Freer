@@ -8,6 +8,8 @@ import com.fc.fc_ajdk.fudp.packet.*;
 import com.fc.fc_ajdk.fudp.packet.frames.*;
 import com.fc.fc_ajdk.fudp.security.*;
 import com.fc.fc_ajdk.fudp.stream.Stream;
+import com.fc.fc_ajdk.fudp.transport.AckManager;
+import com.fc.fc_ajdk.fudp.transport.DatagramResult;
 import com.fc.fc_ajdk.fudp.transport.SentPacket;
 import com.fc.fc_ajdk.utils.TimberLogger;
 
@@ -15,6 +17,8 @@ import java.io.IOException;
 import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -36,6 +40,7 @@ public class Protocol {
 
     private final DatagramChannel channel;
     private Thread receiveThread;
+    private volatile Selector receiveSelector;
     private final ScheduledExecutorService scheduler;
     private ScheduledFuture<?> ackTask;
     private ScheduledFuture<?> retransmitTask;
@@ -45,11 +50,24 @@ public class Protocol {
 
     // Protocol settings
     private static final int DEFAULT_MAX_PACKET_SIZE = 1350;
-    private static final int HEADER_OVERHEAD = PacketHeader.HEADER_SIZE + 52; // Header + crypto bundle overhead
+
+    // Every byte a packet spends outside its frames. maxPacketSize is a hard
+    // limit on the UDP payload: a packet over the path MTU is split into IP
+    // fragments, and losing either fragment loses the packet.
+    //
+    // Size of the AsyTwoWay crypto bundle around the plaintext: 6-byte
+    // algorithm prefix + type (1) + sender pubkey (33) + IV (12) + GCM tag (16).
+    // (This was budgeted as 52, 16 bytes short.)
+    static final int PACKET_CRYPTO_OVERHEAD = 68;
+    // Plaintext before the first frame, worst case: timestamp (8) + session epoch (8).
+    static final int PACKET_PREFIX = 16;
+    // Worst-case STREAM frame header: type (1) + stream ID (8) + offset (8) + length (4).
+    private static final int STREAM_FRAME_MAX_HEADER = 21;
 
     // Instance-level packet size (configurable for LAN/localhost with larger datagrams)
     private final int maxPacketSize;
-    private final int maxPayloadSize;
+    // Bytes of frames that fit in one packet of maxPacketSize.
+    private final int maxFrameBytes;
 
     // Pacing configuration
     private final int pacingBurstOverride;     // -1 = auto-calculate
@@ -91,7 +109,7 @@ public class Protocol {
     public Protocol(byte[] privateKey, int port, String dataDir, int maxPacketSize,
                     int pacingBurstOverride, long pacingIntervalNanos, int socketBufferSize) throws IOException {
         this.maxPacketSize = maxPacketSize;
-        this.maxPayloadSize = maxPacketSize - HEADER_OVERHEAD;
+        this.maxFrameBytes = maxPacketSize - PacketHeader.HEADER_SIZE - PACKET_CRYPTO_OVERHEAD - PACKET_PREFIX;
         this.pacingBurstOverride = pacingBurstOverride;
         this.pacingIntervalNanos = pacingIntervalNanos;
         this.cryptoManager = new CryptoManager(privateKey);
@@ -310,7 +328,11 @@ public class Protocol {
             challengeHandler.shutdown();
         }
 
-        // Close channel first to unblock receive loop
+        // Wake the receive loop if it is waiting, then close the channel
+        Selector selector = receiveSelector;
+        if (selector != null) {
+            selector.wakeup();
+        }
         try {
             channel.close();
         } catch (IOException e) {
@@ -370,12 +392,11 @@ public class Protocol {
     }
 
     /**
-     * Estimate the frame overhead for a StreamFrame on the given stream.
-     * This includes the type varint, streamId varint, optional offset varint, and length varint.
+     * Largest STREAM chunk that fits in one packet with the worst-case frame
+     * header. A pending ACK that does not fit beside it goes in its own packet.
      */
-    private int estimateFrameOverhead(Stream stream) {
-        // type(1-2) + streamId(1-8) + offset(0-8) + length(1-4) ≈ conservative estimate of 30 bytes
-        return 30;
+    private int maxStreamChunk() {
+        return Math.max(100, maxFrameBytes - STREAM_FRAME_MAX_HEADER);
     }
 
     /**
@@ -403,7 +424,7 @@ public class Protocol {
         // With 1350-byte MTU: max(2, 16384/1277) = 12 → 12*1277=15KB/burst → ~1-3 MB/s
         // With 8000-byte MTU: max(2, 16384/7927) =  2 →  2*7927=16KB/burst → ~1-3 MB/s
         // With 60000-byte MTU: max(2, 16384/59927) = 2 → 2*60KB=120KB/burst (capped below)
-        int burst = Math.max(2, MIN_BURST_BYTES / Math.max(1, maxPayloadSize));
+        int burst = Math.max(2, MIN_BURST_BYTES / Math.max(1, maxFrameBytes));
 
         // Cap burst so total bytes per burst doesn't exceed MAX_BURST_BYTES.
         // This prevents receiver buffer overflow with large MTU.
@@ -496,8 +517,7 @@ public class Protocol {
             throw new IOException("Flow control limit reached");
         }
 
-        int maxChunkSize = maxPayloadSize - estimateFrameOverhead(stream);
-        if (maxChunkSize < 100) maxChunkSize = 100; // Safety floor
+        int maxChunkSize = maxStreamChunk();
 
         if (data.length <= maxChunkSize) {
             // Small data: send in one frame (existing fast path)
@@ -544,8 +564,7 @@ public class Protocol {
             throw new IOException("No connection for stream");
         }
 
-        int maxChunkSize = maxPayloadSize - estimateFrameOverhead(stream);
-        if (maxChunkSize < 100) maxChunkSize = 100; // Safety floor
+        int maxChunkSize = maxStreamChunk();
 
         if (data.length <= maxChunkSize) {
             // Small data: send in one frame with FIN (existing fast path)
@@ -596,8 +615,7 @@ public class Protocol {
             throw new IOException("No connection for stream");
         }
 
-        int maxChunkSize = maxPayloadSize - estimateFrameOverhead(stream);
-        if (maxChunkSize < 100) maxChunkSize = 100; // Safety floor
+        int maxChunkSize = maxStreamChunk();
 
         byte[] buffer = new byte[maxChunkSize];
         long remaining = totalLength;
@@ -667,8 +685,7 @@ public class Protocol {
             throw new IOException("No connection for stream");
         }
 
-        int maxChunkSize = maxPayloadSize - estimateFrameOverhead(stream);
-        if (maxChunkSize < 100) maxChunkSize = 100; // Safety floor
+        int maxChunkSize = maxStreamChunk();
 
         byte[] buffer = new byte[maxChunkSize];
         long remaining = totalLength;
@@ -729,6 +746,143 @@ public class Protocol {
         return totalRead;
     }
 
+    // ===== DATAGRAM frames (FUDP7) =====
+
+    private final AtomicLong datagramsSent = new AtomicLong();
+    private final AtomicLong datagramsReceived = new AtomicLong();
+    private final AtomicLong[] datagramDrops = new AtomicLong[DatagramResult.values().length];
+    {
+        for (int i = 0; i < datagramDrops.length; i++) datagramDrops[i] = new AtomicLong();
+    }
+
+    /**
+     * Largest DATAGRAM payload that fits in one packet. Larger ones are
+     * refused ({@link DatagramResult#TOO_LARGE}); datagrams are never fragmented.
+     * PACKET_PREFIX budgets for the session epoch even once it is confirmed,
+     * so the limit stays the same for the life of a connection.
+     */
+    public int getMaxDatagramSize() {
+        int room = maxFrameBytes;
+        int size = room - 2; // type and a 1-byte length; shrink as the length varint grows
+        while (size > 0 && DatagramFrame.encodedSize(size) > room) size--;
+        return Math.max(0, size);
+    }
+
+    /**
+     * Send one DATAGRAM frame: unreliable, unordered, never retransmitted.
+     * It never waits — congestion window, pacing and a full socket buffer all
+     * mean it is dropped, not delayed.
+     */
+    public DatagramResult sendDatagram(PeerConnection conn, byte[] data) {
+        return sendDatagrams(conn, List.of(data))[0];
+    }
+
+    /**
+     * Send several DATAGRAM frames, packed into as few packets as they fit.
+     * Each is budgeted and may be dropped on its own.
+     *
+     * @return the outcome for each datagram, in order
+     */
+    public DatagramResult[] sendDatagrams(PeerConnection conn, List<byte[]> datagrams) {
+        DatagramResult[] results = new DatagramResult[datagrams.size()];
+        if (conn == null || !running || !channel.isOpen()
+                || conn.getState() == ConnectionState.CLOSED || conn.getState() == ConnectionState.CLOSING) {
+            return fill(results, 0, DatagramResult.NO_CONNECTION);
+        }
+        if (!conn.isDatagramsEnabled()) {
+            return fill(results, 0, DatagramResult.NOT_ENABLED);
+        }
+
+        int room = maxFrameBytes;
+        int maxSize = getMaxDatagramSize();
+        List<Frame> frames = new ArrayList<>();
+        List<Integer> packed = new ArrayList<>();
+        int used = 0;
+        for (int i = 0; i < results.length; i++) {
+            byte[] data = datagrams.get(i);
+            if (data.length > maxSize) {
+                results[i] = drop(DatagramResult.TOO_LARGE);
+                continue;
+            }
+            if (!conn.getDatagramBudget().tryConsume(data.length)) {
+                results[i] = drop(DatagramResult.OVER_BUDGET);
+                continue;
+            }
+            int size = DatagramFrame.encodedSize(data.length);
+            if (used + size > room) {
+                flushDatagramPacket(conn, frames, packed, results);
+                used = 0;
+            }
+            frames.add(new DatagramFrame(data));
+            packed.add(i);
+            used += size;
+        }
+        flushDatagramPacket(conn, frames, packed, results);
+        return results;
+    }
+
+    private void flushDatagramPacket(PeerConnection conn, List<Frame> frames, List<Integer> packed,
+                                     DatagramResult[] results) {
+        if (frames.isEmpty()) return;
+        DatagramResult outcome;
+        try {
+            // bufferWaitMs = 0: send or drop, never wait for the socket.
+            outcome = sendPacket(conn, withPendingAck(conn, frames), 0, 0)
+                    ? DatagramResult.SENT : DatagramResult.BUFFER_FULL;
+        } catch (IOException e) {
+            outcome = DatagramResult.BUFFER_FULL;
+        }
+        for (int i : packed) {
+            results[i] = outcome == DatagramResult.SENT ? DatagramResult.SENT : drop(outcome);
+        }
+        if (outcome == DatagramResult.SENT) datagramsSent.addAndGet(packed.size());
+        frames.clear();
+        packed.clear();
+    }
+
+    private DatagramResult drop(DatagramResult reason) {
+        datagramDrops[reason.ordinal()].incrementAndGet();
+        return reason;
+    }
+
+    private DatagramResult[] fill(DatagramResult[] results, int from, DatagramResult reason) {
+        for (int i = from; i < results.length; i++) results[i] = drop(reason);
+        return results;
+    }
+
+    /** DATAGRAM frames handed to the socket. */
+    public long getDatagramsSent() {
+        return datagramsSent.get();
+    }
+
+    /** DATAGRAM frames received and parsed. */
+    public long getDatagramsReceived() {
+        return datagramsReceived.get();
+    }
+
+    /** DATAGRAM frames dropped at this sender for the given reason. */
+    public long getDatagramsDropped(DatagramResult reason) {
+        return datagramDrops[reason.ordinal()].get();
+    }
+
+    /** Packets sent larger than maxPacketSize; nonzero means a size-budget bug. */
+    public long getOversizePacketCount() {
+        return oversizePacketCount.get();
+    }
+
+    /** Packets that authenticated but whose frames could not be parsed. */
+    public long getFrameParseFailCount() {
+        return frameParseFailCount.get();
+    }
+
+    /**
+     * Test hook: send arbitrary frames in one packet, bypassing every check.
+     * Used to put frames an older peer cannot parse on the wire.
+     */
+    boolean sendFramesForTest(PeerConnection conn, List<Frame> frames) throws IOException {
+        return sendPacket(conn, frames, 0, DEFAULT_SEND_BUFFER_WAIT_MS);
+    }
+
     /**
      * Close a specific connection by connectionId.
      */
@@ -756,18 +910,31 @@ public class Protocol {
      * Send a single frame.
      */
     private void sendFrame(PeerConnection conn, Frame frame) throws IOException {
-        List<Frame> frames = new ArrayList<>();
-        frames.add(frame);
+        sendPacket(conn, withPendingAck(conn, List.of(frame)));
+    }
 
-        // Check if ACK needed
-        if (conn.getAckManager().hasPendingAcks()) {
-            AckFrame ackFrame = conn.getAckManager().generateAckFrame();
-            if (ackFrame != null) {
-                frames.add(0, ackFrame);
-            }
+    /**
+     * The frames for one packet: {@code frames}, plus the pending ACK if it
+     * fits beside them within maxPacketSize. An ACK that does not fit is sent
+     * in a packet of its own first — never truncated to fit, since every ACK
+     * frame's full ranges are what protect against earlier ACKs being lost
+     * (FUDP3 §2.1).
+     */
+    private List<Frame> withPendingAck(PeerConnection conn, List<Frame> frames) throws IOException {
+        AckManager acks = conn.getAckManager();
+        if (!acks.hasPendingAcks()) return frames;
+        AckFrame ack = acks.generateAckFrame(maxFrameBytes);
+        if (ack == null) return frames;
+        int used = 0;
+        for (Frame f : frames) used += f.getSize();
+        if (used + ack.getSize() <= maxFrameBytes) {
+            List<Frame> out = new ArrayList<>(frames.size() + 1);
+            out.add(ack);
+            out.addAll(frames);
+            return out;
         }
-
-        sendPacket(conn, frames);
+        sendPacket(conn, List.of(ack));
+        return frames;
     }
 
     // Backpressure budget for application bulk-send loops: how long a single
@@ -788,18 +955,7 @@ public class Protocol {
      * @return true if the datagram was sent, false if it was dropped (buffer full).
      */
     private boolean sendFrameBackpressured(PeerConnection conn, Frame frame) throws IOException {
-        List<Frame> frames = new ArrayList<>();
-        frames.add(frame);
-
-        // Piggyback any pending ACKs, exactly like sendFrame.
-        if (conn.getAckManager().hasPendingAcks()) {
-            AckFrame ackFrame = conn.getAckManager().generateAckFrame();
-            if (ackFrame != null) {
-                frames.add(0, ackFrame);
-            }
-        }
-
-        return sendPacket(conn, frames, 0, APP_SEND_BUFFER_WAIT_MS);
+        return sendPacket(conn, withPendingAck(conn, List.of(frame)), 0, APP_SEND_BUFFER_WAIT_MS);
     }
 
     /**
@@ -850,8 +1006,9 @@ public class Protocol {
             packet.addFrame(frame);
         }
 
-        // E1: Skip timestamp for ACK-only packets (saves 8 bytes)
-        boolean includeTimestamp = packet.isAckEliciting();
+        // E1: Skip timestamp for ACK-only packets (saves 8 bytes). DATAGRAM
+        // packets carry application data, so they keep it (replay protection).
+        boolean includeTimestamp = packet.isAckEliciting() || packet.hasDatagram();
         // E2: Skip epoch once peer has confirmed receipt (saves 8 bytes)
         boolean includeEpoch = !conn.isEpochConfirmed();
 
@@ -865,6 +1022,15 @@ public class Protocol {
         // onAck() is never called, bytesInFlight is never decremented, and the packet
         // sits in sentPackets until the retransmit task falsely marks it as lost.
         byte[] data = packet.toBytes();
+        if (data.length > maxPacketSize) {
+            // Every sender budgets to maxFrameBytes, so this is a bug in the
+            // budget, not a condition to handle: count it loudly and send anyway.
+            long n = oversizePacketCount.incrementAndGet();
+            if (n <= 5 || n % 1000 == 0) {
+                TimberLogger.e(TAG, "[Protocol] Sent a %d-byte packet over maxPacketSize %d (frames=%s, count=%d)",
+                        data.length, maxPacketSize, frames, n);
+            }
+        }
         boolean ackEliciting = packet.isAckEliciting();
         conn.recordSentPacket(packetNumber, frames, data.length, ackEliciting, retransmitCount);
         // Only ack-eliciting packets count toward bytesInFlight (QUIC RFC 9002):
@@ -901,6 +1067,11 @@ public class Protocol {
                     buffer.rewind();
                     sent = channel.send(buffer, conn.getPeerAddress());
                 }
+                if (sent == 0 && bufferWaitMs == 0) {
+                    // Send-or-drop caller (DATAGRAM): the drop is the contract.
+                    sendTotalCount.incrementAndGet();
+                    return false;
+                }
                 if (sent == 0) {
                     long fails = sendFailCount.incrementAndGet();
                     if (fails <= 5 || fails % 100 == 0) {
@@ -935,6 +1106,8 @@ public class Protocol {
     private final AtomicLong packetsFullyProcessed = new AtomicLong();
     private final AtomicLong decryptDropCount = new AtomicLong();
     private final AtomicLong unsupportedVersionCount = new AtomicLong();
+    private final AtomicLong frameParseFailCount = new AtomicLong();
+    private final AtomicLong oversizePacketCount = new AtomicLong();
 
     /**
      * Versions we accept on the data path. Currently only the single
@@ -948,6 +1121,20 @@ public class Protocol {
     private void receiveLoop() {
         ByteBuffer buffer = ByteBuffer.allocate(65536);
 
+        // An empty socket is waited on with a selector, which wakes the moment
+        // a packet lands. This used to Thread.sleep(1), which on macOS sleeps
+        // 1-10 ms: every packet arriving on a quiet connection sat in the
+        // kernel for up to one sleep, per hop — fatal for DATAGRAM audio.
+        Selector selector = null;
+        try {
+            selector = Selector.open();
+            channel.register(selector, SelectionKey.OP_READ);
+        } catch (IOException e) {
+            TimberLogger.w(TAG, "[Protocol] Selector unavailable, falling back to polling: %s", e.getMessage());
+            selector = null;
+        }
+        receiveSelector = selector;
+
         while (running) {
             try {
                 buffer.clear();
@@ -959,6 +1146,10 @@ public class Protocol {
                     buffer.get(data);
                     receivedPacketCount.incrementAndGet();
                     handleIncomingPacket(data, sender);
+                } else if (selector != null) {
+                    // Timeout is only a backstop for noticing !running.
+                    selector.select(100);
+                    selector.selectedKeys().clear();
                 } else {
                     Thread.sleep(1);
                 }
@@ -966,6 +1157,13 @@ public class Protocol {
                 if (running) {
                     TimberLogger.w(TAG, "[Protocol] Error in receive loop: %s", e.getMessage());
                 }
+            }
+        }
+        if (selector != null) {
+            try {
+                selector.close();
+            } catch (IOException ignored) {
+                // Best effort
             }
         }
     }
@@ -1032,6 +1230,19 @@ public class Protocol {
             String senderId;
             try {
                 senderId = packetCrypto.decryptPacket(packet);
+            } catch (FrameParseException e) {
+                // Authentic packet, unreadable frames (e.g. a frame type newer
+                // than ours). Lose this packet only: its sender is genuine, so
+                // it must not feed the decrypt-failure limiter, which after a
+                // few in a row would drop EVERY packet from that address.
+                long n = frameParseFailCount.incrementAndGet();
+                if (n <= 5 || n % 1000 == 0) {
+                    TimberLogger.w(TAG, "[Protocol] Dropping packet %d from %s (%s): %s (count=%d)",
+                            packet.getPacketNumber(), e.getSenderId(), from,
+                            e.getCause() != null ? e.getCause().getMessage() : e.getMessage(), n);
+                }
+                decryptRateLimiter.recordSuccess(from);
+                return;
             } catch (Exception e) {
                 long dfCount = decryptFailCount.incrementAndGet();
                 if (dfCount <= 5 || dfCount % 100 == 0) {
@@ -1159,6 +1370,9 @@ public class Protocol {
                 if (conn.tryMarkPeerRestartHandled()) {
                     TimberLogger.i(TAG, "[Protocol] Peer restart detected for %s", senderId);
                     conn.resetForPeerRestart();
+                    // The restarted peer may run different software; datagram
+                    // capability must be re-established by the application.
+                    conn.setDatagramsEnabled(false);
                 }
             }
 
@@ -1196,6 +1410,10 @@ public class Protocol {
 
             if (ackEliciting) {
                 conn.getAckManager().onPacketReceived(packet.getPacketNumber());
+            } else {
+                // ACK-only / DATAGRAM-only: listed in later ACKs so the ranges
+                // have holes only where packets were lost; elicits none.
+                conn.getAckManager().onNonElicitingPacketReceived(packet.getPacketNumber());
             }
 
             // Process frames
@@ -1380,8 +1598,8 @@ public class Protocol {
 
             case ACK -> {
                 AckFrame ackFrame = (AckFrame) frame;
-                List<Long> ackedPackets = ackFrame.getAcknowledgedPackets();
-                conn.onAckReceived(ackFrame.getLargestAcknowledged(), ackFrame.getAckDelay(), ackedPackets);
+                conn.onAckReceived(ackFrame.getLargestAcknowledged(), ackFrame.getAckDelay(),
+                        ackFrame.getAcknowledgedIntervals());
                 if (conn.getState() == ConnectionState.ESTABLISHING) {
                     conn.setState(ConnectionState.ESTABLISHED);
                 }
@@ -1412,6 +1630,12 @@ public class Protocol {
                 conn.getStreamManager().setMaxLocalStreams(maxStreams.getMaxStreams());
             }
 
+            case DATAGRAM -> {
+                // Delivered to the application by the packet listener
+                // (FudpNode.onPacketReceived); no transport state to update.
+                datagramsReceived.incrementAndGet();
+            }
+
             default -> {
                 // Ignore unknown frames
             }
@@ -1422,9 +1646,9 @@ public class Protocol {
      * Send ACK for a connection.
      */
     private void sendAck(PeerConnection conn) throws IOException {
-        AckFrame ackFrame = conn.getAckManager().generateAckFrame();
+        AckFrame ackFrame = conn.getAckManager().generateAckFrame(maxFrameBytes);
         if (ackFrame != null) {
-            sendFrame(conn, ackFrame);
+            sendPacket(conn, List.of(ackFrame));
         }
     }
 
@@ -1467,7 +1691,11 @@ public class Protocol {
             // line-rate burst that shallow bottleneck buffers clip, turning one
             // loss into a self-sustaining loss storm.
             int maxRetransmitPerCycle = 50;
-            long byteBudget = Math.max(8 * 1024, conn.pacingBudgetBytes(50));
+            // A stream rate cap (set during a call) is honoured exactly; the 8KB
+            // floor would otherwise let retransmits alone exceed a low cap.
+            long byteBudget = conn.getStreamRateCapBps() > 0
+                    ? Math.max(1, conn.pacingBudgetBytes(50))
+                    : Math.max(8 * 1024, conn.pacingBudgetBytes(50));
             long retransmittedBytes = 0;
             int retransmitted = 0;
             int abandoned = 0;
