@@ -16,6 +16,6 @@ add_subdirectory(opus)
 # The codec runs 50 times a second per stream: optimise it in debug builds too.
 target_compile_options(opus PRIVATE -O2)
 
-add_library(freervoice SHARED opus_jni.c)
+add_library(freervoice SHARED opus_jni.c aaudio_jni.c)
 target_compile_options(freervoice PRIVATE -O2 -Wall)
-target_link_libraries(freervoice opus log)
+target_link_libraries(freervoice opus aaudio log)

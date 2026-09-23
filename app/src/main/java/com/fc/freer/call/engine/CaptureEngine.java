@@ -1,12 +1,5 @@
 package com.fc.freer.call.engine;
 
-import android.annotation.SuppressLint;
-import android.media.AudioFormat;
-import android.media.AudioRecord;
-import android.media.MediaRecorder;
-import android.media.audiofx.AcousticEchoCanceler;
-import android.media.audiofx.AutomaticGainControl;
-import android.media.audiofx.NoiseSuppressor;
 import android.os.Process;
 
 import com.fc.fc_ajdk.utils.TimberLogger;
@@ -15,10 +8,10 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 
 /**
- * Send side (VOICE_SPEC §9.1, §9.2): {@code AudioRecord} with the
- * VOICE_COMMUNICATION source, which gives the platform's echo cancellation,
- * noise suppression and gain control, then Opus, then one {@link SpikeFrame}
- * per frame to the {@link Sink}.
+ * Send side (VOICE_SPEC §9.1, §9.2): the voice-call input, which gives the
+ * platform's echo cancellation, noise suppression and gain control, through
+ * {@link AudioIo} (AudioRecord or AAudio), then Opus, then one
+ * {@link SpikeFrame} per frame to the {@link Sink}.
  */
 public final class CaptureEngine {
 
@@ -30,7 +23,7 @@ public final class CaptureEngine {
         void send(byte[] frame);
     }
 
-    public record Settings(int frameMs, int bitrate, boolean dtx, int expectedLossPercent) {}
+    public record Settings(int frameMs, int bitrate, boolean dtx, int expectedLossPercent, AudioIo.Backend backend) {}
 
     private final Settings settings;
     private final int frameSamples;
@@ -40,10 +33,9 @@ public final class CaptureEngine {
     private volatile boolean muted;
     private volatile int level = 127;
     private volatile long framesSent, dtxSkipped, bytesSent;
-    private volatile String effects = "";
     private volatile MicBacklog backlog;
     private Thread thread;
-    private AudioRecord record;
+    private volatile AudioIo.Input input;
     private Opus.Encoder encoder;
 
     public CaptureEngine(Settings settings, Sink sink) {
@@ -87,10 +79,6 @@ public final class CaptureEngine {
      * Audio captured but not yet encoded that never drains, ms: a standing
      * backlog adds that much to every frame. Above one frame it is dropped
      * ({@link #micDroppedMs}). -1 before the first second.
-     * <p>
-     * Not the device's whole input latency (mic, AEC/NS): phones tested so far
-     * report capture timestamps at read time, so that part cannot be measured
-     * from here.
      */
     public int micQueueMs() {
         MicBacklog b = backlog;
@@ -105,27 +93,30 @@ public final class CaptureEngine {
 
     /** Which platform effects are active, for the test screen. */
     public String effects() {
-        return effects;
+        AudioIo.Input in = input;
+        return in == null ? "" : in.effects();
+    }
+
+    public String describe() {
+        AudioIo.Input in = input;
+        return in == null ? "" : in.describe();
+    }
+
+    /**
+     * Mic to app, ms, from the device's capture timestamps; -1 if it gives
+     * none. Some devices stamp at read time, which reads as ~0.
+     */
+    public int inputLatencyMs() {
+        AudioIo.Input in = input;
+        return in == null ? -1 : in.latencyMs();
     }
 
     /** Needs RECORD_AUDIO, which the caller has checked. */
-    @SuppressLint("MissingPermission")
     public synchronized void start() {
         if (running) return;
-        int minBytes = AudioRecord.getMinBufferSize(Opus.SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
-                AudioFormat.ENCODING_PCM_16BIT);
-        record = new AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, Opus.SAMPLE_RATE,
-                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
-                Math.max(minBytes, 4 * frameSamples * 2));
-        if (record.getState() != AudioRecord.STATE_INITIALIZED) {
-            record.release();
-            record = null;
-            throw new IllegalStateException("AudioRecord failed to initialise");
-        }
-        effects = enableEffects(record.getAudioSessionId());
+        input = AudioIo.openInput(settings.backend(), frameSamples);
         encoder = new Opus.Encoder(settings.bitrate(), settings.dtx(), settings.expectedLossPercent());
         running = true;
-        record.startRecording();
         thread = new Thread(this::loop, "voice-capture");
         thread.start();
     }
@@ -140,36 +131,14 @@ public final class CaptureEngine {
             }
         }
         thread = null;
-        if (record != null) {
-            record.stop();
-            record.release();
-            record = null;
+        if (input != null) {
+            input.close();
+            input = null;
         }
         if (encoder != null) {
             encoder.close();
             encoder = null;
         }
-    }
-
-    /**
-     * VOICE_COMMUNICATION usually applies these already; asking for them
-     * explicitly makes the result visible, since some devices don't.
-     */
-    private static String enableEffects(int session) {
-        StringBuilder sb = new StringBuilder();
-        if (AcousticEchoCanceler.isAvailable()) {
-            AcousticEchoCanceler aec = AcousticEchoCanceler.create(session);
-            if (aec != null && aec.setEnabled(true) == 0) sb.append("AEC ");
-        }
-        if (NoiseSuppressor.isAvailable()) {
-            NoiseSuppressor ns = NoiseSuppressor.create(session);
-            if (ns != null && ns.setEnabled(true) == 0) sb.append("NS ");
-        }
-        if (AutomaticGainControl.isAvailable()) {
-            AutomaticGainControl agc = AutomaticGainControl.create(session);
-            if (agc != null && agc.setEnabled(true) == 0) sb.append("AGC ");
-        }
-        return sb.length() == 0 ? "none" : sb.toString().trim();
     }
 
     private void loop() {
@@ -187,9 +156,9 @@ public final class CaptureEngine {
             // Wait for one frame, then take whatever else is already queued, so
             // the queue lives in our FIFO where it can be measured.
             while (fifo.size() < frameSamples && running) {
-                if (!readInto(fifo, chunk, frameSamples - fifo.size(), AudioRecord.READ_BLOCKING)) return;
+                if (!readInto(fifo, chunk, frameSamples - fifo.size(), true)) return;
             }
-            if (!readInto(fifo, chunk, Math.min(chunk.length, fifo.free()), AudioRecord.READ_NON_BLOCKING)) return;
+            if (!readInto(fifo, chunk, Math.min(chunk.length, fifo.free()), false)) return;
             fifo.pop(pcm, frameSamples);
             int drop = mic.observe(fifo.size(), android.os.SystemClock.elapsedRealtime());
             if (drop > 0) fifo.drop(drop); // the dropped audio is simply never sent; seq and timestamp run on
@@ -220,11 +189,11 @@ public final class CaptureEngine {
     }
 
     /** @return false if the recorder failed */
-    private boolean readInto(SampleFifo fifo, short[] chunk, int want, int mode) {
+    private boolean readInto(SampleFifo fifo, short[] chunk, int want, boolean block) {
         if (want <= 0) return true;
-        int n = record.read(chunk, 0, want, mode);
+        int n = input.read(chunk, 0, want, block);
         if (n < 0) {
-            TimberLogger.e(TAG, "AudioRecord.read failed: %d", n);
+            TimberLogger.e(TAG, "audio read failed: %d", n);
             running = false;
             return false;
         }

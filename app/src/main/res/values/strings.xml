@@ -2694,6 +2694,9 @@
     <string name="voice_spike_remote_host">Other phone\'s IP, or the relay host</string>
     <string name="voice_spike_frame_20">20 ms frames</string>
     <string name="voice_spike_frame_40">40 ms frames</string>
+    <string name="voice_spike_audio_java">Java audio</string>
+    <string name="voice_spike_audio_aaudio">AAudio</string>
+    <string name="voice_spike_audio_exclusive">AAudio exclusive</string>
     <string name="voice_spike_bitrate">kbps</string>
     <string name="voice_spike_expected_loss">FEC for loss %</string>
     <string name="voice_spike_simulated_loss">Drop % received</string>

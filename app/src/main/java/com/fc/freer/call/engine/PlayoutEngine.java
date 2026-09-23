@@ -1,9 +1,5 @@
 package com.fc.freer.call.engine;
 
-import android.media.AudioAttributes;
-import android.media.AudioTimestamp;
-import android.media.AudioFormat;
-import android.media.AudioTrack;
 import android.os.Process;
 import android.os.SystemClock;
 
@@ -14,9 +10,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Receive side (VOICE_SPEC §9.2, §9.3): a jitter buffer and decoder per
- * incoming {@code ssrc}, mixed and played through one {@link AudioTrack}.
- * The playout thread is paced by the track's blocking write, one frame per
- * iteration.
+ * incoming {@code ssrc}, mixed and played through one {@link AudioIo.Output}
+ * (AudioTrack or AAudio). The playout thread is paced by the output's
+ * blocking write, one frame per iteration.
  */
 public final class PlayoutEngine {
 
@@ -45,19 +41,18 @@ public final class PlayoutEngine {
 
     private final int frameMs;
     private final int frameSamples;
+    private final AudioIo.Backend backend;
     private final Map<Integer, Stream> streams = new ConcurrentHashMap<>();
     private volatile boolean running;
     private Thread thread;
-    private AudioTrack track;
-    private volatile int trackBufferMs;
-    private volatile int underruns;
+    private volatile AudioIo.Output output;
     private volatile int outputLatencyMs = -1;
-    private long framesWritten;
     private volatile long wrongFrameSize;
 
-    public PlayoutEngine(int frameMs) {
+    public PlayoutEngine(int frameMs, AudioIo.Backend backend) {
         this.frameMs = frameMs;
         this.frameSamples = Opus.SAMPLE_RATE / 1000 * frameMs;
+        this.backend = backend;
     }
 
     /** From the network thread: queue a frame. Must return quickly. */
@@ -71,23 +66,30 @@ public final class PlayoutEngine {
         return streams;
     }
 
-    /** Playout buffer in the AudioTrack, ms: part of mouth-to-ear delay. */
+    /** Our buffer in the output stream, ms: part of mouth-to-ear delay. */
     public int trackBufferMs() {
-        return trackBufferMs;
+        AudioIo.Output o = output;
+        return o == null ? 0 : o.bufferMs();
+    }
+
+    /** Times the output ran dry, each of which grew {@link #trackBufferMs}. */
+    public int underruns() {
+        AudioIo.Output o = output;
+        return o == null ? 0 : o.underruns();
     }
 
     /**
-     * Written to heard: from handing a frame to the AudioTrack to the moment
-     * the device reports presenting it. Covers our buffer, the platform mixer,
+     * Written to heard: from handing a frame to the output to the moment the
+     * device reports presenting it. Covers our buffer, the platform mixer,
      * DSP and driver. -1 until the device reports a timestamp.
      */
     public int outputLatencyMs() {
         return outputLatencyMs;
     }
 
-    /** Times the AudioTrack ran dry, each of which grew {@link #trackBufferMs}. */
-    public int underruns() {
-        return underruns;
+    public String describe() {
+        AudioIo.Output o = output;
+        return o == null ? "" : o.describe();
     }
 
     /** Frames decoded to a length other than our frame size: the peer uses another frame size. */
@@ -97,29 +99,8 @@ public final class PlayoutEngine {
 
     public synchronized void start() {
         if (running) return;
-        int minBytes = AudioTrack.getMinBufferSize(Opus.SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO,
-                AudioFormat.ENCODING_PCM_16BIT);
-        track = new AudioTrack.Builder()
-                .setAudioAttributes(new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                        .build())
-                .setAudioFormat(new AudioFormat.Builder()
-                        .setSampleRate(Opus.SAMPLE_RATE)
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                        .build())
-                .setTransferMode(AudioTrack.MODE_STREAM)
-                .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-                // Two frames: enough to ride out scheduling, no more.
-                .setBufferSizeInBytes(Math.max(minBytes, 2 * frameSamples * 2))
-                .build();
-        // The voice path's minimum buffer is often 80-100 ms, the largest fixed
-        // delay in the call. Use only two frames of it, and grow on underrun.
-        track.setBufferSizeInFrames(Math.min(track.getBufferCapacityInFrames(), 2 * frameSamples));
-        trackBufferMs = track.getBufferSizeInFrames() * 1000 / Opus.SAMPLE_RATE;
+        output = AudioIo.openOutput(backend, frameSamples);
         running = true;
-        track.play();
         thread = new Thread(this::loop, "voice-playout");
         thread.start();
     }
@@ -135,10 +116,9 @@ public final class PlayoutEngine {
             }
         }
         thread = null;
-        if (track != null) {
-            track.stop();
-            track.release();
-            track = null;
+        if (output != null) {
+            output.close();
+            output = null;
         }
         for (Stream s : streams.values()) s.decoder.close();
         streams.clear();
@@ -149,7 +129,6 @@ public final class PlayoutEngine {
         short[] pcm = new short[frameSamples];
         int[] mix = new int[frameSamples];
         short[] out = new short[frameSamples];
-        AudioTimestamp ts = new AudioTimestamp();
         int ticks = 0;
         while (running) {
             long now = SystemClock.elapsedRealtime();
@@ -180,33 +159,19 @@ public final class PlayoutEngine {
                 for (int i = 0; i < n; i++) mix[i] += pcm[i];
             }
             for (int i = 0; i < frameSamples; i++) out[i] = softClip(mix[i]);
-            // Blocks until there is room: this is what paces the loop.
-            track.write(out, 0, frameSamples);
-            framesWritten += frameSamples;
-            growOnUnderrun();
-            if (++ticks % 25 == 0) measureOutputLatency(ts);
+            try {
+                // Blocks until there is room: this is what paces the loop.
+                output.write(out, 0, frameSamples);
+            } catch (IllegalStateException e) {
+                TimberLogger.e(TAG, "playout stopped: %s", e.getMessage());
+                running = false;
+                return;
+            }
+            if (++ticks % 25 == 0) {
+                int l = output.latencyMs();
+                if (l >= 0) outputLatencyMs = l;
+            }
         }
-    }
-
-    /**
-     * The device presented frame {@code ts.framePosition} at {@code ts.nanoTime};
-     * the last frame written will be presented that many frames later.
-     */
-    private void measureOutputLatency(AudioTimestamp ts) {
-        if (!track.getTimestamp(ts)) return;
-        long queuedFrames = framesWritten - ts.framePosition;
-        long sinceNs = System.nanoTime() - ts.nanoTime;
-        outputLatencyMs = (int) (queuedFrames * 1000 / Opus.SAMPLE_RATE - sinceNs / 1_000_000);
-    }
-
-    /** The track ran dry: give it half a frame more, up to what it holds. */
-    private void growOnUnderrun() {
-        int n = track.getUnderrunCount();
-        if (n <= underruns) return;
-        underruns = n;
-        int size = Math.min(track.getBufferCapacityInFrames(), track.getBufferSizeInFrames() + frameSamples / 2);
-        track.setBufferSizeInFrames(size);
-        trackBufferMs = track.getBufferSizeInFrames() * 1000 / Opus.SAMPLE_RATE;
     }
 
     /** Linear below the knee, compressed smoothly towards full scale above it. */

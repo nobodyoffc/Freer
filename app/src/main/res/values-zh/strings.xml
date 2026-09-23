@@ -2616,6 +2616,9 @@
     <string name="voice_spike_remote_host">对方手机 IP 或中继地址</string>
     <string name="voice_spike_frame_20">20 毫秒帧</string>
     <string name="voice_spike_frame_40">40 毫秒帧</string>
+    <string name="voice_spike_audio_java">Java 音频</string>
+    <string name="voice_spike_audio_aaudio">AAudio</string>
+    <string name="voice_spike_audio_exclusive">AAudio 独占</string>
     <string name="voice_spike_bitrate">kbps</string>
     <string name="voice_spike_expected_loss">FEC 按丢包 %</string>
     <string name="voice_spike_simulated_loss">接收丢弃 %</string>

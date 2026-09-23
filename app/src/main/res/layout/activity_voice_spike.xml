@@ -92,6 +92,32 @@
                     android:text="@string/voice_spike_frame_40" />
             </RadioGroup>
 
+            <RadioGroup
+                android:id="@+id/audioGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <RadioButton
+                    android:id="@+id/audioJava"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/voice_spike_audio_java" />
+
+                <RadioButton
+                    android:id="@+id/audioAAudio"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="true"
+                    android:text="@string/voice_spike_audio_aaudio" />
+
+                <RadioButton
+                    android:id="@+id/audioExclusive"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/voice_spike_audio_exclusive" />
+            </RadioGroup>
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

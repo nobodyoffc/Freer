@@ -26,6 +26,7 @@ import androidx.core.content.ContextCompat;
 
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
+import com.fc.freer.call.engine.AudioIo;
 import com.fc.freer.call.engine.CaptureEngine;
 import com.fc.freer.call.engine.JitterBuffer;
 import com.fc.freer.call.engine.PlayoutEngine;
@@ -53,14 +54,15 @@ import java.util.concurrent.Executors;
  *     --es mode relay --es host 203.0.113.7 --ei frameMs 40 --ez dtx false \
  *     --ei simLoss 5 --ez autostart true
  * </pre>
- * {@code mode} is host, call or relay; also {@code room}, {@code kbps},
- * {@code fecLoss} and {@code speaker}.
+ * {@code mode} is host, call, relay or loopback; {@code audio} is java,
+ * aaudio or exclusive; also {@code room}, {@code kbps}, {@code fecLoss} and
+ * {@code speaker}.
  */
 public class VoiceSpikeActivity extends AppCompatActivity {
 
     private static final String TAG = "VoiceSpikeActivity";
 
-    private RadioGroup modeGroup, frameGroup;
+    private RadioGroup modeGroup, frameGroup, audioGroup;
     private EditText roomCode, remoteHost, bitrate, expectedLoss, simulatedLoss;
     private CheckBox dtx, mute, speaker;
     private Button startStop;
@@ -94,6 +96,7 @@ public class VoiceSpikeActivity extends AppCompatActivity {
 
         modeGroup = findViewById(R.id.modeGroup);
         frameGroup = findViewById(R.id.frameGroup);
+        audioGroup = findViewById(R.id.audioGroup);
         roomCode = findViewById(R.id.roomCode);
         remoteHost = findViewById(R.id.remoteHost);
         bitrate = findViewById(R.id.bitrate);
@@ -132,6 +135,10 @@ public class VoiceSpikeActivity extends AppCompatActivity {
         if (in.hasExtra("host")) remoteHost.setText(in.getStringExtra("host"));
         if (in.hasExtra("room")) roomCode.setText(in.getStringExtra("room"));
         if (in.hasExtra("frameMs")) frameGroup.check(in.getIntExtra("frameMs", 40) == 20 ? R.id.frame20 : R.id.frame40);
+        String audio = in.getStringExtra("audio");
+        if ("java".equals(audio)) audioGroup.check(R.id.audioJava);
+        else if ("aaudio".equals(audio)) audioGroup.check(R.id.audioAAudio);
+        else if ("exclusive".equals(audio)) audioGroup.check(R.id.audioExclusive);
         if (in.hasExtra("kbps")) bitrate.setText(String.valueOf(in.getIntExtra("kbps", 24)));
         if (in.hasExtra("fecLoss")) expectedLoss.setText(String.valueOf(in.getIntExtra("fecLoss", 10)));
         if (in.hasExtra("simLoss")) simulatedLoss.setText(String.valueOf(in.getIntExtra("simLoss", 0)));
@@ -152,10 +159,14 @@ public class VoiceSpikeActivity extends AppCompatActivity {
             return;
         }
         int frameMs = frameGroup.getCheckedRadioButtonId() == R.id.frame20 ? 20 : 40;
+        int audioChecked = audioGroup.getCheckedRadioButtonId();
+        AudioIo.Backend backend = audioChecked == R.id.audioJava ? AudioIo.Backend.JAVA
+                : audioChecked == R.id.audioExclusive ? AudioIo.Backend.AAUDIO_EXCLUSIVE
+                : AudioIo.Backend.AAUDIO;
         CaptureEngine.Settings settings = new CaptureEngine.Settings(frameMs,
-                intOf(bitrate, 24) * 1000, dtx.isChecked(), intOf(expectedLoss, 10));
+                intOf(bitrate, 24) * 1000, dtx.isChecked(), intOf(expectedLoss, 10), backend);
 
-        playout = new PlayoutEngine(frameMs);
+        playout = new PlayoutEngine(frameMs, backend);
         transport = new SpikeTransport(this, mode, roomCode.getText().toString().trim(), host,
                 new SpikeTransport.Listener() {
                     @Override
@@ -293,8 +304,10 @@ public class VoiceSpikeActivity extends AppCompatActivity {
         sb.append(String.format(Locale.US, "      frames %d  dtx-skipped %d  dropped %d%n",
                 capture.framesSent(), capture.dtxSkipped(), transport.sendDrops()));
         sb.append(String.format(Locale.US, "      effects: %s%n", capture.effects()));
-        sb.append(String.format(Locale.US, "device  mic queue %s ms (dropped %d)   app->speaker %s ms%n",
-                msOrDash(capture.micQueueMs()), capture.micDroppedMs(), msOrDash(playout.outputLatencyMs())));
+        sb.append(String.format(Locale.US, "audio   in %s%n        out %s%n", capture.describe(), playout.describe()));
+        sb.append(String.format(Locale.US, "device  mic->app %s ms  mic queue %s ms (dropped %d)  app->speaker %s ms%n",
+                msOrDash(capture.inputLatencyMs()), msOrDash(capture.micQueueMs()), capture.micDroppedMs(),
+                msOrDash(playout.outputLatencyMs())));
         sb.append(String.format(Locale.US, "recv  datagrams %d  sim-dropped %d  track buffer %d ms (underruns %d)%n",
                 transport.received(), transport.simulatedDrops(), playout.trackBufferMs(), playout.underruns()));
         if (playout.wrongFrameSize() > 0) {
@@ -337,6 +350,7 @@ public class VoiceSpikeActivity extends AppCompatActivity {
     private void setInputsEnabled(boolean on) {
         for (int i = 0; i < modeGroup.getChildCount(); i++) modeGroup.getChildAt(i).setEnabled(on);
         for (int i = 0; i < frameGroup.getChildCount(); i++) frameGroup.getChildAt(i).setEnabled(on);
+        for (int i = 0; i < audioGroup.getChildCount(); i++) audioGroup.getChildAt(i).setEnabled(on);
         roomCode.setEnabled(on);
         remoteHost.setEnabled(on);
         bitrate.setEnabled(on);
