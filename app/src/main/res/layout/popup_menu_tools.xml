@@ -98,6 +98,17 @@
         android:textColor="?android:attr/textColorPrimary"
         android:textSize="16sp" />
 
+    <!-- Phase 2 voice spike: shown in debug builds only (PopupMenuHelper) -->
+    <TextView
+        android:id="@+id/voice_spike_tool"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        android:text="@string/menu_voice_spike"
+        android:textColor="?android:attr/textColorPrimary"
+        android:textSize="16sp"
+        android:visibility="gone" />
+
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"

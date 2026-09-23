@@ -2605,4 +2605,30 @@
     <string name="cid_preview_unavailable">“%s”的所有CID都已被占用，请换个名字。</string>
     <string name="popular_squares">成员最多</string>
     <string name="square_join_pending">已申请加入，等待上链确认</string>
+    <!-- 语音测试 (VOICE_SPEC §14 第二阶段)，仅调试版 -->
+    <string name="menu_voice_spike">语音测试</string>
+    <string name="voice_spike_title">语音测试</string>
+    <string name="voice_spike_mode_host">等待呼叫（本机地址见下方）</string>
+    <string name="voice_spike_mode_call">呼叫等待中的手机</string>
+    <string name="voice_spike_mode_relay">加入语音中继</string>
+    <string name="voice_spike_mode_loopback">本机回环（测本机音频延迟，不经网络）</string>
+    <string name="voice_spike_room_code">房间码（两台手机相同）</string>
+    <string name="voice_spike_remote_host">对方手机 IP 或中继地址</string>
+    <string name="voice_spike_frame_20">20 毫秒帧</string>
+    <string name="voice_spike_frame_40">40 毫秒帧</string>
+    <string name="voice_spike_audio_java">Java 音频</string>
+    <string name="voice_spike_audio_aaudio">AAudio</string>
+    <string name="voice_spike_audio_exclusive">AAudio 独占</string>
+    <string name="voice_spike_bitrate">kbps</string>
+    <string name="voice_spike_expected_loss">FEC 按丢包 %</string>
+    <string name="voice_spike_simulated_loss">接收丢弃 %</string>
+    <string name="voice_spike_dtx">DTX</string>
+    <string name="voice_spike_mute">静音</string>
+    <string name="voice_spike_speaker">扬声器</string>
+    <string name="voice_spike_start">开始</string>
+    <string name="voice_spike_stop">停止</string>
+    <string name="voice_spike_need_host">请输入对方手机 IP 或中继地址</string>
+    <string name="voice_spike_need_mic">需要麦克风权限</string>
+    <string name="voice_spike_local_addresses">本机：%1$s（UDP %2$d）</string>
+    <string name="voice_spike_failed">无法开始：%1$s</string>
 </resources>

@@ -561,6 +561,15 @@ public class PopupMenuHelper {
             context.startActivity(new Intent(context, TotpActivity.class));
         });
 
+        if (com.fc.freer.BuildConfig.DEBUG) {
+            TextView voiceSpikeTool = popupView.findViewById(R.id.voice_spike_tool);
+            voiceSpikeTool.setVisibility(View.VISIBLE);
+            voiceSpikeTool.setOnClickListener(v -> {
+                popupWindow.dismiss();
+                context.startActivity(new Intent(context, com.fc.freer.call.spike.VoiceSpikeActivity.class));
+            });
+        }
+
         broadcastTool.setOnClickListener(v -> {
             popupWindow.dismiss();
             context.startActivity(new Intent(context, BroadcastActivity.class));
