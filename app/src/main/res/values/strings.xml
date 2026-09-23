@@ -2683,4 +2683,26 @@
     <string name="symkey_version_copied">Copied %1$s</string>
     <string name="symkey_ask_which_version">Asking for the symkey from %1$s</string>
     <string name="symkey_cooldown_row">asked %1$s — again in %2$ds</string>
+    <!-- Voice spike (VOICE_SPEC §14 Phase 2), debug builds only -->
+    <string name="menu_voice_spike">Voice test</string>
+    <string name="voice_spike_title">Voice test</string>
+    <string name="voice_spike_mode_host">Wait for a call (this phone\'s address below)</string>
+    <string name="voice_spike_mode_call">Call a waiting phone</string>
+    <string name="voice_spike_mode_relay">Join the voice relay</string>
+    <string name="voice_spike_room_code">Room code (same on both phones)</string>
+    <string name="voice_spike_remote_host">Other phone\'s IP, or the relay host</string>
+    <string name="voice_spike_frame_20">20 ms frames</string>
+    <string name="voice_spike_frame_40">40 ms frames</string>
+    <string name="voice_spike_bitrate">kbps</string>
+    <string name="voice_spike_expected_loss">FEC for loss %</string>
+    <string name="voice_spike_simulated_loss">Drop % received</string>
+    <string name="voice_spike_dtx">DTX</string>
+    <string name="voice_spike_mute">Mute</string>
+    <string name="voice_spike_speaker">Speaker</string>
+    <string name="voice_spike_start">Start</string>
+    <string name="voice_spike_stop">Stop</string>
+    <string name="voice_spike_need_host">Enter the other phone\'s IP or the relay host</string>
+    <string name="voice_spike_need_mic">The microphone permission is needed</string>
+    <string name="voice_spike_local_addresses">This phone: %1$s (UDP %2$d)</string>
+    <string name="voice_spike_failed">Could not start: %1$s</string>
 </resources>
