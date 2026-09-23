@@ -215,6 +215,17 @@ public class ImMessage extends FcEntity {
     }
     
     /**
+     * Create a CALL message (VOICE_SPEC §3): {@code json} is a call signal, or,
+     * for a local call record that is never sent, the record.
+     */
+    public static ImMessage createCall(ImType type, String senderId, String targetId, String json) {
+        ImMessage msg = createBase(type, senderId, targetId, ContentType.CALL);
+        msg.setContent(json);
+        msg.setUnread(false);
+        return msg;
+    }
+
+    /**
      * Create a STREAM message for inline binary data sharing.
      * Content holds metadata JSON (name, size, type); data holds the raw payload.
      */

@@ -2631,4 +2631,14 @@
     <string name="voice_spike_need_mic">需要麦克风权限</string>
     <string name="voice_spike_local_addresses">本机：%1$s（UDP %2$d）</string>
     <string name="voice_spike_failed">无法开始：%1$s</string>
+    <!-- 语音通话：聊天中的记录 (VOICE_SPEC §10) -->
+    <string name="call_record_call">通话</string>
+    <string name="call_record_outgoing">呼出通话，%1$s</string>
+    <string name="call_record_incoming">呼入通话，%1$s</string>
+    <string name="call_record_missed">未接来电</string>
+    <string name="call_record_declined">已拒绝</string>
+    <string name="call_record_no_answer">无人接听</string>
+    <string name="call_record_busy">对方忙</string>
+    <string name="call_record_cancelled">已取消的通话</string>
+    <string name="call_record_answered_elsewhere">已在其他设备接听</string>
 </resources>

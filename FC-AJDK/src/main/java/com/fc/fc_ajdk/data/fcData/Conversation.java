@@ -113,6 +113,7 @@ public class Conversation extends FcEntity {
             case ROOM_ACCEPT -> "";
             case ROOM_DISBAND -> "";
             case ROOM_REMOVED -> "";
+            case CALL -> "[Call]";
         };
     }
     

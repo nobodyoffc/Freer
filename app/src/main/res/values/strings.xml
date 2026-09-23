@@ -2709,4 +2709,14 @@
     <string name="voice_spike_need_mic">The microphone permission is needed</string>
     <string name="voice_spike_local_addresses">This phone: %1$s (UDP %2$d)</string>
     <string name="voice_spike_failed">Could not start: %1$s</string>
+    <!-- Voice calls: entries in the chat (VOICE_SPEC §10) -->
+    <string name="call_record_call">Call</string>
+    <string name="call_record_outgoing">Outgoing call, %1$s</string>
+    <string name="call_record_incoming">Incoming call, %1$s</string>
+    <string name="call_record_missed">Missed call</string>
+    <string name="call_record_declined">Declined</string>
+    <string name="call_record_no_answer">No answer</string>
+    <string name="call_record_busy">Busy</string>
+    <string name="call_record_cancelled">Cancelled call</string>
+    <string name="call_record_answered_elsewhere">Answered on another device</string>
 </resources>
