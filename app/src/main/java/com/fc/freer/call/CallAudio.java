@@ -55,6 +55,19 @@ public final class CallAudio {
         }
     }
 
+    /** For logs: the mode and where call audio goes. */
+    @SuppressWarnings("deprecation")
+    public synchronized String describe() {
+        String mode = audio.getMode() == AudioManager.MODE_IN_COMMUNICATION ? "communication" : "mode " + audio.getMode();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            AudioDeviceInfo d = audio.getCommunicationDevice();
+            String to = d == null ? "none" : d.getType() == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER ? "speaker"
+                    : d.getType() == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE ? "earpiece" : "device type " + d.getType();
+            return mode + ", to " + to;
+        }
+        return mode + (audio.isSpeakerphoneOn() ? ", to speaker" : ", to earpiece");
+    }
+
     @SuppressWarnings("deprecation")
     public synchronized void leave() {
         if (focus == null) return;

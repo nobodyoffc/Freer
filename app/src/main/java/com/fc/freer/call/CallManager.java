@@ -174,6 +174,7 @@ public final class CallManager implements CallSignaller.Listener {
                     return;
                 }
                 audio.enter(speaker);
+                TimberLogger.i(TAG, "audio: %s", audio.describe());
                 session = newSession(call);
                 session.startOutgoing();
                 CallService.start(context);
@@ -187,6 +188,7 @@ public final class CallManager implements CallSignaller.Listener {
         if (signaller.accept(call.callId, null) == null) return;
         phase = Phase.CONNECTING;
         audio.enter(speaker);
+        TimberLogger.i(TAG, "audio: %s", audio.describe());
         session = newSession(call);
         session.startIncoming();
         CallService.start(context);
@@ -220,6 +222,7 @@ public final class CallManager implements CallSignaller.Listener {
     public void setSpeaker(boolean on) {
         speaker = on;
         audio.setSpeaker(on);
+        TimberLogger.i(TAG, "audio: %s", audio.describe());
         notifyUi();
     }
 

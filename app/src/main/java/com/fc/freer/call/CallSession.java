@@ -31,6 +31,7 @@ public final class CallSession {
 
     private static final String TAG = "CallSession";
     private static final long ATTEST_CHECK_MS = 200;
+    private static final long STATS_EVERY_MS = 5_000;
     public static final int FRAME_MS = 20;
     public static final int BITRATE = 24_000;
     public static final int EXPECTED_LOSS = 10;
@@ -72,6 +73,8 @@ public final class CallSession {
     private volatile int routeId;
     private volatile boolean muted;
     private volatile boolean heardFirst;
+    private volatile long framesOpened;
+    private int statTicks;
     private final long startedMs = System.currentTimeMillis();
 
     public CallSession(Context context, CallSignaller signaller, CallSignaller.Call call, String myFid,
@@ -192,6 +195,7 @@ public final class CallSession {
                 if (m == null || p == null) return;
                 var f = m.open(datagram, System.currentTimeMillis());
                 if (f == null) return;
+                framesOpened++;
                 if (!heardFirst) {
                     heardFirst = true;
                     step("first audio frame from the peer");
@@ -239,6 +243,20 @@ public final class CallSession {
         step("connected to the relay");
     }
 
+    /** Levels are -dBov: 127 is silence, speech is roughly 20-50. */
+    private void logStats(PlayoutEngine p) {
+        StringBuilder in = new StringBuilder();
+        for (PlayoutEngine.Stream s : p.streams().values()) {
+            in.append(" ssrc ").append(Integer.toUnsignedString(s.ssrc)).append(" level ").append(s.level())
+                    .append(" buffered ").append(s.buffer.depthMs()).append("ms");
+        }
+        step(String.format(java.util.Locale.US,
+                "stats: mic level %d%s, sent %d, dtx %d, via %s [%s] | received %d, playing%s, underruns %d, via %s",
+                capture.level(), muted ? " (muted)" : "", capture.framesSent(), capture.dtxSkipped(),
+                capture.describe(), capture.effects(), framesOpened,
+                in.length() == 0 ? " nothing" : in, p.underruns(), p.describe()));
+    }
+
     /** One line per step, timed from the session's start, so a failed call shows where it stopped. */
     private void step(String what) {
         TimberLogger.i(TAG, "call %s +%dms: %s", call.callId, System.currentTimeMillis() - startedMs, what);
@@ -264,6 +282,7 @@ public final class CallSession {
             CallRelayLink l = link;
             if (l != null) for (byte[] a : m.takeAttestations(now)) l.sendAttestation(a);
             m.tick(now);
+            if (++statTicks % (STATS_EVERY_MS / ATTEST_CHECK_MS) == 0) logStats(p);
             // Checked 5 times a second so each attestation leaves ~1 s after its
             // first frame, not up to 2 s: the far end mutes us at 3 s (§5.1).
         }, ATTEST_CHECK_MS, ATTEST_CHECK_MS, TimeUnit.MILLISECONDS);
