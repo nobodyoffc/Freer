@@ -99,9 +99,15 @@ public class CallRelayLinkLiveTest {
             assertNotNull(callee.knownSid);
             // Callee joins first and retries on 409 while the caller registers (§6.2 step 4).
             callee.open(callId, relay);
+            // The ACCEPT is slow over IM: the caller registers on the relay's knock (§6.2 step 3).
             Thread register = new Thread(() -> {
                 try {
-                    Thread.sleep(6000); // a slow ACCEPT: the callee backs off within the join limit
+                    Map<String, Object> knock;
+                    do {
+                        knock = caller.notices.poll(10, TimeUnit.SECONDS);
+                        assertNotNull("the relay knocks for the waiting callee", knock);
+                    } while (!"knock".equals(knock.get("type")));
+                    assertEquals(callee.fid, knock.get("fid"));
                     caller.link.register(CallKeys.authPub(authPriv));
                 } catch (Exception e) {
                     throw new RuntimeException(e);

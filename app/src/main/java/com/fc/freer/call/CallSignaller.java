@@ -286,6 +286,17 @@ public final class CallSignaller {
         if (listener != null) listener.onAnswered(c);
     }
 
+    /**
+     * The relay says the callee is waiting to join, with the delegation it
+     * joined under (§6.2 step 3). That delegation is the callee's own signed
+     * statement for this call, made only on answering, so it answers the call
+     * as an ACCEPT would: the ACCEPT itself may be slow over IM, or lost.
+     */
+    public synchronized void onKnock(String callId, Delegation d) {
+        if (d == null || d.fid == null) return;
+        onAccept(d.fid, CallSignal.accept(callId, d.tPubBytes(), d, null));
+    }
+
     private void onReject(String callee, CallSignal s) {
         Call c = calls.get(s.callId);
         if (c == null || !c.outgoing || c.state != State.RINGING_OUT || !c.peerFid.equals(callee)) return;

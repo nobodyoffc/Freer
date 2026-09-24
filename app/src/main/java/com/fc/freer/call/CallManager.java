@@ -273,8 +273,8 @@ public final class CallManager implements CallSignaller.Listener {
                         case FAILED -> {
                             // The media path failed: end the call for the peer too.
                             hangup();
+                            failed = true; // before finish(), whose redraw decides whether the screen stays
                             finish(context.getString(R.string.call_end_failed, detail));
-                            failed = true;
                         }
                         default -> { }
                     }

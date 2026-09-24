@@ -146,6 +146,29 @@ public class CallSignallerTest {
     }
 
     @Test
+    public void aKnockFromTheRelayAnswersWhenTheAcceptIsSlow() {
+        CallSignaller.Call out = ring();
+        CallSignaller.Call in = bob.rang.get(0);
+        bob.signaller.accept(in.callId, null);
+        // Bob's ACCEPT is still on its way; the relay passes on the delegation he joined with.
+        alice.signaller.onKnock(out.callId, bob.signaller.call(in.callId).myDelegation);
+        assertEquals(1, alice.answered.size());
+        assertArrayEquals(alice.signaller.callSecret(out.callId), bob.signaller.callSecret(in.callId));
+        pump(); // the ACCEPT arrives late and changes nothing
+        assertEquals(1, alice.answered.size());
+    }
+
+    @Test
+    public void aKnockFromSomeoneElseIsIgnored() {
+        CallSignaller.Call out = ring();
+        Device carol = new Device(key());
+        byte[] tPub = KeyTools.prikeyToPubkey(key());
+        alice.signaller.onKnock(out.callId, Delegation.sign(carol.fidPriv, out.callId, tPub, now / 1000 + 3600));
+        assertTrue(alice.answered.isEmpty());
+        assertEquals(CallSignaller.State.RINGING_OUT, alice.signaller.call(out.callId).state());
+    }
+
+    @Test
     public void cancellingAPreparedCallTellsNoOne() {
         CallSignaller.Call out = alice.signaller.prepare(bob.fid, "fudp://relay.example:19950");
         alice.signaller.cancel(out.callId);

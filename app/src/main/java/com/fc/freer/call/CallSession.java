@@ -214,6 +214,18 @@ public final class CallSession {
                         lastRoster = notice;
                         addPeers(notice);
                     }
+                    case "knock" -> {
+                        if (!call.callId.equals(notice.get("meetingId"))
+                                || !(notice.get("delegation") instanceof String json)) {
+                            return;
+                        }
+                        step("the relay says " + notice.get("fid") + " is waiting to join");
+                        try {
+                            signaller.onKnock(call.callId, Delegation.fromJson(json));
+                        } catch (RuntimeException ignored) {
+                            // not a delegation we can read: the ACCEPT may still come
+                        }
+                    }
                     case "kicked" -> {
                         if (!worker.isShutdown()) worker.execute(() -> fail("removed by the relay: " + notice.get("reason")));
                     }
