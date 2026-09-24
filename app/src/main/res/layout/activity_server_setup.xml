@@ -109,6 +109,57 @@
                     android:contentDescription="@string/choose_another" />
             </LinearLayout>
 
+            <!-- CALL (voice calls): opt-in, VOICE_SPEC §6.2 -->
+            <CheckBox
+                android:id="@+id/call_checkbox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/server_setup_call_label"
+                android:textColor="@color/field_name"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="4dp"
+                android:text="@string/server_setup_call_explain"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:id="@+id/call_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    app:boxBackgroundColor="@color/input_field_background"
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/call_input"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="@string/server_setup_call_hint"
+                        android:inputType="text"
+                        android:maxLines="3" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <ImageButton
+                    android:id="@+id/choose_call_button"
+                    style="@style/ImageButtonStyle"
+                    android:layout_marginStart="8dp"
+                    android:src="@drawable/ic_search"
+                    android:contentDescription="@string/choose_another" />
+            </LinearLayout>
+
         </LinearLayout>
 
     </ScrollView>

@@ -15,7 +15,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.fc.freer.R;
 import com.fc.freer.utils.ToolbarUtils;
 
-/** Call settings (VOICE_SPEC §10): Available for calls, Always relay, and the call relay. */
+/** Call settings (VOICE_SPEC §10): Available for calls, Always relay, and in debug builds a test relay. */
 public class CallSettingsActivity extends AppCompatActivity {
 
     @Override
@@ -36,6 +36,9 @@ public class CallSettingsActivity extends AppCompatActivity {
         alwaysRelay.setChecked(calls.alwaysRelay());
         alwaysRelay.setOnCheckedChangeListener((b, on) -> calls.setAlwaysRelay(on));
 
+        // Testing only: a release build always calls through the callee's home.CALL (§6.2).
+        findViewById(R.id.callRelayGroup).setVisibility(
+                com.fc.freer.BuildConfig.DEBUG ? android.view.View.VISIBLE : android.view.View.GONE);
         EditText relay = findViewById(R.id.etCallRelay);
         relay.setText(calls.relayOverride());
         relay.addTextChangedListener(new TextWatcher() {

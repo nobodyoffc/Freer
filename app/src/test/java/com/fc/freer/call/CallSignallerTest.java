@@ -180,6 +180,21 @@ public class CallSignallerTest {
     }
 
     @Test
+    public void aCalleeAnswersOnlyOnItsOwnCallService() {
+        bob.signaller.setRelayPolicy(r -> r != null && "fudp://bobs.relay:19950".equals(r.url()));
+        ring(); // through fapi://relay.example:19900, not Bob's
+        assertTrue("it does not ring", bob.rang.isEmpty());
+        assertEquals(CallSignaller.CallRecord.Kind.MISSED, bob.lastRecord().kind());
+        assertEquals(List.of(CallSignaller.End.WRONG_RELAY), alice.ended);
+
+        alice.ended.clear();
+        CallSignaller.Call ok = alice.signaller.invite(bob.fid, "fudp://bobs.relay:19950", null);
+        pump();
+        assertEquals("on Bob's own CALL service it rings", 1, bob.rang.size());
+        assertEquals(ok.callId, bob.rang.get(0).callId);
+    }
+
+    @Test
     public void cancellingAPreparedCallTellsNoOne() {
         CallSignaller.Call out = alice.signaller.prepare(bob.fid, "fudp://relay.example:19950");
         alice.signaller.cancel(out.callId);

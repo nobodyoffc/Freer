@@ -341,35 +341,61 @@ public class P2pHandler extends BaseHandler {
         return new RelayRoutes(targetDockUrl, targetRoadUrl, recipientHome, freshHome);
     }
 
+    /** A CALL service: where to reach it, and its on-chain record when the home names one by id. */
+    public record CallRelay(String url, String sid, com.fc.fc_ajdk.data.feipData.Service service) {}
+
     /**
-     * The CALL relay for a call to {@code targetFid} (VOICE_SPEC §6.2): my own
-     * {@code home.CALL@No1_NrC7} if I have one, else the callee's, from the
-     * known home or its on-chain freer. Null if neither side has one.
+     * The callee's CALL service (VOICE_SPEC §6.2): its {@code home.CALL@No1_NrC7}
+     * and nothing else, because the call runs on the callee's terms. The home
+     * is read fresh from chain, since it can change; the known copy is used
+     * only if the chain cannot be asked. Null if the callee has none: it has
+     * chosen not to be called.
      */
-    public String resolveCallRelay(String targetFid) {
+    public CallRelay resolveCallRelay(String targetFid) {
         if (fapiClient == null) return null;
-        HomeServiceResolver resolver = fapiClient.getHomeServiceResolver();
-        FidManager fidManager = FidManager.getInstance();
-        com.fc.fc_ajdk.data.fcData.KeyInfo mine = fidManager != null ? fidManager.getMainKeyInfo() : null;
-        if (mine != null && mine.getHome() != null) {
-            String url = resolver.resolveFromHome(mine.getHome(), CALL_NO1_NRC7, fapiClient);
-            if (url != null) return url;
-        }
-        TalkPartner partner = talkPartnerProvider != null ? talkPartnerProvider.getTalkPartner(targetFid) : null;
-        if (partner != null && partner.getHome() != null) {
-            String url = resolver.resolveFromHome(partner.getHome(), CALL_NO1_NRC7, fapiClient);
-            if (url != null) return url;
-        }
+        java.util.Map<String, String> home = null;
         try {
             com.fc.fc_ajdk.data.fchData.Freer freer = fapiClient.getFreer(targetFid);
-            if (freer != null && freer.getHome() != null) {
-                persistFreshHome(targetFid, freer.getHome());
-                return resolver.resolveFromHome(freer.getHome(), CALL_NO1_NRC7, fapiClient);
+            if (freer != null) {
+                home = freer.getHome();
+                if (home != null) persistFreshHome(targetFid, home);
+                else return null; // on chain, without a home: not callable
             }
         } catch (Exception e) {
-            TimberLogger.w(TAG, "Failed to resolve %s's home for a call: %s", targetFid, e.getMessage());
+            TimberLogger.w(TAG, "Failed to read %s's home for a call, using the known one: %s", targetFid,
+                    e.getMessage());
         }
-        return null;
+        if (home == null) {
+            TalkPartner partner = talkPartnerProvider != null ? talkPartnerProvider.getTalkPartner(targetFid) : null;
+            home = partner != null ? partner.getHome() : null;
+        }
+        String value = home == null ? null : home.get(CALL_NO1_NRC7);
+        if (value == null || value.isEmpty()) return null;
+        HomeServiceResolver resolver = fapiClient.getHomeServiceResolver();
+        String url = resolver.resolveFromHome(home, CALL_NO1_NRC7, fapiClient);
+        if (url == null) return null;
+        String sid = HomeServiceResolver.isUrl(value) ? null : HomeServiceResolver.extractSid(value);
+        return new CallRelay(url, sid, sid == null ? null : resolver.getCachedService(sid));
+    }
+
+    /**
+     * Whether a call's relay is my own {@code home.CALL@No1_NrC7} (§6.2): the
+     * only relay I answer on. A caller that names another, whether an old
+     * client or a modified one, does not get to choose where I talk.
+     */
+    public boolean isMyCallRelay(com.fc.fc_ajdk.call.CallSignal.Relay relay) {
+        if (relay == null || relay.url() == null) return false;
+        FidManager fidManager = FidManager.getInstance();
+        com.fc.fc_ajdk.data.fcData.KeyInfo mine = fidManager != null ? fidManager.getLiveKeyInfo() : null;
+        String value = mine != null && mine.getHome() != null ? mine.getHome().get(CALL_NO1_NRC7) : null;
+        if (value == null || value.isEmpty()) return false;
+        if (HomeServiceResolver.isUrl(value)) return sameUrl(value, relay.url());
+        String sid = HomeServiceResolver.extractSid(value);
+        return sid != null && sid.equals(relay.sid());
+    }
+
+    private static boolean sameUrl(String a, String b) {
+        return a.trim().replaceAll("/+$", "").equalsIgnoreCase(b.trim().replaceAll("/+$", ""));
     }
 
     /**

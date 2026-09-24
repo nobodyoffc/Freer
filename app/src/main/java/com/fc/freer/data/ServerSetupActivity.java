@@ -46,6 +46,11 @@ public class ServerSetupActivity extends BaseCryptoActivity {
 
     private ActivityResultLauncher<Intent> setDockLauncher;
     private ActivityResultLauncher<Intent> setDiskLauncher;
+    private ActivityResultLauncher<Intent> setCallLauncher;
+    private android.widget.CheckBox callCheckbox;
+    private TextInputEditText callInput;
+    /** The home already has a CALL entry: unticking removes it, and so stops calls. */
+    private boolean hadCall;
 
     @Override
     protected int getLayoutId() {
@@ -74,6 +79,13 @@ public class ServerSetupActivity extends BaseCryptoActivity {
                         ServicePickerUtils.applySelectedService(this, result.getData(), diskInput);
                     }
                 });
+        setCallLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        ServicePickerUtils.applySelectedService(this, result.getData(), callInput);
+                    }
+                });
     }
 
     @Override
@@ -83,6 +95,11 @@ public class ServerSetupActivity extends BaseCryptoActivity {
         chooseDockButton = findViewById(R.id.choose_dock_button);
         chooseDiskButton = findViewById(R.id.choose_disk_button);
         registerButton = findViewById(R.id.register_button);
+        callCheckbox = findViewById(R.id.call_checkbox);
+        callInput = findViewById(R.id.call_input);
+        // Being callable is a choice: off unless the home already has a CALL service.
+        callCheckbox.setOnCheckedChangeListener((b, on) ->
+                findViewById(R.id.call_row).setVisibility(on ? android.view.View.VISIBLE : android.view.View.GONE));
         backButton = findViewById(R.id.back_button);
 
         // A multisig FID is a script address with no key pair: it cannot encrypt or decrypt
@@ -105,6 +122,9 @@ public class ServerSetupActivity extends BaseCryptoActivity {
                 this, Constants.DOCK_NO1_NRC7, getString(R.string.server_setup_dock_label))));
         chooseDiskButton.setOnClickListener(v -> setDiskLauncher.launch(ServicePickerUtils.pickerIntent(
                 this, Constants.DISK_NO1_NRC7, getString(R.string.server_setup_disk_label))));
+        findViewById(R.id.choose_call_button).setOnClickListener(v -> setCallLauncher.launch(
+                ServicePickerUtils.pickerIntent(this, Constants.CALL_NO1_NRC7,
+                        getString(R.string.server_setup_call_label))));
     }
 
     @Override
@@ -126,6 +146,7 @@ public class ServerSetupActivity extends BaseCryptoActivity {
             Map<String, String> home = liveKeyInfo != null ? liveKeyInfo.getHome() : null;
 
             String existingDock = home != null ? home.get(Constants.DOCK_NO1_NRC7) : null;
+            String existingCall = home != null ? home.get(Constants.CALL_NO1_NRC7) : null;
 
             String existingDiskSid = null;
             if (liveKeyInfo != null && DiskHomeManager.isConfigured(liveKeyInfo)) {
@@ -140,6 +161,12 @@ public class ServerSetupActivity extends BaseCryptoActivity {
             runOnUiThread(() -> {
                 if (dockValue != null) dockInput.setText(dockValue);
                 if (diskValue != null) diskInput.setText(diskValue);
+                // CALL is never prefilled with a default: only what the user already chose.
+                if (existingCall != null && !existingCall.isEmpty()) {
+                    hadCall = true;
+                    callInput.setText(existingCall);
+                    callCheckbox.setChecked(true);
+                }
             });
         }).start();
     }
@@ -154,7 +181,14 @@ public class ServerSetupActivity extends BaseCryptoActivity {
 
         String dockVal = dockInput.getText() != null ? dockInput.getText().toString().trim() : "";
         String diskSid = diskInput.getText() != null ? diskInput.getText().toString().trim() : "";
-        if (dockVal.isEmpty() && diskSid.isEmpty()) {
+        boolean takeCalls = callCheckbox.isChecked();
+        String callVal = takeCalls && callInput.getText() != null ? callInput.getText().toString().trim() : "";
+        if (takeCalls && callVal.isEmpty()) {
+            ToastUtils.makeText(this, R.string.server_setup_call_empty);
+            return;
+        }
+        boolean removeCall = hadCall && !takeCalls;
+        if (dockVal.isEmpty() && diskSid.isEmpty() && callVal.isEmpty() && !removeCall) {
             ToastUtils.makeText(this, R.string.server_setup_need_one);
             return;
         }
@@ -170,7 +204,7 @@ public class ServerSetupActivity extends BaseCryptoActivity {
         // The TX build, broadcast, and all post-broadcast bookkeeping (DISK/DOCK pending flags
         // and the persisted server-setup suppression flag) live in the shared helper, so this
         // manual path and the one-tap dialog path stay identical.
-        ServerSetupManager.register(this, liveKeyInfo, dockVal, diskSid, prikey,
+        ServerSetupManager.register(this, liveKeyInfo, dockVal, diskSid, callVal, removeCall, prikey,
                 new TxSender.TxCallback() {
                     @Override
                     public void onSuccess(String txId) {

@@ -67,6 +67,10 @@ public final class CallManager implements CallSignaller.Listener {
     private String endReason;
     private boolean failed;
     private String unverifiedFid;
+    /** The callee's CALL service for the call I placed, for its price and a top-up. */
+    private com.fc.freer.im.handler.P2pHandler.CallRelay placedVia;
+    /** Set when my call failed for my balance at the callee's relay: the relay to top up. */
+    private String topUpRelay;
     private volatile boolean speaker; // read on the session thread when call audio starts
     private Ringtone ringtone;
 
@@ -111,6 +115,52 @@ public final class CallManager implements CallSignaller.Listener {
         return slash > 0 ? u.substring(0, slash) : u;
     }
 
+    /**
+     * What a relayed minute of this call costs me, in FCH, from the CALL
+     * service's price: the caller pays both sides' traffic (§7.5), about
+     * 0.4 MB in and out per side. Null if I am not paying or the price is unknown.
+     */
+    public Double callerCostPerMinute() {
+        com.fc.fc_ajdk.data.feipData.Service s = placedVia == null ? null : placedVia.service();
+        if (s == null || call == null || !call.outgoing) return null;
+        double in = price(s.getPricePerKBIn(), s.getPricePerKB()), out = price(s.getPricePerKBOut(), s.getPricePerKB());
+        return in < 0 || out < 0 ? null : 2 * 400 * (in + out);
+    }
+
+    private static double price(String specific, String general) {
+        String v = specific != null && !specific.isEmpty() ? specific : general;
+        try {
+            return v == null || v.isEmpty() ? -1 : Double.parseDouble(v);
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    /** The relay to top up after a call failed for my balance there, or null. */
+    public String topUpRelay() {
+        return topUpRelay;
+    }
+
+    /**
+     * Pay the callee's CALL service from my FID, as FAPI's auto-recharge does
+     * for any service, so the next call can open (§7.5). The user confirms
+     * first. Runs off the main thread; {@code done} gets null on success, or
+     * why not.
+     */
+    public void topUp(String relayUrl, java.util.function.Consumer<String> done) {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            String error;
+            try {
+                var r = com.fc.freer.utils.ApiCenter.getInstance().topUpService(context, relayUrl);
+                error = r == null ? "the relay could not be reached" : r.isSuccess() ? null : r.getMessage();
+            } catch (RuntimeException e) {
+                error = e.getMessage();
+            }
+            String result = error;
+            main.post(() -> done.accept(result));
+        });
+    }
+
     public long connectedAtMs() {
         return connectedAtMs;
     }
@@ -140,9 +190,13 @@ public final class CallManager implements CallSignaller.Listener {
         return session == null ? -1 : session.rttMs();
     }
 
-    /** A relay address to use for every call, ahead of the homes on chain: for testing. */
+    /**
+     * Debug builds only: a relay to call through instead of the callee's
+     * home.CALL, and to answer on besides my own, for testing before a CALL
+     * service is on chain. A release build always uses the callee's.
+     */
     public String relayOverride() {
-        return prefs().getString(PREF_RELAY, "");
+        return com.fc.freer.BuildConfig.DEBUG ? prefs().getString(PREF_RELAY, "") : "";
     }
 
     public void setRelayOverride(String url) {
@@ -183,18 +237,22 @@ public final class CallManager implements CallSignaller.Listener {
         phase = Phase.CALLING;
         notifyUi();
         Executors.newSingleThreadExecutor().execute(() -> {
-            String relay = relayOverride();
-            if (relay.isEmpty()) {
+            // The callee's CALL service, and no other (§6.2): no home.CALL means not callable.
+            com.fc.freer.im.handler.P2pHandler.CallRelay via = null;
+            String override = relayOverride();
+            if (override.isEmpty()) {
                 ImManager im = FidManager.getInstance().getImManager();
-                relay = im == null ? null : im.resolveCallRelay(peerFid);
+                via = im == null ? null : im.resolveCallRelay(peerFid);
             }
-            String relayUrl = relay;
+            String relayUrl = !override.isEmpty() ? override : via == null ? null : via.url();
+            com.fc.freer.im.handler.P2pHandler.CallRelay resolved = via;
             main.post(() -> {
                 if (phase != Phase.CALLING || call != null) return; // hung up while we looked
                 if (relayUrl == null || relayUrl.isEmpty()) {
                     finish(context.getString(R.string.call_end_no_relay));
                     return;
                 }
+                placedVia = resolved;
                 try {
                     // Nothing is sent yet: the session reaches the relay, then rings.
                     call = signaller.prepare(peerFid, relayUrl);
@@ -316,6 +374,7 @@ public final class CallManager implements CallSignaller.Listener {
                             connectedAtMs = System.currentTimeMillis();
                         }
                         case FAILED -> {
+                            if (session != null && session.paymentRequired()) topUpRelay = c.relayUrl;
                             // The media path failed: end the call for the peer too.
                             hangup();
                             failed = true; // before finish(), whose redraw decides whether the screen stays
@@ -366,6 +425,8 @@ public final class CallManager implements CallSignaller.Listener {
         endReason = null;
         failed = false;
         unverifiedFid = null;
+        placedVia = null;
+        topUpRelay = null;
     }
 
     private String describe(CallSignaller.End reason) {
@@ -373,6 +434,7 @@ public final class CallManager implements CallSignaller.Listener {
             case DECLINED -> context.getString(R.string.call_record_declined);
             case BUSY -> context.getString(R.string.call_record_busy);
             case UNSUPPORTED -> context.getString(R.string.call_end_unsupported);
+            case WRONG_RELAY -> context.getString(R.string.call_end_wrong_relay);
             case NO_ANSWER -> context.getString(R.string.call_record_no_answer);
             case MISSED -> context.getString(R.string.call_record_missed);
             case ANSWERED_ELSEWHERE -> context.getString(R.string.call_record_answered_elsewhere);

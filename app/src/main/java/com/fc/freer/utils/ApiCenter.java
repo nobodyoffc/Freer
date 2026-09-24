@@ -1037,6 +1037,42 @@ public class ApiCenter {
      * 创建FAPI客户端并持久化ApiProvider和ApiAccount（首次启动用）
      * 使用bootstrapWithResult获取完整的服务发现信息，创建并保存ApiProvider和ApiAccount
      */
+    /**
+     * Pay a service from the main FID once, as auto-recharge would, without
+     * adopting it as one of the app's providers: for a call to a callee whose
+     * CALL service holds too little of my balance (VOICE_SPEC §7.5). The amount
+     * is the service's usual purchase, capped by the recharge limit.
+     * Blocking; the user has confirmed.
+     *
+     * @return the result, or null if the service could not be reached
+     */
+    public com.fc.fc_ajdk.fapi.client.AutoRechargeManager.RechargeResult topUpService(Context context, String url) {
+        if (currentSetting == null || currentConfigure == null) return null;
+        if (currentConfigure.getSymkey() != null) currentSetting.setSymkey(currentConfigure.getSymkey());
+        FudpNode fudpNode = initFudpNode(context);
+        if (fudpNode == null) return null;
+        FapiClient.BootstrapResult r = FapiClient.bootstrapFromUrlWithResult(
+                fudpNode, Service.ServiceType.FAPI_No1_NrC7, url, currentSetting.getSettingMap());
+        if (r == null || r.getClient() == null || r.getService() == null) return null;
+        FapiClient client = r.getClient();
+        Service service = r.getService();
+        Service full = client.serviceById(service.getId());
+        if (full != null) service = full;
+        String mainFid = currentSetting.getMainFid();
+        ApiAccount account = new ApiAccount();
+        account.setId(ApiAccount.makeApiAccountId(service.getId(), mainFid));
+        account.setProviderId(service.getId());
+        account.setUserId(mainFid);
+        account.setUserPubkey(currentSetting.getPubkey());
+        account.setApiUrl(url);
+        account.setService(service);
+        client.setApiAccount(account);
+        client.setAutoRechargeInfo(mainFid, currentSetting::decryptPrikey);
+        client.setUtxoProvider(CashManager.UTXO_PROVIDER);
+        client.cacheServiceForRecharge(service);
+        return client.manualRecharge();
+    }
+
     private FapiClient createFapiClientForUrl(Context context, Service.ServiceType serviceType, String url) {
         try {
             if (currentSetting == null) {

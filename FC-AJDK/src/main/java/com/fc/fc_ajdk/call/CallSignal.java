@@ -14,7 +14,7 @@ import java.util.List;
  * <pre>
  * INVITE  callId transportPub delegation relay{url, pubkey?, sid?}? candidates? expires codecs
  * ACCEPT  callId transportPub delegation candidates?
- * REJECT  callId reason ∈ declined | busy | unsupported
+ * REJECT  callId reason ∈ declined | busy | unsupported | relay
  * CANCEL  callId reason ∈ cancelled | timeout | answered_elsewhere
  * HANGUP  callId duration (ms)
  * </pre>
@@ -26,6 +26,8 @@ public final class CallSignal {
     public static final String REJECT_DECLINED = "declined";
     public static final String REJECT_BUSY = "busy";
     public static final String REJECT_UNSUPPORTED = "unsupported";
+    /** The INVITE's relay is not the callee's own {@code home.CALL} (§6.2). */
+    public static final String REJECT_RELAY = "relay";
     public static final String CANCEL_CANCELLED = "cancelled";
     public static final String CANCEL_TIMEOUT = "timeout";
     public static final String CANCEL_ANSWERED_ELSEWHERE = "answered_elsewhere";

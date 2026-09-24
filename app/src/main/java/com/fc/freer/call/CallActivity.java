@@ -65,6 +65,10 @@ public class CallActivity extends AppCompatActivity implements CallManager.Liste
         toggles = findViewById(R.id.callToggles);
 
         answer.setOnClickListener(v -> {
+            if (calls.phase() == CallManager.Phase.ENDED && calls.topUpRelay() != null) {
+                confirmTopUp(calls.topUpRelay());
+                return;
+            }
             if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
                     == android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 calls.answer();
@@ -124,9 +128,17 @@ public class CallActivity extends AppCompatActivity implements CallManager.Liste
         long rtt = calls.rttMs();
         if (calls.isDirect()) {
             path.setText(rtt >= 0 ? getString(R.string.call_direct_rtt, rtt) : getString(R.string.call_direct));
-        } else path.setText(relay == null ? "" : rtt >= 0
-                ? getString(R.string.call_relayed_via_rtt, relay, rtt)
-                : getString(R.string.call_relayed_via, relay));
+        } else {
+            String via = relay == null ? "" : rtt >= 0
+                    ? getString(R.string.call_relayed_via_rtt, relay, rtt)
+                    : getString(R.string.call_relayed_via, relay);
+            Double cost = calls.callerCostPerMinute(); // shown to the caller, who pays (§7.5)
+            if (cost != null && !via.isEmpty()) {
+                via += " · " + (cost == 0 ? getString(R.string.call_free)
+                        : getString(R.string.call_cost_per_minute, String.format(Locale.US, "%.6f", cost)));
+            }
+            path.setText(via);
+        }
 
         String unverified = calls.unverifiedFid();
         warning.setVisibility(unverified == null ? View.GONE : View.VISIBLE);
@@ -134,7 +146,9 @@ public class CallActivity extends AppCompatActivity implements CallManager.Liste
 
         boolean ringingIn = phase == CallManager.Phase.RINGING_IN;
         boolean live = phase == CallManager.Phase.CONNECTING || phase == CallManager.Phase.CONNECTED;
-        answer.setVisibility(ringingIn ? View.VISIBLE : View.GONE);
+        boolean topUp = phase == CallManager.Phase.ENDED && calls.topUpRelay() != null;
+        answer.setText(topUp ? R.string.call_top_up : R.string.call_answer);
+        answer.setVisibility(ringingIn || topUp ? View.VISIBLE : View.GONE);
         boolean over = phase == CallManager.Phase.ENDED || phase == CallManager.Phase.IDLE;
         boolean keepOpen = phase == CallManager.Phase.ENDED && calls.endedWithFailure();
         hangup.setText(keepOpen ? R.string.call_close : ringingIn ? R.string.call_decline : R.string.call_hang_up);
@@ -146,6 +160,24 @@ public class CallActivity extends AppCompatActivity implements CallManager.Liste
         if (over && !keepOpen) {
             handler.postDelayed(this::finish, CLOSE_AFTER_END_MS);
         }
+    }
+
+    /** Paying moves the user's money: ask first, and say where it goes. */
+    private void confirmTopUp(String relayUrl) {
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.call_top_up)
+                .setMessage(getString(R.string.call_top_up_confirm, relayUrl))
+                .setPositiveButton(R.string.call_top_up, (d, w) -> {
+                    answer.setEnabled(false);
+                    calls.topUp(relayUrl, error -> {
+                        answer.setEnabled(true);
+                        android.widget.Toast.makeText(this, error == null ? getString(R.string.call_top_up_done)
+                                : getString(R.string.call_top_up_failed, error), android.widget.Toast.LENGTH_LONG).show();
+                        if (error == null) finish();
+                    });
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     private String displayName(String fid) {

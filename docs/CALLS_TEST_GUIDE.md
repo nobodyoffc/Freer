@@ -23,9 +23,15 @@ audio and attestations.
 
 ## Point both phones at the relay
 
-On each phone, open **Tools → Voice test** (debug builds). In **Call relay
-for real calls**, enter `fudp://<server-ip>:19950`, then tap another field so
-it is saved. Or, from a Mac with the phone plugged in:
+A call runs only on the callee's own CALL service (its `home.CALL`), which
+needs a CALL service on chain. Until then, set the same **test relay** on
+**both** phones: the caller calls through it, and the callee answers on it.
+Without it on the callee, the callee rejects the call and the caller sees
+*They take calls only on their own CALL service*.
+
+In a debug build: chat list → menu → **Call settings** → **Test relay**, or
+**Tools → Voice test** → **Call relay for real calls**. Enter
+`fudp://<server-ip>:19950`. Or, from a Mac with the phone plugged in:
 ```bash
 adb shell am start -n com.fc.freer/.call.spike.VoiceSpikeActivity \
     --es callRelay fudp://<server-ip>:19950
@@ -79,6 +85,17 @@ after the knock). Each phone must have the other **in its contacts**, and
 3. Call from A. B should ring. Try 15 and 30 minutes too if you can; that
    shows whether Doze stops the keepalive.
 4. Turn it off: the notification goes away.
+
+## On a real CALL service (once one is on chain)
+
+1. Clear the test relay on both phones.
+2. On B: chat list → menu → set up home → tick **CALL**, choose the CALL
+   service, publish. Wait for the transaction to confirm.
+3. A calls B: the call runs on B's service, and A's call screen shows its
+   price per minute. A pays; if A's balance there is too low, the call ends
+   with **Top up**, which pays that service from A's FID after asking.
+4. Untick CALL on B and publish: A now sees *They have not set a CALL
+   service*.
 
 ## Report
 

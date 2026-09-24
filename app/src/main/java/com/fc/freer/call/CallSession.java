@@ -82,6 +82,7 @@ public final class CallSession {
     private volatile int routeId;
     private volatile boolean muted;
     private volatile boolean heardFirst;
+    private volatile boolean paymentRequired;
     private volatile boolean peerSeen;
     private volatile long framesOpened;
     private int statTicks;
@@ -137,6 +138,10 @@ public final class CallSession {
                 signaller.ring(call.callId, new com.fc.fc_ajdk.call.CallSignal.Relay(call.relayUrl,
                         link.relayPubkey(), link.relaySid()), null);
                 setState(State.RINGING, null);
+            } catch (CallRelayLink.Refused e) {
+                // 402: the caller pays for the call (§7.5) and cannot afford a minute of it.
+                paymentRequired = e.code == 402;
+                fail("could not open the call on the relay: " + e.getMessage());
             } catch (Exception e) {
                 fail("could not reach the relay: " + e.getMessage());
             }
@@ -378,6 +383,11 @@ public final class CallSession {
         CallDirectPath d = l.direct();
         if (d != null && d.isUp()) d.sendAttestation(a);
         else l.sendAttestation(a);
+    }
+
+    /** The relay refused to open the call because my balance there is too low. */
+    public boolean paymentRequired() {
+        return paymentRequired;
     }
 
     public boolean isDirect() {

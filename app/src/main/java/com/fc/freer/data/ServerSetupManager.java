@@ -65,12 +65,16 @@ public final class ServerSetupManager {
      * @param liveKeyInfo the live FID's KeyInfo
      * @param dockVal     the DOCK SID to register (empty/null to skip DOCK)
      * @param diskSid     the DISK SID to register (empty/null to skip DISK)
+     * @param callVal     the CALL service to register (empty/null to leave CALL as it is)
+     * @param removeCall  remove the home's CALL entry: stop taking calls (VOICE_SPEC §6.2)
      * @param prikey      the live FID's private key (for signing and DISK encryption)
      * @param uiCallback  result callback (onSuccess fires only after bookkeeping completes)
      */
     public static void register(Activity activity, KeyInfo liveKeyInfo,
-                                String dockVal, String diskSid, byte[] prikey,
-                                TxSender.TxCallback uiCallback) {
+                                String dockVal, String diskSid, String callVal, boolean removeCall,
+                                byte[] prikey, TxSender.TxCallback uiCallback) {
+        final String call = callVal != null ? callVal.trim() : "";
+        final boolean callChanged = !call.isEmpty() || removeCall;
         final String dock = dockVal != null ? dockVal.trim() : "";
         final String disk = diskSid != null ? diskSid.trim() : "";
         final boolean settingDock = !dock.isEmpty();
@@ -111,6 +115,7 @@ public final class ServerSetupManager {
 
             Map<String, String> changes = new HashMap<>();
             if (settingDock) changes.put(Constants.DOCK_NO1_NRC7, dock);
+            if (!call.isEmpty()) changes.put(Constants.CALL_NO1_NRC7, call);
             boolean settingDisk = false;
             // The DISK value is encrypted afresh each time, so compare the SID it holds, not the
             // bytes: re-encrypting the same SID would be a paid carve that changes nothing.
@@ -124,7 +129,8 @@ public final class ServerSetupManager {
                 settingDisk = true;
             }
 
-            final Map<String, String> homeMap = HomeFeip.merged(onChain.home, changes);
+            final Map<String, String> homeMap = HomeFeip.merged(onChain.home, changes,
+                    removeCall ? java.util.Set.of(Constants.CALL_NO1_NRC7) : java.util.Set.of());
             if (homeMap == null) {
                 if (uiCallback != null) uiCallback.onError(appContext.getString(R.string.server_setup_home_unchanged));
                 return;
@@ -149,6 +155,10 @@ public final class ServerSetupManager {
                             // Bookkeeping (resolveAndCacheDiskClient does a blocking UDP request)
                             // runs off the callback thread.
                             new Thread(() -> {
+                                if (callChanged && !diskChanged) {
+                                    // The callee answers only on its own home.CALL: use the new one now.
+                                    liveKeyInfo.setHome(new HashMap<>(homeMap));
+                                }
                                 if (diskChanged) {
                                     liveKeyInfo.setHome(new HashMap<>(homeMap));
                                     DiskHomeManager.resolveAndCacheDiskClient(liveKeyInfo, prikey);

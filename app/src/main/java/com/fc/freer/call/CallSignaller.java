@@ -58,7 +58,8 @@ public final class CallSignaller {
         void onEnded(Call call, End reason);
     }
 
-    public enum End { DECLINED, BUSY, UNSUPPORTED, CANCELLED, NO_ANSWER, MISSED, ANSWERED_ELSEWHERE, HUNG_UP, LOCAL_HANGUP }
+    public enum End { DECLINED, BUSY, UNSUPPORTED, WRONG_RELAY, CANCELLED, NO_ANSWER, MISSED, ANSWERED_ELSEWHERE, HUNG_UP,
+        LOCAL_HANGUP }
 
     /** PREPARING: the caller is reaching its relay; nothing has been sent yet. */
     public enum State { PREPARING, RINGING_OUT, RINGING_IN, ACTIVE, ENDED }
@@ -117,6 +118,8 @@ public final class CallSignaller {
     private final Records records;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
+    /** Which relays I answer on: my own home.CALL (§6.2). Anything, until set. */
+    private volatile java.util.function.Predicate<CallSignal.Relay> relayPolicy = r -> true;
     private final Map<String, Call> calls = new HashMap<>();
     private final Map<String, Boolean> seen = new LinkedHashMap<>(16, 0.75f, false) {
         @Override
@@ -181,6 +184,11 @@ public final class CallSignaller {
             c.relaySid = relay.sid();
         }
         outbox.send(c.peerFid, CallSignal.invite(callId, c.tPub, c.myDelegation, relay, candidates, now));
+    }
+
+    /** Answer only INVITEs whose relay passes: my own home.CALL (§6.2). */
+    public void setRelayPolicy(java.util.function.Predicate<CallSignal.Relay> policy) {
+        relayPolicy = policy == null ? r -> true : policy;
     }
 
     /** The caller gives up before an answer. */
@@ -260,6 +268,12 @@ public final class CallSignaller {
             records.record(caller, new CallRecord(CallRecord.Kind.MISSED, false, now, 0, s.callId));
             return;
         }
+        if (!relayPolicy.test(s.relay)) {
+            // Not my CALL service: the caller does not get to choose where I talk.
+            outbox.send(caller, CallSignal.reject(s.callId, CallSignal.REJECT_RELAY));
+            records.record(caller, new CallRecord(CallRecord.Kind.MISSED, false, now, 0, s.callId));
+            return;
+        }
         if (busy(s.callId)) {
             outbox.send(caller, CallSignal.reject(s.callId, CallSignal.REJECT_BUSY));
             records.record(caller, new CallRecord(CallRecord.Kind.MISSED, false, now, 0, s.callId));
@@ -314,6 +328,7 @@ public final class CallSignaller {
         switch (s.reason) {
             case CallSignal.REJECT_BUSY -> end(c, End.BUSY, CallRecord.Kind.BUSY);
             case CallSignal.REJECT_UNSUPPORTED -> end(c, End.UNSUPPORTED, CallRecord.Kind.DECLINED);
+            case CallSignal.REJECT_RELAY -> end(c, End.WRONG_RELAY, CallRecord.Kind.NO_ANSWER);
             default -> end(c, End.DECLINED, CallRecord.Kind.DECLINED);
         }
     }

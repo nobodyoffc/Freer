@@ -20,8 +20,15 @@ public final class HomeFeip {
      * nothing.
      */
     public static Map<String, String> merged(Map<String, String> stored, Map<String, String> changes) {
+        return merged(stored, changes, java.util.Set.of());
+    }
+
+    /** As {@link #merged(Map, Map)}, also dropping the {@code removals} keys, e.g. to stop taking calls. */
+    public static Map<String, String> merged(Map<String, String> stored, Map<String, String> changes,
+                                             java.util.Set<String> removals) {
         Map<String, String> base = stored != null ? stored : new HashMap<>();
         Map<String, String> merged = new HashMap<>(base);
+        if (removals != null) merged.keySet().removeAll(removals);
         if (changes != null) {
             for (Map.Entry<String, String> change : changes.entrySet()) {
                 String value = change.getValue() != null ? change.getValue().trim() : "";

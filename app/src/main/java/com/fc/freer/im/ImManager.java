@@ -1809,6 +1809,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
     private void startCallSignaller(byte[] userPrikey) {
         callSignaller = new CallSignaller(liveFid, userPrikey, this::sendCallSignal, this::recordCall,
                 System::currentTimeMillis);
+        callSignaller.setRelayPolicy(this::acceptsCallRelay);
         com.fc.freer.call.CallManager.getInstance(context).attach(liveFid, callSignaller);
         callTicker = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "call-signal-tick");
@@ -1824,9 +1825,19 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         }, 1, 1, java.util.concurrent.TimeUnit.SECONDS);
     }
 
-    /** The CALL relay for a call to {@code peerFid}, or null. Blocking: not on the main thread. */
-    public String resolveCallRelay(String peerFid) {
+    /** The callee's CALL service, or null if it has none. Blocking: not on the main thread. */
+    public P2pHandler.CallRelay resolveCallRelay(String peerFid) {
         return p2pHandler == null ? null : p2pHandler.resolveCallRelay(peerFid);
+    }
+
+    /**
+     * I answer only on my own home.CALL (§6.2). A debug build with a relay
+     * override also answers on that relay, for testing before one is on chain.
+     */
+    private boolean acceptsCallRelay(com.fc.fc_ajdk.call.CallSignal.Relay relay) {
+        String override = com.fc.freer.call.CallManager.getInstance(context).relayOverride();
+        if (!override.isEmpty() && relay != null && override.equalsIgnoreCase(relay.url())) return true;
+        return p2pHandler != null && p2pHandler.isMyCallRelay(relay);
     }
 
     /** Call signalling for this identity; null before {@link #initialize}. */
