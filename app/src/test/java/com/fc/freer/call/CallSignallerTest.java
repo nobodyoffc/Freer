@@ -130,6 +130,32 @@ public class CallSignallerTest {
     }
 
     @Test
+    public void aPreparedCallRingsOnlyOnceTheRelayIsReached() {
+        CallSignaller.Call out = alice.signaller.prepare(bob.fid, "fudp://relay.example:19950");
+        pump();
+        assertTrue("nothing is sent while the caller reaches its relay", alice.sent.isEmpty());
+        assertEquals(CallSignaller.State.PREPARING, out.state());
+
+        alice.signaller.ring(out.callId,
+                new CallSignal.Relay("fudp://relay.example:19950", "02" + "ab".repeat(32), "sid-1"), null);
+        pump();
+        assertEquals(1, bob.rang.size());
+        CallSignaller.Call in = bob.rang.get(0);
+        assertEquals("the callee connects without discovery", "02" + "ab".repeat(32), in.relayPubkey);
+        assertEquals("sid-1", in.relaySid);
+    }
+
+    @Test
+    public void cancellingAPreparedCallTellsNoOne() {
+        CallSignaller.Call out = alice.signaller.prepare(bob.fid, "fudp://relay.example:19950");
+        alice.signaller.cancel(out.callId);
+        pump();
+        assertTrue(alice.sent.isEmpty());
+        assertTrue(bob.rang.isEmpty());
+        assertEquals(List.of(CallSignaller.End.CANCELLED), alice.ended);
+    }
+
+    @Test
     public void hangingUpEndsBothSidesWithTheDuration() {
         CallSignaller.Call out = ring();
         bob.signaller.accept(out.callId, null);
@@ -234,7 +260,7 @@ public class CallSignallerTest {
 
     @Test
     public void theSameSignalByThreeChannelsRingsOnce() {
-        CallSignal invite = CallSignal.invite(randomCallId(), KeyTools.prikeyToPubkey(key()), null, null, null, now);
+        CallSignal invite = CallSignal.invite(randomCallId(), KeyTools.prikeyToPubkey(key()), null, (String) null, null, now);
         byte[] tPriv = key();
         invite.transportPub = com.fc.fc_ajdk.utils.Hex.toHex(KeyTools.prikeyToPubkey(tPriv));
         invite.delegation = Delegation.sign(alice.fidPriv, invite.callId, KeyTools.prikeyToPubkey(tPriv),
@@ -252,13 +278,13 @@ public class CallSignallerTest {
         byte[] tPriv = key(), tPub = KeyTools.prikeyToPubkey(tPriv);
         // Mallory sends an INVITE carrying a delegation Alice signed.
         CallSignal s = CallSignal.invite(callId, tPub, Delegation.sign(alice.fidPriv, callId, tPub, now / 1000 + 3600),
-                null, null, now);
+                (String) null, null, now);
         bob.signaller.onSignal(mallory.fid, "x", s);
         assertTrue(bob.rang.isEmpty());
 
         // A delegation for another transport key than the one the INVITE names.
         CallSignal t = CallSignal.invite(callId, KeyTools.prikeyToPubkey(key()),
-                Delegation.sign(alice.fidPriv, callId, tPub, now / 1000 + 3600), null, null, now);
+                Delegation.sign(alice.fidPriv, callId, tPub, now / 1000 + 3600), (String) null, null, now);
         bob.signaller.onSignal(alice.fid, "y", t);
         assertTrue(bob.rang.isEmpty());
     }

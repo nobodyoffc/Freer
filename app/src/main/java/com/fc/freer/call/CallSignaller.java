@@ -60,7 +60,8 @@ public final class CallSignaller {
 
     public enum End { DECLINED, BUSY, UNSUPPORTED, CANCELLED, NO_ANSWER, MISSED, ANSWERED_ELSEWHERE, HUNG_UP, LOCAL_HANGUP }
 
-    public enum State { RINGING_OUT, RINGING_IN, ACTIVE, ENDED }
+    /** PREPARING: the caller is reaching its relay; nothing has been sent yet. */
+    public enum State { PREPARING, RINGING_OUT, RINGING_IN, ACTIVE, ENDED }
 
     /** What the chat shows for a call. */
     public record CallRecord(Kind kind, boolean outgoing, long atMs, long durationMs, String callId) {
@@ -75,6 +76,8 @@ public final class CallSignaller {
         public final byte[] tPub;
         public final Delegation myDelegation;
         public final String relayUrl;
+        /** The relay's key and service id, when the caller sent them (§3.2). */
+        public String relayPubkey, relaySid;
         public final List<CallSignal.Candidate> peerCandidates = new ArrayList<>();
         byte[] peerTPub;
         Delegation peerDelegation;
@@ -143,6 +146,16 @@ public final class CallSignaller {
      * relay on (Decision 8), which is the caller's to decide.
      */
     public synchronized Call invite(String peerFid, String relayUrl, List<CallSignal.Candidate> candidates) {
+        Call c = prepare(peerFid, relayUrl);
+        ring(c.callId, relayUrl == null ? null : new CallSignal.Relay(relayUrl), candidates);
+        return c;
+    }
+
+    /**
+     * A call's keys and delegation, with nothing sent: the caller reaches its
+     * relay first, so the callee never rings for a call that cannot connect.
+     */
+    public synchronized Call prepare(String peerFid, String relayUrl) {
         if (busy(null)) throw new IllegalStateException("already in a call");
         long now = clock.nowMs();
         byte[] id = new byte[16];
@@ -150,18 +163,32 @@ public final class CallSignaller {
         String callId = Hex.toHex(id);
         byte[] tPriv = newTransportKey();
         Delegation d = Delegation.sign(fidPriv, callId, KeyTools.prikeyToPubkey(tPriv), now / 1000 + DELEGATION_SEC);
-        Call c = new Call(callId, peerFid, true, tPriv, d, relayUrl, State.RINGING_OUT);
-        c.expiresMs = now + CallSignal.RING_MS;
+        Call c = new Call(callId, peerFid, true, tPriv, d, relayUrl, State.PREPARING);
+        c.expiresMs = Long.MAX_VALUE;
         calls.put(callId, c);
-        outbox.send(peerFid, CallSignal.invite(callId, c.tPub, d, relayUrl, candidates, now));
         return c;
+    }
+
+    /** Send the INVITE of a prepared call; its 45 s ring starts now. */
+    public synchronized void ring(String callId, CallSignal.Relay relay, List<CallSignal.Candidate> candidates) {
+        Call c = calls.get(callId);
+        if (c == null || c.state != State.PREPARING) return;
+        long now = clock.nowMs();
+        c.state = State.RINGING_OUT;
+        c.expiresMs = now + CallSignal.RING_MS;
+        if (relay != null) {
+            c.relayPubkey = relay.pubkey();
+            c.relaySid = relay.sid();
+        }
+        outbox.send(c.peerFid, CallSignal.invite(callId, c.tPub, c.myDelegation, relay, candidates, now));
     }
 
     /** The caller gives up before an answer. */
     public synchronized void cancel(String callId) {
         Call c = calls.get(callId);
-        if (c == null || !c.outgoing || c.state != State.RINGING_OUT) return;
-        outbox.send(c.peerFid, CallSignal.cancel(callId, CallSignal.CANCEL_CANCELLED));
+        if (c == null || !c.outgoing || (c.state != State.RINGING_OUT && c.state != State.PREPARING)) return;
+        // A prepared call never rang: there is no one to tell.
+        if (c.state == State.RINGING_OUT) outbox.send(c.peerFid, CallSignal.cancel(callId, CallSignal.CANCEL_CANCELLED));
         end(c, End.CANCELLED, CallRecord.Kind.CANCELLED);
     }
 
@@ -232,6 +259,10 @@ public final class CallSignaller {
                 now / 1000 + DELEGATION_SEC);
         Call c = new Call(s.callId, caller, false, tPriv, mine, s.relay == null ? null : s.relay.url(),
                 State.RINGING_IN);
+        if (s.relay != null) {
+            c.relayPubkey = s.relay.pubkey();
+            c.relaySid = s.relay.sid();
+        }
         c.peerTPub = s.transportPubBytes();
         c.peerDelegation = s.delegation;
         c.expiresMs = s.expires;

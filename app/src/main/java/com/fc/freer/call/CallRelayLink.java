@@ -95,11 +95,45 @@ public final class CallRelayLink implements AutoCloseable {
         });
     }
 
-    /** Start the node and find the relay (HELLO/PING discovery of its key). */
-    public void connect(String relayUrl) throws IOException {
+    /** Discovery attempts before giving up: its HELLO/PING are not retransmitted. */
+    static final int DISCOVERY_ATTEMPTS = 3;
+
+    /**
+     * Start the node and find the relay: with its key and service id when the
+     * INVITE carried them, which needs only FUDP's own retransmitted handshake;
+     * otherwise by HELLO/PING discovery, retried, since a lossy path easily
+     * loses one of its unacknowledged packets.
+     */
+    public void connect(String relayUrl, String relayPubkeyHex, String relaySid) throws IOException {
         node.start();
-        fapi = FapiClient.bootstrapFromUrl(node, relayUrl, null);
+        if (relayPubkeyHex != null && relaySid != null) {
+            FapiClient.Endpoint ep = FapiClient.parseFudpUrl(relayUrl);
+            byte[] pub = Hex.fromHex(relayPubkeyHex);
+            if (ep != null && pub != null && pub.length == 33) {
+                String relayFid = com.fc.fc_ajdk.core.crypto.KeyTools.pubkeyToFchAddr(pub);
+                node.addPeer(relayFid, pub, ep.host(), ep.port());
+                fapi = new FapiClient(node, relayFid, relaySid);
+                fapi.setServerUrl(relayUrl);
+                return;
+            }
+        }
+        for (int attempt = 1; attempt <= DISCOVERY_ATTEMPTS && fapi == null; attempt++) {
+            fapi = FapiClient.bootstrapFromUrl(node, relayUrl, null);
+        }
         if (fapi == null) throw new IOException("relay unreachable: " + relayUrl);
+    }
+
+    /** The relay's public key, hex, once connected: for the INVITE (§3.2). */
+    public String relayPubkey() {
+        PeerConnection c = node.getProtocol().getConnectionManager().getAnyConnection(relayFid());
+        byte[] pub = c == null ? null : c.getPeerPublicKey();
+        return pub == null ? null : Hex.toHex(pub);
+    }
+
+    /** The relay's service id, once connected. */
+    public String relaySid() {
+        FapiClient f = fapi;
+        return f == null ? null : f.getServiceSid();
     }
 
     /** {@code call.create}, by the caller (§6.2 step 1). */
@@ -179,7 +213,7 @@ public final class CallRelayLink implements AutoCloseable {
         if (fapi == null) return;
         try {
             node.sendNotify(relayFid(), attestation, 0);
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             // a lost attestation makes our audio unverified at the far end within 3 s
         }
     }

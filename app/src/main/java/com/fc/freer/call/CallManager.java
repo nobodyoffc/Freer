@@ -161,7 +161,8 @@ public final class CallManager implements CallSignaller.Listener {
                     return;
                 }
                 try {
-                    call = signaller.invite(peerFid, relayUrl, null);
+                    // Nothing is sent yet: the session reaches the relay, then rings.
+                    call = signaller.prepare(peerFid, relayUrl);
                 } catch (IllegalStateException e) {
                     finish(context.getString(R.string.call_end_busy_here));
                     return;

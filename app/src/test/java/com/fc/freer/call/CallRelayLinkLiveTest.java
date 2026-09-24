@@ -48,6 +48,7 @@ public class CallRelayLinkLiveTest {
         final LinkedBlockingQueue<Map<String, Object>> notices = new LinkedBlockingQueue<>();
         final LinkedBlockingQueue<byte[]> attestations = new LinkedBlockingQueue<>();
         Delegation delegation;
+        String knownPubkey, knownSid;
         CallRelayLink link;
         CallMedia media;
 
@@ -55,7 +56,7 @@ public class CallRelayLinkLiveTest {
             delegation = Delegation.sign(fidPriv, callId, tPub, System.currentTimeMillis() / 1000 + 3600);
             File dir = Files.createTempDirectory("call-link").toFile();
             link = new CallRelayLink(dir, tPriv, callId, delegation, this);
-            link.connect(relay);
+            link.connect(relay, knownPubkey, knownSid);
         }
 
         @Override
@@ -91,6 +92,11 @@ public class CallRelayLinkLiveTest {
             byte[] secret = CallKeys.p2pSecret(caller.tPriv, callee.tPub, callId, caller.fid, callee.fid);
             byte[] authPriv = CallKeys.authPriv(secret);
 
+            // The INVITE carries the relay's key and sid, so the callee skips discovery (§3.2).
+            callee.knownPubkey = caller.link.relayPubkey();
+            callee.knownSid = caller.link.relaySid();
+            assertNotNull(callee.knownPubkey);
+            assertNotNull(callee.knownSid);
             // Callee joins first and retries on 409 while the caller registers (§6.2 step 4).
             callee.open(callId, relay);
             Thread register = new Thread(() -> {
@@ -133,14 +139,17 @@ public class CallRelayLinkLiveTest {
                         com.fc.fc_ajdk.fudp.transport.DatagramResult.SENT, back);
                 Thread.sleep(20);
             }
-            for (long seq = 0; seq < 25; seq++) {
-                byte[] d = callee.frames.poll(5, TimeUnit.SECONDS);
-                assertNotNull("callee frame " + seq, d);
-                EncodedFrame f = callee.media.open(d, System.currentTimeMillis());
-                assertNotNull("opens", f);
-                assertEquals(seq, f.seq());
-                assertNotNull("caller frame " + seq, caller.frames.poll(5, TimeUnit.SECONDS));
+            // Datagrams are send-or-drop over a real path: most, not all, must arrive.
+            int heard = 0, heardBack = 0;
+            byte[] d;
+            while ((d = callee.frames.poll(3, TimeUnit.SECONDS)) != null) {
+                assertNotNull("opens", callee.media.open(d, System.currentTimeMillis()));
+                heard++;
             }
+            while (caller.frames.poll(1, TimeUnit.SECONDS) != null) heardBack++;
+            System.out.println("[live] frames heard " + heard + "/25, back " + heardBack + "/25");
+            assertTrue("callee heard " + heard + "/25", heard >= 20);
+            assertTrue("caller heard " + heardBack + "/25", heardBack >= 20);
             for (byte[] a : caller.media.finish(System.currentTimeMillis())) caller.link.sendAttestation(a);
             byte[] att = callee.attestations.poll(5, TimeUnit.SECONDS);
             assertNotNull("the attestation came through the relay", att);

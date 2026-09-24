@@ -12,7 +12,7 @@ import java.util.List;
  * deduplicated like any message; the fields here are only what the op needs.
  *
  * <pre>
- * INVITE  callId transportPub delegation relay{url}? candidates? expires codecs
+ * INVITE  callId transportPub delegation relay{url, pubkey?, sid?}? candidates? expires codecs
  * ACCEPT  callId transportPub delegation candidates?
  * REJECT  callId reason ∈ declined | busy | unsupported
  * CANCEL  callId reason ∈ cancelled | timeout | answered_elsewhere
@@ -36,7 +36,16 @@ public final class CallSignal {
 
     private static final Gson GSON = new Gson();
 
-    public record Relay(String url) {}
+    /**
+     * The relay to meet on (§6.2). {@code pubkey} and {@code sid}, which the
+     * caller learned connecting to it, let the callee connect straight away
+     * instead of discovering the relay over a path that may be lossy.
+     */
+    public record Relay(String url, String pubkey, String sid) {
+        public Relay(String url) {
+            this(url, null, null);
+        }
+    }
 
     /** A direct-path address (§6.1): {@code t} is map, lan or home; {@code a} is ip:port. */
     public record Candidate(String t, String a) {}
@@ -54,10 +63,15 @@ public final class CallSignal {
 
     public static CallSignal invite(String callId, byte[] tPub, Delegation d, String relayUrl,
                                     List<Candidate> candidates, long nowMs) {
+        return invite(callId, tPub, d, relayUrl == null ? null : new Relay(relayUrl), candidates, nowMs);
+    }
+
+    public static CallSignal invite(String callId, byte[] tPub, Delegation d, Relay relay,
+                                    List<Candidate> candidates, long nowMs) {
         CallSignal s = base(Op.INVITE, callId);
         s.transportPub = Hex.toHex(tPub);
         s.delegation = d;
-        s.relay = relayUrl == null ? null : new Relay(relayUrl);
+        s.relay = relay;
         s.candidates = candidates == null || candidates.isEmpty() ? null : candidates;
         s.expires = nowMs + RING_MS;
         s.codecs = CODECS;

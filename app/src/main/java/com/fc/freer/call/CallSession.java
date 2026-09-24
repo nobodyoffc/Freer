@@ -96,7 +96,11 @@ public final class CallSession {
         return state;
     }
 
-    /** Caller: reach the relay and wait there for the answer. */
+    /**
+     * Caller: reach the relay, open the call there, and only then ring, with
+     * the relay's key and service id in the INVITE so the callee can connect
+     * without discovery. A callee never rings for a call that cannot connect.
+     */
     public void startOutgoing() {
         worker.execute(() -> {
             try {
@@ -104,6 +108,8 @@ public final class CallSession {
                 link.create();
                 Map<String, Object> joined = link.join(capture.ssrc(), null);
                 routeId = (int) ((Number) joined.get("routeId")).longValue();
+                signaller.ring(call.callId, new com.fc.fc_ajdk.call.CallSignal.Relay(call.relayUrl,
+                        link.relayPubkey(), link.relaySid()), null);
                 setState(State.RINGING, null);
             } catch (Exception e) {
                 fail("could not reach the relay: " + e.getMessage());
@@ -203,7 +209,7 @@ public final class CallSession {
                 }
             }
         });
-        link.connect(call.relayUrl);
+        link.connect(call.relayUrl, call.relayPubkey, call.relaySid);
     }
 
     private void startMedia(byte[] secret) {
