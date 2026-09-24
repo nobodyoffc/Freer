@@ -144,10 +144,12 @@ public final class CallRelayLink implements AutoCloseable {
         request("call.register", p);
     }
 
+    /** Best effort: never throws, and does nothing if the relay was never reached. */
     public void leave() {
+        if (fapi == null) return;
         try {
             request("call.leave", base());
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             // the relay drops us with the connection anyway
         }
     }
@@ -174,6 +176,7 @@ public final class CallRelayLink implements AutoCloseable {
 
     /** An attestation, reliably (§5.1). */
     public void sendAttestation(byte[] attestation) {
+        if (fapi == null) return;
         try {
             node.sendNotify(relayFid(), attestation, 0);
         } catch (IOException e) {
@@ -215,7 +218,9 @@ public final class CallRelayLink implements AutoCloseable {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> request(String api, Map<String, Object> params) throws IOException {
-        FapiResponse r = fapi.request(FapiRequest.operation(api, params));
+        FapiClient f = fapi;
+        if (f == null) throw new IOException(api + ": not connected to the relay");
+        FapiResponse r = f.request(FapiRequest.operation(api, params));
         if (r == null) throw new IOException(api + ": no answer from the relay");
         if (!r.isSuccess()) throw new Refused(r.getCode() == null ? 0 : r.getCode(), r.getMessage());
         Object data = r.getData();

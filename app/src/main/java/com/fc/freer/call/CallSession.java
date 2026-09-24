@@ -50,7 +50,12 @@ public final class CallSession {
     private final AudioIo.Backend backend;
     private final Listener listener;
     private final byte[] tPriv;
-    private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> new Thread(r, "call-session"));
+    private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "call-session");
+        // A bug in a call must end the call, not the app (and with it the unlocked wallet).
+        t.setUncaughtExceptionHandler((th, e) -> TimberLogger.e(TAG, "call-session: %s", e));
+        return t;
+    });
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "call-session-timer");
         t.setDaemon(true);
@@ -250,7 +255,18 @@ public final class CallSession {
         }
     }
 
+    /** Nothing in here may throw: it runs on the failure path too. */
     private void teardown() {
+        try {
+            doTeardown();
+        } catch (RuntimeException e) {
+            TimberLogger.e(TAG, "teardown of %s: %s", call.callId, e);
+        } finally {
+            Arrays.fill(tPriv, (byte) 0); // §4.1: the transport key does not outlive the call
+        }
+    }
+
+    private void doTeardown() {
         timer.shutdownNow();
         capture.stop();
         PlayoutEngine p = playout;
@@ -267,7 +283,6 @@ public final class CallSession {
         media = null;
         playout = null;
         link = null;
-        Arrays.fill(tPriv, (byte) 0); // §4.1: the transport key does not outlive the call
     }
 
     private void fail(String why) {
