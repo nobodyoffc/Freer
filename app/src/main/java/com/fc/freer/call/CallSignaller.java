@@ -220,6 +220,17 @@ public final class CallSignaller {
         end(c, End.LOCAL_HANGUP, CallRecord.Kind.ENDED);
     }
 
+    /**
+     * The peer left the relay and did not come back: it hung up, and its
+     * HANGUP, which travels over IM, is slow or lost. Ends the call as a
+     * HANGUP would; nothing is sent.
+     */
+    public synchronized void peerLeft(String callId) {
+        Call c = calls.get(callId);
+        if (c == null || c.state != State.ACTIVE) return;
+        end(c, End.HUNG_UP, CallRecord.Kind.ENDED);
+    }
+
     // ===== Received =====
 
     /**

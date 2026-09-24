@@ -169,6 +169,17 @@ public class CallSignallerTest {
     }
 
     @Test
+    public void aPeerThatLeftTheRelayHasHungUp() {
+        CallSignaller.Call out = ring();
+        bob.signaller.accept(out.callId, null);
+        pump();
+        now += 30_000;
+        alice.signaller.peerLeft(out.callId); // Bob's HANGUP is lost
+        assertEquals(List.of(CallSignaller.End.HUNG_UP), alice.ended);
+        assertEquals(30_000, alice.lastRecord().durationMs());
+    }
+
+    @Test
     public void cancellingAPreparedCallTellsNoOne() {
         CallSignaller.Call out = alice.signaller.prepare(bob.fid, "fudp://relay.example:19950");
         alice.signaller.cancel(out.callId);

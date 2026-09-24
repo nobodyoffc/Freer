@@ -32,6 +32,7 @@ public final class CallSession {
     private static final String TAG = "CallSession";
     private static final long ATTEST_CHECK_MS = 200;
     private static final long STATS_EVERY_MS = 5_000;
+    private static final long PEER_GONE_MS = 3_000;
     public static final int FRAME_MS = 20;
     public static final int BITRATE = 24_000;
     public static final int EXPECTED_LOSS = 10;
@@ -73,6 +74,7 @@ public final class CallSession {
     private volatile int routeId;
     private volatile boolean muted;
     private volatile boolean heardFirst;
+    private volatile boolean peerSeen;
     private volatile long framesOpened;
     private int statTicks;
     private final long startedMs = System.currentTimeMillis();
@@ -151,6 +153,7 @@ public final class CallSession {
                 routeId = (int) ((Number) joined.get("routeId")).longValue();
                 step("joined the call on the relay");
                 lastRoster = joined;
+                watchPeer(joined);
                 startMedia(secret);
             } catch (Exception e) {
                 fail("could not join the call on the relay: " + e.getMessage());
@@ -216,6 +219,7 @@ public final class CallSession {
                     case "roster" -> {
                         step("roster: " + CallRelayLink.roster(notice).size() + " in the call");
                         lastRoster = notice;
+                        watchPeer(notice);
                         addPeers(notice);
                     }
                     case "knock" -> {
@@ -241,6 +245,34 @@ public final class CallSession {
         step("connecting to " + call.relayUrl + (call.relayPubkey != null ? " with its key" : " by discovery"));
         link.connect(call.relayUrl, call.relayPubkey, call.relaySid);
         step("connected to the relay");
+    }
+
+    /**
+     * A peer that was on the relay and left has hung up, even if its HANGUP
+     * never reaches us over IM. It gets a few seconds to come back, as on a
+     * reconnect, before the call ends. (With direct paths, §6.2 step 8, a
+     * peer leaves the relay on purpose: this must then watch the direct path.)
+     */
+    private void watchPeer(Map<String, Object> roster) {
+        boolean present = CallRelayLink.roster(roster).stream().anyMatch(e -> call.peerFid.equals(e.get("fid")));
+        if (present) {
+            peerSeen = true;
+            return;
+        }
+        if (!peerSeen || timer.isShutdown()) return;
+        try {
+            timer.schedule(() -> {
+                Map<String, Object> r = lastRoster;
+                boolean back = r != null
+                        && CallRelayLink.roster(r).stream().anyMatch(e -> call.peerFid.equals(e.get("fid")));
+                if (!back && state == State.CONNECTED) {
+                    step("the peer left the relay: the call is over");
+                    signaller.peerLeft(call.callId);
+                }
+            }, PEER_GONE_MS, TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.RejectedExecutionException ignored) {
+            // ending anyway
+        }
     }
 
     /** Levels are -dBov: 127 is silence, speech is roughly 20-50. */
