@@ -32,8 +32,12 @@ import java.util.Map;
  */
 public final class CallRelayLink implements AutoCloseable {
 
-    /** Retry a 409 join this often, for this long (§6.2 step 4). */
-    static final long JOIN_RETRY_MS = 250, JOIN_RETRY_FOR_MS = 10_000;
+    /**
+     * Waits between retries of a 409 join (§6.2 step 4). Backing off keeps the
+     * ten attempts inside the relay's 10 joins per key per minute (§7.6) while
+     * spanning 16 s, time for the ACCEPT to reach the caller over slow IM.
+     */
+    static final long[] JOIN_RETRY_MS = {250, 500, 1000, 2000, 2500, 2500, 2500, 2500, 2500};
 
     public interface Events {
         /** On the node's receive thread: return quickly. */
@@ -151,8 +155,7 @@ public final class CallRelayLink implements AutoCloseable {
      * @return the join result: routeId, datagram, roster, keyEpoch, speakers
      */
     public Map<String, Object> join(int ssrc, byte[] authPriv) throws IOException, InterruptedException {
-        long deadline = System.currentTimeMillis() + JOIN_RETRY_FOR_MS;
-        while (true) {
+        for (int attempt = 0; ; attempt++) {
             Map<String, Object> p = base();
             long ts = System.currentTimeMillis();
             p.put("ssrc", Integer.toUnsignedLong(ssrc));
@@ -165,8 +168,8 @@ public final class CallRelayLink implements AutoCloseable {
                 if (Boolean.TRUE.equals(r.get("datagram"))) enableDatagrams(); // the §2.3 capability signal
                 return r;
             } catch (Refused e) {
-                if (e.code != 409 || authPriv == null || System.currentTimeMillis() > deadline) throw e;
-                Thread.sleep(JOIN_RETRY_MS);
+                if (e.code != 409 || authPriv == null || attempt >= JOIN_RETRY_MS.length) throw e;
+                Thread.sleep(JOIN_RETRY_MS[attempt]);
             }
         }
     }

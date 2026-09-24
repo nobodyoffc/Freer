@@ -101,7 +101,7 @@ public class CallRelayLinkLiveTest {
             callee.open(callId, relay);
             Thread register = new Thread(() -> {
                 try {
-                    Thread.sleep(600);
+                    Thread.sleep(6000); // a slow ACCEPT: the callee backs off within the join limit
                     caller.link.register(CallKeys.authPub(authPriv));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
