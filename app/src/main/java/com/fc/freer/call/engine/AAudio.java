@@ -53,13 +53,16 @@ final class AAudio {
         private final boolean exclusive;
         private volatile long h;
         private volatile String effects;
-        private int reopens;
+        /** Cached, so the stats never wait on a blocked read for the lock. */
+        private volatile String mode;
+        private volatile int reopens;
 
         Input(boolean exclusive) {
             this.exclusive = exclusive;
             h = open(true, Opus.SAMPLE_RATE, exclusive);
             if (h == 0) throw new IllegalStateException("AAudio input would not open at 48 kHz mono");
             effects = attachEffects(query(h, Q_SESSION));
+            mode = mode(h);
         }
 
         /** @return false if it cannot be reopened, or has been too often */
@@ -71,6 +74,7 @@ final class AAudio {
             h = open(true, Opus.SAMPLE_RATE, exclusive);
             if (h == 0) return false;
             effects = attachEffects(query(h, Q_SESSION));
+            mode = mode(h);
             return true;
         }
 
@@ -102,13 +106,13 @@ final class AAudio {
         }
 
         @Override
-        public synchronized String effects() {
+        public String effects() {
             return effects;
         }
 
         @Override
-        public synchronized String describe() {
-            return "AAudio " + mode(h) + (reopens > 0 ? ", reopened " + reopens : "");
+        public String describe() {
+            return "AAudio " + mode + (reopens > 0 ? ", reopened " + reopens : "");
         }
 
         @Override
@@ -121,13 +125,15 @@ final class AAudio {
     static final class Output implements AudioIo.Output {
         private final boolean exclusive;
         private volatile long h;
-        private int xruns;
-        private int reopens;
+        private volatile int xruns;
+        private volatile int reopens;
+        private volatile String mode;
 
         Output(boolean exclusive) {
             this.exclusive = exclusive;
             h = open(false, Opus.SAMPLE_RATE, exclusive);
             if (h == 0) throw new IllegalStateException("AAudio output would not open at 48 kHz mono");
+            mode = mode(h);
         }
 
         private synchronized boolean reopen(int error) {
@@ -137,7 +143,9 @@ final class AAudio {
             AAudio.close(h);
             h = open(false, Opus.SAMPLE_RATE, exclusive);
             xruns = 0;
-            return h != 0;
+            if (h == 0) return false;
+            mode = mode(h);
+            return true;
         }
 
         @Override
@@ -159,7 +167,7 @@ final class AAudio {
         }
 
         @Override
-        public synchronized int underruns() {
+        public int underruns() {
             return xruns;
         }
 
@@ -169,8 +177,8 @@ final class AAudio {
         }
 
         @Override
-        public synchronized String describe() {
-            return String.format(Locale.US, "AAudio %s%s", mode(h), reopens > 0 ? ", reopened " + reopens : "");
+        public String describe() {
+            return String.format(Locale.US, "AAudio %s%s", mode, reopens > 0 ? ", reopened " + reopens : "");
         }
 
         @Override

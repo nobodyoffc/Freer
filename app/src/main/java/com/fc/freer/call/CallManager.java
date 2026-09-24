@@ -65,7 +65,7 @@ public final class CallManager implements CallSignaller.Listener {
     private String endReason;
     private boolean failed;
     private String unverifiedFid;
-    private boolean speaker;
+    private volatile boolean speaker; // read on the session thread when call audio starts
     private Ringtone ringtone;
 
     private CallManager(Context context) {
@@ -173,8 +173,6 @@ public final class CallManager implements CallSignaller.Listener {
                     finish(context.getString(R.string.call_end_busy_here));
                     return;
                 }
-                audio.enter(speaker);
-                TimberLogger.i(TAG, "audio: %s", audio.describe());
                 session = newSession(call);
                 session.startOutgoing();
                 CallService.start(context);
@@ -187,8 +185,6 @@ public final class CallManager implements CallSignaller.Listener {
         stopRinging();
         if (signaller.accept(call.callId, null) == null) return;
         phase = Phase.CONNECTING;
-        audio.enter(speaker);
-        TimberLogger.i(TAG, "audio: %s", audio.describe());
         session = newSession(call);
         session.startIncoming();
         CallService.start(context);
@@ -283,6 +279,17 @@ public final class CallManager implements CallSignaller.Listener {
                     }
                     notifyUi();
                 });
+            }
+
+            /**
+             * Call mode only once audio is about to flow: Android puts an app
+             * that sits in MODE_IN_COMMUNICATION without voice audio back to
+             * normal, and changing mode under open streams disconnects them.
+             */
+            @Override
+            public void beforeAudio() {
+                audio.enter(speaker);
+                TimberLogger.i(TAG, "audio: %s", audio.describe());
             }
 
             @Override

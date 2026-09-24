@@ -44,6 +44,9 @@ public final class CallSession {
 
         /** Audio claimed to be from {@code fid} could not be verified (§5.1). */
         void onUnverified(String fid);
+
+        /** On the session's thread, just before the audio streams open: enter call audio mode now. */
+        void beforeAudio();
     }
 
     private final Context context;
@@ -307,6 +310,7 @@ public final class CallSession {
         playout = p;
         media = m;
         if (lastRoster != null) addPeers(lastRoster);
+        listener.beforeAudio();
         p.start();
         capture.start();
         timer.scheduleWithFixedDelay(() -> {
