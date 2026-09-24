@@ -244,6 +244,7 @@ public final class CallManager implements CallSignaller.Listener {
 
     @Override
     public void onEnded(CallSignaller.Call ended, CallSignaller.End reason) {
+        TimberLogger.i(TAG, "call %s ended by signalling: %s", ended.callId, reason);
         main.post(() -> {
             if (call != ended || phase == Phase.ENDED) return; // already ended, and said why
             finish(describe(reason));

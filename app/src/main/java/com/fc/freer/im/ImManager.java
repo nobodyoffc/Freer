@@ -1847,6 +1847,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         }
         CallSignal signal = CallSignal.fromJson(message.getContent());
         if (signal == null || contactPolicy.isBlacklisted(sender)) return;
+        TimberLogger.i(TAG, "Call signal %s in: call %s from %s", signal.op, signal.callId, sender);
 
         boolean accepted = contactPolicy.isWhitelisted(sender);
         if (!accepted && isAutoAcceptContact(sender)) {
@@ -1875,7 +1876,9 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         }
         m.setIdFromLong(fudpNode.generateMessageId());
         executor.execute(() -> {
-            if (!p2pHandler.sendCallSignal(m)) {
+            if (p2pHandler.sendCallSignal(m)) {
+                TimberLogger.i(TAG, "Call signal %s out: call %s to %s", signal.op, signal.callId, peerFid);
+            } else {
                 TimberLogger.w(TAG, "Call signal %s to %s found no channel", signal.op, peerFid);
             }
         });

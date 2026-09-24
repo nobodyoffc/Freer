@@ -168,6 +168,7 @@ public final class CallRelayLink implements AutoCloseable {
                 if (Boolean.TRUE.equals(r.get("datagram"))) enableDatagrams(); // the §2.3 capability signal
                 return r;
             } catch (Refused e) {
+                com.fc.fc_ajdk.utils.TimberLogger.i("CallRelayLink", "join attempt %d refused: %s", attempt + 1, e.getMessage());
                 if (e.code != 409 || authPriv == null || attempt >= JOIN_RETRY_MS.length) throw e;
                 Thread.sleep(JOIN_RETRY_MS[attempt]);
             }

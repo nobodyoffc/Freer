@@ -70,6 +70,8 @@ public final class CallSession {
     private volatile State state = State.CONNECTING;
     private volatile int routeId;
     private volatile boolean muted;
+    private volatile boolean heardFirst;
+    private final long startedMs = System.currentTimeMillis();
 
     public CallSession(Context context, CallSignaller signaller, CallSignaller.Call call, String myFid,
                        AudioIo.Backend backend, Listener listener) {
@@ -108,6 +110,7 @@ public final class CallSession {
                 link.create();
                 Map<String, Object> joined = link.join(capture.ssrc(), null);
                 routeId = (int) ((Number) joined.get("routeId")).longValue();
+                step("created and joined the call on the relay; ringing");
                 signaller.ring(call.callId, new com.fc.fc_ajdk.call.CallSignal.Relay(call.relayUrl,
                         link.relayPubkey(), link.relaySid()), null);
                 setState(State.RINGING, null);
@@ -123,7 +126,9 @@ public final class CallSession {
             try {
                 byte[] secret = signaller.callSecret(call.callId);
                 if (secret == null) throw new IllegalStateException("no call key");
+                step("answered; registering authPub");
                 link.register(CallKeys.authPub(CallKeys.authPriv(secret)));
+                step("registered");
                 startMedia(secret);
             } catch (Exception e) {
                 fail("could not open the call on the relay: " + e.getMessage());
@@ -140,6 +145,7 @@ public final class CallSession {
                 openLink();
                 Map<String, Object> joined = link.join(capture.ssrc(), CallKeys.authPriv(secret));
                 routeId = (int) ((Number) joined.get("routeId")).longValue();
+                step("joined the call on the relay");
                 lastRoster = joined;
                 startMedia(secret);
             } catch (Exception e) {
@@ -184,7 +190,12 @@ public final class CallSession {
                 PlayoutEngine p = playout;
                 if (m == null || p == null) return;
                 var f = m.open(datagram, System.currentTimeMillis());
-                if (f != null) p.onFrame(f, android.os.SystemClock.elapsedRealtime());
+                if (f == null) return;
+                if (!heardFirst) {
+                    heardFirst = true;
+                    step("first audio frame from the peer");
+                }
+                p.onFrame(f, android.os.SystemClock.elapsedRealtime());
             }
 
             @Override
@@ -198,6 +209,7 @@ public final class CallSession {
                 String type = String.valueOf(notice.get("type"));
                 switch (type) {
                     case "roster" -> {
+                        step("roster: " + CallRelayLink.roster(notice).size() + " in the call");
                         lastRoster = notice;
                         addPeers(notice);
                     }
@@ -209,7 +221,14 @@ public final class CallSession {
                 }
             }
         });
+        step("connecting to " + call.relayUrl + (call.relayPubkey != null ? " with its key" : " by discovery"));
         link.connect(call.relayUrl, call.relayPubkey, call.relaySid);
+        step("connected to the relay");
+    }
+
+    /** One line per step, timed from the session's start, so a failed call shows where it stopped. */
+    private void step(String what) {
+        TimberLogger.i(TAG, "call %s +%dms: %s", call.callId, System.currentTimeMillis() - startedMs, what);
     }
 
     private void startMedia(byte[] secret) {
@@ -232,6 +251,7 @@ public final class CallSession {
             if (l != null) for (byte[] a : m.takeAttestations(now)) l.sendAttestation(a);
             m.tick(now);
         }, 1, 1, TimeUnit.SECONDS);
+        step("media started");
         setState(State.CONNECTED, null);
     }
 
@@ -255,9 +275,11 @@ public final class CallSession {
             }
             if (d == null || d.verify(call.callId, System.currentTimeMillis() / 1000) != Delegation.Check.OK
                     || !call.peerFid.equals(d.fid) || !Arrays.equals(d.tPubBytes(), signalled.tPubBytes())) {
+                step("roster entry for the peer rejected: its delegation does not match the signalled one");
                 continue;
             }
             m.addPeer(call.peerFid, (int) ((Number) e.get("ssrc")).longValue(), d.tPubBytes());
+            step("hearing the peer");
         }
     }
 
