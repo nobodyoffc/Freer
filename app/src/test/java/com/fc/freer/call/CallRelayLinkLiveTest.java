@@ -77,6 +77,44 @@ public class CallRelayLinkLiveTest {
 
     @Test
     public void aCallThroughTheRelay() throws Exception {
+        run(false);
+    }
+
+    /**
+     * Both share candidates through the relay's roster (§6.1), punch, and move
+     * audio to the direct path (§6.2 steps 6-8). Needs a relay that knows
+     * candidates, and both sides on this machine or one network.
+     */
+    @Test
+    public void aCallGoesDirectWhenItCan() throws Exception {
+        run(true);
+    }
+
+    @SuppressWarnings("unchecked")
+    static List<CallDirectPath.Candidate> candidatesOf(Map<String, Object> roster, String fid) {
+        for (Map<String, Object> e : CallRelayLink.roster(roster)) {
+            if (!fid.equals(e.get("fid")) || !(e.get("candidates") instanceof List<?> list)) continue;
+            List<CallDirectPath.Candidate> out = new java.util.ArrayList<>();
+            for (Object o : list) out.add(CallDirectPath.Candidate.parse((Map<?, ?>) o));
+            return out;
+        }
+        return List.of();
+    }
+
+    /** Where CallSession sends: the direct path once it is up, else the relay. */
+    static void send(Side s, byte[] frame) {
+        CallDirectPath d = s.link.direct();
+        if (d != null && d.isUp()) d.send(frame);
+        else s.link.sendFrame(frame);
+    }
+
+    static void attest(Side s, byte[] a) {
+        CallDirectPath d = s.link.direct();
+        if (d != null && d.isUp()) d.sendAttestation(a);
+        else s.link.sendAttestation(a);
+    }
+
+    private void run(boolean direct) throws Exception {
         String relay = System.getenv("CALL_RELAY");
         assumeTrue("set CALL_RELAY to run against a live relay", relay != null && !relay.isEmpty());
         String callId = Hex.toHex(key()).substring(0, 32);
@@ -85,7 +123,7 @@ public class CallRelayLinkLiveTest {
             // Caller: connect, create, join, and wait (§6.2 step 1).
             caller.open(callId, relay);
             caller.link.create();
-            Map<String, Object> cj = caller.link.join(caller.ssrc, null);
+            Map<String, Object> cj = caller.link.join(caller.ssrc, null, direct);
             assertEquals(Boolean.TRUE, cj.get("datagram"));
 
             // INVITE/ACCEPT carry the transport keys; both sides derive the secret.
@@ -114,7 +152,7 @@ public class CallRelayLinkLiveTest {
                 }
             });
             register.start();
-            Map<String, Object> ej = callee.link.join(callee.ssrc, authPriv);
+            Map<String, Object> ej = callee.link.join(callee.ssrc, authPriv, direct);
             register.join();
 
             caller.media = new CallMedia(callId, secret, caller.fid, caller.ssrc, caller.tPriv);
@@ -130,6 +168,35 @@ public class CallRelayLinkLiveTest {
             assertEquals("roster", roster.get("type"));
             assertTrue(CallRelayLink.roster(roster).stream().anyMatch(e -> callee.fid.equals(e.get("fid"))));
 
+            if (direct) {
+                List<CallDirectPath.Candidate> toCallee = candidatesOf(roster, callee.fid);
+                List<CallDirectPath.Candidate> toCaller = candidatesOf(ej, caller.fid);
+                System.out.println("[live] callee shares " + toCallee + "; caller shares " + toCaller);
+                assertTrue("the relay adds what it sees (map)", toCallee.stream().anyMatch(c -> "map".equals(c.t())));
+                assertTrue(toCaller.stream().anyMatch(c -> "map".equals(c.t())));
+                java.util.concurrent.CountDownLatch up = new java.util.concurrent.CountDownLatch(2);
+                for (Side s : List.of(caller, callee)) {
+                    Side peer = s == caller ? callee : caller;
+                    s.link.startDirect(peer.tPub, s.fid.compareTo(peer.fid) < 0, s == caller ? toCallee : toCaller,
+                            new CallDirectPath.Listener() {
+                                @Override
+                                public void onUp() {
+                                    s.media.setRouteId(0);
+                                    up.countDown();
+                                }
+
+                                @Override
+                                public void onDown() {}
+
+                                @Override
+                                public void log(String what) {
+                                    System.out.println("[live direct " + (s == caller ? "caller" : "callee") + "] " + what);
+                                }
+                            });
+                }
+                assertTrue("both sides go direct", up.await(10, TimeUnit.SECONDS));
+            }
+
             System.out.println("[live] caller " + caller.link.describe());
             System.out.println("[live] callee " + callee.link.describe());
             // 8 s of audio both ways, run as CallSession runs it: attestations checked
@@ -138,9 +205,9 @@ public class CallRelayLinkLiveTest {
             long startMs = System.currentTimeMillis(), nextCheck = startMs;
             for (long seq = 0; System.currentTimeMillis() - startMs < 8_000; seq++) {
                 long now = System.currentTimeMillis();
-                caller.link.sendFrame(caller.media.seal(
+                send(caller, caller.media.seal(
                         new EncodedFrame(caller.ssrc, seq, seq * 960, 30, true, false, new byte[]{(byte) seq}), now));
-                callee.link.sendFrame(callee.media.seal(
+                send(callee, callee.media.seal(
                         new EncodedFrame(callee.ssrc, seq, seq * 960, 30, true, false, new byte[]{(byte) -seq}), now));
                 int i = 0;
                 for (Side s : List.of(caller, callee)) {
@@ -148,7 +215,7 @@ public class CallRelayLinkLiveTest {
                     while ((d = s.frames.poll()) != null) if (s.media.open(d, now) != null) heard[i]++;
                     while ((d = s.attestations.poll()) != null) s.media.onAttestation(d);
                     if (now >= nextCheck) {
-                        for (byte[] a : s.media.takeAttestations(now)) s.link.sendAttestation(a);
+                        for (byte[] a : s.media.takeAttestations(now)) attest(s, a);
                         s.media.tick(now);
                     }
                     i++;
@@ -156,7 +223,9 @@ public class CallRelayLinkLiveTest {
                 if (now >= nextCheck) nextCheck = now + 200;
                 Thread.sleep(40);
             }
-            System.out.println("[live] frames heard by caller " + heard[0] + ", by callee " + heard[1]);
+            System.out.println("[live] frames heard by caller " + heard[0] + ", by callee " + heard[1]
+                    + (direct ? ", direct: " + caller.link.direct().isUp() + "/" + callee.link.direct().isUp() : ""));
+            if (direct) assertTrue(caller.link.direct().isUp() && callee.link.direct().isUp());
             assertTrue("caller was muted: attestations late", !caller.media.isUnverified(callee.ssrc));
             assertTrue("callee was muted: attestations late", !callee.media.isUnverified(caller.ssrc));
             assertTrue("caller heard " + heard[0], heard[0] > 150);

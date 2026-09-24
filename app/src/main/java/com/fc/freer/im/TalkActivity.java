@@ -455,6 +455,11 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
             startActivity(new Intent(this, P2pChatSettingsActivity.class));
         });
 
+        popupView.findViewById(R.id.menu_call_settings).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            startActivity(new Intent(this, com.fc.freer.call.CallSettingsActivity.class));
+        });
+
         popupView.findViewById(R.id.menu_manage_blacklist).setOnClickListener(v -> {
             popupWindow.dismiss();
             startActivity(new Intent(this, BlacklistActivity.class));

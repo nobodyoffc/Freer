@@ -82,6 +82,13 @@ public class BackgroundTimeoutManager {
             return;
         }
 
+        // An incoming call must be answerable at once. The call screen shows only
+        // who is calling; the rest of the app stays locked until the next screen.
+        if (activity instanceof com.fc.freer.call.CallActivity) {
+            isInBackground = true;
+            return;
+        }
+
         // Don't stack a second password screen if one is already alive but not the
         // resuming activity. This covers the window where the user has just submitted
         // the password (CheckPasswordActivity is finishing while the underlying

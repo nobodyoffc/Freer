@@ -92,8 +92,13 @@ public final class CallMedia {
         this.listener = listener;
     }
 
-    /** The relay's handle for our frames, from {@code call.join}; 0 on a direct path. */
+    /**
+     * The relay's handle for our frames, from {@code call.join}; 0 on a direct
+     * path. An attestation carries one routeId, so a change of path closes the
+     * current one first.
+     */
     public synchronized void setRouteId(int routeId) {
+        if (routeId != this.routeId && !pending.isEmpty()) flush(System.currentTimeMillis());
         this.routeId = routeId;
     }
 

@@ -1449,6 +1449,11 @@ public class Protocol {
         }
     }
 
+    /** The UDP port bound, e.g. after asking for any free port (0); -1 if not bound. */
+    public int getLocalPort() {
+        return localPort();
+    }
+
     private int localPort() {
         try { return ((InetSocketAddress) channel.getLocalAddress()).getPort(); } catch (Exception e) { return -1; }
     }

@@ -67,6 +67,8 @@ public final class CallRelayLink implements AutoCloseable {
     private FapiClient fapi;
     /** The relay connection datagrams use; null until join enables them. IDs are random, negative too. */
     private volatile Long relayConnection;
+    /** The direct path to the peer, once there are candidates to try (§6.2 step 6). */
+    private volatile CallDirectPath direct;
 
     public CallRelayLink(File dataDir, byte[] tPriv, String callId, Delegation delegation, Events events)
             throws IOException {
@@ -79,11 +81,29 @@ public final class CallRelayLink implements AutoCloseable {
         node.setEventListener(new NodeEventListener() {
             @Override
             public void onDatagram(String peerId, long connectionId, byte[] data) {
-                if (peerId.equals(relayFid())) events.onFrame(data);
+                if (peerId.equals(relayFid())) {
+                    events.onFrame(data);
+                    return;
+                }
+                CallDirectPath d = direct;
+                if (d == null || !peerId.equals(d.peerTFid())) return; // nobody else may send us audio
+                d.onDatagram(connectionId, data);
+                if (data.length > 2) events.onFrame(data);
+            }
+
+            @Override
+            public void onPeerConnected(String peerId, long connectionId) {
+                CallDirectPath d = direct;
+                if (d != null) d.onPeerConnected(peerId, connectionId);
             }
 
             @Override
             public void onNotifyReceived(String peerId, long messageId, int dataType, byte[] data) {
+                CallDirectPath d = direct;
+                if (d != null && peerId.equals(d.peerTFid())) {
+                    if (dataType == 0) events.onAttestation(data);
+                    return;
+                }
                 if (!peerId.equals(relayFid())) return;
                 if (dataType == 0) {
                     events.onAttestation(data);
@@ -155,8 +175,23 @@ public final class CallRelayLink implements AutoCloseable {
      * @return the join result: routeId, datagram, roster, keyEpoch, speakers
      */
     public Map<String, Object> join(int ssrc, byte[] authPriv) throws IOException, InterruptedException {
+        return join(ssrc, authPriv, false);
+    }
+
+    /**
+     * @param share give the relay our direct-path candidates to pass on (§6.1):
+     *              our private addresses, and the address it sees us at. It
+     *              shows our IP to the peer, so only for contacts and never
+     *              with Always relay on (Decision 8).
+     */
+    public Map<String, Object> join(int ssrc, byte[] authPriv, boolean share) throws IOException, InterruptedException {
         for (int attempt = 0; ; attempt++) {
             Map<String, Object> p = base();
+            if (share) {
+                p.put("reflexive", true);
+                List<Map<String, String>> lan = CallDirectPath.lanCandidates(node.getLocalPort());
+                if (!lan.isEmpty()) p.put("candidates", lan);
+            }
             long ts = System.currentTimeMillis();
             p.put("ssrc", Integer.toUnsignedLong(ssrc));
             p.put("ts", ts);
@@ -203,6 +238,19 @@ public final class CallRelayLink implements AutoCloseable {
         return conn == null ? DatagramResult.NO_CONNECTION : node.sendDatagram(conn, frame);
     }
 
+    /** Try a direct path to the peer beside the relay; at most once per call. */
+    void startDirect(byte[] peerTPub, boolean initiator, List<CallDirectPath.Candidate> candidates,
+                     CallDirectPath.Listener listener) {
+        if (direct != null) return;
+        CallDirectPath d = new CallDirectPath(node, peerTPub, initiator, candidates, listener);
+        direct = d;
+        d.start();
+    }
+
+    CallDirectPath direct() {
+        return direct;
+    }
+
     /** For logs and tests: where frames go. */
     String describe() {
         StringBuilder sb = new StringBuilder("relay " + relayFid() + ", using " + relayConnection + ", have");
@@ -231,6 +279,8 @@ public final class CallRelayLink implements AutoCloseable {
 
     @Override
     public void close() {
+        CallDirectPath d = direct;
+        if (d != null) d.stop();
         node.stop();
     }
 

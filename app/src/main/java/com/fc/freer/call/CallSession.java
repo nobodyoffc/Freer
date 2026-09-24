@@ -11,6 +11,7 @@ import com.fc.freer.call.engine.PlayoutEngine;
 
 import java.io.File;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -47,6 +48,9 @@ public final class CallSession {
 
         /** On the session's thread, just before the audio streams open: enter call audio mode now. */
         void beforeAudio();
+
+        /** Audio moved to the direct path, or back to the relay. */
+        void onPathChanged();
     }
 
     private final Context context;
@@ -54,6 +58,7 @@ public final class CallSession {
     private final CallSignaller.Call call;
     private final String myFid;
     private final AudioIo.Backend backend;
+    private final boolean allowDirect;
     private final Listener listener;
     private final byte[] tPriv;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
@@ -82,9 +87,14 @@ public final class CallSession {
     private int statTicks;
     private final long startedMs = System.currentTimeMillis();
 
+    /**
+     * @param allowDirect try a direct path (§6.2 step 6): only with a contact,
+     *                    and never with Always relay on (Decision 8)
+     */
     public CallSession(Context context, CallSignaller signaller, CallSignaller.Call call, String myFid,
-                       AudioIo.Backend backend, Listener listener) {
+                       AudioIo.Backend backend, boolean allowDirect, Listener listener) {
         this.context = context.getApplicationContext();
+        this.allowDirect = allowDirect;
         this.signaller = signaller;
         this.call = call;
         this.myFid = myFid;
@@ -95,7 +105,11 @@ public final class CallSession {
                 f -> {
                     CallMedia m = media;
                     CallRelayLink l = link;
-                    if (m != null && l != null) l.sendFrame(m.seal(f, System.currentTimeMillis()));
+                    if (m == null || l == null) return;
+                    byte[] frame = m.seal(f, System.currentTimeMillis());
+                    CallDirectPath d = l.direct();
+                    if (d != null && d.isUp()) d.send(frame);
+                    else l.sendFrame(frame);
                 });
     }
 
@@ -117,7 +131,7 @@ public final class CallSession {
             try {
                 openLink();
                 link.create();
-                Map<String, Object> joined = link.join(capture.ssrc(), null);
+                Map<String, Object> joined = link.join(capture.ssrc(), null, allowDirect);
                 routeId = (int) ((Number) joined.get("routeId")).longValue();
                 step("created and joined the call on the relay; ringing");
                 signaller.ring(call.callId, new com.fc.fc_ajdk.call.CallSignal.Relay(call.relayUrl,
@@ -152,7 +166,7 @@ public final class CallSession {
                 byte[] secret = signaller.callSecret(call.callId);
                 if (secret == null) throw new IllegalStateException("no call key");
                 openLink();
-                Map<String, Object> joined = link.join(capture.ssrc(), CallKeys.authPriv(secret));
+                Map<String, Object> joined = link.join(capture.ssrc(), CallKeys.authPriv(secret), allowDirect);
                 routeId = (int) ((Number) joined.get("routeId")).longValue();
                 step("joined the call on the relay");
                 lastRoster = joined;
@@ -174,9 +188,12 @@ public final class CallSession {
     }
 
     /** Relay RTT, ms, or -1. */
+    /** RTT on the path audio takes, ms, or -1. */
     public long rttMs() {
         CallRelayLink l = link;
-        return l == null ? -1 : l.rttMs();
+        if (l == null) return -1;
+        CallDirectPath d = l.direct();
+        return d != null && d.isUp() ? d.rttMs() : l.rttMs();
     }
 
     /** Stop everything; the signalling side (HANGUP, CANCEL) is the caller's to send. */
@@ -286,7 +303,8 @@ public final class CallSession {
                     .append(" buffered ").append(s.buffer.depthMs()).append("ms");
         }
         step(String.format(java.util.Locale.US,
-                "stats: mic level %d%s, sent %d, dtx %d, via %s [%s] | received %d, playing%s, underruns %d, via %s",
+                "stats: %s | mic level %d%s, sent %d, dtx %d, via %s [%s] | received %d, playing%s, underruns %d, via %s",
+                isDirect() ? "direct" : "relay",
                 capture.level(), muted ? " (muted)" : "", capture.framesSent(), capture.dtxSkipped(),
                 capture.describe(), capture.effects(), framesOpened,
                 in.length() == 0 ? " nothing" : in, p.underruns(), p.describe()));
@@ -316,7 +334,7 @@ public final class CallSession {
         timer.scheduleWithFixedDelay(() -> {
             long now = System.currentTimeMillis();
             CallRelayLink l = link;
-            if (l != null) for (byte[] a : m.takeAttestations(now)) l.sendAttestation(a);
+            if (l != null) for (byte[] a : m.takeAttestations(now)) sendAttestation(l, a);
             m.tick(now);
             if (++statTicks % (STATS_EVERY_MS / ATTEST_CHECK_MS) == 0) logStats(p);
             // Checked 5 times a second so each attestation leaves ~1 s after its
@@ -351,7 +369,59 @@ public final class CallSession {
             }
             m.addPeer(call.peerFid, (int) ((Number) e.get("ssrc")).longValue(), d.tPubBytes());
             step("hearing the peer");
+            tryDirect(e, d);
         }
+    }
+
+    /** Attestations go the way the frames they cover went. */
+    private static void sendAttestation(CallRelayLink l, byte[] a) {
+        CallDirectPath d = l.direct();
+        if (d != null && d.isUp()) d.sendAttestation(a);
+        else l.sendAttestation(a);
+    }
+
+    public boolean isDirect() {
+        CallRelayLink l = link;
+        CallDirectPath d = l == null ? null : l.direct();
+        return d != null && d.isUp();
+    }
+
+    /**
+     * The peer's roster entry, its delegation verified, carries the candidates
+     * it chose to share: punch to them, keeping the relay (§6.2 steps 6-9).
+     * The lower FID opens the connection.
+     */
+    private void tryDirect(Map<String, Object> entry, Delegation peer) {
+        CallRelayLink l = link;
+        if (!allowDirect || l == null || l.direct() != null || !(entry.get("candidates") instanceof List<?> list)) return;
+        List<CallDirectPath.Candidate> candidates = new java.util.ArrayList<>();
+        for (Object o : list) {
+            CallDirectPath.Candidate c = o instanceof Map<?, ?> m ? CallDirectPath.Candidate.parse(m) : null;
+            if (c != null) candidates.add(c);
+        }
+        if (candidates.isEmpty()) return;
+        l.startDirect(peer.tPubBytes(), myFid.compareTo(call.peerFid) < 0, candidates, new CallDirectPath.Listener() {
+            @Override
+            public void onUp() {
+                CallMedia m = media;
+                if (m != null) m.setRouteId(0); // §5: routeId 0 on a direct path
+                step("audio now goes direct");
+                listener.onPathChanged();
+            }
+
+            @Override
+            public void onDown() {
+                CallMedia m = media;
+                if (m != null) m.setRouteId(routeId);
+                step("back on the relay");
+                listener.onPathChanged();
+            }
+
+            @Override
+            public void log(String what) {
+                step("direct: " + what);
+            }
+        });
     }
 
     /** Nothing in here may throw: it runs on the failure path too. */
@@ -373,7 +443,7 @@ public final class CallSession {
         CallMedia m = media;
         CallRelayLink l = link;
         if (m != null && l != null) {
-            for (byte[] a : m.finish(System.currentTimeMillis())) l.sendAttestation(a);
+            for (byte[] a : m.finish(System.currentTimeMillis())) sendAttestation(l, a);
         }
         if (l != null) {
             l.leave();

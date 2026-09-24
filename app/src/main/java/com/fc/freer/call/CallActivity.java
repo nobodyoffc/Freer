@@ -122,7 +122,9 @@ public class CallActivity extends AppCompatActivity implements CallManager.Liste
 
         String relay = calls.relayHost();
         long rtt = calls.rttMs();
-        path.setText(relay == null ? "" : rtt >= 0
+        if (calls.isDirect()) {
+            path.setText(rtt >= 0 ? getString(R.string.call_direct_rtt, rtt) : getString(R.string.call_direct));
+        } else path.setText(relay == null ? "" : rtt >= 0
                 ? getString(R.string.call_relayed_via_rtt, relay, rtt)
                 : getString(R.string.call_relayed_via, relay));
 

@@ -19,6 +19,8 @@
          screen needs a full-screen intent, and notifications on Android 13+. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -339,6 +341,16 @@
         <service android:name="com.fc.freer.call.CallService"
             android:exported="false"
             android:foregroundServiceType="microphone|phoneCall" />
+
+        <service android:name="com.fc.freer.call.CallAvailabilityService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the app reachable for incoming voice calls; the app uses no push service." />
+        </service>
+
+        <activity android:name="com.fc.freer.call.CallSettingsActivity"
+            android:exported="false" />
 
         <activity android:name="com.fc.freer.tools.TotpActivity"
             android:exported="false"

@@ -1752,6 +1752,11 @@ public class FudpNode implements Protocol.PacketListener {
 
     // Getters
 
+    /** The UDP port this node is bound to; -1 before {@link #start()}. */
+    public int getLocalPort() {
+        return protocol == null ? -1 : protocol.getLocalPort();
+    }
+
     /**
      * Get the underlying protocol.
      */

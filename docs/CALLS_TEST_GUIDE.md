@@ -1,4 +1,4 @@
-# Voice calls: testing on real phones (Phase 3, milestone 4)
+# Voice calls: testing on real phones (Phase 3, milestones 4 and 5)
 
 How to make a real 1:1 call between two Android phones with the debug build.
 It goes through the whole stack: FIMP signalling, the CALL relay, sealed
@@ -50,8 +50,38 @@ Also try:
   on another device* when the first answers.
 - **Lock B's screen, then call:** it should wake with the call screen.
 
+## Direct calls (milestone 5)
+
+The relay must run the build with candidates (Freeverse `voice-calls-p3`,
+after the knock). Each phone must have the other **in its contacts**, and
+*Always relay* off (chat list → menu → **Call settings**).
+
+1. **Both phones on the same Wi-Fi.** Call. Within a few seconds the path
+   line changes from *Relayed via …* to *Direct · RTT*. The log shows
+   `direct: the peer answered at lan …` and `audio now goes direct`.
+2. **One on Wi-Fi, one on mobile data**, then **both on mobile data**.
+   Direct works only if both networks' NATs allow it; otherwise the call
+   stays relayed, which is fine. Note which way each combination went.
+3. **Fallback:** in a direct call, turn Wi-Fi off on one phone. Audio
+   stops for about 2 s, then continues relayed (`back on the relay`).
+   Audio also needs the phone to reconnect to the relay over mobile data,
+   which may take longer.
+4. **Always relay** on either phone: the call stays relayed, and neither
+   side's log shows any `direct:` lines.
+5. **Not a contact:** remove B from A's contacts. The call stays relayed.
+
+## Available for calls
+
+1. On B: Call settings → **Available for calls**. Allow the battery
+   exemption when asked. A silent notification *Available for calls*
+   appears.
+2. Put B in the background (Home), turn its screen off, wait 5 minutes.
+3. Call from A. B should ring. Try 15 and 30 minutes too if you can; that
+   shows whether Doze stops the keepalive.
+4. Turn it off: the notification goes away.
+
 ## Report
 
 For each try: what you heard, and the call screen's text. If something fails,
-also send `adb logcat -d | grep -E "CallSession|CallManager|ImManager|P2pHandler"`
+also send `adb logcat -d | grep -E "CallSession|CallManager|CallRelayLink|AAudio|ImManager|P2pHandler"`
 from each phone, and the relay's output.

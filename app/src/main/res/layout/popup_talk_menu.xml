@@ -31,6 +31,18 @@
         android:focusable="true" />
 
     <TextView
+        android:id="@+id/menu_call_settings"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/call_settings"
+        android:textSize="16sp"
+        android:textColor="@color/text"
+        android:padding="12dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <TextView
         android:id="@+id/menu_manage_blacklist"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

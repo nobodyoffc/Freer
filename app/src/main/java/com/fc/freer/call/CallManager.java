@@ -36,6 +36,8 @@ public final class CallManager implements CallSignaller.Listener {
     static final int NOTIFY_INCOMING = 7101;
     private static final String PREFS = "calls";
     private static final String PREF_RELAY = "relay_override";
+    private static final String PREF_ALWAYS_RELAY = "always_relay";
+    private static final String PREF_AVAILABLE = "available_for_calls";
 
     public enum Phase { IDLE, CALLING, RINGING_IN, CONNECTING, CONNECTED, ENDED }
 
@@ -79,6 +81,8 @@ public final class CallManager implements CallSignaller.Listener {
             this.myFid = myFid;
             this.signaller = signaller;
             signaller.setListener(this);
+            // An identity has just loaded, so the app is in the foreground: the only time Android allows this.
+            if (availableForCalls()) CallAvailabilityService.start(context);
         });
     }
 
@@ -143,6 +147,31 @@ public final class CallManager implements CallSignaller.Listener {
 
     public void setRelayOverride(String url) {
         prefs().edit().putString(PREF_RELAY, url == null ? "" : url.trim()).apply();
+    }
+
+    /** Never try a direct path, which would show each side the other's IP (Decision 8). Off by default. */
+    public boolean alwaysRelay() {
+        return prefs().getBoolean(PREF_ALWAYS_RELAY, false);
+    }
+
+    public void setAlwaysRelay(boolean on) {
+        prefs().edit().putBoolean(PREF_ALWAYS_RELAY, on).apply();
+    }
+
+    /** Ring in the background, through {@link CallAvailabilityService} (§6.3). Off by default. */
+    public boolean availableForCalls() {
+        return prefs().getBoolean(PREF_AVAILABLE, false);
+    }
+
+    public void setAvailableForCalls(boolean on) {
+        prefs().edit().putBoolean(PREF_AVAILABLE, on).apply();
+        if (on) CallAvailabilityService.start(context);
+        else CallAvailabilityService.stop(context);
+    }
+
+    /** Audio is on a direct path rather than the relay. */
+    public boolean isDirect() {
+        return session != null && session.isDirect();
     }
 
     // ===== Actions =====
@@ -258,8 +287,25 @@ public final class CallManager implements CallSignaller.Listener {
 
     // ===== Internals =====
 
+    /** Direct paths only with contacts, and never with Always relay on (Decision 8). */
+    private boolean allowDirect(String peerFid) {
+        if (alwaysRelay()) return false;
+        try {
+            com.fc.freer.manager.ContactManager cm = com.fc.freer.manager.ContactManager.getInstance();
+            return cm != null && cm.checkIfFidExisted(peerFid);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     private CallSession newSession(CallSignaller.Call c) {
-        return new CallSession(context, signaller, c, myFid, AudioIo.Backend.AAUDIO, new CallSession.Listener() {
+        return new CallSession(context, signaller, c, myFid, AudioIo.Backend.AAUDIO, allowDirect(c.peerFid),
+                new CallSession.Listener() {
+            @Override
+            public void onPathChanged() {
+                main.post(() -> notifyUi());
+            }
+
             @Override
             public void onState(CallSession.State state, String detail) {
                 main.post(() -> {
