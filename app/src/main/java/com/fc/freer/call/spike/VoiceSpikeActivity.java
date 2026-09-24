@@ -119,8 +119,18 @@ public class VoiceSpikeActivity extends AppCompatActivity {
         // Real calls (not this test) use this relay when it is set, ahead of the homes on chain.
         EditText callRelay = findViewById(R.id.callRelay);
         callRelay.setText(com.fc.freer.call.CallManager.getInstance(this).relayOverride());
-        callRelay.setOnFocusChangeListener((v, focused) -> {
-            if (!focused) com.fc.freer.call.CallManager.getInstance(this).setRelayOverride(callRelay.getText().toString());
+        // Saved as it is typed: leaving the screen with Back must not lose it.
+        callRelay.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {
+                com.fc.freer.call.CallManager.getInstance(VoiceSpikeActivity.this).setRelayOverride(s.toString());
+            }
         });
         if (getIntent().hasExtra("callRelay")) {
             callRelay.setText(getIntent().getStringExtra("callRelay"));
