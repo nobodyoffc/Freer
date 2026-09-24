@@ -126,36 +126,35 @@ public class CallRelayLinkLiveTest {
 
             System.out.println("[live] caller " + caller.link.describe());
             System.out.println("[live] callee " + callee.link.describe());
-            // Sealed frames both ways, then attestations, which the relay forwards.
-            long now = System.currentTimeMillis();
-            for (long seq = 0; seq < 25; seq++) {
-                var result = caller.link.lastSend(caller.media.seal(
+            // 8 s of audio both ways, run as CallSession runs it: attestations checked
+            // every 200 ms, the 3 s deadline ticking. Nobody may be muted (§5.1).
+            int[] heard = new int[2];
+            long startMs = System.currentTimeMillis(), nextCheck = startMs;
+            for (long seq = 0; System.currentTimeMillis() - startMs < 8_000; seq++) {
+                long now = System.currentTimeMillis();
+                caller.link.sendFrame(caller.media.seal(
                         new EncodedFrame(caller.ssrc, seq, seq * 960, 30, true, false, new byte[]{(byte) seq}), now));
-                assertEquals("frame " + seq + " via " + caller.link.describe(),
-                        com.fc.fc_ajdk.fudp.transport.DatagramResult.SENT, result);
-                var back = callee.link.lastSend(callee.media.seal(
+                callee.link.sendFrame(callee.media.seal(
                         new EncodedFrame(callee.ssrc, seq, seq * 960, 30, true, false, new byte[]{(byte) -seq}), now));
-                assertEquals("callee frame " + seq + " via " + callee.link.describe(),
-                        com.fc.fc_ajdk.fudp.transport.DatagramResult.SENT, back);
-                Thread.sleep(20);
+                int i = 0;
+                for (Side s : List.of(caller, callee)) {
+                    byte[] d;
+                    while ((d = s.frames.poll()) != null) if (s.media.open(d, now) != null) heard[i]++;
+                    while ((d = s.attestations.poll()) != null) s.media.onAttestation(d);
+                    if (now >= nextCheck) {
+                        for (byte[] a : s.media.takeAttestations(now)) s.link.sendAttestation(a);
+                        s.media.tick(now);
+                    }
+                    i++;
+                }
+                if (now >= nextCheck) nextCheck = now + 200;
+                Thread.sleep(40);
             }
-            // Datagrams are send-or-drop over a real path: most, not all, must arrive.
-            int heard = 0, heardBack = 0;
-            byte[] d;
-            while ((d = callee.frames.poll(3, TimeUnit.SECONDS)) != null) {
-                assertNotNull("opens", callee.media.open(d, System.currentTimeMillis()));
-                heard++;
-            }
-            while (caller.frames.poll(1, TimeUnit.SECONDS) != null) heardBack++;
-            System.out.println("[live] frames heard " + heard + "/25, back " + heardBack + "/25");
-            assertTrue("callee heard " + heard + "/25", heard >= 20);
-            assertTrue("caller heard " + heardBack + "/25", heardBack >= 20);
-            for (byte[] a : caller.media.finish(System.currentTimeMillis())) caller.link.sendAttestation(a);
-            byte[] att = callee.attestations.poll(5, TimeUnit.SECONDS);
-            assertNotNull("the attestation came through the relay", att);
-            callee.media.onAttestation(att);
-            callee.media.tick(System.currentTimeMillis() + 10_000);
-            assertTrue("vouched for: still heard", !callee.media.isUnverified(caller.ssrc));
+            System.out.println("[live] frames heard by caller " + heard[0] + ", by callee " + heard[1]);
+            assertTrue("caller was muted: attestations late", !caller.media.isUnverified(callee.ssrc));
+            assertTrue("callee was muted: attestations late", !callee.media.isUnverified(caller.ssrc));
+            assertTrue("caller heard " + heard[0], heard[0] > 150);
+            assertTrue("callee heard " + heard[1], heard[1] > 150);
         } finally {
             for (Side s : List.of(caller, callee)) {
                 if (s.link != null) {

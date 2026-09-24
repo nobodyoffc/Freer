@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 public final class CallSession {
 
     private static final String TAG = "CallSession";
+    private static final long ATTEST_CHECK_MS = 200;
     public static final int FRAME_MS = 20;
     public static final int BITRATE = 24_000;
     public static final int EXPECTED_LOSS = 10;
@@ -237,6 +238,7 @@ public final class CallSession {
         m.setRouteId(routeId);
         PlayoutEngine p = new PlayoutEngine(FRAME_MS, backend);
         m.setListener((fid, ssrc) -> {
+            step("peer's audio unverified and silenced");
             p.silence(ssrc);
             listener.onUnverified(fid);
         });
@@ -250,7 +252,9 @@ public final class CallSession {
             CallRelayLink l = link;
             if (l != null) for (byte[] a : m.takeAttestations(now)) l.sendAttestation(a);
             m.tick(now);
-        }, 1, 1, TimeUnit.SECONDS);
+            // Checked 5 times a second so each attestation leaves ~1 s after its
+            // first frame, not up to 2 s: the far end mutes us at 3 s (§5.1).
+        }, ATTEST_CHECK_MS, ATTEST_CHECK_MS, TimeUnit.MILLISECONDS);
         step("media started");
         setState(State.CONNECTED, null);
     }

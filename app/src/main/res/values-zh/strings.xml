@@ -2647,6 +2647,7 @@
     <string name="call_answer">接听</string>
     <string name="call_decline">拒绝</string>
     <string name="call_hang_up">挂断</string>
+    <string name="call_close">关闭</string>
     <string name="call_mute">静音</string>
     <string name="call_speaker">扬声器</string>
     <string name="call_status_calling">正在呼叫…</string>

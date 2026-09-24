@@ -63,6 +63,7 @@ public final class CallManager implements CallSignaller.Listener {
     private CallSession session;
     private long connectedAtMs = -1;
     private String endReason;
+    private boolean failed;
     private String unverifiedFid;
     private boolean speaker;
     private Ringtone ringtone;
@@ -112,6 +113,11 @@ public final class CallManager implements CallSignaller.Listener {
 
     public String endReason() {
         return endReason;
+    }
+
+    /** The call failed rather than ended: the screen stays up so the reason can be read. */
+    public boolean endedWithFailure() {
+        return failed;
     }
 
     public String unverifiedFid() {
@@ -268,6 +274,7 @@ public final class CallManager implements CallSignaller.Listener {
                             // The media path failed: end the call for the peer too.
                             hangup();
                             finish(context.getString(R.string.call_end_failed, detail));
+                            failed = true;
                         }
                         default -> { }
                     }
@@ -301,6 +308,7 @@ public final class CallManager implements CallSignaller.Listener {
         session = null;
         connectedAtMs = -1;
         endReason = null;
+        failed = false;
         unverifiedFid = null;
     }
 

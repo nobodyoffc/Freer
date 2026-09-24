@@ -73,7 +73,9 @@ public class CallActivity extends AppCompatActivity implements CallManager.Liste
             }
         });
         hangup.setOnClickListener(v -> {
-            if (calls.phase() == CallManager.Phase.RINGING_IN) calls.decline();
+            CallManager.Phase phase = calls.phase();
+            if (phase == CallManager.Phase.ENDED || phase == CallManager.Phase.IDLE) finish();
+            else if (phase == CallManager.Phase.RINGING_IN) calls.decline();
             else calls.hangup();
         });
         mute.setOnClickListener(v -> calls.setMuted(mute.isChecked()));
@@ -131,14 +133,15 @@ public class CallActivity extends AppCompatActivity implements CallManager.Liste
         boolean ringingIn = phase == CallManager.Phase.RINGING_IN;
         boolean live = phase == CallManager.Phase.CONNECTING || phase == CallManager.Phase.CONNECTED;
         answer.setVisibility(ringingIn ? View.VISIBLE : View.GONE);
-        hangup.setText(ringingIn ? R.string.call_decline : R.string.call_hang_up);
-        hangup.setVisibility(phase == CallManager.Phase.ENDED || phase == CallManager.Phase.IDLE
-                ? View.GONE : View.VISIBLE);
+        boolean over = phase == CallManager.Phase.ENDED || phase == CallManager.Phase.IDLE;
+        boolean keepOpen = phase == CallManager.Phase.ENDED && calls.endedWithFailure();
+        hangup.setText(keepOpen ? R.string.call_close : ringingIn ? R.string.call_decline : R.string.call_hang_up);
+        hangup.setVisibility(!over || keepOpen ? View.VISIBLE : View.GONE);
         toggles.setVisibility(live || phase == CallManager.Phase.CALLING ? View.VISIBLE : View.GONE);
         mute.setChecked(calls.isMuted());
         speaker.setChecked(calls.isSpeaker());
 
-        if (phase == CallManager.Phase.ENDED || phase == CallManager.Phase.IDLE) {
+        if (over && !keepOpen) {
             handler.postDelayed(this::finish, CLOSE_AFTER_END_MS);
         }
     }
