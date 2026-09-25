@@ -42,6 +42,7 @@ public class CallService extends Service {
             return START_NOT_STICKY;
         }
         Notification n = notification();
+        holdLocks();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             int type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -74,6 +75,45 @@ public class CallService extends Service {
                 .setContentIntent(open)
                 .addAction(R.drawable.ic_call_end, getString(R.string.call_hang_up), hangup)
                 .build();
+    }
+
+    private android.os.PowerManager.WakeLock cpu;
+    private android.net.wifi.WifiManager.WifiLock wifi;
+
+    /**
+     * For the length of the call: the CPU stays up with the screen off, and
+     * Wi-Fi leaves power save, which otherwise holds incoming packets for up
+     * to a few hundred ms and makes audio choppy, as calling apps do.
+     */
+    @SuppressWarnings("deprecation")
+    private void holdLocks() {
+        if (cpu == null) {
+            android.os.PowerManager pm = getSystemService(android.os.PowerManager.class);
+            cpu = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "freer:call");
+            cpu.setReferenceCounted(false);
+            cpu.acquire(4 * 60 * 60 * 1000L); // a bound, in case a call is never ended
+        }
+        if (wifi == null) {
+            android.net.wifi.WifiManager wm = (android.net.wifi.WifiManager)
+                    getApplicationContext().getSystemService(WIFI_SERVICE);
+            if (wm != null) {
+                int mode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                        ? android.net.wifi.WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+                        : android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF;
+                wifi = wm.createWifiLock(mode, "freer:call");
+                wifi.setReferenceCounted(false);
+                wifi.acquire();
+            }
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        if (cpu != null && cpu.isHeld()) cpu.release();
+        if (wifi != null && wifi.isHeld()) wifi.release();
+        cpu = null;
+        wifi = null;
+        super.onDestroy();
     }
 
     @Override

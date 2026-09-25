@@ -10,6 +10,7 @@ import com.fc.freer.call.engine.CaptureEngine;
 import com.fc.freer.call.engine.PlayoutEngine;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,7 @@ public final class CallSession {
     private static final long ATTEST_CHECK_MS = 200;
     private static final long STATS_EVERY_MS = 5_000;
     private static final long PEER_GONE_MS = 3_000;
+    private static final int REGISTER_ATTEMPTS = 3;
     public static final int FRAME_MS = 20;
     public static final int BITRATE = 24_000;
     public static final int EXPECTED_LOSS = 10;
@@ -155,8 +157,7 @@ public final class CallSession {
                 byte[] secret = signaller.callSecret(call.callId);
                 if (secret == null) throw new IllegalStateException("no call key");
                 step("answered; registering authPub");
-                link.register(CallKeys.authPub(CallKeys.authPriv(secret)));
-                step("registered");
+                register(CallKeys.authPub(CallKeys.authPriv(secret)));
                 startMedia(secret);
             } catch (Exception e) {
                 fail("could not open the call on the relay: " + e.getMessage());
@@ -375,6 +376,30 @@ public final class CallSession {
             m.addPeer(call.peerFid, (int) ((Number) e.get("ssrc")).longValue(), d.tPubBytes());
             step("hearing the peer");
             tryDirect(e, d);
+        }
+    }
+
+    /**
+     * {@code call.register}, retried when its reply is lost: it is idempotent
+     * for the same authPub. The relay admits the peer only after it, so a
+     * peer already in the roster means it took, whatever became of the reply.
+     */
+    private void register(byte[] authPub) throws IOException {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                link.register(authPub);
+                step("registered");
+                return;
+            } catch (CallRelayLink.Refused e) {
+                throw e; // a real answer, not a lost one
+            } catch (IOException e) {
+                if (peerSeen) {
+                    step("register's reply was lost, but the peer is in the call: it took");
+                    return;
+                }
+                if (attempt >= REGISTER_ATTEMPTS) throw e;
+                step("register attempt " + attempt + " got no reply (" + e.getMessage() + "); retrying");
+            }
         }
     }
 

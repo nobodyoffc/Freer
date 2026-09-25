@@ -121,6 +121,11 @@ public final class CallRelayLink implements AutoCloseable {
 
     /** Discovery attempts before giving up: its HELLO/PING are not retransmitted. */
     static final int DISCOVERY_ATTEMPTS = 3;
+    /**
+     * A call waits on each relay request: better to learn in 10 s that a reply
+     * was lost, and retry or read the roster, than in FAPI's usual 30.
+     */
+    static final long REQUEST_TIMEOUT_S = 10;
 
     /**
      * Start the node and find the relay: with its key and service id when the
@@ -136,15 +141,18 @@ public final class CallRelayLink implements AutoCloseable {
             if (ep != null && pub != null && pub.length == 33) {
                 String relayFid = com.fc.fc_ajdk.core.crypto.KeyTools.pubkeyToFchAddr(pub);
                 node.addPeer(relayFid, pub, ep.host(), ep.port());
-                fapi = new FapiClient(node, relayFid, relaySid);
+                fapi = new FapiClient(node, relayFid, relaySid, REQUEST_TIMEOUT_S);
                 fapi.setServerUrl(relayUrl);
                 return;
             }
         }
-        for (int attempt = 1; attempt <= DISCOVERY_ATTEMPTS && fapi == null; attempt++) {
-            fapi = FapiClient.bootstrapFromUrl(node, relayUrl, null);
+        FapiClient found = null;
+        for (int attempt = 1; attempt <= DISCOVERY_ATTEMPTS && found == null; attempt++) {
+            found = FapiClient.bootstrapFromUrl(node, relayUrl, null);
         }
-        if (fapi == null) throw new IOException("relay unreachable: " + relayUrl);
+        if (found == null) throw new IOException("relay unreachable: " + relayUrl);
+        fapi = new FapiClient(node, found.getServicePeerId(), found.getServiceSid(), REQUEST_TIMEOUT_S);
+        fapi.setServerUrl(relayUrl);
     }
 
     /** The relay's public key, hex, once connected: for the INVITE (§3.2). */
