@@ -34,7 +34,8 @@ public final class CallSession {
     private static final String TAG = "CallSession";
     private static final long ATTEST_CHECK_MS = 200;
     private static final long STATS_EVERY_MS = 5_000;
-    private static final long PEER_GONE_MS = 3_000;
+    /** Long enough for a rejoin over a slow path (a join whose reply was lost leaves and joins again). */
+    private static final long PEER_GONE_MS = 6_000;
     private static final int REGISTER_ATTEMPTS = 3;
     public static final int FRAME_MS = 20;
     public static final int BITRATE = 24_000;
@@ -133,7 +134,7 @@ public final class CallSession {
         worker.execute(() -> {
             try {
                 openLink();
-                link.create();
+                link.createRetrying();
                 Map<String, Object> joined = link.join(capture.ssrc(), null, allowDirect);
                 routeId = (int) ((Number) joined.get("routeId")).longValue();
                 step("created and joined the call on the relay; ringing");
@@ -391,9 +392,9 @@ public final class CallSession {
                 link.register(authPub);
                 step("registered");
                 return;
-            } catch (CallRelayLink.Refused e) {
-                throw e; // a real answer, not a lost one
             } catch (IOException e) {
+                // A real refusal is final; 408, or no response at all, means the reply was lost.
+                if (e instanceof CallRelayLink.Refused r && !r.lostReply()) throw e;
                 if (peerSeen) {
                     step("register's reply was lost, but the peer is in the call: it took");
                     return;

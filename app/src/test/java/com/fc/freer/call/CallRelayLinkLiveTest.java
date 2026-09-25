@@ -171,7 +171,7 @@ public class CallRelayLinkLiveTest {
         try {
             // Caller: connect, create, join, and wait (§6.2 step 1).
             caller.open(callId, relay);
-            caller.link.create();
+            caller.link.createRetrying();
             Map<String, Object> cj = caller.link.join(caller.ssrc, null, direct);
             assertEquals(Boolean.TRUE, cj.get("datagram"));
 

@@ -57,6 +57,11 @@ public final class CallRelayLink implements AutoCloseable {
             super(code + " " + message);
             this.code = code;
         }
+
+        /** 408: FAPI heard nothing back in time. The request may well have taken. */
+        public boolean lostReply() {
+            return code == 408;
+        }
     }
 
     private static final Gson GSON = new Gson();
@@ -121,6 +126,7 @@ public final class CallRelayLink implements AutoCloseable {
 
     /** Discovery attempts before giving up: its HELLO/PING are not retransmitted. */
     static final int DISCOVERY_ATTEMPTS = 3;
+    static final int CREATE_ATTEMPTS = 3;
     /**
      * A call waits on each relay request: better to learn in 10 s that a reply
      * was lost, and retry or read the roster, than in FAPI's usual 30.
@@ -254,8 +260,30 @@ public final class CallRelayLink implements AutoCloseable {
                 return r;
             } catch (Refused e) {
                 com.fc.fc_ajdk.utils.TimberLogger.i("CallRelayLink", "join attempt %d refused: %s", attempt + 1, e.getMessage());
-                if (e.code != 409 || authPriv == null || attempt >= JOIN_RETRY_MS.length) throw e;
-                Thread.sleep(JOIN_RETRY_MS[attempt]);
+                // An earlier join took and only its reply was lost: leave, so the next one is the one we hear.
+                boolean tookEarlier = e.code == 409 && String.valueOf(e.getMessage()).contains("already in a call");
+                if (tookEarlier) leave();
+                boolean retry = e.lostReply() || tookEarlier || e.code == 409 && authPriv != null;
+                if (!retry || attempt >= JOIN_RETRY_MS.length) throw e;
+                // Rejoin at once after leaving: the peer counts an absence of 6 s as a hang-up.
+                if (!tookEarlier) Thread.sleep(JOIN_RETRY_MS[attempt]);
+            }
+        }
+    }
+
+    /**
+     * {@code call.create}, retried when its reply is lost. The meeting id is
+     * this call's own, so "meeting exists" on a retry means the first one took.
+     */
+    public void createRetrying() throws IOException, InterruptedException {
+        for (int attempt = 0; ; attempt++) {
+            try {
+                create();
+                return;
+            } catch (Refused e) {
+                if (attempt > 0 && e.code == 409 && String.valueOf(e.getMessage()).contains("meeting exists")) return;
+                if (!e.lostReply() || attempt >= CREATE_ATTEMPTS - 1) throw e;
+                com.fc.fc_ajdk.utils.TimberLogger.i("CallRelayLink", "create attempt %d got no reply; retrying", attempt + 1);
             }
         }
     }
