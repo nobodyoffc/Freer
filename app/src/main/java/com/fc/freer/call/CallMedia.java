@@ -79,6 +79,8 @@ public final class CallMedia {
      * @param tPriv this call's transport key, which signs the attestations;
      *              the caller erases it when the call ends
      */
+    private boolean oneToOne;
+
     public CallMedia(String callId, byte[] callSecret, String myFid, int mySsrc, byte[] tPriv) {
         this.callId = callId;
         this.callSecret = callSecret.clone();
@@ -90,6 +92,16 @@ public final class CallMedia {
 
     public synchronized void setListener(Listener listener) {
         this.listener = listener;
+    }
+
+    /**
+     * A 1:1 call: only the two ends hold the key, so no one else can make a
+     * frame that opens, and an attestation that is late or lost means a slow
+     * path, never a forgery. It then silences no one; a digest that does not
+     * match still does (§5.1). Meetings keep the 3 s rule.
+     */
+    public synchronized void setOneToOne(boolean oneToOne) {
+        this.oneToOne = oneToOne;
     }
 
     /**
@@ -225,7 +237,7 @@ public final class CallMedia {
     public synchronized void tick(long nowMs) {
         for (Peer p : new ArrayList<>(peers.values())) {
             if (p.unverified) continue;
-            for (Played pl : p.played.values()) {
+            for (Played pl : oneToOne ? List.<Played>of() : p.played.values()) {
                 if (nowMs - pl.atMs() >= ATTEST_DEADLINE_MS) {
                     unverified(p);
                     break;

@@ -323,6 +323,7 @@ public final class CallSession {
 
     private void startMedia(byte[] secret) {
         CallMedia m = new CallMedia(call.callId, secret, myFid, capture.ssrc(), tPriv);
+        m.setOneToOne(true); // late attestations here mean a slow path, not forgery (§5.1)
         Arrays.fill(secret, (byte) 0);
         m.setRouteId(routeId);
         PlayoutEngine p = new PlayoutEngine(FRAME_MS, backend);

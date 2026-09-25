@@ -195,4 +195,20 @@ public class CallMediaTest {
         assertFalse("the connection already proved who sent them", bob.media.isUnverified(alice.ssrc));
         assertNotNull(bob.media.open(alice.media.seal(frame(alice, 25), now), now + 10_000));
     }
+
+    @Test
+    public void inAOneToOneCallALateAttestationSilencesNoOne() {
+        bob.media.setOneToOne(true);
+        for (long seq = 0; seq < 25; seq++) bob.media.open(alice.media.seal(frame(alice, seq), now), now);
+        bob.media.tick(now + 10_000); // the attestations are stuck on a slow path
+        assertFalse("only the two ends hold the key: late is not forged", bob.media.isUnverified(alice.ssrc));
+
+        // A digest that does not match still does: that cannot be the network.
+        CallMedia impostor = new CallMedia(CALL_ID, secret, alice.fid, alice.ssrc, key());
+        for (long seq = 0; seq < 25; seq++) impostor.seal(frame(alice, seq), now); // same seqs, same key
+        bob.media.open(impostor.seal(new EncodedFrame(alice.ssrc, 25, 25 * 960, 30, true, false, new byte[]{9}), now), now);
+        alice.media.seal(frame(alice, 25), now);
+        for (byte[] att : alice.media.finish(now)) bob.media.onAttestation(att);
+        assertTrue("Alice's attestation does not vouch for what was played", bob.media.isUnverified(alice.ssrc));
+    }
 }
