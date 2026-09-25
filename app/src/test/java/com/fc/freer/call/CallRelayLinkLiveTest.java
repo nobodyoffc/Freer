@@ -90,6 +90,55 @@ public class CallRelayLinkLiveTest {
         run(true);
     }
 
+    /**
+     * A caller remembers the relay's key after discovery, and the next call
+     * connects with it; a stale remembered key is forgotten and discovery
+     * runs instead (§6.2 step 1).
+     */
+    @Test
+    public void aRelayOnceFoundIsReachedWithItsKey() throws Exception {
+        String relay = System.getenv("CALL_RELAY");
+        assumeTrue("set CALL_RELAY to run against a live relay", relay != null && !relay.isEmpty());
+        java.util.Map<String, String[]> store = new java.util.HashMap<>();
+        KnownRelays known = new KnownRelays() {
+            @Override
+            public String[] get(String url) {
+                return store.get(url);
+            }
+
+            @Override
+            public void put(String url, String pubkeyHex, String sid) {
+                store.put(url, new String[]{pubkeyHex, sid});
+            }
+
+            @Override
+            public void forget(String url) {
+                store.remove(url);
+            }
+        };
+        for (String expected : List.of("by discovery", "with its remembered key")) {
+            assertEquals(expected, connectAndCreate(relay, known));
+            assertNotNull(store.get(relay));
+        }
+        // A key the relay does not have: forgotten, then discovery.
+        store.put(relay, new String[]{Hex.toHex(KeyTools.prikeyToPubkey(key())), store.get(relay)[1]});
+        assertEquals("by discovery", connectAndCreate(relay, known));
+    }
+
+    private static String connectAndCreate(String relay, KnownRelays known) throws Exception {
+        Side s = new Side();
+        String callId = Hex.toHex(key()).substring(0, 32);
+        s.delegation = Delegation.sign(s.fidPriv, callId, s.tPub, System.currentTimeMillis() / 1000 + 3600);
+        s.link = new CallRelayLink(Files.createTempDirectory("call-link").toFile(), s.tPriv, callId, s.delegation, s);
+        try {
+            String how = s.link.connect(relay, null, null, known);
+            s.link.create(); // and the connection really works
+            return how;
+        } finally {
+            s.link.close();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     static List<CallDirectPath.Candidate> candidatesOf(Map<String, Object> roster, String fid) {
         for (Map<String, Object> e : CallRelayLink.roster(roster)) {

@@ -126,6 +126,8 @@ public final class CallRelayLink implements AutoCloseable {
      * was lost, and retry or read the roster, than in FAPI's usual 30.
      */
     static final long REQUEST_TIMEOUT_S = 10;
+    /** How long a remembered relay key gets to prove itself before discovery. */
+    static final long VERIFY_MS = 8_000;
 
     /**
      * Start the node and find the relay: with its key and service id when the
@@ -134,17 +136,28 @@ public final class CallRelayLink implements AutoCloseable {
      * loses one of its unacknowledged packets.
      */
     public void connect(String relayUrl, String relayPubkeyHex, String relaySid) throws IOException {
+        connect(relayUrl, relayPubkeyHex, relaySid, null);
+    }
+
+    /**
+     * @param known relays reached before: a caller, which has no INVITE to
+     *              name the key, tries the remembered one first, and
+     *              remembers what discovery finds
+     * @return how it connected, for the log
+     */
+    public String connect(String relayUrl, String relayPubkeyHex, String relaySid, KnownRelays known)
+            throws IOException {
         node.start();
-        if (relayPubkeyHex != null && relaySid != null) {
-            FapiClient.Endpoint ep = FapiClient.parseFudpUrl(relayUrl);
-            byte[] pub = Hex.fromHex(relayPubkeyHex);
-            if (ep != null && pub != null && pub.length == 33) {
-                String relayFid = com.fc.fc_ajdk.core.crypto.KeyTools.pubkeyToFchAddr(pub);
-                node.addPeer(relayFid, pub, ep.host(), ep.port());
-                fapi = new FapiClient(node, relayFid, relaySid, REQUEST_TIMEOUT_S);
-                fapi.setServerUrl(relayUrl);
-                return;
-            }
+        if (relayPubkeyHex != null && relaySid != null && withKey(relayUrl, relayPubkeyHex, relaySid)) {
+            return "with the key from the INVITE";
+        }
+        String[] remembered = known == null ? null : known.get(relayUrl);
+        if (remembered != null && withKey(relayUrl, remembered[0], remembered[1])) {
+            if (answersPing()) return "with its remembered key";
+            // Stale: the relay has a new key, or is gone. Forget it and discover.
+            node.removePeer(relayFid());
+            fapi = null;
+            known.forget(relayUrl);
         }
         FapiClient found = null;
         for (int attempt = 1; attempt <= DISCOVERY_ATTEMPTS && found == null; attempt++) {
@@ -153,6 +166,35 @@ public final class CallRelayLink implements AutoCloseable {
         if (found == null) throw new IOException("relay unreachable: " + relayUrl);
         fapi = new FapiClient(node, found.getServicePeerId(), found.getServiceSid(), REQUEST_TIMEOUT_S);
         fapi.setServerUrl(relayUrl);
+        if (known != null) known.put(relayUrl, relayPubkey(), relaySid());
+        return "by discovery";
+    }
+
+    /** Set up the relay as a known peer: no packet is sent until the first request. */
+    private boolean withKey(String relayUrl, String pubkeyHex, String sid) {
+        FapiClient.Endpoint ep = FapiClient.parseFudpUrl(relayUrl);
+        byte[] pub;
+        try {
+            pub = Hex.fromHex(pubkeyHex);
+        } catch (RuntimeException e) {
+            return false;
+        }
+        if (ep == null || pub == null || pub.length != 33) return false;
+        String relayFid = com.fc.fc_ajdk.core.crypto.KeyTools.pubkeyToFchAddr(pub);
+        node.addPeer(relayFid, pub, ep.host(), ep.port());
+        fapi = new FapiClient(node, relayFid, sid, REQUEST_TIMEOUT_S);
+        fapi.setServerUrl(relayUrl);
+        return true;
+    }
+
+    /** A PING over FUDP's own handshake, which resends lost packets, unlike discovery's. */
+    private boolean answersPing() {
+        try {
+            node.pingAwaitPong(relayFid(), false, VERIFY_MS).get(VERIFY_MS + 1_000, java.util.concurrent.TimeUnit.MILLISECONDS);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /** The relay's public key, hex, once connected: for the INVITE (§3.2). */

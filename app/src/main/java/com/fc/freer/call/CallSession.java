@@ -268,9 +268,9 @@ public final class CallSession {
                 }
             }
         });
-        step("connecting to " + call.relayUrl + (call.relayPubkey != null ? " with its key" : " by discovery"));
-        link.connect(call.relayUrl, call.relayPubkey, call.relaySid);
-        step("connected to the relay");
+        step("connecting to " + call.relayUrl);
+        String how = link.connect(call.relayUrl, call.relayPubkey, call.relaySid, KnownRelays.of(context));
+        step("connected to the relay " + how);
     }
 
     /**
