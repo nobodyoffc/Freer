@@ -184,4 +184,15 @@ public class CallMediaTest {
         assertEquals(63, Attestation.parse(att.get(0)).lastSeq());
         assertEquals(99, Attestation.parse(att.get(1)).lastSeq());
     }
+
+    @Test
+    public void framesOnTheDirectConnectionNeedNoAttestation() {
+        // The direct path died with the attestations for its last frames (§5.1, §6.2 step 9).
+        for (long seq = 0; seq < 25; seq++) {
+            assertNotNull(bob.media.open(alice.media.seal(frame(alice, seq), now), now, true));
+        }
+        bob.media.tick(now + 10_000);
+        assertFalse("the connection already proved who sent them", bob.media.isUnverified(alice.ssrc));
+        assertNotNull(bob.media.open(alice.media.seal(frame(alice, 25), now), now + 10_000));
+    }
 }

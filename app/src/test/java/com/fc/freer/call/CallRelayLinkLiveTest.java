@@ -60,7 +60,7 @@ public class CallRelayLinkLiveTest {
         }
 
         @Override
-        public void onFrame(byte[] datagram) {
+        public void onFrame(byte[] datagram, boolean direct) {
             frames.add(datagram);
         }
 

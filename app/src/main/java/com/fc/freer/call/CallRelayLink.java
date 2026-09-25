@@ -41,7 +41,7 @@ public final class CallRelayLink implements AutoCloseable {
 
     public interface Events {
         /** On the node's receive thread: return quickly. */
-        void onFrame(byte[] datagram);
+        void onFrame(byte[] datagram, boolean direct);
 
         void onAttestation(byte[] attestation);
 
@@ -82,13 +82,13 @@ public final class CallRelayLink implements AutoCloseable {
             @Override
             public void onDatagram(String peerId, long connectionId, byte[] data) {
                 if (peerId.equals(relayFid())) {
-                    events.onFrame(data);
+                    events.onFrame(data, false);
                     return;
                 }
                 CallDirectPath d = direct;
                 if (d == null || !peerId.equals(d.peerTFid())) return; // nobody else may send us audio
                 d.onDatagram(connectionId, data);
-                if (data.length > 2) events.onFrame(data);
+                if (data.length > 2) events.onFrame(data, true);
             }
 
             @Override

@@ -217,11 +217,11 @@ public final class CallSession {
         File dir = new File(context.getCacheDir(), "call/" + call.callId);
         link = new CallRelayLink(dir, tPriv, call.callId, call.myDelegation, new CallRelayLink.Events() {
             @Override
-            public void onFrame(byte[] datagram) {
+            public void onFrame(byte[] datagram, boolean direct) {
                 CallMedia m = media;
                 PlayoutEngine p = playout;
                 if (m == null || p == null) return;
-                var f = m.open(datagram, System.currentTimeMillis());
+                var f = m.open(datagram, System.currentTimeMillis(), direct);
                 if (f == null) return;
                 framesOpened++;
                 if (!heardFirst) {

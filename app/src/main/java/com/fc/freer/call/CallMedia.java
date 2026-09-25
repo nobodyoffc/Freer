@@ -177,13 +177,24 @@ public final class CallMedia {
      *         failed authentication, or a replay
      */
     public synchronized EncodedFrame open(byte[] datagram, long nowMs) {
+        return open(datagram, nowMs, false);
+    }
+
+    /**
+     * @param fromPeerConnection the frame came on the direct FUDP connection,
+     *        accepted only under the key the peer's verified delegation names
+     *        (§6.2 step 7). The connection itself attributes it, so it waits
+     *        for no attestation: one lost with a dying direct path must not
+     *        silence the peer (§5.1).
+     */
+    public synchronized EncodedFrame open(byte[] datagram, long nowMs, boolean fromPeerConnection) {
         MediaFrame.Header h = MediaFrame.Header.parse(datagram);
         if (h == null || h.keyEpoch() != KEY_EPOCH) return null;
         Peer p = peers.get(h.ssrc());
         if (p == null || p.unverified) return null;
         byte[] payload = MediaFrame.open(p.key, datagram);
         if (payload == null || !p.window.accept(h.seq())) return null; // window only after authentication
-        p.played.put(h.seq(), new Played(Attestation.digest(datagram), nowMs));
+        if (!fromPeerConnection) p.played.put(h.seq(), new Played(Attestation.digest(datagram), nowMs));
         return new EncodedFrame(h.ssrc(), h.seq(), h.timestamp(), h.level(),
                 (h.flags() & MediaFrame.FLAG_VAD) != 0, (h.flags() & MediaFrame.FLAG_DTX) != 0, payload);
     }
