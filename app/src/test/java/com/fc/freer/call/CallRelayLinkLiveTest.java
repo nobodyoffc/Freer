@@ -125,6 +125,56 @@ public class CallRelayLinkLiveTest {
         assertEquals("by discovery", connectAndCreate(relay, known));
     }
 
+    /**
+     * A ringing device watching the relay (§6.3): it hears within a few
+     * seconds that another device joined, or that the caller left.
+     */
+    @Test
+    public void aRingingDeviceSeesTheCallSettledOnTheRelay() throws Exception {
+        String relay = System.getenv("CALL_RELAY");
+        assumeTrue("set CALL_RELAY to run against a live relay", relay != null && !relay.isEmpty());
+        for (boolean answered : new boolean[]{true, false}) {
+            String callId = Hex.toHex(key()).substring(0, 32);
+            Side caller = new Side(), callee = new Side();
+            java.util.concurrent.CompletableFuture<String> seen = new java.util.concurrent.CompletableFuture<>();
+            CallRingWatch watch = null;
+            try {
+                caller.open(callId, relay);
+                caller.link.createRetrying();
+                caller.link.join(caller.ssrc, null);
+                watch = new CallRingWatch(Files.createTempDirectory("ring").toFile(), callId, relay,
+                        caller.link.relayPubkey(), caller.link.relaySid(), System.currentTimeMillis() + 30_000,
+                        new CallRingWatch.Listener() {
+                            @Override
+                            public void answeredElsewhere() {
+                                seen.complete("answered");
+                            }
+
+                            @Override
+                            public void callerGone() {
+                                seen.complete("gone");
+                            }
+                        });
+                watch.start();
+                Thread.sleep(3_000); // it has seen the caller alone
+                if (answered) {
+                    byte[] secret = CallKeys.p2pSecret(caller.tPriv, callee.tPub, callId, caller.fid, callee.fid);
+                    caller.link.register(CallKeys.authPub(CallKeys.authPriv(secret)));
+                    callee.knownPubkey = caller.link.relayPubkey();
+                    callee.knownSid = caller.link.relaySid();
+                    callee.open(callId, relay);
+                    callee.link.join(callee.ssrc, CallKeys.authPriv(secret));
+                } else {
+                    caller.link.leave();
+                }
+                assertEquals(answered ? "answered" : "gone", seen.get(10, TimeUnit.SECONDS));
+            } finally {
+                if (watch != null) watch.stop();
+                for (Side s : List.of(caller, callee)) if (s.link != null) s.link.close();
+            }
+        }
+    }
+
     private static String connectAndCreate(String relay, KnownRelays known) throws Exception {
         Side s = new Side();
         String callId = Hex.toHex(key()).substring(0, 32);

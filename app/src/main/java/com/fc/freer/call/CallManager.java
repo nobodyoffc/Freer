@@ -75,6 +75,7 @@ public final class CallManager implements CallSignaller.Listener {
     private String topUpRelay;
     private volatile boolean speaker; // read on the session thread when call audio starts
     private Ringtone ringtone;
+    private CallRingWatch ringWatch;
 
     private CallManager(Context context) {
         this.context = context;
@@ -325,6 +326,7 @@ public final class CallManager implements CallSignaller.Listener {
             call = incoming;
             phase = Phase.RINGING_IN;
             ring();
+            watchRing(incoming);
             notifyUi();
         });
     }
@@ -492,7 +494,32 @@ public final class CallManager implements CallSignaller.Listener {
         }
     }
 
+    /** While ringing, watch the relay: another device may answer, or the caller leave (§6.3). */
+    private void watchRing(CallSignaller.Call c) {
+        if (ringWatch != null) ringWatch.stop();
+        ringWatch = null;
+        if (c.relayUrl == null || c.relayPubkey == null || c.relaySid == null) return;
+        CallSignaller s = signaller;
+        ringWatch = new CallRingWatch(new java.io.File(context.getCacheDir(), "call-ring/" + c.callId), c.callId,
+                c.relayUrl, c.relayPubkey, c.relaySid, c.expiresMs, new CallRingWatch.Listener() {
+                    @Override
+                    public void answeredElsewhere() {
+                        TimberLogger.i(TAG, "call %s answered on another device", c.callId);
+                        s.settledElsewhere(c.callId, true);
+                    }
+
+                    @Override
+                    public void callerGone() {
+                        TimberLogger.i(TAG, "call %s: the caller left the relay", c.callId);
+                        s.settledElsewhere(c.callId, false);
+                    }
+                });
+        ringWatch.start();
+    }
+
     private void stopRinging() {
+        if (ringWatch != null) ringWatch.stop(); // before this device joins: its join is not another's
+        ringWatch = null;
         if (ringtone != null) ringtone.stop();
         ringtone = null;
         context.getSystemService(NotificationManager.class).cancel(NOTIFY_INCOMING);

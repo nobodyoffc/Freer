@@ -303,6 +303,13 @@ public final class CallRelayLink implements AutoCloseable {
         }
     }
 
+    /** {@code call.info}: public, needs no delegation. @return open, participants */
+    public Map<String, Object> info() throws IOException {
+        Map<String, Object> p = new HashMap<>();
+        p.put("meetingId", callId);
+        return request("call.info", p);
+    }
+
     /** {@code call.register}: the caller gives the relay {@code authPub} once the callee accepts (§4.4). */
     public void register(byte[] authPub) throws IOException {
         Map<String, Object> p = base();

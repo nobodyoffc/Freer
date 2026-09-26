@@ -195,6 +195,16 @@ public class CallSignallerTest {
     }
 
     @Test
+    public void aRingSettledOnTheRelayEndsWithoutTheCancel() {
+        ring();
+        CallSignaller.Call in = bob.rang.get(0);
+        bob.signaller.settledElsewhere(in.callId, true); // the relay shows Bob's other device in the call
+        assertEquals(List.of(CallSignaller.End.ANSWERED_ELSEWHERE), bob.ended);
+        bob.signaller.settledElsewhere(in.callId, false); // once ended, nothing more
+        assertEquals(1, bob.ended.size());
+    }
+
+    @Test
     public void cancellingAPreparedCallTellsNoOne() {
         CallSignaller.Call out = alice.signaller.prepare(bob.fid, "fudp://relay.example:19950");
         alice.signaller.cancel(out.callId);

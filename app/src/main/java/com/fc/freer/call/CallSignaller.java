@@ -233,6 +233,18 @@ public final class CallSignaller {
      * HANGUP, which travels over IM, is slow or lost. Ends the call as a
      * HANGUP would; nothing is sent.
      */
+    /**
+     * The relay shows the ringing call settled without this device: another
+     * of my devices answered, or the caller left. The CANCEL saying so over
+     * IM may be slow (§6.3).
+     */
+    public synchronized void settledElsewhere(String callId, boolean answered) {
+        Call c = calls.get(callId);
+        if (c == null || c.outgoing || c.state != State.RINGING_IN) return;
+        if (answered) end(c, End.ANSWERED_ELSEWHERE, CallRecord.Kind.ANSWERED_ELSEWHERE);
+        else end(c, End.MISSED, CallRecord.Kind.MISSED);
+    }
+
     public synchronized void peerLeft(String callId) {
         Call c = calls.get(callId);
         if (c == null || c.state != State.ACTIVE) return;
