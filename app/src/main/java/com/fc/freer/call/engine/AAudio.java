@@ -1,7 +1,5 @@
 package com.fc.freer.call.engine;
 
-import android.media.audiofx.AcousticEchoCanceler;
-import android.media.audiofx.NoiseSuppressor;
 
 import java.util.Locale;
 
@@ -61,7 +59,7 @@ final class AAudio {
             this.exclusive = exclusive;
             h = open(true, Opus.SAMPLE_RATE, exclusive);
             if (h == 0) throw new IllegalStateException("AAudio input would not open at 48 kHz mono");
-            effects = attachEffects(query(h, Q_SESSION));
+            effects = AudioIo.JavaInput.describeEffects(query(h, Q_SESSION));
             mode = mode(h);
         }
 
@@ -73,24 +71,9 @@ final class AAudio {
             AAudio.close(h);
             h = open(true, Opus.SAMPLE_RATE, exclusive);
             if (h == 0) return false;
-            effects = attachEffects(query(h, Q_SESSION));
+            effects = AudioIo.JavaInput.describeEffects(query(h, Q_SESSION));
             mode = mode(h);
             return true;
-        }
-
-        /** The preset asks for these; attaching them too shows whether the device has them. */
-        private static String attachEffects(int session) {
-            if (session <= 0) return "preset only";
-            StringBuilder sb = new StringBuilder();
-            if (AcousticEchoCanceler.isAvailable()) {
-                AcousticEchoCanceler aec = AcousticEchoCanceler.create(session);
-                if (aec != null && aec.setEnabled(true) == 0) sb.append("AEC ");
-            }
-            if (NoiseSuppressor.isAvailable()) {
-                NoiseSuppressor ns = NoiseSuppressor.create(session);
-                if (ns != null && ns.setEnabled(true) == 0) sb.append("NS ");
-            }
-            return sb.length() == 0 ? "none" : sb.toString().trim();
         }
 
         @Override
