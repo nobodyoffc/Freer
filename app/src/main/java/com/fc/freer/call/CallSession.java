@@ -37,6 +37,7 @@ public final class CallSession {
     /** Long enough for a rejoin over a slow path (a join whose reply was lost leaves and joins again). */
     private static final long PEER_GONE_MS = 6_000;
     private static final int REGISTER_ATTEMPTS = 3;
+    private static final long PEER_SILENT_MS = 15_000;
     public static final int FRAME_MS = 20;
     public static final int BITRATE = 24_000;
     public static final int EXPECTED_LOSS = 10;
@@ -54,6 +55,9 @@ public final class CallSession {
 
         /** Audio moved to the direct path, or back to the relay. */
         void onPathChanged();
+
+        /** No audio at all from the peer yet, well into the call; false once it comes. */
+        void onPeerSilent(boolean silent);
     }
 
     private final Context context;
@@ -86,6 +90,9 @@ public final class CallSession {
     private volatile boolean muted;
     private volatile boolean heardFirst;
     private volatile boolean paymentRequired;
+    private volatile boolean networkBlocked;
+    private volatile boolean peerSilentNoted;
+    private volatile long mediaStartedMs;
     private volatile boolean peerSeen;
     private volatile long framesOpened;
     private int statTicks;
@@ -302,6 +309,20 @@ public final class CallSession {
         }
     }
 
+    /**
+     * Not a single frame from the peer, 15 s into the call: most likely its
+     * network cannot hear the relay (it may never have joined). Tell the user,
+     * once; and take it back if audio starts after all.
+     */
+    private void notePeerSilence(long now) {
+        boolean silent = framesOpened == 0 && now - mediaStartedMs > PEER_SILENT_MS;
+        if (silent != peerSilentNoted) {
+            peerSilentNoted = silent;
+            if (silent) step("no audio from the peer after " + PEER_SILENT_MS / 1000 + " s");
+            listener.onPeerSilent(silent);
+        }
+    }
+
     /** Levels are -dBov: 127 is silence, speech is roughly 20-50. */
     private void logStats(PlayoutEngine p) {
         StringBuilder in = new StringBuilder();
@@ -345,9 +366,11 @@ public final class CallSession {
             if (l != null) for (byte[] a : m.takeAttestations(now)) sendAttestation(l, a);
             m.tick(now);
             if (++statTicks % (STATS_EVERY_MS / ATTEST_CHECK_MS) == 0) logStats(p);
+            notePeerSilence(now);
             // Checked 5 times a second so each attestation leaves ~1 s after its
             // first frame, not up to 2 s: the far end mutes us at 3 s (§5.1).
         }, ATTEST_CHECK_MS, ATTEST_CHECK_MS, TimeUnit.MILLISECONDS);
+        mediaStartedMs = System.currentTimeMillis();
         step("media started");
         setState(State.CONNECTED, null);
     }
@@ -410,6 +433,15 @@ public final class CallSession {
         CallDirectPath d = l.direct();
         if (d != null && d.isUp()) d.sendAttestation(a);
         else l.sendAttestation(a);
+    }
+
+    /**
+     * The call failed because nothing came back from the relay: this network
+     * sends to it but drops its replies, or cannot reach it at all. The user
+     * should try another network; nothing in the call can fix it.
+     */
+    public boolean networkBlocked() {
+        return networkBlocked;
     }
 
     /** The relay refused to open the call because my balance there is too low. */
@@ -493,6 +525,10 @@ public final class CallSession {
 
     private void fail(String why) {
         TimberLogger.e(TAG, "call %s failed: %s", call.callId, why);
+        // Nothing ever came back from the relay: the network, not the call, is at fault.
+        CallRelayLink l = link;
+        networkBlocked = l == null || !l.heardFromRelay();
+        if (networkBlocked) step("nothing ever arrived from the relay: this network blocks its replies");
         teardown();
         setState(State.FAILED, why);
     }

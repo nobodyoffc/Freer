@@ -174,6 +174,7 @@ public class CallRelayLinkLiveTest {
             caller.link.createRetrying();
             Map<String, Object> cj = caller.link.join(caller.ssrc, null, direct);
             assertEquals(Boolean.TRUE, cj.get("datagram"));
+            assertTrue("replies came back: not a blocked network", caller.link.heardFromRelay());
 
             // INVITE/ACCEPT carry the transport keys; both sides derive the secret.
             byte[] secret = CallKeys.p2pSecret(caller.tPriv, callee.tPub, callId, caller.fid, callee.fid);

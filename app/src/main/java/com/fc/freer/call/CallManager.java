@@ -67,6 +67,8 @@ public final class CallManager implements CallSignaller.Listener {
     private String endReason;
     private boolean failed;
     private String unverifiedFid;
+    /** Well into the call and not a frame from the peer: likely its network cannot reach the relay. */
+    private boolean peerSilent;
     /** The callee's CALL service for the call I placed, for its price and a top-up. */
     private com.fc.freer.im.handler.P2pHandler.CallRelay placedVia;
     /** Set when my call failed for my balance at the callee's relay: the relay to top up. */
@@ -172,6 +174,10 @@ public final class CallManager implements CallSignaller.Listener {
     /** The call failed rather than ended: the screen stays up so the reason can be read. */
     public boolean endedWithFailure() {
         return failed;
+    }
+
+    public boolean peerSilent() {
+        return peerSilent;
     }
 
     public String unverifiedFid() {
@@ -365,6 +371,15 @@ public final class CallManager implements CallSignaller.Listener {
             }
 
             @Override
+            public void onPeerSilent(boolean silent) {
+                main.post(() -> {
+                    if (call != c) return;
+                    peerSilent = silent;
+                    notifyUi();
+                });
+            }
+
+            @Override
             public void onState(CallSession.State state, String detail) {
                 main.post(() -> {
                     if (call != c) return;
@@ -378,7 +393,9 @@ public final class CallManager implements CallSignaller.Listener {
                             // The media path failed: end the call for the peer too.
                             hangup();
                             failed = true; // before finish(), whose redraw decides whether the screen stays
-                            finish(context.getString(R.string.call_end_failed, detail));
+                            finish(session != null && session.networkBlocked()
+                                    ? context.getString(R.string.call_end_network_blocked, relayHost())
+                                    : context.getString(R.string.call_end_failed, detail));
                         }
                         default -> { }
                     }
@@ -425,6 +442,7 @@ public final class CallManager implements CallSignaller.Listener {
         endReason = null;
         failed = false;
         unverifiedFid = null;
+        peerSilent = false;
         placedVia = null;
         topUpRelay = null;
     }

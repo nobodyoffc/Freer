@@ -2676,6 +2676,8 @@
     <string name="call_unverified">声称来自 %1$s 的声音无法验证，已被静音。</string>
     <string name="call_end_ended">通话已结束</string>
     <string name="call_end_no_relay">对方没有设置 CALL 服务，无法呼叫。</string>
+    <string name="call_end_network_blocked">通话中继 %1$s 没有回应。它可能已停止服务，但更常见的是当前网络拦截了它的回复，中国大陆的部分移动网络会这样。请切换到 Wi-Fi 或其他网络（也可使用 VPN）后重新呼叫。</string>
+    <string name="call_peer_silent">还没有收到 %1$s 的声音。对方的网络可能无法连接通话中继，需要切换到 Wi-Fi 或其他网络。</string>
     <string name="call_end_wrong_relay">对方只在自己的 CALL 服务上接听。</string>
     <string name="call_top_up">充值</string>
     <string name="call_top_up_confirm">通话由呼叫方付费。你在对方 CALL 服务 %1$s 的余额不足。现在从你的 FID 支付吗？金额为该服务的常规购买额，不超过你的充值上限。</string>

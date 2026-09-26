@@ -2754,6 +2754,8 @@
     <string name="call_unverified">Audio claimed to be from %1$s could not be verified, and has been silenced.</string>
     <string name="call_end_ended">Call ended</string>
     <string name="call_end_no_relay">They have not set a CALL service, so they cannot be called.</string>
+    <string name="call_end_network_blocked">No reply from the call relay %1$s. It may be down, but more often this network blocks its replies, as some mobile networks in mainland China do. Switch to Wi-Fi or another network (a VPN also works) and call again.</string>
+    <string name="call_peer_silent">No sound from %1$s yet. Their network may not be able to reach the call relay; they may need to switch to Wi-Fi or another network.</string>
     <string name="call_end_wrong_relay">They take calls only on their own CALL service.</string>
     <string name="call_top_up">Top up</string>
     <string name="call_top_up_confirm">The caller pays for a call. Your balance at their CALL service, %1$s, is too low. Pay it from your FID now? The amount is the service\'s usual purchase, within your recharge limit.</string>

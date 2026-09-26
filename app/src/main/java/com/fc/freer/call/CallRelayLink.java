@@ -203,6 +203,21 @@ public final class CallRelayLink implements AutoCloseable {
         }
     }
 
+    /**
+     * Whether anything at all has come back from the relay. False after a
+     * request timed out means this network lets packets out to the relay but
+     * drops its replies, as some mobile networks in mainland China do for
+     * UDP from abroad: no retry here can help, only another network.
+     */
+    boolean heardFromRelay() {
+        String fid = relayFid();
+        if (fid.isEmpty()) return false;
+        for (PeerConnection c : node.getProtocol().getConnectionManager().getConnectionsByPeerId(fid)) {
+            if (c.getPacketsReceived() > 0) return true;
+        }
+        return false;
+    }
+
     /** The relay's public key, hex, once connected: for the INVITE (§3.2). */
     public String relayPubkey() {
         PeerConnection c = node.getProtocol().getConnectionManager().getAnyConnection(relayFid());

@@ -141,8 +141,10 @@ public class CallActivity extends AppCompatActivity implements CallManager.Liste
         }
 
         String unverified = calls.unverifiedFid();
-        warning.setVisibility(unverified == null ? View.GONE : View.VISIBLE);
+        boolean silent = calls.peerSilent() && phase == CallManager.Phase.CONNECTED;
+        warning.setVisibility(unverified == null && !silent ? View.GONE : View.VISIBLE);
         if (unverified != null) warning.setText(getString(R.string.call_unverified, displayName(unverified)));
+        else if (silent) warning.setText(getString(R.string.call_peer_silent, fid == null ? "" : displayName(fid)));
 
         boolean ringingIn = phase == CallManager.Phase.RINGING_IN;
         boolean live = phase == CallManager.Phase.CONNECTING || phase == CallManager.Phase.CONNECTED;
