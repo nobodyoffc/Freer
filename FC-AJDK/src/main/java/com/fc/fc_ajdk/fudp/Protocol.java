@@ -597,6 +597,12 @@ public class Protocol {
             }
         }
         stream.closeSend();
+        // Every message has a stream of its own, and a reply comes on a new one, so once the
+        // last frame is out this stream carries nothing more (retransmission resends frames,
+        // not streams). Left in the manager, every sent NOTIFY, PING and ACK would count
+        // against the peer's limit of 100 concurrent streams until the node refused every
+        // new stream from the peer, requests and responses included.
+        if (conn.getStreamManager() != null) conn.getStreamManager().removeStream(stream.getStreamId());
     }
 
     /**
@@ -668,6 +674,7 @@ public class Protocol {
             }
         }
         stream.closeSend();
+        if (conn.getStreamManager() != null) conn.getStreamManager().removeStream(stream.getStreamId());
     }
 
     /**
