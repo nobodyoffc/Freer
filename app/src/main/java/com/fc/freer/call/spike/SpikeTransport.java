@@ -11,6 +11,7 @@ import com.fc.fc_ajdk.fudp.node.NodeConfig;
 import com.fc.fc_ajdk.fudp.node.NodeEventListener;
 import com.fc.fc_ajdk.fudp.transport.DatagramResult;
 import com.fc.fc_ajdk.utils.TimberLogger;
+import com.fc.freer.call.engine.EncodedFrame;
 import com.fc.freer.call.engine.SpikeFrame;
 
 import java.io.File;
@@ -54,7 +55,7 @@ public final class SpikeTransport implements AutoCloseable {
 
     public interface Listener {
         /** On the node's receive thread: return quickly. */
-        void onFrame(SpikeFrame frame, long arrivalMs);
+        void onFrame(EncodedFrame frame, long arrivalMs);
 
         void onStatus(String status);
     }
@@ -127,7 +128,7 @@ public final class SpikeTransport implements AutoCloseable {
                     return;
                 }
                 SpikeFrame f = SpikeFrame.decode(data);
-                if (f != null) listener.onFrame(f, now);
+                if (f != null) listener.onFrame(f.toEncoded(), now);
             }
         });
         node.start();
@@ -176,12 +177,12 @@ public final class SpikeTransport implements AutoCloseable {
     }
 
     /** From the capture thread: one frame to every connection. */
-    public void send(byte[] frame) {
+    public void send(EncodedFrame encoded) {
+        byte[] frame = SpikeFrame.of(encoded).encode();
         if (mode == Mode.LOOPBACK) {
             sent.incrementAndGet();
             received.incrementAndGet();
-            SpikeFrame f = SpikeFrame.decode(frame);
-            if (f != null) listener.onFrame(f, SystemClock.elapsedRealtime());
+            listener.onFrame(encoded, SystemClock.elapsedRealtime());
             return;
         }
         for (long conn : connections) {

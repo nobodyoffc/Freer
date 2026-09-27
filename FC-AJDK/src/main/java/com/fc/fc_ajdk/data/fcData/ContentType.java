@@ -123,7 +123,16 @@ public enum ContentType {
      * Sent by the room owner to a member who has been removed from the room.
      * Receivers MUST verify the sender is the room owner before processing.
      */
-    ROOM_REMOVED;
+    ROOM_REMOVED,
+
+    /**
+     * Voice call signalling (VOICE_SPEC §3): content is JSON with an
+     * {@code op} (INVITE, ACCEPT, REJECT, CANCEL, HANGUP). Never displayed as
+     * a message; a call is recorded in the chat as a local entry built from
+     * the signalling. Also used, never sent, for those local call records.
+     * The Mac client must use the same ordinal.
+     */
+    CALL;
 
     public static ContentType fromString(String value) {
         if (value == null) return null;

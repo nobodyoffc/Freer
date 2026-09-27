@@ -3293,6 +3293,11 @@ public class ChatActivity extends BaseCryptoActivity
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT, true);
         popup.setElevation(8f);
 
+        menuView.findViewById(R.id.menu_voice_call).setOnClickListener(v -> {
+            popup.dismiss();
+            startVoiceCall();
+        });
+
         menuView.findViewById(R.id.menu_request_history).setOnClickListener(v -> {
             popup.dismiss();
             showRequestHistoryDatePicker(targetId);
@@ -3301,6 +3306,39 @@ public class ChatActivity extends BaseCryptoActivity
         menuView.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
         popup.showAsDropDown(anchor, 0, -(anchor.getHeight() + menuView.getMeasuredHeight()));
+    }
+
+    // ── Voice call (VOICE_SPEC §10) ─────────────────────────────────────
+
+    private final androidx.activity.result.ActivityResultLauncher<String[]> callPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), granted -> {
+                if (Boolean.TRUE.equals(granted.get(Manifest.permission.RECORD_AUDIO))) placeVoiceCall();
+                else ToastUtils.makeText(this, getString(R.string.call_need_mic));
+            });
+
+    /** A nobody's key is public, so calling one asks first (NOBODY_SPEC §3). */
+    private void startVoiceCall() {
+        if (targetId == null) return;
+        if (NobodyBoard.isKnownNobody(targetId)) {
+            DialogUtils.show(new AlertDialog.Builder(this)
+                    .setMessage(R.string.call_nobody_confirm)
+                    .setPositiveButton(R.string.menu_voice_call, (d, w) -> requestCallPermissions())
+                    .setNegativeButton(R.string.cancel, null));
+        } else {
+            requestCallPermissions();
+        }
+    }
+
+    private void requestCallPermissions() {
+        java.util.List<String> needed = new java.util.ArrayList<>();
+        needed.add(Manifest.permission.RECORD_AUDIO);
+        if (android.os.Build.VERSION.SDK_INT >= 33) needed.add(Manifest.permission.POST_NOTIFICATIONS);
+        callPermissionLauncher.launch(needed.toArray(new String[0]));
+    }
+
+    private void placeVoiceCall() {
+        com.fc.freer.call.CallManager.getInstance(this).placeCall(targetId);
+        startActivity(new android.content.Intent(this, com.fc.freer.call.CallActivity.class));
     }
 
     // ── Request history ─────────────────────────────────────────────────

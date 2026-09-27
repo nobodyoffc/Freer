@@ -296,6 +296,21 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                 return;
             }
 
+            // A call is a centred line in the chat, not a bubble (VOICE_SPEC §10).
+            if (com.fc.freer.call.CallText.isCall(message)) {
+                incomingContainer.setVisibility(View.GONE);
+                outgoingContainer.setVisibility(View.GONE);
+                systemMessage.setVisibility(View.VISIBLE);
+                systemMessage.setClickable(false);
+                systemMessage.setOnClickListener(null);
+                systemMessage.setBackground(null);
+                String when = message.getTimestamp() != null
+                        ? TIME_FORMAT.format(new Date(message.getTimestamp())) : "";
+                systemMessage.setText(com.fc.freer.call.CallText.describe(itemView.getContext(), message)
+                        + (when.isEmpty() ? "" : " · " + when));
+                return;
+            }
+
             String content = message.getContent();
 
             // Content authored by a nobody FID (public private key — anyone can

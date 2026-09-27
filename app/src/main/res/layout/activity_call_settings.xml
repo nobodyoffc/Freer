@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <include layout="@layout/common_toolbar" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <CheckBox
+                android:id="@+id/cbAvailableForCalls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/call_setting_available"
+                android:textColor="@color/text"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="32dp"
+                android:layout_marginBottom="16dp"
+                android:text="@string/call_setting_available_hint"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <CheckBox
+                android:id="@+id/cbAlwaysRelay"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/call_setting_always_relay"
+                android:textColor="@color/text"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="32dp"
+                android:layout_marginBottom="16dp"
+                android:text="@string/call_setting_always_relay_hint"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:id="@+id/callRelayGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/call_setting_relay"
+                android:textColor="@color/text"
+                android:textSize="15sp" />
+
+            <EditText
+                android:id="@+id/etCallRelay"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/call_setting_relay_example"
+                android:importantForAutofill="no"
+                android:inputType="textUri"
+                android:singleLine="true"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/call_setting_relay_hint"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

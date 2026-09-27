@@ -95,6 +95,8 @@ public class Constants {
     public static final String MAP_NO1_NRC7 = "MAP@No1_NrC7";
     public static final String BASE_NO1_NRC7 = "BASE@No1_NrC7";
     public static final String ROAD_NO1_NRC7 = "ROAD@No1_NrC7";
+    /** The voice-call relay (VOICE_SPEC §7). */
+    public static final String CALL_NO1_NRC7 = "CALL@No1_NrC7";
     public static final String DOCK_NO1_NRC7 = "DOCK@No1_NrC7";
     public static final String DISK_NO1_NRC7 = "DISK@No1_NrC7";
     public static int RedisDb4Webhook = 4;

@@ -11,16 +11,19 @@ import java.util.Arrays;
  * Send side (VOICE_SPEC §9.1, §9.2): the voice-call input, which gives the
  * platform's echo cancellation, noise suppression and gain control, through
  * {@link AudioIo} (AudioRecord or AAudio), then Opus, then one
- * {@link SpikeFrame} per frame to the {@link Sink}.
+ * {@link EncodedFrame} per frame to the {@link Sink}, which frames it for the
+ * wire.
  */
 public final class CaptureEngine {
 
     private static final String TAG = "CaptureEngine";
     /** Quieter than -50 dBov counts as silence for the VAD flag. */
     static final int VAD_LEVEL = 50;
+    /** The frame header on the wire (§5), for the bitrate the screen shows. */
+    private static final int HEADER_ESTIMATE = 24;
 
     public interface Sink {
-        void send(byte[] frame);
+        void send(EncodedFrame frame);
     }
 
     public record Settings(int frameMs, int bitrate, boolean dtx, int expectedLossPercent, AudioIo.Backend backend) {}
@@ -178,13 +181,12 @@ public final class CaptureEngine {
                 afterDtx = true;
                 continue;
             }
-            int flags = (lvl <= VAD_LEVEL ? SpikeFrame.FLAG_VAD : 0) | (afterDtx ? SpikeFrame.FLAG_DTX : 0);
+            EncodedFrame f = new EncodedFrame(ssrc, thisSeq, thisTs, lvl, lvl <= VAD_LEVEL, afterDtx,
+                    Arrays.copyOf(packet, len));
             afterDtx = false;
-            SpikeFrame f = new SpikeFrame(flags, ssrc, thisSeq, thisTs, lvl, Arrays.copyOf(packet, len));
-            byte[] wire = f.encode();
-            sink.send(wire);
+            sink.send(f);
             framesSent++;
-            bytesSent += wire.length;
+            bytesSent += len + HEADER_ESTIMATE;
         }
     }
 

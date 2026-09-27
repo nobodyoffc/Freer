@@ -93,6 +93,11 @@ public class BlacklistActivity extends BaseCryptoActivity
                 .setMessage(getString(R.string.confirm_remove_from_blacklist, fid))
                 .setPositiveButton(R.string.remove, (dialog, which) -> {
                     contactPolicy.removeFromBlacklist(fid);
+                    // Back to a stranger, not an accepted contact: the next message or call asks again.
+                    Setting setting = SettingManager.getInstance().getCurrentSetting();
+                    ImManager im = setting != null ? setting.getImManager() : null;
+                    PendingIssueManager issues = im != null ? im.getPendingIssueManager() : null;
+                    if (issues != null) issues.forgetStranger(fid);
                     if (position >= 0 && position < blacklist.size()) {
                         blacklist.remove(position);
                         adapter.notifyItemRemoved(position);

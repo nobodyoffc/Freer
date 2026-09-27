@@ -230,6 +230,18 @@ clients MUST use the same ordinal.
 `null` content type. It must drop such a message quietly, not show an empty
 bubble. If it does show one, gate the feature behind a minimum-version rule.
 
+**Checked 2026-09-23:**
+
+- **Released Android (3.2.2) fails the check.** It stores a `null`-typed
+  message and shows its content as a text bubble, so an INVITE appears as
+  its JSON. That JSON holds only public keys and the call id. **Decided
+  2026-09-23: no version gate.** Calls ship when they work, and a 3.2.2 user
+  sees one such bubble per call attempt until they update.
+- **This version drops any content type it does not know**, quietly, before
+  anything else.
+- **The Mac reserves `CALL`** at the same ordinal and treats it as a signal
+  that nothing routes. So until Phase 6, a Mac drops calls quietly.
+
 A `CALL` message is an ordinary FIMP message:
 
 - signed with the FIMP0V3 trailer
@@ -238,13 +250,37 @@ A `CALL` message is an ordinary FIMP message:
 
 `content` is JSON with an `op` field. Fields shown `<…>` are required.
 
+- `delegation` is the §4.1 object itself, not a string.
+- `expires` is milliseconds since the epoch.
+- The reference is `CallSignal` in FC-AJDK. It refuses a signal that lacks
+  what its op needs, or whose `callId` is not 16 bytes of hex.
+
+The state machine is `CallSignaller` in the app:
+
+- **Accepting:** it rings only for an INVITE whose delegation is from the
+  sender, for this call, for the `transportPub` the INVITE names. It accepts
+  an ACCEPT only from the callee it rang, under the same check.
+- **Other devices:** on a verified ACCEPT, the caller sends `CANCEL
+  answered_elsewhere` to the callee's FID, so the callee's other devices
+  stop. The device that answered ignores it.
+- **Keys:** each call's transport key is erased when the call ends.
+
+Local call records ("Call, 4:12", "Missed call", "Declined"):
+
+- They are `CALL` messages whose content is `{record, outgoing, duration,
+  callId}`. They are written into the chat and never sent.
+- A stranger's INVITE is held as a message request and shown as a missed
+  call. If the user accepts the stranger, it enters the chat the same way.
+- Signals go out through `P2pHandler.sendCallSignal`, on every channel
+  at once, and never through the message queue.
+
 ### 3.2. 1:1 calls (`type = P2P`, `targetId` = callee)
 
 | `op` | From | Fields | Meaning |
 |---|---|---|---|
-| `INVITE` | caller | `callId`, `transportPub`, `delegation`, `relay` {`url`} (the relay session id is `callId`), `candidates` (optional), `expires` (ms, now + 45 s), `codecs` = `["opus"]` | Ring the callee. |
+| `INVITE` | caller | `callId`, `transportPub`, `delegation`, `relay` {`url`, `pubkey`?, `sid`?} (the relay session id is `callId`; `pubkey` and `sid` are the relay's key and FAPI service id, which the caller learned connecting, so the callee can connect without discovery), `candidates` (optional), `expires` (ms, now + 45 s), `codecs` = `["opus"]` | Ring the callee. |
 | `ACCEPT` | callee | `callId`, `transportPub`, `delegation`, `candidates` (optional) | Answered. The call key can now be derived. |
-| `REJECT` | callee | `callId`, `reason` ∈ {`declined`, `busy`, `unsupported`} | Not answered. |
+| `REJECT` | callee | `callId`, `reason` ∈ {`declined`, `busy`, `unsupported`, `relay`} | Not answered. `relay`: the INVITE's relay is not the callee's `home.CALL` (§6.2). |
 | `CANCEL` | caller | `callId`, `reason` ∈ {`cancelled`, `timeout`, `answered_elsewhere`} | Stop ringing. `answered_elsewhere` goes to the callee's FID once one of its devices accepts, so its other devices stop. |
 | `HANGUP` | either | `callId`, `duration` (ms) | Ended. |
 
@@ -256,9 +292,7 @@ Rules:
   - the ACCEPT's FIMP signature, and
   - that the ACCEPT's `delegation` is valid for its `transportPub` (§4.1).
 - A device already in a call answers a new INVITE with `REJECT busy`. Call waiting is not in v1.
-- `candidates` are the sender's addresses for a direct path (§6.1).
-  - They are omitted when the sender has *Always relay* on, or when the peer is not a contact (Decision 8).
-  - An INVITE to a stranger therefore never carries the caller's IP. The callee's ACCEPT decides the callee's side on the same terms.
+- `candidates` in INVITE and ACCEPT are reserved. v1 sends none: candidates travel in the relay's roster instead (§6.1), which arrives with the join rather than over IM, which can be slow or lost. A receiver ignores them.
 - **Strangers:** an INVITE from a FID the user has not accepted does not
   ring.
   - It goes into Message Requests as a call request, shown as a missed
@@ -292,8 +326,27 @@ Receivers apply FIMP's membership checks:
 
 ## 4. Keys
 
-All derivations use HKDF-SHA256 (FTSP13). `‖` is concatenation. Strings are
-UTF-8 with a 2-byte big-endian length prefix. Integers are big-endian.
+All derivations use HKDF-SHA256 (FTSP13). `‖` is concatenation. Integers are
+big-endian and unsigned (`ssrc` is a u32 even where a language stores it
+signed).
+
+- A quoted literal, such as `"FreerCall v1 p2p"`, is its UTF-8 bytes with no
+  prefix. `str(x)` is a 2-byte big-endian length, then the UTF-8 bytes.
+- An empty salt (`∅`) is RFC 5869's all-zero salt.
+- `Schnorr(key, m)` is the BCH Schnorr signature that FIMP0V3 uses, over
+  SHA-256d of `m`: 64 bytes, deterministic. Each preimage starts with its
+  own literal tag, so a signature made for one purpose never verifies for
+  another.
+- `ECDH(a, B)` is the x-coordinate of `a·B`, 32 bytes.
+- `callId` as a salt is its 16 raw bytes, not its hex. A meeting `nonce` is
+  its 32 raw bytes.
+- Timestamps in signed data (`ts` in `admitSig`) are milliseconds;
+  `expiresSec` is seconds.
+
+The reference implementation is `com.fc.fc_ajdk.call` in FC-AJDK. Its
+vectors, `callVectors.json`, come from FreerForMac's vector-gen (`CallRef`).
+FC-AJDK checks them in `CallVectorTest`; the Mac and FC-JDK copies must
+reproduce every value.
 
 ### 4.1. Transport identity and delegation
 
@@ -405,7 +458,7 @@ path and through the relay, and the relay forwards it byte for byte.
 ```
 MediaFrame {
   kind      (1)  = 0x01 (media frame, v1)
-  flags     (1)  bit0 VAD (voice active), bit1 DTX (comfort-noise frame),
+  flags     (1)  bit0 VAD (voice active), bit1 DTX (the frames just before this one were DTX and not sent),
                  bit7 CONTROL (payload is a probe or report, not Opus), bits 2-6 = 0
   routeId   (4)  assigned by the relay at join; 0 on a direct path
   ssrc      (4)
@@ -447,7 +500,8 @@ Attestation {
   firstSeq  (8)
   count     (1)  1..64
   digests   (8 × count)  for seq = firstSeq .. firstSeq+count-1:
-                         first 8 bytes of SHA-256(the complete MediaFrame bytes)
+                         first 8 bytes of SHA-256(the complete MediaFrame bytes),
+                         or 8 zero bytes for a seq not sent (DTX)
   sig       (64) Schnorr(tPriv, "FreerCall-attest-v1" ‖ str(callOrMeetingId) ‖ every byte above)
 }
 ```
@@ -458,7 +512,13 @@ Attestation {
   previous one, including DTX and CONTROL frames.
 - Emits one early if `count` would exceed 64.
 - Emits a final one before `call.leave` or hang-up.
-- `seq` is consecutive, so the ranges tile with no gaps.
+- `seq` counts every encoded frame, including those DTX left unsent, which
+  keeps the receiver's jitter buffer able to tell silence from loss. So
+  the ranges tile with no gaps. An unsent `seq` has an all-zero digest, which
+  no frame can match.
+- A run of unsent seqs that would overflow the 64 an attestation holds
+  closes the current attestation instead, and the next starts at the next
+  sent frame.
 
 **Delivery:** attestations travel reliably, as a FUDP NOTIFY
 (`dataType = 0`), not as datagrams. A lost attestation would otherwise look
@@ -490,36 +550,75 @@ frames/s.
 4. **What can slip through:** at most about 3 s of unattributed audio
    can play before it is caught. The UI never says who spoke unless
    the attestations bear it out.
+5. **1:1 calls:** only the two ends hold the call key (§4.2), so the relay
+   cannot make a frame that opens, and a frame that opens can only be the
+   peer's. There an attestation that is late or lost means a slow path,
+   never a forgery, and does not silence the peer; the 3 s rule of step 3
+   is for meetings, where every member holds the key. A digest that does
+   not match still silences, since no network causes that. (On a lossy
+   Wi-Fi, reliable attestations took longer than 3 s to arrive, and each
+   side silenced the other for the rest of the call.)
 
-The same rules apply on a direct 1:1 path. There the FUDP connection
-already authenticates the peer, so attestations should never fail. A
-failure means a bug, and the user is warned.
+On a direct 1:1 path the FUDP connection itself attributes each frame: it
+is accepted only under the `transportPub` the peer's verified delegation
+names (§6.2 step 7), and nobody else holds that key. A receiver therefore
+keeps no digests for frames that arrive on it, and waits for no
+attestation for them. The sender still sends its attestations. Otherwise
+the attestations for the last frames before a direct path dies, which
+travel on that dying connection, would be lost, and the receiver would
+silence the peer for the rest of the call exactly when it falls back to
+the relay. (Found on two phones whose shared hotspot dropped for a second.)
 
 ## 6. Paths for a 1:1 call
 
 ### 6.1. Candidates
 
-A candidate is `{"t": "map"|"lan"|"home", "a": "ip:port"}`:
+A candidate is `{"t": "map"|"lan", "a": "ip:port"}`, or `[ipv6]:port`:
 
-- **`map`:** the address a MAP server sees for the call's FUDP socket. The call node sends one `map.register` to the user's own MAP server when the call starts, and keeps registering every 25 s during the call.
+- **`map`:** the address the CALL relay sees for the call's FUDP socket. The relay adds it to the joiner's roster entry when the join asks with `reflexive = true` (§7.2), acting as the MAP server would. It is the NAT mapping of the very socket the direct path uses, so no other server is involved.
 - **`lan`:** the device's own interface addresses, only if they are private (RFC 1918 or a ULA). These let two devices on the same Wi-Fi connect without going through NAT.
-- **`home`:** the sender's `freer.home.FUDP`, if one is set.
+
+Candidates travel in the relay's roster, not in the signalling: each side sends its own in `call.join`, and the relay passes them to the other with the roster. A side shares them only with a contact, and never with *Always relay* on (Decision 8). A call with a stranger therefore never shows either side's IP to the other.
+
+(An earlier draft put candidates in INVITE and ACCEPT, with `map` from the user's MAP server and a `home` type for `freer.home.FUDP`. IM delivery proved too slow for them, and `home` is the main node's address, which cannot carry the call node's traffic.)
 
 ### 6.2. Setting up the call
 
-1. **Caller:** `call.create` on its CALL relay (§7.2). Then it sends INVITE with `relay` and its candidates, and joins the relay.
+1. **Caller:** connects to its CALL relay, then does `call.create` and joins it (§7.2). Only then does it send the INVITE, with `relay` (including the relay's `pubkey` and `sid`) and its candidates. A callee therefore never rings for a call whose relay the caller could not reach.
 2. **Callee:** when the user answers, sends ACCEPT with its own candidates. It can derive `callSecret` at once, because the INVITE carried the caller's `transportPub`.
-3. **Caller:** on a verified ACCEPT, derives `callSecret` and calls `call.register` with `authPub`.
-4. **Callee:** joins the relay. The join fails with 409 until the caller has registered, so the callee retries every 250 ms for up to 10 s.
+3. **Caller:** on a verified ACCEPT, or a `knock` notice from the relay, whichever comes first, derives `callSecret` and calls `call.register` with `authPub`. Register is idempotent for the same `authPub`, so a caller whose reply is lost retries it; and since the relay admits the callee only after it, a callee already in the roster means it took. A knock carries the delegation the callee joined under. The callee signs it only on answering, and the relay cannot make one up, so the caller verifies it exactly as it would an ACCEPT's (§3.2) and treats it as the answer. The ACCEPT travels over IM and may be slow or lost; the knock arrives one relay hop after the callee's first join attempt.
+4. **Callee:** connects to the relay, directly with `pubkey` and `sid` when the INVITE carried them (FUDP's handshake is retransmitted; discovery's HELLO/PING are not), and joins it. The join fails with 409 until the caller has registered, so the callee retries after 0.25, 0.5, 1, 2 s, then every 2.5 s: ten attempts over about 16 s, which stays within the relay's 10 joins per `tPub` per minute (§7.6).
 5. **Audio starts on the relay** as soon as both ends are in the roster.
-6. **In parallel, NAT punching:** each side sends FUDP HELLO to every peer candidate, every 100 ms for up to 3 s. HELLOs are harmless and open the sender's own NAT mapping. Only the side with the **lexicographically lower FID** goes on to send the first encrypted DATA packet, so the two do not build two connections to each other.
-7. **Checking the direct path:** the connection is accepted once its FUDP peer id equals the `transportPub` from the other side's verified delegation. Then each side sends a `probe` datagram (a MediaFrame with `routeId = 0` and an empty payload) and waits for the other side's.
-8. **Switching over:** once probes have passed in both directions, both sides send audio only on the direct path. They keep receiving on the relay for 5 s, then `call.leave` the relay.
-9. **Falling back:** if the direct path goes quiet for 2 s, both sides switch back to the relay, rejoining if they had left. Punching is not retried during that call.
+6. **In parallel, NAT punching:** once a side sees the other's roster entry, with a delegation that verifies, carrying candidates, it sends FUDP HELLO to every one of them every 100 ms for up to 3 s. HELLOs are harmless and open the sender's own NAT mapping; a PUBLIC_KEY answer that is the peer's `transportPub` marks an address that works. Only the side with the **lexicographically lower FID** goes on to send the first encrypted packet there, so the two do not build two connections to each other.
+7. **Checking the direct path:** the connection is accepted once its FUDP peer id equals the `transportPub` from the other side's verified delegation. Then each side sends a `probe` datagram every 100 ms, `{0x03, heard}`, where `heard` is 1 once it has received a probe from the other. A side whose probe comes back with `heard = 1` knows both directions work. (0x03 is neither a MediaFrame, 0x01, nor an Attestation, 0x02.)
+8. **Switching over:** once probes have passed in both directions, a side sends its audio, and its attestations, only on the direct path, with `routeId = 0`. It closes its current attestation first, since an attestation carries one `routeId`. It stays joined to the relay: an idle participant costs nothing (charging is by data, §7.5), falling back is instant, and the roster still shows whether the peer is in the call (step 11). Probes continue every 500 ms as a keepalive.
+9. **Falling back:** if nothing arrives on the direct path for 2 s, that side sends on the relay again. Punching is not retried during that call. If neither side reaches the other within 8 s, both stay on the relay.
+10. **Lost replies:** on a lossy path a request can take while its reply is lost (FAPI 408). `call.create` and `call.register` are retried; a create that then finds "meeting exists" took. A join is retried too: the relay answers a repeated join from the same connection, for the same meeting and `ssrc`, with the result of the one that took. (An older relay refuses it with "this connection is already in a call"; the joiner then leaves and joins again at once to learn its `routeId`.)
+11. **Ending on the relay:** a peer that leaves the relay's roster and is not back within 6 s has hung up, even if its HANGUP (§3.2), which travels over IM, never arrives. The call ends as on a HANGUP.
 
-If the caller has no CALL relay configured, it uses the callee's
-`home.CALL@No1_NrC7`. If neither side has one, the call needs direct
-candidates on both sides, and fails with "no route" when punching fails.
+**Whose relay: the callee's, and only the callee's.** A call is something
+the callee did not ask for, so it runs on the callee's terms:
+
+- **The relay is the callee's `home.CALL@No1_NrC7`.** The caller reads the
+  callee's home fresh from chain when it calls (it can change), and falls
+  back to the known copy only if the chain cannot be asked.
+- **No `home.CALL` means not callable.** The caller shows "they have not set
+  a CALL service" and sends nothing. Setting one is opt-in: the home setup
+  screen offers CALL beside DOCK and DISK, unticked by default, and
+  unticking an existing one removes it.
+- **The callee enforces it.** It rings only for an INVITE whose `relay` is
+  its own `home.CALL`: the same `sid` when the home names the service by
+  id, the same URL when it names a URL. Any other INVITE, from an old or a
+  modified client, is answered `REJECT relay` and recorded as missed.
+- **The caller pays (§7.5).** Paying the service the callee chose deters
+  unwanted calls better than paying one's own, and the callee needs no
+  account there.
+- **A caller that cannot reach the callee's relay** finds out before
+  anything rings (step 1), and knows the obstacle is between its network
+  and that relay.
+- There is no built-in list of free relays. A debug build may set a test
+  relay, which it calls through and also answers on, for testing before a
+  CALL service is on chain.
 
 ### 6.3. Ringing and reaching the callee
 
@@ -537,11 +636,14 @@ caller is told if its ROAD balance is too low to ring.
 Receiving three copies of one message is expected; the `(senderId, id)`
 check drops the extras.
 
+**A ringing device watches the relay.** A CANCEL (`answered_elsewhere`, or the caller giving up) reaches a device that is not online through ROAD only on its next DOCK fetch, so the device would ring on. While it rings, it therefore asks the INVITE's relay for `call.info` every 2 s, with a throwaway key and no delegation. Two in the call means another of the callee's devices answered; none, after the caller was seen, means the caller left. Either ends the ring at once. The device stops watching before it joins itself.
+
 Only a device that is actually registered and running can ring. That depends on the platform:
 
 - **Mac:** a running app can ring.
 - **Android, app open or recently used:** it rings.
-- **Android, in the background:** it rings only with **Available for calls** turned on (off by default). This keeps a small foreground service running the MAP keepalive, and asks for an exemption from battery optimisation. Without it, Doze stops the keepalive and an incoming call shows as a missed call on the next DOCK fetch.
+- **Android, in the background:** it rings only with **Available for calls** turned on (off by default). This keeps a small foreground service (type `specialUse`) running, and with it the app's FUDP node and MAP keepalive, and asks for an exemption from battery optimisation. Android lets it start only from the foreground: when the setting is turned on, and whenever an identity loads. Without it, Doze stops the keepalive and an incoming call shows as a missed call on the next DOCK fetch.
+- **Android, locked after a while in the background:** the call screen skips the password prompt, so a call can be answered at once. It shows only who is calling; the rest of the app stays locked.
 
 Freer uses no Google or Apple push service. Putting its call records on a
 third party's servers is exactly what this app exists to avoid.
@@ -575,8 +677,8 @@ caller's delegation, and the relay verifies it (§4.1). For `kind = p2p`, the
 
 | Method | Who | Params | Result |
 |---|---|---|---|
-| `call.create` | host | `meetingId`, `kind` ∈ {`p2p`, `meeting`}, `authPub` (a meeting sends it now; `p2p` sends it later, §4.4), `maxParticipants` (≤ 64), `maxCostPerMinute` | `routeId`, `price` |
-| `call.join` | anyone | `meetingId`, `ssrc`, `maxCostPerMinute` (optional), `ts` (ms), `admitSig` = Schnorr(`authPriv`, `"FreerCall-admit-v1" ‖ str(meetingId) ‖ tPub ‖ u32(ssrc) ‖ u64(ts)`) | `routeId`, `datagram: true`, `roster`, `keyEpoch`, `speakers` (N) |
+| `call.create` | host | `meetingId`, `kind` ∈ {`p2p`, `meeting`}, `authPub` (a meeting sends it now; `p2p` sends it later, §4.4), `maxParticipants` (≤ 64; `p2p` defaults to 2), `maxCostPerMinute` | `price` {`perKBIn`, `perKBOut`}, `maxParticipants`. The host's `routeId` comes from its `call.join`. |
+| `call.join` | anyone | `meetingId`, `ssrc`, `maxCostPerMinute` (optional), `ts` (ms), `admitSig` = Schnorr(`authPriv`, `"FreerCall-admit-v1" ‖ str(meetingId) ‖ tPub ‖ u32(ssrc) ‖ u64(ts)`), `candidates` (optional, up to 8 `{t: lan, a}`), `reflexive` (optional bool) | `routeId`, `datagram: true`, `roster`, `keyEpoch`, `speakers` (N) |
 | `call.leave` | participant | `meetingId` | — |
 | `call.register` | host (`p2p` only) | `meetingId`, `authPub` | — |
 | `call.rekey` | host | `meetingId`, `symkeyVersion`, `nonce`, `authPub` | new `keyEpoch` |
@@ -587,18 +689,30 @@ caller's delegation, and the relay verifies it (§4.1). For `kind = p2p`, the
 | `call.info` | anyone | `meetingId` | `open` (bool), `participants` (count), `started`. Used for the meeting card and to confirm a meeting has ended. |
 | `call.stats` | anyone | — | Operator counters, like `road.stats` |
 
+Rules for every request that carries a delegation:
+
+- **The delegation must be for this connection:** its `tPub` must be the key
+  the FUDP connection authenticated with. Otherwise a stolen delegation
+  could be replayed from another connection. The relay admits, names and
+  bills the delegated FID.
+
 Rules for `call.join`:
 
+- **Admission:** once `authPub` is known, every join needs `admitSig`, the
+  host's included. Before a `p2p` host registers it, only the host may join,
+  and anyone else gets 409 and retries (§6.2 step 4).
 - **Clock:** `ts` MUST be within ±60 s of the relay's clock.
 - **Replay:** the relay caches each `(meetingId, tPub, ts)` and rejects a repeat.
 - **Two devices, one FID:** two sessions for the same FID but different `tPub` are separate participants. The UI groups them.
+- **Candidates:** a joiner's `candidates`, plus with `reflexive = true` the address the relay sees it at as `{t: map}`, go into its roster entry (§6.1). An `a` is `ip:port` or `[ipv6]:port`, never a host name. A joiner that sends neither has no `candidates` in the roster.
 
-Pushed by the relay (FUDP NOTIFY with `dataType = 1`, JSON):
+Pushed by the relay (FUDP NOTIFY with `dataType = 1`, JSON with a `type` and the `meetingId`):
 
-- `roster` — someone joined or left, or a mute or host changed. Each entry carries `{fid, ssrc, routeId, delegation}`, so receivers can verify the delegation themselves (§5.1).
+- `roster` — someone joined or left, or a mute or host changed: `{type, meetingId, host, roster: [{fid, ssrc, routeId, delegation, candidates?}]}`. The delegation is the JSON the participant sent, so receivers can verify it themselves (§5.1). `ssrc` and `routeId` are unsigned numbers.
 - `rekey` — as in §4.5.
 - `muted` — to the participant concerned.
-- `kicked`
+- `knock` — to the host, when a join is refused with 409 because `authPub` is not registered yet: `{type, meetingId, fid, delegation}`, the delegation the joiner sent (§6.2 step 3).
+- `kicked` — `{type, meetingId, reason}`; `reason = balance` after an unpaid grace period (§7.5).
 - `ended`
 - `uplink` — every 2 s. The relay's own loss and jitter counts for each sender's stream, which only the relay can see.
 
@@ -607,6 +721,8 @@ Other rules:
 - **Admission and control are separate:** `call.join` checks only the `admitSig`. The host alone may call `call.control`, `call.rekey` and `call.register`, which the relay checks against the delegated FID.
 - **If the host leaves:** the host role passes to the participant who has been present longest. The relay announces this in the roster.
 - **Team membership (optional):** a relay with a BASE component MAY also check a Team meeting's joiners against the on-chain member list. It cannot do this for a Room, which has no chain record.
+- **Attestations** reach the relay as FUDP NOTIFY with `dataType = 0` and the raw attestation bytes (§5.1), and leave it the same way. The relay passes on only those naming the sender's own `routeId` and `ssrc`.
+- **Errors:** 400 malformed, 401 delegation or `admitSig` does not verify, 402 balance below one minute, 403 not the host, or the call is full, 404 no such call, 409 not open yet, `ssrc` in use, or a replayed join, 429 over a limit (§7.6).
 
 ### 7.3. Forwarding
 
@@ -633,16 +749,19 @@ over the last 300 ms, counting only frames with VAD set.
 
 ### 7.5. Charging
 
-This follows FAPI4, measured per **minute** rather than per request. Each
-participant pays for their own traffic:
+This follows FAPI4, measured per **minute** rather than per request. In a
+1:1 call (`kind = p2p`) **the caller pays for both sides**: every
+participant's minute is charged to the FID that created the call, so the
+callee never needs an account at the relay. In a meeting each participant
+pays for their own traffic:
 
 ```
 minuteCost = ceil(bytesIn_minute / 1024) · pricePerKBIn + ceil(bytesOut_minute / 1024) · pricePerKBOut
 ```
 
-- **When it is taken:** charged at the end of each minute. The charge key is `call:<meetingId>:<fid>:<minute>`, so it is idempotent (FAPI4 §5.2).
-- **Joining:** `call.join` needs enough balance for one minute at the full speaker count.
-- **Running low:** if a minute cannot be paid, the relay sends a `balance` notice. After 60 s more without payment it removes the participant.
+- **When it is taken:** charged at the end of each minute of a participant's presence, and for the part-minute when it leaves. The charge key is `call:<meetingId>:<fid>:<ssrc>:<minute>`, where `minute` counts from that join, so it is idempotent (FAPI4 §5.2). The `ssrc` is in it because two devices of one FID are separate participants.
+- **Creating and joining:** `call.create` for a 1:1 call needs the caller's balance for a minute of both sides, and fails with 402 otherwise, before anything rings; the caller's app then offers to top up its account at that service. `call.join` needs enough of the payer's balance for one minute at the full speaker count.
+- **Running low:** if a minute cannot be paid, the relay sends a `balance` notice (`{type, meetingId, graceSeconds}`) to the payer. After 60 s more without payment it sends `kicked` and removes the unpaid participants: in a 1:1 call, both, which ends it.
 - **Cost cap:** a `maxCostPerMinute` in `call.join` caps the charge. The relay reduces that participant's N before it would go over the cap.
 - **Price zero:** an operator may set it to offer a free relay.
 
@@ -798,17 +917,24 @@ targets above. While a call is live:
   (NOBODY_SPEC §2). Anyone holds a nobody's key, so a call with one is
   as private as a public square. Calling a nobody asks for confirmation
   first (NOBODY_SPEC §3).
-- **Settings:** *Available for calls* (Android), *Always relay*, the
-  default relay, and a per-minute cost cap.
+- **Settings:** *Available for calls* (Android) and *Always relay*, in Call
+  settings; CALL itself in the home setup (§6.2); a per-minute cost cap
+  later. The caller's call screen shows the relay's price per minute.
 
 ## 11. Platform notes
 
 ### 11.1. Android
 
-- **Permissions:** `RECORD_AUDIO` is already declared. Add `FOREGROUND_SERVICE_MICROPHONE`, `FOREGROUND_SERVICE_PHONE_CALL` and `BLUETOOTH_CONNECT`.
-- **`CallService`:** a foreground service with `foregroundServiceType="microphone|phoneCall"` (both are required from API 34).
+- **Permissions:** `RECORD_AUDIO` is already declared. Add `FOREGROUND_SERVICE_MICROPHONE`, `FOREGROUND_SERVICE_PHONE_CALL`, `BLUETOOTH_CONNECT` and `MODIFY_AUDIO_SETTINGS`. Without the last, Android ignores `setMode(MODE_IN_COMMUNICATION)` without an error, and on the loudspeaker the echo canceller cuts each side off while the other talks.
+- **`CallService`:** a foreground service with `foregroundServiceType="microphone|phoneCall"` (both are required from API 34). For the length of a call it holds a partial wake lock and a low-latency Wi-Fi lock: Wi-Fi power save otherwise holds incoming packets for hundreds of milliseconds, which makes audio choppy.
 - **Incoming call:** shown as a full-screen intent notification, which needs `USE_FULL_SCREEN_INTENT` on API 34+.
 - **Telecom:** v1 uses a self-managed `ConnectionService` only if it proves necessary for Bluetooth headset buttons. Otherwise it stays out of Telecom.
+
+- **Echo control on the loudspeaker:** the app captures with the `VOICE_COMMUNICATION` preset in call mode and adds no effects of its own. Enabling the platform's `AcousticEchoCanceler` and `NoiseSuppressor` on top of the device's own echo canceller cut the local speaker off whenever both sides talked (seen on a Galaxy S22+ and A05s, 2026-09-26); removing them fixed the S22+. A budget phone's own echo control can still be half-duplex on the loudspeaker (the A05s: choppy when both talk; fine on the earpiece or a headset). The full fix is the app's own echo canceller (WebRTC AEC3), left for Phase 7.
+- **Networks that drop the relay's replies:** some networks let UDP out to the relay but drop everything coming back. Seen on China Mobile's mobile data in Shanghai, 2026-09-26: a capture on the Hong Kong relay showed the phone's joins arriving and every reply, even 100-byte acknowledgments, sent back to its exact address and port and never received. The same happened on ports 443, 3478 and 8443, and with 1200-byte packets. It worked on home broadband in the same city and on a roaming SIM. No retry can fix this, so the app says what happened instead:
+  - A call that fails with nothing ever received from the relay ends with: no reply from the call relay; it may be down, but more often the network blocks its replies; switch to Wi-Fi or another network, or use a VPN.
+  - The other side, still in the call, sees after 15 s without a single frame: no sound from them yet; their network may not reach the relay.
+  - The fix, for later: FUDP over TCP to the same relay on port 443 when UDP gets no replies. It costs some delay under loss, but those networks rarely block TCP 443.
 
 ### 11.2. Mac
 
@@ -997,6 +1123,62 @@ described in `Freer/docs/VOICE_SPIKE_GUIDE.md`.
 
 ### Phase 3 — 1:1 calls (Android)
 
+Progress, in milestones:
+
+1. **Call cryptography: done** 2026-09-23 (Freer and FreerForMac branch
+   `voice-calls-p3`). `com.fc.fc_ajdk.call` in FC-AJDK holds `Delegation`,
+   `CallKeys` (the p2p and meeting secrets, sender keys, admission, frame
+   nonce), `MediaFrame`, `Attestation` and `ReplayWindow`. `CallCryptoTest`
+   covers each property the spec relies on, and `callVectors.json` pins the
+   bytes.
+2. **`CallComponent`, `kind = p2p`: done** 2026-09-23 (Freeverse branch
+   `voice-calls-p3`). The rules are in `fapi/components/call/CallRelay`,
+   testable without FAPI or sockets. `CallComponent` wires them to requests,
+   billing, and the new `FudpEventAware` hook, through which `FapiServer`
+   now passes datagrams, notifies and disconnects to components. The call
+   cryptography is ported there, and reproduces `callVectors.json`.
+   `CallRelayTest` covers admission, forwarding, spoofing, attestations,
+   billing and limits; `CallRelayFudpTest` runs a whole call over real FUDP.
+3. **Signalling: done** 2026-09-23 (Freer and FreerForMac branch
+   `voice-calls-p3`). `ContentType.CALL`, `CallSignal`, `CallSignaller`
+   (`CallSignallerTest`, 14 cases), the ImManager wiring, the
+   all-channel send, and call records in the chat. Placing and answering a
+   call from the UI, and using the relay, come in milestone 4.
+4. `CallService`, `CallActivity` and calls over the relay. **In progress:**
+   `CallMedia` in the app is done: it seals and opens frames, produces
+   attestations and checks them, and silences a stream it cannot verify
+   (`CallMediaTest`). The engine now passes `EncodedFrame`s between capture,
+   the wire format and playout, so the spike and calls share it.
+
+   **Built, waiting for real phones:**
+   - **Relay path:** `CallRelayLink` runs a call's own FUDP node under its
+     transport key, with a FAPI client to the relay. `CallSession` ties
+     signalling, relay, media and engines together; `CallManager`,
+     `CallService` (foreground, microphone and phoneCall) and `CallActivity`
+     give it a screen.
+   - **Placing a call:** a *Voice call* item in the P2P chat menu. Calling a
+     nobody asks first.
+   - **Choosing the relay:** the callee's `home.CALL@No1_NrC7` only
+     (§6.2), or in a debug build a test relay.
+   - **Test relay:** FC-JDK's `CallRelayServer` serves an off-chain CALL
+     relay.
+   - **Tests:** `CallComponentFapiTest` runs a call through FapiServer.
+     `CallRelayLinkLiveTest` runs the phone's network path against a live
+     relay. It found two bugs: unsigned `routeId`/`ssrc` values parsed from
+     JSON saturated at 2³¹−1, and negative connection ids read as "none".
+   **Works on two phones** (2026-09-24, Galaxy S22+ and A05s, both roaming
+   on Singapore mobile data, relay in Singapore): two-way audio, hang-up
+   from either side. The real phones needed: the relay's key in the INVITE,
+   the caller on the relay before it rings, the `knock`, the join backoff,
+   leaving the roster as a hang-up, and reopening AAudio streams, which
+   entering call mode disconnects.
+5. Direct paths, *Always relay* and *Available for calls*. **Built, waiting
+   for real phones:** candidates in the roster, with the relay's view as
+   `map`; `CallDirectPath` punches, connects, probes and falls back
+   (`CallDirectPathTest`); a live test takes a call through a relay to a
+   direct path. *Always relay* and *Available for calls* are in Call
+   settings, in the chat list's menu.
+
 - **FC-AJDK:**
   - `CallKeys`, `MediaFrame`, `Attestation` and `Delegation`
   - vector-gen vectors for the delegation, `callSecret`, `senderKey`, `authPub`, one sealed frame and one attestation
@@ -1016,6 +1198,17 @@ described in `Freer/docs/VOICE_SPIKE_GUIDE.md`.
 - An old client ignores `CALL` messages without errors.
 - A relay patched to relabel an `ssrc` silences that speaker on every receiver within 3 s and shows the "could not be verified" warning.
 - A call from a stranger does not ring until the stranger is accepted.
+
+**Gate status** (Galaxy S22+ and A05s, Hong Kong and Singapore test relays):
+
+| Item | Status |
+|---|---|
+| Phone to phone: Wi-Fi to Wi-Fi, Wi-Fi to mobile, mobile to mobile | **Passed** (2026-09-25/26): direct on a shared Wi-Fi, relayed across networks, direct on roaming mobile data. China Mobile's Shanghai mobile data drops the relay's replies (§11.1), and the app says so. |
+| Survives a network change mid-call | **Passed** (2026-09-26). |
+| A second device stops ringing when the first answers | **Passed on the phone side; the server side is deferred** to the next production deploy. The ringing device watches the relay (§6.3) and stops within about 2 s. MAP and ROAD now reach every device of a FID (FAPI14 §2.7, FAPI15 §5), so both devices ring promptly once the callee's home ROAD server runs that build. |
+| An old client ignores CALL without errors | **Passed** (2026-09-27): 3.2.2 shows each CALL signal as a JSON bubble, the last one HANGUP, with no errors (as decided for 3.2.2). |
+| A relay that relabels an ssrc | **Passed in unit tests** (`CallMediaTest`): a relabelled frame opens under the wrong sender key and never plays; a roster naming the wrong member for a stream plays nothing; a member forging another's ssrc is caught by attestation and silenced, with the warning. The relay holds no call key, so a live patched relay would add nothing. |
+| A stranger's call does not ring until accepted | **Passed** (2026-09-26, retested 2026-09-27). Unblocking a refused stranger now asks again rather than quarantining in silence. |
 
 ### Phase 4 — Meetings on the relay
 
@@ -1077,3 +1270,9 @@ Answered 2026-09-22:
 Answered 2026-09-22, during Phase 1:
 
 10. **Priority over stream data is guaranteed at the sender only.** A bulk transfer can still delay audio in queues further along the path. The call layer caps or pauses bulk transfers during a call (§9.5). A delay-based limit on streams inside FUDP is deferred.
+
+Answered 2026-09-24, during Phase 3:
+
+11. **A 1:1 call runs on the callee's `home.CALL`, and only there** (§6.2). No `home.CALL` means the FID cannot be called; setting one is opt-in. The callee's app rejects an INVITE naming any other relay. There is no built-in list of free relays.
+12. **The caller pays for the whole 1:1 call** (§7.5), at the callee's service.
+13. **In a 1:1 call a late attestation silences no one** (§5.1 step 5). Only a mismatch does. Senders still send them, and meetings keep the 3 s rule.

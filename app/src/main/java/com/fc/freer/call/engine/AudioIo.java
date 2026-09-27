@@ -84,29 +84,47 @@ public final class AudioIo {
                 record.release();
                 throw new IllegalStateException("AudioRecord failed to initialise");
             }
-            effects = enableEffects(record.getAudioSessionId());
+            effects = describeEffects(record.getAudioSessionId());
             record.startRecording();
         }
 
         /**
-         * VOICE_COMMUNICATION usually applies these already; asking for them
-         * explicitly makes the result visible, since some devices don't.
+         * Which of the platform's software effects the capture session has,
+         * and whether the VOICE_COMMUNICATION preset turned them on, for the
+         * log. They are never turned on here: in call mode the device's own
+         * (often hardware) echo canceller already runs, and a second echo
+         * canceller and noise suppressor stacked after it cut the local
+         * speaker off whenever both sides talk, as the A05s did on speaker.
          */
-        private static String enableEffects(int session) {
+        static String describeEffects(int session) {
+            if (session <= 0) return "preset only";
             StringBuilder sb = new StringBuilder();
-            if (AcousticEchoCanceler.isAvailable()) {
-                AcousticEchoCanceler aec = AcousticEchoCanceler.create(session);
-                if (aec != null && aec.setEnabled(true) == 0) sb.append("AEC ");
+            try {
+                if (AcousticEchoCanceler.isAvailable()) {
+                    AcousticEchoCanceler e = AcousticEchoCanceler.create(session);
+                    if (e != null) {
+                        sb.append("AEC ").append(e.getEnabled() ? "on " : "off ");
+                        e.release();
+                    }
+                }
+                if (NoiseSuppressor.isAvailable()) {
+                    NoiseSuppressor e = NoiseSuppressor.create(session);
+                    if (e != null) {
+                        sb.append("NS ").append(e.getEnabled() ? "on " : "off ");
+                        e.release();
+                    }
+                }
+                if (AutomaticGainControl.isAvailable()) {
+                    AutomaticGainControl e = AutomaticGainControl.create(session);
+                    if (e != null) {
+                        sb.append("AGC ").append(e.getEnabled() ? "on " : "off ");
+                        e.release();
+                    }
+                }
+            } catch (RuntimeException ignored) {
+                // an effect the device lists but will not open: nothing to report
             }
-            if (NoiseSuppressor.isAvailable()) {
-                NoiseSuppressor ns = NoiseSuppressor.create(session);
-                if (ns != null && ns.setEnabled(true) == 0) sb.append("NS ");
-            }
-            if (AutomaticGainControl.isAvailable()) {
-                AutomaticGainControl agc = AutomaticGainControl.create(session);
-                if (agc != null && agc.setEnabled(true) == 0) sb.append("AGC ");
-            }
-            return sb.length() == 0 ? "none" : sb.toString().trim();
+            return sb.length() == 0 ? "preset only" : sb.toString().trim();
         }
 
         @Override

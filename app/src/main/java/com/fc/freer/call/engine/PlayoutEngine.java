@@ -43,6 +43,7 @@ public final class PlayoutEngine {
     private final int frameSamples;
     private final AudioIo.Backend backend;
     private final Map<Integer, Stream> streams = new ConcurrentHashMap<>();
+    private final java.util.Set<Integer> silenced = ConcurrentHashMap.newKeySet();
     private volatile boolean running;
     private Thread thread;
     private volatile AudioIo.Output output;
@@ -56,10 +57,18 @@ public final class PlayoutEngine {
     }
 
     /** From the network thread: queue a frame. Must return quickly. */
-    public void onFrame(SpikeFrame f, long arrivalMs) {
+    public void onFrame(EncodedFrame f, long arrivalMs) {
+        if (silenced.contains(f.ssrc())) return;
         Stream s = streams.computeIfAbsent(f.ssrc(), id -> new Stream(id, frameMs));
         s.level = f.level();
         s.buffer.put(f.seq(), f.timestamp(), f.opus(), !f.voiceActive(), f.afterDtx(), f.level(), arrivalMs);
+    }
+
+    /** Stop playing one stream for good: its audio could not be attributed (§5.1). */
+    public void silence(int ssrc) {
+        Stream s = streams.remove(ssrc);
+        if (s != null) s.decoder.close();
+        silenced.add(ssrc);
     }
 
     public Map<Integer, Stream> streams() {

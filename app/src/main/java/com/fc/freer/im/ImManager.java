@@ -10,7 +10,9 @@ import android.os.Handler;
 import android.os.Looper;
 
 import com.fc.fc_ajdk.core.crypto.Decryptor;
+import com.fc.fc_ajdk.call.CallSignal;
 import com.fc.fc_ajdk.data.fcData.ContentType;
+import com.fc.freer.call.CallSignaller;
 import com.fc.fc_ajdk.data.fcData.Conversation;
 import com.fc.fc_ajdk.data.fcData.DockItem;
 import com.fc.fc_ajdk.data.fcData.ImMessage;
@@ -268,6 +270,10 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         void onChannelNotConfigured(String suggestedDockUrl);
     }
     
+    // Voice calls (VOICE_SPEC §3): signalling, and its once-a-second expiry check.
+    private CallSignaller callSignaller;
+    private java.util.concurrent.ScheduledExecutorService callTicker;
+
     public ImManager(Context context, String liveFid) {
         this.context = context.getApplicationContext();
         this.liveFid = liveFid;
@@ -337,6 +343,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         teamHandler.setUserPrikey(userPrikey);
         roomHandler.setUserPrikey(userPrikey);
         
+        if (userPrikey != null) startCallSignaller(userPrikey);
+
         // Wire TalkPartner lookup into P2P handler
         p2pHandler.setTalkPartnerProvider(this::getTalkPartner);
         // Let the P2P handler write a freshly-fetched recipient home back so a
@@ -794,6 +802,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             dockScheduler.stop();
         }
         if (messageQueue != null) messageQueue.stop();
+        if (callTicker != null) callTicker.shutdownNow();
         if (symkeyStore != null) symkeyStore.clearCache();
         if (p2pHandler != null) p2pHandler.setMessageListener(null);
         if (squareHandler != null) squareHandler.setMessageListener(null);
@@ -1795,11 +1804,144 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         };
     }
     
+    // ========== Voice calls (VOICE_SPEC §3) ==========
+
+    private void startCallSignaller(byte[] userPrikey) {
+        callSignaller = new CallSignaller(liveFid, userPrikey, this::sendCallSignal, this::recordCall,
+                System::currentTimeMillis);
+        callSignaller.setRelayPolicy(this::acceptsCallRelay);
+        com.fc.freer.call.CallManager.getInstance(context).attach(liveFid, callSignaller);
+        callTicker = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "call-signal-tick");
+            t.setDaemon(true);
+            return t;
+        });
+        callTicker.scheduleWithFixedDelay(() -> {
+            try {
+                callSignaller.tick();
+            } catch (RuntimeException e) {
+                TimberLogger.w(TAG, "Call tick failed: %s", e.getMessage());
+            }
+        }, 1, 1, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
+    /** The callee's CALL service, or null if it has none. Blocking: not on the main thread. */
+    public P2pHandler.CallRelay resolveCallRelay(String peerFid) {
+        return p2pHandler == null ? null : p2pHandler.resolveCallRelay(peerFid);
+    }
+
+    /**
+     * I answer only on my own home.CALL (§6.2). A debug build with a relay
+     * override also answers on that relay, for testing before one is on chain.
+     */
+    private boolean acceptsCallRelay(com.fc.fc_ajdk.call.CallSignal.Relay relay) {
+        String override = com.fc.freer.call.CallManager.getInstance(context).relayOverride();
+        if (!override.isEmpty() && relay != null && override.equalsIgnoreCase(relay.url())) return true;
+        return p2pHandler != null && p2pHandler.isMyCallRelay(relay);
+    }
+
+    /** Call signalling for this identity; null before {@link #initialize}. */
+    public CallSignaller getCallSignaller() {
+        return callSignaller;
+    }
+
+    /**
+     * A CALL message, already decoded and signature-checked. Accepted peers go
+     * to the signaller; a stranger's INVITE does not ring but is held as a
+     * message request, shown as a missed call, through the same gate as a
+     * stranger's first message (§3.2). Anything else from a stranger is dropped.
+     */
+    private void handleCallMessage(ImMessage message) {
+        String sender = message.getSenderId();
+        if (callSignaller == null || message.getType() != ImType.P2P || sender == null || sender.equals(liveFid)) {
+            return;
+        }
+        CallSignal signal = CallSignal.fromJson(message.getContent());
+        if (signal == null || contactPolicy.isBlacklisted(sender)) return;
+        TimberLogger.i(TAG, "Call signal %s in: call %s from %s", signal.op, signal.callId, sender);
+
+        boolean accepted = contactPolicy.isWhitelisted(sender);
+        if (!accepted && isAutoAcceptContact(sender)) {
+            acceptStranger(sender);
+            accepted = true;
+        }
+        if (accepted) {
+            callSignaller.onSignal(sender, message.getId(), signal);
+            return;
+        }
+        if (signal.op != CallSignal.Op.INVITE || messagesDb.get(message.getId()) != null) return;
+        boolean firstContact = pendingIssueManager == null
+                || pendingIssueManager.getIssue("STRANGER_PEER_" + sender) == null;
+        quarantineMessage(message);
+        if (firstContact && contactPolicy.getStrategy() == ContactPolicy.Strategy.ACCEPT_ALL) {
+            requestStrangerConfirmation(sender);
+        }
+    }
+
+    /** Signals leave on every channel at once, not through the retry queue (§6.3). */
+    private void sendCallSignal(String peerFid, CallSignal signal) {
+        ImMessage m = ImMessage.createCall(ImType.P2P, liveFid, peerFid, signal.toJson());
+        if (fudpNode == null) {
+            TimberLogger.w(TAG, "No FUDP node: call signal to %s not sent", peerFid);
+            return;
+        }
+        m.setIdFromLong(fudpNode.generateMessageId());
+        executor.execute(() -> {
+            if (p2pHandler.sendCallSignal(m)) {
+                TimberLogger.i(TAG, "Call signal %s out: call %s to %s", signal.op, signal.callId, peerFid);
+            } else {
+                TimberLogger.w(TAG, "Call signal %s to %s found no channel", signal.op, peerFid);
+            }
+        });
+    }
+
+    /**
+     * A local entry in the chat with {@code peerFid}: "Call, 4:12", "Missed
+     * call", "Declined". Built from the signalling, never sent (§10).
+     */
+    private void recordCall(String peerFid, CallSignaller.CallRecord r) {
+        executor.execute(() -> {
+            Map<String, Object> body = new java.util.LinkedHashMap<>();
+            body.put("record", r.kind().name());
+            body.put("outgoing", r.outgoing());
+            body.put("duration", r.durationMs());
+            body.put("callId", r.callId());
+            String json = new com.google.gson.Gson().toJson(body);
+            ImMessage m = r.outgoing()
+                    ? ImMessage.createCall(ImType.P2P, liveFid, peerFid, json)
+                    : ImMessage.createCall(ImType.P2P, peerFid, liveFid, json);
+            if (fudpNode != null) m.setIdFromLong(fudpNode.generateMessageId());
+            else m.setId("call-" + r.callId() + "-" + r.kind());
+            m.setTimestamp(r.atMs());
+            m.setStatus(r.outgoing() ? MessageStatus.SENT : MessageStatus.DELIVERED);
+            m.setUnread(!r.outgoing() && r.kind() == CallSignaller.CallRecord.Kind.MISSED);
+            messagesDb.put(m.getId(), m);
+            addToConversationIndex(m);
+            updateConversation(m);
+            mainHandler.post(() -> {
+                for (ImListener l : listeners) l.onMessageReceived(m);
+            });
+        });
+    }
+
     // ========== Handler.MessageListener Implementation ==========
     
     @Override
     public void onMessageReceived(ImMessage message) {
         executor.execute(() -> {
+            // A content type this version does not know: drop it quietly rather
+            // than show its content as text (VOICE_SPEC §3.1). The type byte is
+            // always on the wire, so null means only "newer than this app".
+            if (message.getContentType() == null) {
+                TimberLogger.d(TAG, "Dropping message %s of an unknown content type", message.getId());
+                return;
+            }
+
+            if (message.getContentType() == ContentType.CALL) {
+                handleCallMessage(message);
+                return;
+            }
+
             if (handleHistoryMessage(message)) {
                 return;
             }

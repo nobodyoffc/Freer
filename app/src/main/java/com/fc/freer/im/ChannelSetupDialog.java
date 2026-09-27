@@ -123,7 +123,7 @@ public class ChannelSetupDialog {
         final String diskSid = baseHasDisk ? baseSid : "";
         ToastUtils.makeText(activity, R.string.publishing);
         final TxSender txSender = new TxSender();
-        ServerSetupManager.register(activity, liveKeyInfo, dockVal, diskSid, prikey,
+        ServerSetupManager.register(activity, liveKeyInfo, dockVal, diskSid, null, false, prikey,
                 new TxSender.TxCallback() {
                     @Override
                     public void onSuccess(String txId) {

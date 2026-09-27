@@ -1,5 +1,6 @@
 package com.fc.freer.im.handler;
 
+import static com.fc.fc_ajdk.constants.Constants.CALL_NO1_NRC7;
 import static com.fc.fc_ajdk.constants.Constants.ROAD_NO1_NRC7;
 
 import android.content.Context;
@@ -130,41 +131,11 @@ public class P2pHandler extends BaseHandler {
             }
         }
 
-        String targetDockUrl = null;
-        String targetRoadUrl = null;
-        Map<String, String> recipientHome = null;
-        Map<String, String> freshHome = null; // set when we fetch a fresh freer from chain
-        TalkPartner partner = (talkPartnerProvider != null) ? talkPartnerProvider.getTalkPartner(targetFid) : null;
-        if (partner != null && partner.getHome() != null && fapiClient != null) {
-            recipientHome = partner.getHome();
-            HomeServiceResolver resolver = fapiClient.getHomeServiceResolver();
-            targetDockUrl = resolver.resolveDockFromHome(partner.getHome(), fapiClient);
-            if (useRoad) {
-                targetRoadUrl = resolver.resolveFromHome(partner.getHome(), ROAD_NO1_NRC7, fapiClient);
-            }
-        }
-
-        if ((targetDockUrl == null || (useRoad && targetRoadUrl == null)) && fapiClient != null) {
-            try {
-                com.fc.fc_ajdk.data.fchData.Freer freer = fapiClient.getFreer(targetFid);
-                if (freer != null && freer.getHome() != null) {
-                    recipientHome = freer.getHome();
-                    freshHome = freer.getHome();
-                    // Write the fresh home back so a just-registered DOCK is not
-                    // re-fetched on every send and the partner list/registry update.
-                    persistFreshHome(targetFid, freshHome);
-                    HomeServiceResolver resolver = fapiClient.getHomeServiceResolver();
-                    if (useRoad && targetRoadUrl == null) {
-                        targetRoadUrl = resolver.resolveFromHome(freer.getHome(), ROAD_NO1_NRC7, fapiClient);
-                    }
-                    if (targetDockUrl == null) {
-                        targetDockUrl = resolver.resolveDockFromHome(freer.getHome(), fapiClient);
-                    }
-                }
-            } catch (Exception e) {
-                TimberLogger.w(TAG, "Failed to resolve target home: %s", e.getMessage());
-            }
-        }
+        RelayRoutes routes = resolveRelayRoutes(targetFid, useRoad);
+        String targetDockUrl = routes.dockUrl();
+        String targetRoadUrl = routes.roadUrl();
+        Map<String, String> recipientHome = routes.recipientHome();
+        Map<String, String> freshHome = routes.freshHome(); // set when we fetched a fresh freer from chain
 
         // Everything from here leaves the message with a third party — a ROAD
         // relay or a DOCK server — both of which terminate their own FUDP
@@ -322,6 +293,162 @@ public class P2pHandler extends BaseHandler {
      * Persist a freshly-fetched recipient home onto the stored TalkPartner, but
      * only when it actually differs from what is stored (avoids redundant writes).
      */
+    /** Where a message to {@code targetFid} can go besides FUDP direct. */
+    private record RelayRoutes(String dockUrl, String roadUrl, Map<String, String> recipientHome,
+                               Map<String, String> freshHome) {}
+
+    /**
+     * The recipient's DOCK, and ROAD if {@code wantRoad}, from its known home,
+     * or from its on-chain freer when the known home lacks them. A freshly
+     * fetched home is written back so it is not fetched again next time.
+     */
+    private RelayRoutes resolveRelayRoutes(String targetFid, boolean wantRoad) {
+        String targetDockUrl = null;
+        String targetRoadUrl = null;
+        Map<String, String> recipientHome = null;
+        Map<String, String> freshHome = null;
+        TalkPartner partner = (talkPartnerProvider != null) ? talkPartnerProvider.getTalkPartner(targetFid) : null;
+        if (partner != null && partner.getHome() != null && fapiClient != null) {
+            recipientHome = partner.getHome();
+            HomeServiceResolver resolver = fapiClient.getHomeServiceResolver();
+            targetDockUrl = resolver.resolveDockFromHome(partner.getHome(), fapiClient);
+            if (wantRoad) {
+                targetRoadUrl = resolver.resolveFromHome(partner.getHome(), ROAD_NO1_NRC7, fapiClient);
+            }
+        }
+
+        if ((targetDockUrl == null || (wantRoad && targetRoadUrl == null)) && fapiClient != null) {
+            try {
+                com.fc.fc_ajdk.data.fchData.Freer freer = fapiClient.getFreer(targetFid);
+                if (freer != null && freer.getHome() != null) {
+                    recipientHome = freer.getHome();
+                    freshHome = freer.getHome();
+                    // Write the fresh home back so a just-registered DOCK is not
+                    // re-fetched on every send and the partner list/registry update.
+                    persistFreshHome(targetFid, freshHome);
+                    HomeServiceResolver resolver = fapiClient.getHomeServiceResolver();
+                    if (wantRoad && targetRoadUrl == null) {
+                        targetRoadUrl = resolver.resolveFromHome(freer.getHome(), ROAD_NO1_NRC7, fapiClient);
+                    }
+                    if (targetDockUrl == null) {
+                        targetDockUrl = resolver.resolveDockFromHome(freer.getHome(), fapiClient);
+                    }
+                }
+            } catch (Exception e) {
+                TimberLogger.w(TAG, "Failed to resolve target home: %s", e.getMessage());
+            }
+        }
+        return new RelayRoutes(targetDockUrl, targetRoadUrl, recipientHome, freshHome);
+    }
+
+    /** A CALL service: where to reach it, and its on-chain record when the home names one by id. */
+    public record CallRelay(String url, String sid, com.fc.fc_ajdk.data.feipData.Service service) {}
+
+    /**
+     * The callee's CALL service (VOICE_SPEC §6.2): its {@code home.CALL@No1_NrC7}
+     * and nothing else, because the call runs on the callee's terms. The home
+     * is read fresh from chain, since it can change; the known copy is used
+     * only if the chain cannot be asked. Null if the callee has none: it has
+     * chosen not to be called.
+     */
+    public CallRelay resolveCallRelay(String targetFid) {
+        if (fapiClient == null) return null;
+        java.util.Map<String, String> home = null;
+        try {
+            com.fc.fc_ajdk.data.fchData.Freer freer = fapiClient.getFreer(targetFid);
+            if (freer != null) {
+                home = freer.getHome();
+                if (home != null) persistFreshHome(targetFid, home);
+                else return null; // on chain, without a home: not callable
+            }
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "Failed to read %s's home for a call, using the known one: %s", targetFid,
+                    e.getMessage());
+        }
+        if (home == null) {
+            TalkPartner partner = talkPartnerProvider != null ? talkPartnerProvider.getTalkPartner(targetFid) : null;
+            home = partner != null ? partner.getHome() : null;
+        }
+        String value = home == null ? null : home.get(CALL_NO1_NRC7);
+        if (value == null || value.isEmpty()) return null;
+        HomeServiceResolver resolver = fapiClient.getHomeServiceResolver();
+        String url = resolver.resolveFromHome(home, CALL_NO1_NRC7, fapiClient);
+        if (url == null) return null;
+        String sid = HomeServiceResolver.isUrl(value) ? null : HomeServiceResolver.extractSid(value);
+        return new CallRelay(url, sid, sid == null ? null : resolver.getCachedService(sid));
+    }
+
+    /**
+     * Whether a call's relay is my own {@code home.CALL@No1_NrC7} (§6.2): the
+     * only relay I answer on. A caller that names another, whether an old
+     * client or a modified one, does not get to choose where I talk.
+     */
+    public boolean isMyCallRelay(com.fc.fc_ajdk.call.CallSignal.Relay relay) {
+        if (relay == null || relay.url() == null) return false;
+        FidManager fidManager = FidManager.getInstance();
+        com.fc.fc_ajdk.data.fcData.KeyInfo mine = fidManager != null ? fidManager.getLiveKeyInfo() : null;
+        String value = mine != null && mine.getHome() != null ? mine.getHome().get(CALL_NO1_NRC7) : null;
+        if (value == null || value.isEmpty()) return false;
+        if (HomeServiceResolver.isUrl(value)) return sameUrl(value, relay.url());
+        String sid = HomeServiceResolver.extractSid(value);
+        return sid != null && sid.equals(relay.sid());
+    }
+
+    private static boolean sameUrl(String a, String b) {
+        return a.trim().replaceAll("/+$", "").equalsIgnoreCase(b.trim().replaceAll("/+$", ""));
+    }
+
+    /**
+     * Send a CALL signal on every channel at once (VOICE_SPEC §6.3): FUDP
+     * direct when the peer is reachable, ROAD to ring a device that is online,
+     * and DOCK as the lasting record. Unlike {@link #send}, it ignores the
+     * opt-in "use ROAD" and "use direct FUDP" settings: the fee a ring costs is
+     * part of placing a call. The receiver drops the copies it already has.
+     *
+     * @return true if at least one channel took it
+     */
+    public boolean sendCallSignal(ImMessage message) {
+        String targetFid = message.getTargetId();
+        byte[] envelope = signedWire(message);
+        if (targetFid == null || envelope == null) return false;
+        boolean any = false;
+
+        if (isFudpAllowed() && hasTargetFudpRegistered(targetFid) && fudpNode != null) {
+            try {
+                fudpNode.sendNotifyWithAck(targetFid, envelope);
+                any = true;
+            } catch (Exception e) {
+                TimberLogger.d(TAG, "Call signal over FUDP failed: %s", e.getMessage());
+            }
+        }
+
+        RelayRoutes routes = resolveRelayRoutes(targetFid, true);
+        if (routes.dockUrl() == null && routes.roadUrl() == null) return any;
+        // As for any message: a body that cannot be sealed to the recipient does not go.
+        byte[] sealed = sealedEnvelope(message, targetFid);
+        if (sealed == null) {
+            TimberLogger.e(TAG, "Refusing to send call signal %s to %s unencrypted", message.getId(), targetFid);
+            return any;
+        }
+
+        if (routes.roadUrl() != null) {
+            FapiClient roadClient = ApiCenter.getInstance().getClient(ApiCenter.ConnectionRole.ROAD);
+            if (roadClient != null) {
+                try {
+                    FapiClient.RoadRelayResult result = roadClient.roadRelay(targetFid, sealed, routes.roadUrl());
+                    if (result != null && result.success()) any = true;
+                } catch (Exception e) {
+                    TimberLogger.d(TAG, "Call signal over ROAD failed: %s", e.getMessage());
+                }
+            }
+        }
+        if (routes.dockUrl() != null) {
+            FapiClient ownDockClient = ApiCenter.getInstance().getClient(ApiCenter.ConnectionRole.DOCK);
+            if (deliverToDock(routes.dockUrl(), sealed, message, targetFid, ownDockClient)) any = true;
+        }
+        return any;
+    }
+
     private void persistFreshHome(String targetFid, Map<String, String> freshHome) {
         if (talkPartnerHomeUpdater == null || freshHome == null) return;
         TalkPartner partner = (talkPartnerProvider != null)

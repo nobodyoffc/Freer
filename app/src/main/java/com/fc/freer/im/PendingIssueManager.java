@@ -495,6 +495,18 @@ public class PendingIssueManager {
      * Reject a pending issue: blacklist the peer, disconnect,
      * and purge all quarantined messages.
      */
+    /**
+     * Forget a stranger's past request, as when it leaves the blacklist: the
+     * next message or call from it asks again, instead of being quarantined
+     * in silence because a REJECTED issue still stands.
+     */
+    public void forgetStranger(String peerFid) {
+        if (peerFid == null) return;
+        db.remove("STRANGER_PEER_" + peerFid);
+        knownPeerFids.remove(peerFid);
+        notifyCountChange();
+    }
+
     public void reject(String issueId) {
         PendingIssue issue = db.get(issueId);
         if (issue == null) return;

@@ -116,6 +116,27 @@ public class VoiceSpikeActivity extends AppCompatActivity {
             if (capture != null) capture.setMuted(on);
         });
         speaker.setOnCheckedChangeListener((b, on) -> setSpeaker(on));
+        // Real calls (not this test) use this relay when it is set, ahead of the homes on chain.
+        EditText callRelay = findViewById(R.id.callRelay);
+        callRelay.setText(com.fc.freer.call.CallManager.getInstance(this).relayOverride());
+        // Saved as it is typed: leaving the screen with Back must not lose it.
+        callRelay.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {
+                com.fc.freer.call.CallManager.getInstance(VoiceSpikeActivity.this).setRelayOverride(s.toString());
+            }
+        });
+        if (getIntent().hasExtra("callRelay")) {
+            callRelay.setText(getIntent().getStringExtra("callRelay"));
+            com.fc.freer.call.CallManager.getInstance(this).setRelayOverride(getIntent().getStringExtra("callRelay"));
+        }
+
         applyExtras();
         startStop.setOnClickListener(v -> {
             if (transport != null) stop();
@@ -170,7 +191,7 @@ public class VoiceSpikeActivity extends AppCompatActivity {
         transport = new SpikeTransport(this, mode, roomCode.getText().toString().trim(), host,
                 new SpikeTransport.Listener() {
                     @Override
-                    public void onFrame(com.fc.freer.call.engine.SpikeFrame frame, long arrivalMs) {
+                    public void onFrame(com.fc.freer.call.engine.EncodedFrame frame, long arrivalMs) {
                         PlayoutEngine p = playout;
                         if (p != null) p.onFrame(frame, arrivalMs);
                     }

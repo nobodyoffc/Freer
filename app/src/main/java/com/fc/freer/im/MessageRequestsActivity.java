@@ -149,9 +149,11 @@ public class MessageRequestsActivity extends BaseCryptoActivity
 
         StringBuilder sb = new StringBuilder();
         for (com.fc.fc_ajdk.data.fcData.ImMessage msg : quarantined) {
-            if (msg.getContent() != null) {
+            String text = com.fc.freer.call.CallText.isCall(msg)
+                    ? com.fc.freer.call.CallText.describe(this, msg) : msg.getContent();
+            if (text != null) {
                 if (sb.length() > 0) sb.append("\n\n");
-                sb.append(msg.getContent());
+                sb.append(text);
             }
         }
 
