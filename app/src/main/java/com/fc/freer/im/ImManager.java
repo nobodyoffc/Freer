@@ -892,7 +892,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         boolean isReceipt = message.getContentType() == ContentType.RECEIPT;
 
         if (!isReceipt && !isRoomControlType(message.getContentType())
-                && !isTeamNotification(message)) {
+                && !isTeamNotification(message) && !isMeetingControl(message)) {
             messagesDb.put(message.getId(), message);
             addToConversationIndex(message);
             updateConversation(message);
@@ -1658,6 +1658,19 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
      * Transport-only messages: never stored as chat messages or shown in conversation lists.
      * Includes all ROOM control signals plus ROOM_INFO and SYMKEY distribution messages.
      */
+    /**
+     * A MEETING_END, or a host's re-post of a rekeyed meeting's keys (VOICE_SPEC
+     * §3.3): they change a meeting's card, and are no chat row of their own.
+     */
+    private static boolean isMeetingControl(ImMessage message) {
+        if (message.getContentType() != ContentType.CALL
+                || (message.getType() != ImType.TEAM && message.getType() != ImType.ROOM)) {
+            return false;
+        }
+        com.fc.fc_ajdk.call.MeetingSignal s = com.fc.fc_ajdk.call.MeetingSignal.fromJson(message.getContent());
+        return s != null && (s.op == com.fc.fc_ajdk.call.MeetingSignal.Op.MEETING_END || s.keyEpochOrZero() > 0);
+    }
+
     private static boolean isRoomControlType(ContentType ct) {
         return ct == ContentType.ROOM_LEAVE || ct == ContentType.ROOM_ACCEPT
                 || ct == ContentType.ROOM_DISBAND || ct == ContentType.ROOM_REMOVED
@@ -1811,6 +1824,9 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 System::currentTimeMillis);
         callSignaller.setRelayPolicy(this::acceptsCallRelay);
         com.fc.freer.call.CallManager.getInstance(context).attach(liveFid, callSignaller);
+        com.fc.freer.call.MeetingManager meetings = com.fc.freer.call.MeetingManager.getInstance(context);
+        callSignaller.setAlsoBusy(meetings::isActive); // one call or meeting at a time (§3.2)
+        meetings.attach(liveFid, userPrikey, new MeetingHooks());
         callTicker = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "call-signal-tick");
             t.setDaemon(true);
@@ -1852,6 +1868,10 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
      * stranger's first message (§3.2). Anything else from a stranger is dropped.
      */
     private void handleCallMessage(ImMessage message) {
+        if (message.getType() == ImType.TEAM || message.getType() == ImType.ROOM) {
+            handleMeetingMessage(message);
+            return;
+        }
         String sender = message.getSenderId();
         if (callSignaller == null || message.getType() != ImType.P2P || sender == null || sender.equals(liveFid)) {
             return;
@@ -1876,6 +1896,126 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         if (firstContact && contactPolicy.getStrategy() == ContactPolicy.Strategy.ACCEPT_ALL) {
             requestStrangerConfirmation(sender);
         }
+    }
+
+    /**
+     * A meeting signal in a Room or Team chat (§3.3), already decrypted with
+     * the entity's symkey and signature-checked. Only a member's counts
+     * (FIMP2 §8.4, FIMP4 §8.2). A new meeting's MEETING_START becomes its card
+     * in the chat; everything else only changes the card.
+     */
+    private void handleMeetingMessage(ImMessage message) {
+        String sender = message.getSenderId();
+        String entityId = message.getTargetId();
+        com.fc.fc_ajdk.call.MeetingSignal s = com.fc.fc_ajdk.call.MeetingSignal.fromJson(message.getContent());
+        if (s == null || sender == null || entityId == null) return;
+        if (!isEntityMember(message.getType(), entityId, sender)) {
+            TimberLogger.w(TAG, "Meeting signal %s in %s from %s, who is not a member: dropped", s.op, entityId, sender);
+            return;
+        }
+        com.fc.freer.call.MeetingBoard.Result r = com.fc.freer.call.MeetingManager.getInstance(context)
+                .onChatSignal(message.getType().name(), entityId, sender, s);
+        TimberLogger.i(TAG, "Meeting signal %s for %s in %s from %s: %s", s.op, s.meetingId, entityId, sender, r);
+        if (r != com.fc.freer.call.MeetingBoard.Result.NEW || messagesDb.get(message.getId()) != null) return;
+        message.setUnread(!sender.equals(liveFid));
+        messagesDb.put(message.getId(), message);
+        addToConversationIndex(message);
+        updateConversation(message);
+        mainHandler.post(() -> {
+            for (ImListener l : listeners) l.onMessageReceived(message);
+        });
+    }
+
+    /**
+     * A meeting card already in the chat whose meeting the board does not know,
+     * such as one decrypted after its key arrived: learn it now, with the same
+     * membership check. Runs on the caller's thread.
+     */
+    public void noteMeetingCard(ImMessage message) {
+        if (message == null || message.getContentType() != ContentType.CALL) return;
+        String sender = message.getSenderId();
+        String entityId = message.getTargetId();
+        com.fc.fc_ajdk.call.MeetingSignal s = com.fc.fc_ajdk.call.MeetingSignal.fromJson(message.getContent());
+        if (s == null || sender == null || entityId == null || !isEntityMember(message.getType(), entityId, sender)) {
+            return;
+        }
+        com.fc.freer.call.MeetingManager.getInstance(context).onChatSignal(message.getType().name(), entityId, sender, s);
+    }
+
+    private boolean isEntityMember(ImType type, String entityId, String fid) {
+        if (isEntityOwner(entityId, fid)) return true;
+        if (type == ImType.TEAM) return teamHandler != null && teamHandler.isMember(entityId, fid);
+        if (type == ImType.ROOM) {
+            Room room = roomHandler != null ? roomHandler.getRoom(entityId) : null;
+            return room != null && room.isMember(fid);
+        }
+        return false;
+    }
+
+    /** What meetings need from this identity (§8): posting cards, the relay, and the entity's symkeys. */
+    private final class MeetingHooks implements com.fc.freer.call.MeetingManager.Hooks {
+        @Override
+        public void post(String entityType, String entityId, com.fc.fc_ajdk.call.MeetingSignal signal) {
+            send(ImMessage.createCall(ImType.valueOf(entityType), liveFid, entityId, signal.toJson()));
+        }
+
+        /**
+         * The entity's home.CALL, else my own (§8). A debug build's relay
+         * override wins, as for 1:1 calls, for testing before one is on chain.
+         */
+        @Override
+        public String relayFor(String entityType, String entityId) {
+            String override = com.fc.freer.call.CallManager.getInstance(context).relayOverride();
+            if (!override.isEmpty()) return override;
+            Map<String, String> home = null;
+            if (ImType.TEAM.name().equals(entityType) && teamHandler != null) {
+                Team team = teamHandler.loadTeamInfo(entityId);
+                home = team != null ? team.getHome() : null;
+            } else if (ImType.ROOM.name().equals(entityType) && roomHandler != null) {
+                Room room = roomHandler.getRoom(entityId);
+                home = room != null ? room.getHome() : null;
+            }
+            String url = callServiceUrl(home);
+            if (url != null) return url;
+            com.fc.fc_ajdk.data.fcData.KeyInfo mine = com.fc.freer.manager.FidManager.getInstance().getLiveKeyInfo();
+            return callServiceUrl(mine != null ? mine.getHome() : null);
+        }
+
+        @Override
+        public String entityName(String entityId) {
+            Team team = teamHandler != null ? teamHandler.getTeam(entityId) : null;
+            if (team != null && team.getStdName() != null) return team.getStdName();
+            Room room = roomHandler != null ? roomHandler.getRoom(entityId) : null;
+            return room != null ? room.getName() : null;
+        }
+
+        @Override
+        public com.fc.freer.call.MeetingSession.Keys keys() {
+            return new com.fc.freer.call.MeetingSession.Keys() {
+                @Override
+                public List<byte[]> symkeys(String entityId, long version) {
+                    return symkeyStore == null ? List.of() : symkeyStore.getSymkeys(entityId, version);
+                }
+
+                @Override
+                public long currentVersion(String entityId) {
+                    return symkeyStore == null ? -1 : symkeyStore.getCurrentVersion(entityId);
+                }
+
+                @Override
+                public void request(String entityId, long version) {
+                    requestSymkey(entityId, version, null);
+                }
+            };
+        }
+    }
+
+    private String callServiceUrl(Map<String, String> home) {
+        if (home == null || fapiClient == null) return null;
+        String value = home.get(com.fc.fc_ajdk.constants.Constants.CALL_NO1_NRC7);
+        if (value == null || value.isEmpty()) return null;
+        return fapiClient.getHomeServiceResolver().resolveFromHome(home, com.fc.fc_ajdk.constants.Constants.CALL_NO1_NRC7,
+                fapiClient);
     }
 
     /** Signals leave on every channel at once, not through the retry queue (§6.3). */

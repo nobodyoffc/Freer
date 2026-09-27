@@ -66,6 +66,9 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
          * one this device already holds.
          */
         void onAskForSymkey(ImMessage message, long version);
+
+        /** The meeting card was tapped (VOICE_SPEC §3.3). */
+        default void onJoinMeeting(ImMessage card, String meetingId) {}
     }
 
     private final List<ImMessage> messages;
@@ -296,6 +299,12 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                 return;
             }
 
+            // A meeting is a centred card in a Room or Team chat: tap to join (VOICE_SPEC §3.3).
+            if (com.fc.freer.call.CallText.isCall(message) && !isP2P) {
+                bindMeetingCard(message, listener);
+                return;
+            }
+
             // A call is a centred line in the chat, not a bubble (VOICE_SPEC §10).
             if (com.fc.freer.call.CallText.isCall(message)) {
                 incomingContainer.setVisibility(View.GONE);
@@ -490,6 +499,49 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                 view.setMovementMethod(null);
                 view.setText(content);
             }
+        }
+
+        private void bindMeetingCard(ImMessage message, MessageInteractionListener listener) {
+            incomingContainer.setVisibility(View.GONE);
+            outgoingContainer.setVisibility(View.GONE);
+            systemMessage.setVisibility(View.VISIBLE);
+            Context ctx = itemView.getContext();
+            com.fc.fc_ajdk.call.MeetingSignal s = com.fc.fc_ajdk.call.MeetingSignal.fromJson(message.getContent());
+            com.fc.freer.call.MeetingBoard board = com.fc.freer.call.MeetingManager.getInstance(ctx).board();
+            com.fc.freer.call.MeetingBoard.Meeting m = s == null || board == null ? null : board.get(s.meetingId);
+            boolean ended = m != null && m.ended;
+            String when = message.getTimestamp() != null ? " · " + TIME_FORMAT.format(new Date(message.getTimestamp())) : "";
+            String text;
+            if (s == null) {
+                text = ctx.getString(R.string.call_record_call);
+            } else if (ended) {
+                text = m.duration > 0 ? ctx.getString(R.string.meeting_card_ended,
+                        com.fc.freer.call.CallActivity.duration(m.duration)) : ctx.getString(R.string.meeting_card_ended_plain);
+            } else {
+                String who = meetingSenderName(message.getSenderId());
+                text = s.title == null || s.title.isEmpty() ? ctx.getString(R.string.meeting_card_open, who)
+                        : ctx.getString(R.string.meeting_card_open_titled, who, s.title);
+            }
+            systemMessage.setText(text + when);
+            boolean joinable = s != null && !ended && listener != null;
+            systemMessage.setClickable(joinable);
+            if (joinable) {
+                android.util.TypedValue tv = new android.util.TypedValue();
+                ctx.getTheme().resolveAttribute(android.R.attr.selectableItemBackground, tv, true);
+                systemMessage.setBackgroundResource(tv.resourceId);
+                systemMessage.setOnClickListener(v -> listener.onJoinMeeting(message, s.meetingId));
+            } else {
+                systemMessage.setBackground(null);
+                systemMessage.setOnClickListener(null);
+            }
+        }
+
+        private static String meetingSenderName(String fid) {
+            if (fid == null) return "";
+            ImManager im = com.fc.freer.manager.FidManager.getInstance().getImManager();
+            var p = im == null ? null : im.getTalkPartner(fid);
+            String cid = p == null ? null : p.getCid();
+            return cid != null && !cid.isEmpty() ? cid : truncateFid(fid);
         }
 
         private void bindTeamNotification(String content) {

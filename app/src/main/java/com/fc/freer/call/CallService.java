@@ -38,7 +38,9 @@ public class CallService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && ACTION_HANGUP.equals(intent.getAction())) {
-            CallManager.getInstance(this).hangup();
+            MeetingManager meetings = MeetingManager.getInstance(this);
+            if (meetings.isActive()) meetings.leave();
+            else CallManager.getInstance(this).hangup();
             return START_NOT_STICKY;
         }
         Notification n = notification();
@@ -59,21 +61,24 @@ public class CallService extends Service {
         NotificationManager nm = getSystemService(NotificationManager.class);
         nm.createNotificationChannel(new NotificationChannel(CHANNEL_ONGOING,
                 getString(R.string.call_channel_ongoing), NotificationManager.IMPORTANCE_LOW));
+        boolean meeting = MeetingManager.getInstance(this).isActive();
         PendingIntent open = PendingIntent.getActivity(this, 0,
-                new Intent(this, CallActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                new Intent(this, meeting ? MeetingActivity.class : CallActivity.class)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         PendingIntent hangup = PendingIntent.getService(this, 1,
                 new Intent(this, CallService.class).setAction(ACTION_HANGUP),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        String peer = CallManager.getInstance(this).peerFid();
+        String peer = meeting ? MeetingManager.getInstance(this).title() : CallManager.getInstance(this).peerFid();
         return new NotificationCompat.Builder(this, CHANNEL_ONGOING)
                 .setSmallIcon(R.drawable.ic_call)
-                .setContentTitle(getString(R.string.call_ongoing_title))
+                .setContentTitle(getString(meeting ? R.string.meeting_ongoing_title : R.string.call_ongoing_title))
                 .setContentText(peer == null ? "" : peer)
                 .setCategory(NotificationCompat.CATEGORY_CALL)
                 .setOngoing(true)
                 .setContentIntent(open)
-                .addAction(R.drawable.ic_call_end, getString(R.string.call_hang_up), hangup)
+                .addAction(R.drawable.ic_call_end, getString(meeting ? R.string.meeting_leave : R.string.call_hang_up),
+                        hangup)
                 .build();
     }
 
