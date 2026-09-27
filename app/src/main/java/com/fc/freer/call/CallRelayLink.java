@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * One call's path to the CALL relay (VOICE_SPEC §6.2, §7.2): its own FUDP
+ * One call's or meeting's path to the CALL relay (VOICE_SPEC §6.2, §7.2): its own FUDP
  * node, running under the call's throwaway transport key so the FID's key
  * never touches it (§4.1), and a FAPI client to the relay on that node.
  * Media frames go as datagrams, attestations as NOTIFY dataType 0; the
@@ -236,6 +236,68 @@ public final class CallRelayLink implements AutoCloseable {
         Map<String, Object> p = base();
         p.put("kind", "p2p");
         request("call.create", p);
+    }
+
+    /**
+     * {@code call.create} for a meeting, by its host (§8): the admission key
+     * from the start, since every join proves the key. Retried when its reply
+     * is lost; "meeting exists" on a retry means the first one took.
+     */
+    public void createMeeting(byte[] authPub) throws IOException {
+        for (int attempt = 0; ; attempt++) {
+            Map<String, Object> p = base();
+            p.put("kind", "meeting");
+            p.put("authPub", Hex.toHex(authPub));
+            try {
+                request("call.create", p);
+                return;
+            } catch (Refused e) {
+                if (attempt > 0 && e.code == 409 && String.valueOf(e.getMessage()).contains("meeting exists")) return;
+                if (!e.lostReply() || attempt >= CREATE_ATTEMPTS - 1) throw e;
+            }
+        }
+    }
+
+    /**
+     * {@code call.control} (§7.2): the host's mute, lockMute, unmute, kick,
+     * pin, unpin, handoverHost and end; anyone's unmute of itself.
+     *
+     * @param target a FID (all its devices) or an ssrc; null for {@code end}
+     */
+    public void control(String action, Object target) throws IOException {
+        Map<String, Object> p = base();
+        p.put("action", action);
+        if (target instanceof Integer ssrc) p.put("target", Integer.toUnsignedLong(ssrc));
+        else if (target != null) p.put("target", target);
+        request("call.control", p);
+    }
+
+    /** {@code call.hand}: raise or lower this participant's hand. */
+    public void hand(boolean raised) throws IOException {
+        Map<String, Object> p = base();
+        p.put("raised", raised);
+        request("call.hand", p);
+    }
+
+    /** {@code call.rekey}, by the host (§4.5). @return the new key epoch */
+    public int rekey(long symkeyVersion, byte[] nonce, byte[] authPub) throws IOException {
+        Map<String, Object> p = base();
+        p.put("symkeyVersion", symkeyVersion);
+        p.put("nonce", Hex.toHex(nonce));
+        p.put("authPub", Hex.toHex(authPub));
+        Object epoch = request("call.rekey", p).get("keyEpoch");
+        if (!(epoch instanceof Number n)) throw new IOException("call.rekey: no keyEpoch in the reply");
+        return n.intValue();
+    }
+
+    /** {@code call.prove} (§4.5 step 4): this participant holds the new key. */
+    public void prove(int keyEpoch, byte[] authPriv, int ssrc) throws IOException {
+        Map<String, Object> p = base();
+        long ts = System.currentTimeMillis();
+        p.put("keyEpoch", keyEpoch);
+        p.put("ts", ts);
+        p.put("admitSig", Hex.toHex(CallKeys.admitSig(authPriv, callId, delegation.tPubBytes(), ssrc, ts)));
+        request("call.prove", p);
     }
 
     /**
