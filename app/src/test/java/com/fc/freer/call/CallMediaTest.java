@@ -123,6 +123,38 @@ public class CallMediaTest {
         assertNull("silent for the rest of the join", bob.media.open(alice.media.seal(frame(alice, 4), now), now));
     }
 
+    // ===== A relay that relabels streams (Phase 3 gate) =====
+
+    /** The ssrc sits at bytes 6..9 of the header: kind(1) flags(1) routeId(4) ssrc(4). */
+    static byte[] relabel(byte[] frame, int ssrc) {
+        byte[] f = frame.clone();
+        java.nio.ByteBuffer.wrap(f, 6, 4).putInt(ssrc);
+        return f;
+    }
+
+    @Test
+    public void aFrameTheRelayRelabelsNeverPlays() {
+        byte[] alices = alice.media.seal(frame(alice, 0), now);
+        // Passed off as Carol's: opened under Carol's sender key, and the header is authenticated too.
+        assertNull(bob.media.open(relabel(alices, carol.ssrc), now));
+        // Passed off as a stream nobody announced.
+        assertNull(bob.media.open(relabel(alices, carol.ssrc + 1), now));
+        // The untouched frame still plays: the relay's tampering cost it nothing but that frame.
+        assertNotNull(bob.media.open(alices, now));
+        assertTrue("nothing to attribute: nothing played under a false name", unverified.isEmpty());
+    }
+
+    @Test
+    public void aRosterNamingTheWrongMemberForAStreamPlaysNothing() {
+        // A fresh receiver whose roster, from a lying relay, says Alice's stream is Carol's.
+        CallMedia dave = new CallMedia(CALL_ID, secret, "FDave", RNG.nextInt(), key());
+        dave.addPeer(carol.fid, alice.ssrc, carol.tPub);
+        for (long seq = 0; seq < 5; seq++) {
+            assertNull("the key comes from (fid, ssrc): Carol's name cannot open Alice's audio",
+                    dave.open(alice.media.seal(frame(alice, seq), now), now));
+        }
+    }
+
     @Test
     public void audioWithNoAttestationIsSilencedAfterThreeSeconds() {
         bob.media.open(alice.media.seal(frame(alice, 0), now), now);
