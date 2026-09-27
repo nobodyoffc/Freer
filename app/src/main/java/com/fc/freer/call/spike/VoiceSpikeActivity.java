@@ -187,7 +187,7 @@ public class VoiceSpikeActivity extends AppCompatActivity {
         CaptureEngine.Settings settings = new CaptureEngine.Settings(frameMs,
                 intOf(bitrate, 24) * 1000, dtx.isChecked(), intOf(expectedLoss, 10), backend);
 
-        playout = new PlayoutEngine(frameMs, backend);
+        playout = new PlayoutEngine(backend); // it follows each packet's frame length
         transport = new SpikeTransport(this, mode, roomCode.getText().toString().trim(), host,
                 new SpikeTransport.Listener() {
                     @Override

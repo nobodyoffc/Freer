@@ -24,6 +24,10 @@ final class MicBacklog {
         this.frameSamples = frameSamples;
     }
 
+    int frameSamples() {
+        return frameSamples;
+    }
+
     /**
      * @param queued samples still queued after taking this frame
      * @return samples to discard now: whole frames, oldest first

@@ -12,7 +12,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * Receive side (VOICE_SPEC §9.2, §9.3): a jitter buffer and decoder per
  * incoming {@code ssrc}, mixed and played through one {@link AudioIo.Output}
  * (AudioTrack or AAudio). The playout thread is paced by the output's
- * blocking write, one frame per iteration.
+ * blocking write, one 20 ms tick per iteration.
+ * <p>
+ * Each sender picks its own frame length, 20, 40 or 60 ms, and may change it
+ * mid-call (§9.1). A stream learns it from each packet's TOC byte, decodes a
+ * frame when the last one is used up, and plays it out over as many ticks.
+ * A change of length restarts the stream's jitter buffer, since the buffer
+ * counts in frames.
  */
 public final class PlayoutEngine {
 
@@ -22,15 +28,26 @@ public final class PlayoutEngine {
     /** Mix above this is compressed rather than clipped. */
     private static final int KNEE = 24_576;
 
+    /** The output's period. Every frame length a sender may use is a multiple of it. */
+    public static final int TICK_MS = 20;
+    private static final int TICK_SAMPLES = Opus.SAMPLE_RATE / 1000 * TICK_MS;
+
     public static final class Stream {
         public final int ssrc;
         public final JitterBuffer buffer;
-        final Opus.Decoder decoder = new Opus.Decoder();
+        final int frameSamples;
+        final Opus.Decoder decoder;
         volatile int level = 127;
+        /** The decoded frame being played out, and how much of it is played. */
+        final short[] pcm;
+        int pcmLength, pcmPlayed;
 
-        Stream(int ssrc, int frameMs) {
+        Stream(int ssrc, int frameSamples, Opus.Decoder decoder) {
             this.ssrc = ssrc;
-            this.buffer = new JitterBuffer(frameMs);
+            this.frameSamples = frameSamples;
+            this.buffer = new JitterBuffer(frameSamples * 1000 / Opus.SAMPLE_RATE);
+            this.decoder = decoder;
+            this.pcm = new short[frameSamples];
         }
 
         /** Last level heard, -dBov (127 = silence). */
@@ -39,8 +56,6 @@ public final class PlayoutEngine {
         }
     }
 
-    private final int frameMs;
-    private final int frameSamples;
     private final AudioIo.Backend backend;
     private final Map<Integer, Stream> streams = new ConcurrentHashMap<>();
     private final java.util.Set<Integer> silenced = ConcurrentHashMap.newKeySet();
@@ -50,16 +65,23 @@ public final class PlayoutEngine {
     private volatile int outputLatencyMs = -1;
     private volatile long wrongFrameSize;
 
-    public PlayoutEngine(int frameMs, AudioIo.Backend backend) {
-        this.frameMs = frameMs;
-        this.frameSamples = Opus.SAMPLE_RATE / 1000 * frameMs;
+    public PlayoutEngine(AudioIo.Backend backend) {
         this.backend = backend;
     }
 
     /** From the network thread: queue a frame. Must return quickly. */
     public void onFrame(EncodedFrame f, long arrivalMs) {
         if (silenced.contains(f.ssrc())) return;
-        Stream s = streams.computeIfAbsent(f.ssrc(), id -> new Stream(id, frameMs));
+        int samples = OpusToc.samples(f.opus());
+        if (samples <= 0 || samples % TICK_SAMPLES != 0) {
+            wrongFrameSize++; // 2.5, 5 or 10 ms: no sender of ours uses those
+            return;
+        }
+        Stream s = streams.compute(f.ssrc(), (id, old) -> {
+            if (old == null) return new Stream(id, samples, new Opus.Decoder());
+            // The sender changed its frame length: the same decoder, a new buffer.
+            return old.frameSamples == samples ? old : new Stream(id, samples, old.decoder);
+        });
         s.level = f.level();
         s.buffer.put(f.seq(), f.timestamp(), f.opus(), !f.voiceActive(), f.afterDtx(), f.level(), arrivalMs);
     }
@@ -101,14 +123,14 @@ public final class PlayoutEngine {
         return o == null ? "" : o.describe();
     }
 
-    /** Frames decoded to a length other than our frame size: the peer uses another frame size. */
+    /** Frames of a length we cannot play (not a multiple of 20 ms), or that decoded to another length. */
     public long wrongFrameSize() {
         return wrongFrameSize;
     }
 
     public synchronized void start() {
         if (running) return;
-        output = AudioIo.openOutput(backend, frameSamples);
+        output = AudioIo.openOutput(backend, TICK_SAMPLES);
         running = true;
         thread = new Thread(this::loop, "voice-playout");
         thread.start();
@@ -135,9 +157,8 @@ public final class PlayoutEngine {
 
     private void loop() {
         Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
-        short[] pcm = new short[frameSamples];
-        int[] mix = new int[frameSamples];
-        short[] out = new short[frameSamples];
+        int[] mix = new int[TICK_SAMPLES];
+        short[] out = new short[TICK_SAMPLES];
         int ticks = 0;
         while (running) {
             long now = SystemClock.elapsedRealtime();
@@ -148,29 +169,14 @@ public final class PlayoutEngine {
                     s.decoder.close();
                     continue;
                 }
-                JitterBuffer.Pull p = s.buffer.pull(now);
-                int n;
-                try {
-                    n = switch (p.kind()) {
-                        case NOTHING -> 0;
-                        case FRAME -> s.decoder.decode(p.data(), pcm, frameSamples);
-                        case FEC -> s.decoder.decodeFec(p.data(), pcm, frameSamples);
-                        case CONCEAL -> s.decoder.conceal(pcm, frameSamples);
-                    };
-                } catch (IllegalStateException e) {
-                    TimberLogger.w(TAG, "decode failed for ssrc %d: %s", s.ssrc, e.getMessage());
-                    n = 0;
-                }
-                if (n != 0 && n != frameSamples) {
-                    wrongFrameSize++;
-                    continue;
-                }
-                for (int i = 0; i < n; i++) mix[i] += pcm[i];
+                if (s.pcmPlayed >= s.pcmLength && !decodeNext(s, now)) continue;
+                for (int i = 0; i < TICK_SAMPLES; i++) mix[i] += s.pcm[s.pcmPlayed + i];
+                s.pcmPlayed += TICK_SAMPLES;
             }
-            for (int i = 0; i < frameSamples; i++) out[i] = softClip(mix[i]);
+            for (int i = 0; i < TICK_SAMPLES; i++) out[i] = softClip(mix[i]);
             try {
                 // Blocks until there is room: this is what paces the loop.
-                output.write(out, 0, frameSamples);
+                output.write(out, 0, TICK_SAMPLES);
             } catch (IllegalStateException e) {
                 TimberLogger.e(TAG, "playout stopped: %s", e.getMessage());
                 running = false;
@@ -181,6 +187,35 @@ public final class PlayoutEngine {
                 if (l >= 0) outputLatencyMs = l;
             }
         }
+    }
+
+    /**
+     * Decode the stream's next frame into {@code s.pcm}: the jitter buffer is
+     * asked once per frame of the stream's length, not once per tick.
+     * @return false if there is nothing to play this tick
+     */
+    private boolean decodeNext(Stream s, long now) {
+        s.pcmPlayed = s.pcmLength = 0;
+        JitterBuffer.Pull p = s.buffer.pull(now);
+        int n;
+        try {
+            n = switch (p.kind()) {
+                case NOTHING -> 0;
+                case FRAME -> s.decoder.decode(p.data(), s.pcm, s.frameSamples);
+                case FEC -> s.decoder.decodeFec(p.data(), s.pcm, s.frameSamples);
+                case CONCEAL -> s.decoder.conceal(s.pcm, s.frameSamples);
+            };
+        } catch (IllegalStateException e) {
+            TimberLogger.w(TAG, "decode failed for ssrc %d: %s", s.ssrc, e.getMessage());
+            return false;
+        }
+        if (n == 0) return false;
+        if (n != s.frameSamples) {
+            wrongFrameSize++;
+            return false;
+        }
+        s.pcmLength = n;
+        return true;
     }
 
     /** Linear below the knee, compressed smoothly towards full scale above it. */

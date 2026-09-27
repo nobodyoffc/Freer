@@ -28,8 +28,13 @@ public final class CaptureEngine {
 
     public record Settings(int frameMs, int bitrate, boolean dtx, int expectedLossPercent, AudioIo.Backend backend) {}
 
+    /** The recorder's read size: every frame length is a multiple of it. */
+    private static final int QUANTUM_SAMPLES = Opus.SAMPLE_RATE / 1000 * 20;
+    private static final int MAX_FRAME_SAMPLES = Opus.SAMPLE_RATE / 1000 * 60;
+
     private final Settings settings;
-    private final int frameSamples;
+    /** 20, 40 or 60; takes effect at the next frame. */
+    private volatile int frameMs;
     private final Sink sink;
     private final int ssrc;
     private volatile boolean running;
@@ -43,7 +48,7 @@ public final class CaptureEngine {
 
     public CaptureEngine(Settings settings, Sink sink) {
         this.settings = settings;
-        this.frameSamples = Opus.SAMPLE_RATE / 1000 * settings.frameMs();
+        this.frameMs = checkFrameMs(settings.frameMs());
         this.sink = sink;
         this.ssrc = new SecureRandom().nextInt(); // fresh on every join (§4.3)
     }
@@ -54,6 +59,24 @@ public final class CaptureEngine {
 
     public void setMuted(boolean muted) {
         this.muted = muted;
+    }
+
+    private static int checkFrameMs(int ms) {
+        if (ms != 20 && ms != 40 && ms != 60) throw new IllegalArgumentException("frame length " + ms + " ms");
+        return ms;
+    }
+
+    /**
+     * Live change of frame length (§9.1), from the next frame on. Receivers
+     * read each packet's length, so nothing else needs telling; seq and the
+     * timestamp run on.
+     */
+    public void setFrameMs(int ms) {
+        frameMs = checkFrameMs(ms);
+    }
+
+    public int frameMs() {
+        return frameMs;
     }
 
     /** Live change, as the network adaptation of §9.4 will do. */
@@ -117,7 +140,7 @@ public final class CaptureEngine {
     /** Needs RECORD_AUDIO, which the caller has checked. */
     public synchronized void start() {
         if (running) return;
-        input = AudioIo.openInput(settings.backend(), frameSamples);
+        input = AudioIo.openInput(settings.backend(), QUANTUM_SAMPLES);
         encoder = new Opus.Encoder(settings.bitrate(), settings.dtx(), settings.expectedLossPercent());
         running = true;
         thread = new Thread(this::loop, "voice-capture");
@@ -146,16 +169,20 @@ public final class CaptureEngine {
 
     private void loop() {
         Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
-        short[] pcm = new short[frameSamples];
-        short[] chunk = new short[8 * frameSamples];
-        SampleFifo fifo = new SampleFifo(16 * frameSamples);
-        MicBacklog mic = new MicBacklog(frameSamples);
-        backlog = mic;
+        short[] pcm = new short[MAX_FRAME_SAMPLES];
+        short[] chunk = new short[8 * QUANTUM_SAMPLES];
+        SampleFifo fifo = new SampleFifo(16 * MAX_FRAME_SAMPLES);
+        MicBacklog mic = null;
         byte[] packet = new byte[Opus.MAX_PACKET];
         long seq = 0;
         boolean afterDtx = false;
         long timestamp = new SecureRandom().nextInt() & 0xffffffffL; // random start per ssrc (§5)
         while (running) {
+            int frameSamples = Opus.SAMPLE_RATE / 1000 * frameMs;
+            if (mic == null || mic.frameSamples() != frameSamples) {
+                mic = new MicBacklog(frameSamples); // it keeps one frame of slack, so it follows the length
+                backlog = mic;
+            }
             // Wait for one frame, then take whatever else is already queued, so
             // the queue lives in our FIFO where it can be measured.
             while (fifo.size() < frameSamples && running) {

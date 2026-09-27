@@ -38,7 +38,6 @@ public final class CallSession {
     private static final long PEER_GONE_MS = 6_000;
     private static final int REGISTER_ATTEMPTS = 3;
     private static final long PEER_SILENT_MS = 15_000;
-    public static final int FRAME_MS = 20;
     public static final int BITRATE = 24_000;
     public static final int EXPECTED_LOSS = 10;
 
@@ -96,6 +95,7 @@ public final class CallSession {
     private volatile boolean peerSeen;
     private volatile long framesOpened;
     private int statTicks;
+    private final FrameLength frameLength = new FrameLength();
     private final long startedMs = System.currentTimeMillis();
 
     /**
@@ -112,7 +112,7 @@ public final class CallSession {
         this.backend = backend;
         this.listener = listener;
         this.tPriv = call.transportPriv();
-        this.capture = new CaptureEngine(new CaptureEngine.Settings(FRAME_MS, BITRATE, true, EXPECTED_LOSS, backend),
+        this.capture = new CaptureEngine(new CaptureEngine.Settings(frameLength.current(), BITRATE, true, EXPECTED_LOSS, backend),
                 f -> {
                     CallMedia m = media;
                     CallRelayLink l = link;
@@ -323,6 +323,15 @@ public final class CallSession {
         }
     }
 
+    /** §9.1: 20 ms frames only on a fast direct path; the receiver follows each packet's length. */
+    private void adaptFrameLength(long now) {
+        int ms = frameLength.update(now, isDirect(), rttMs());
+        if (ms != capture.frameMs()) {
+            capture.setFrameMs(ms);
+            step("sending " + ms + " ms frames (rtt " + rttMs() + " ms, " + (isDirect() ? "direct" : "relay") + ")");
+        }
+    }
+
     /** Levels are -dBov: 127 is silence, speech is roughly 20-50. */
     private void logStats(PlayoutEngine p) {
         StringBuilder in = new StringBuilder();
@@ -331,8 +340,8 @@ public final class CallSession {
                     .append(" buffered ").append(s.buffer.depthMs()).append("ms");
         }
         step(String.format(java.util.Locale.US,
-                "stats: %s | mic level %d%s, sent %d, dtx %d, via %s [%s] | received %d, playing%s, underruns %d, via %s",
-                isDirect() ? "direct" : "relay",
+                "stats: %s, %d ms frames | mic level %d%s, sent %d, dtx %d, via %s [%s] | received %d, playing%s, underruns %d, via %s",
+                isDirect() ? "direct" : "relay", capture.frameMs(),
                 capture.level(), muted ? " (muted)" : "", capture.framesSent(), capture.dtxSkipped(),
                 capture.describe(), capture.effects(), framesOpened,
                 in.length() == 0 ? " nothing" : in, p.underruns(), p.describe()));
@@ -348,7 +357,7 @@ public final class CallSession {
         m.setOneToOne(true); // late attestations here mean a slow path, not forgery (§5.1)
         Arrays.fill(secret, (byte) 0);
         m.setRouteId(routeId);
-        PlayoutEngine p = new PlayoutEngine(FRAME_MS, backend);
+        PlayoutEngine p = new PlayoutEngine(backend);
         m.setListener((fid, ssrc) -> {
             step("peer's audio unverified and silenced");
             p.silence(ssrc);
@@ -365,6 +374,7 @@ public final class CallSession {
             CallRelayLink l = link;
             if (l != null) for (byte[] a : m.takeAttestations(now)) sendAttestation(l, a);
             m.tick(now);
+            adaptFrameLength(now);
             if (++statTicks % (STATS_EVERY_MS / ATTEST_CHECK_MS) == 0) logStats(p);
             notePeerSilence(now);
             // Checked 5 times a second so each attestation leaves ~1 s after its
