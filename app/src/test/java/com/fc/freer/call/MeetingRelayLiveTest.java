@@ -158,6 +158,29 @@ public class MeetingRelayLiveTest {
         bob.media.tick(System.currentTimeMillis() + CallMedia.ATTEST_DEADLINE_MS);
         assertFalse("attested, not paused", bob.media.isPaused(host.ssrc));
 
+        // A member who did not create the meeting speaks for 3 s, attesting each second as
+        // MeetingSession does: Carol plays all of it and never pauses (Decision 15).
+        carol.frames.clear();
+        int carolOpened = 0;
+        long speakUntil = System.currentTimeMillis() + 3_000;
+        while (System.currentTimeMillis() < speakUntil) {
+            bob.send();
+            for (byte[] att : bob.media.takeAttestations(System.currentTimeMillis())) bob.link.sendAttestation(att);
+            for (byte[] fr; (fr = carol.frames.poll()) != null; ) {
+                if (carol.media.open(fr, System.currentTimeMillis()) != null) carolOpened++;
+            }
+            carol.media.tick(System.currentTimeMillis());
+            Thread.sleep(40);
+        }
+        for (byte[] att : bob.media.finish(System.currentTimeMillis())) bob.link.sendAttestation(att);
+        Thread.sleep(1_000);
+        for (byte[] fr; (fr = carol.frames.poll()) != null; ) {
+            if (carol.media.open(fr, System.currentTimeMillis()) != null) carolOpened++;
+        }
+        carol.media.tick(System.currentTimeMillis());
+        assertFalse("Bob's audio is attested at Carol", carol.media.isPaused(bob.ssrc));
+        assertTrue("Carol plays Bob: " + carolOpened + " of " + bob.seq, carolOpened >= bob.seq - 5);
+
         // A raised hand shows in everyone's roster.
         carol.link.hand(true);
         boolean handShown = false;

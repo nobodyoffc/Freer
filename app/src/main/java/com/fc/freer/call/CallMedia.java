@@ -271,15 +271,28 @@ public final class CallMedia {
      * roster names for that ssrc (§5.1 step 1); then every frame we played in
      * its range must match its digest.
      */
-    public synchronized void onAttestation(byte[] bytes) {
+    public void onAttestation(byte[] bytes) {
         onAttestation(bytes, System.currentTimeMillis());
     }
 
-    public synchronized void onAttestation(byte[] bytes, long nowMs) {
+    public void onAttestation(byte[] bytes, long nowMs) {
         Attestation a = Attestation.parse(bytes);
         if (a == null) return;
+        byte[] tPub;
+        synchronized (this) {
+            Peer p = peers.get(a.ssrc());
+            if (p == null || p.unverified) return;
+            tPub = p.tPub;
+        }
+        // The signature check is the slow part: done outside the lock, so frames keep
+        // opening and sealing meanwhile (on a budget phone it held both up).
+        if (!a.verify(tPub, callId)) return;
+        vouch(a, nowMs);
+    }
+
+    private synchronized void vouch(Attestation a, long nowMs) {
         Peer p = peers.get(a.ssrc());
-        if (p == null || p.unverified || !a.verify(p.tPub, callId)) return;
+        if (p == null || p.unverified) return;
         for (Iterator<Map.Entry<Long, Played>> it = p.played.subMap(a.firstSeq(), true, a.lastSeq(), true)
                 .entrySet().iterator(); it.hasNext(); ) {
             Map.Entry<Long, Played> e = it.next();

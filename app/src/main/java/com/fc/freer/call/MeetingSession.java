@@ -127,6 +127,8 @@ public final class MeetingSession {
     private final Set<Integer> unverified = new HashSet<>();
     private final Set<Integer> paused = new HashSet<>();
     private final Map<Integer, String> fidOfSsrc = new HashMap<>();
+    /** Per sender ssrc: frames that arrived from the relay, and those that opened. For the log. */
+    private final Map<Integer, long[]> arrivals = new java.util.concurrent.ConcurrentHashMap<>();
     private int ticks;
 
     /**
@@ -335,8 +337,13 @@ public final class MeetingSession {
                 CallMedia m = media;
                 PlayoutEngine p = playout;
                 if (m == null || p == null) return;
+                var h = com.fc.fc_ajdk.call.MediaFrame.Header.parse(datagram);
+                long[] count = h == null ? null : arrivals.computeIfAbsent(h.ssrc(), k -> new long[2]);
+                if (count != null) count[0]++;
                 var f = m.open(datagram, System.currentTimeMillis());
-                if (f != null) p.onFrame(f, SystemClock.elapsedRealtime());
+                if (f == null) return;
+                if (count != null) count[1]++;
+                p.onFrame(f, SystemClock.elapsedRealtime());
             }
 
             @Override
@@ -620,11 +627,33 @@ public final class MeetingSession {
         capture.setMuted(selfMuted || mutedByHost != null);
     }
 
+    /**
+     * One line for this device, then one per sender: frames that arrived and
+     * opened, and what the jitter buffer made of them. Where a sender's audio
+     * goes missing shows as the first number that falls short.
+     */
     private void logStats() {
         PlayoutEngine p = playout;
-        step(String.format(java.util.Locale.US, "stats: %d in the roster, %d playing, mic level %d%s, sent %d, rtt %d ms",
+        CallMedia m = media;
+        step(String.format(java.util.Locale.US, "stats: %d in the roster, %d playing, mic level %d%s, sent %d, dtx %d, rtt %d ms",
                 participants.size(), p == null ? 0 : p.streams().size(), capture.level(), isMuted() ? " (muted)" : "",
-                capture.framesSent(), rttMs()));
+                capture.framesSent(), capture.dtxSkipped(), rttMs()));
+        for (Map.Entry<Integer, long[]> e : arrivals.entrySet()) {
+            int ssrc = e.getKey();
+            String fid;
+            synchronized (this) {
+                fid = fidOfSsrc.get(ssrc);
+            }
+            PlayoutEngine.Stream st = p == null ? null : p.streams().get(ssrc);
+            var j = st == null ? null : st.buffer.stats();
+            step(String.format(java.util.Locale.US,
+                    "  from %s ssrc %s: arrived %d, opened %d%s%s | played %s, lost %s, late %s, skipped %s, dtx %s, target %s ms, level %s",
+                    fid, Integer.toUnsignedString(ssrc), e.getValue()[0], e.getValue()[1],
+                    m != null && m.isPaused(ssrc) ? ", PAUSED" : "", m != null && m.isUnverified(ssrc) ? ", UNVERIFIED" : "",
+                    j == null ? "-" : j.played(), j == null ? "-" : j.fecRecovered() + j.concealed(),
+                    j == null ? "-" : j.late(), j == null ? "-" : j.skipped(), j == null ? "-" : j.dtxGap(),
+                    j == null ? "-" : j.targetMs(), st == null ? "-" : st.level()));
+        }
     }
 
     private void step(String what) {
