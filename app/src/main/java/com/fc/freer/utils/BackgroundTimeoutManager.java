@@ -82,9 +82,11 @@ public class BackgroundTimeoutManager {
             return;
         }
 
-        // An incoming call must be answerable at once. The call screen shows only
-        // who is calling; the rest of the app stays locked until the next screen.
-        if (activity instanceof com.fc.freer.call.CallActivity) {
+        // An incoming call, or a meeting ringing, must be answerable at once. Those
+        // screens show only who is calling and who is in the meeting; the rest of
+        // the app stays locked until the next screen.
+        if (activity instanceof com.fc.freer.call.CallActivity
+                || activity instanceof com.fc.freer.call.MeetingActivity) {
             isInBackground = true;
             return;
         }
