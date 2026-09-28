@@ -22,6 +22,50 @@
         android:visibility="gone"
         tools:text="System message" />
 
+    <!-- A meeting's card in a Room or Team chat: join it from here (VOICE_SPEC §3.3) -->
+    <LinearLayout
+        android:id="@+id/meeting_card"
+        android:layout_width="260dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="4dp"
+        android:background="@drawable/bg_meeting_card"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/meeting_card_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:drawablePadding="8dp"
+            android:gravity="center_vertical"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            app:drawableStartCompat="@drawable/ic_call"
+            app:drawableTint="@color/accent"
+            tools:text="Voice meeting" />
+
+        <TextView
+            android:id="@+id/meeting_card_detail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="@color/hint"
+            android:textSize="12sp"
+            tools:text="Started by Alice · 14:02" />
+
+        <Button
+            android:id="@+id/meeting_card_join"
+            style="@style/ButtonStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/meeting_join" />
+    </LinearLayout>
+
     <!-- Incoming message (left aligned) -->
     <LinearLayout
         android:id="@+id/incoming_container"

@@ -325,6 +325,7 @@ public final class CallManager implements CallSignaller.Listener {
             reset();
             call = incoming;
             phase = Phase.RINGING_IN;
+            MeetingManager.getInstance(context).stopRinging(); // one ring at a time: the call's
             ring();
             watchRing(incoming);
             notifyUi();

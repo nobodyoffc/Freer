@@ -44,14 +44,19 @@ public class MeetingActivity extends AppCompatActivity implements MeetingManager
     private final Runnable tick = this::render;
     private TextView title, status, path, warning;
     private CheckBox mute, speaker, hand;
-    private Button leave, endForAll;
+    private Button leave, endForAll, join, decline;
     private TextView invite;
     private View toggles;
     private final ParticipantAdapter adapter = new ParticipantAdapter();
+    /** This screen opened for a ring: once the ring stops unanswered, there is nothing to show. */
+    private boolean shownRinging;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // A ringing meeting shows over the lock screen, as a call does.
+        setShowWhenLocked(true);
+        setTurnScreenOn(true);
         setContentView(R.layout.activity_meeting);
         ToolbarUtils.setupToolbar(this, getString(R.string.meeting_ongoing_title));
         meetings = MeetingManager.getInstance(this);
@@ -65,6 +70,15 @@ public class MeetingActivity extends AppCompatActivity implements MeetingManager
         hand = findViewById(R.id.meetingHand);
         leave = findViewById(R.id.meetingLeave);
         endForAll = findViewById(R.id.meetingEndForAll);
+        join = findViewById(R.id.meetingJoin);
+        decline = findViewById(R.id.meetingDecline);
+        join.setOnClickListener(v -> meetings.answerRing(error -> {
+            if (error != null) Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+        }));
+        decline.setOnClickListener(v -> {
+            meetings.declineRing();
+            finish();
+        });
         toggles = findViewById(R.id.meetingToggles);
         invite = findViewById(R.id.meetingInvite);
         invite.setOnClickListener(v -> {
@@ -113,6 +127,29 @@ public class MeetingActivity extends AppCompatActivity implements MeetingManager
 
     private void render() {
         handler.removeCallbacks(tick);
+        MeetingBoard.Meeting ringing = meetings.isActive() ? null : meetings.ringing();
+        join.setVisibility(ringing != null ? View.VISIBLE : View.GONE);
+        decline.setVisibility(ringing != null ? View.VISIBLE : View.GONE);
+        if (ringing != null) {
+            // Ringing: who started what, and Join or Decline; nothing else yet.
+            title.setText(R.string.meeting_ringing_title);
+            status.setText(meetings.ringText(ringing));
+            path.setText("");
+            warning.setVisibility(View.GONE);
+            toggles.setVisibility(View.GONE);
+            endForAll.setVisibility(View.GONE);
+            invite.setVisibility(View.GONE);
+            leave.setVisibility(View.GONE);
+            adapter.show(null, List.of());
+            shownRinging = true;
+            return;
+        }
+        if (shownRinging && !meetings.isActive()) {
+            finish(); // declined elsewhere, timed out, or the meeting ended while ringing
+            return;
+        }
+        shownRinging = false;
+        leave.setVisibility(View.VISIBLE);
         MeetingManager.Phase phase = meetings.phase();
         MeetingSession s = meetings.session();
         String t = meetings.title();

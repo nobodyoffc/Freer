@@ -259,6 +259,9 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         private final LinearLayout incomingContainer;
         private final LinearLayout outgoingContainer;
         private final TextView systemMessage;
+        private final View meetingCard;
+        private final TextView meetingCardTitle, meetingCardDetail;
+        private final android.widget.Button meetingCardJoin;
         private final ImageView senderAvatar;
         private final TextView senderName;
         private final TextView incomingContent;
@@ -274,6 +277,10 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
             incomingContainer = itemView.findViewById(R.id.incoming_container);
             outgoingContainer = itemView.findViewById(R.id.outgoing_container);
             systemMessage = itemView.findViewById(R.id.system_message);
+            meetingCard = itemView.findViewById(R.id.meeting_card);
+            meetingCardTitle = itemView.findViewById(R.id.meeting_card_title);
+            meetingCardDetail = itemView.findViewById(R.id.meeting_card_detail);
+            meetingCardJoin = itemView.findViewById(R.id.meeting_card_join);
             senderAvatar = itemView.findViewById(R.id.sender_avatar);
             senderName = itemView.findViewById(R.id.sender_name);
             incomingContent = itemView.findViewById(R.id.incoming_content);
@@ -288,6 +295,8 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         void bind(ImMessage message, boolean isOutgoing, boolean showSender, boolean isP2P,
                   MessageInteractionListener listener, java.util.Map<String, long[]> hatDownloads,
                   CharSequence sealedRow) {
+            // Rows are recycled: only a meeting's row shows the card.
+            meetingCard.setVisibility(View.GONE);
             String senderId = message.getSenderId();
             boolean isSystemMessage = senderId == null || senderId.isEmpty();
 
@@ -504,38 +513,36 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         private void bindMeetingCard(ImMessage message, MessageInteractionListener listener) {
             incomingContainer.setVisibility(View.GONE);
             outgoingContainer.setVisibility(View.GONE);
-            systemMessage.setVisibility(View.VISIBLE);
+            systemMessage.setVisibility(View.GONE);
+            meetingCard.setVisibility(View.VISIBLE);
             Context ctx = itemView.getContext();
             com.fc.fc_ajdk.call.MeetingSignal s = com.fc.fc_ajdk.call.MeetingSignal.fromJson(message.getContent());
-            com.fc.freer.call.MeetingBoard board = com.fc.freer.call.MeetingManager.getInstance(ctx).board();
+            com.fc.freer.call.MeetingManager meetings = com.fc.freer.call.MeetingManager.getInstance(ctx);
+            com.fc.freer.call.MeetingBoard board = meetings.board();
             com.fc.freer.call.MeetingBoard.Meeting m = s == null || board == null ? null : board.get(s.meetingId);
             boolean ended = m != null && m.ended;
+            String title = s == null ? null : s.title;
+            meetingCardTitle.setText(title == null || title.isEmpty() ? ctx.getString(R.string.meeting_card_title)
+                    : ctx.getString(R.string.meeting_card_title_named, title));
             String when = message.getTimestamp() != null ? " · " + TIME_FORMAT.format(new Date(message.getTimestamp())) : "";
-            String text;
-            if (s == null) {
-                text = ctx.getString(R.string.call_record_call);
-            } else if (ended) {
-                text = m.duration > 0 ? ctx.getString(R.string.meeting_card_ended,
-                        com.fc.freer.call.CallActivity.duration(m.duration)) : ctx.getString(R.string.meeting_card_ended_plain);
+            String detail;
+            if (ended) {
+                detail = m.duration > 0 ? ctx.getString(R.string.meeting_card_over_after,
+                        com.fc.freer.call.CallActivity.duration(m.duration)) : ctx.getString(R.string.meeting_card_over);
             } else {
-                String who = meetingSenderName(message.getSenderId());
-                boolean invited = m != null && m.invited;
-                text = s.title == null || s.title.isEmpty()
-                        ? ctx.getString(invited ? R.string.meeting_card_invited : R.string.meeting_card_open, who)
-                        : ctx.getString(invited ? R.string.meeting_card_invited_titled : R.string.meeting_card_open_titled,
-                                who, s.title);
+                detail = ctx.getString(R.string.meeting_card_by, meetingSenderName(message.getSenderId())) + when;
+                if (m != null && m.invited) detail += "\n" + ctx.getString(R.string.meeting_card_invited_only);
             }
-            systemMessage.setText(text + when);
+            meetingCardDetail.setText(detail);
             boolean joinable = s != null && !ended && listener != null;
-            systemMessage.setClickable(joinable);
+            meetingCardJoin.setVisibility(joinable ? View.VISIBLE : View.GONE);
             if (joinable) {
-                android.util.TypedValue tv = new android.util.TypedValue();
-                ctx.getTheme().resolveAttribute(android.R.attr.selectableItemBackground, tv, true);
-                systemMessage.setBackgroundResource(tv.resourceId);
-                systemMessage.setOnClickListener(v -> listener.onJoinMeeting(message, s.meetingId));
+                com.fc.freer.call.MeetingBoard.Meeting here = meetings.isActive() ? meetings.meeting() : null;
+                boolean inIt = here != null && here.meetingId.equals(s.meetingId);
+                meetingCardJoin.setText(inIt ? R.string.meeting_show : R.string.meeting_join);
+                meetingCardJoin.setOnClickListener(v -> listener.onJoinMeeting(message, s.meetingId));
             } else {
-                systemMessage.setBackground(null);
-                systemMessage.setOnClickListener(null);
+                meetingCardJoin.setOnClickListener(null);
             }
         }
 

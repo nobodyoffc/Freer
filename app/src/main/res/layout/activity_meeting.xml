@@ -105,6 +105,27 @@
         android:padding="16dp">
 
         <Button
+            android:id="@+id/meetingDecline"
+            style="@style/ButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="12dp"
+            android:layout_weight="1"
+            android:backgroundTint="#C62828"
+            android:text="@string/meeting_decline"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/meetingJoin"
+            style="@style/ButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:backgroundTint="#2E7D32"
+            android:text="@string/meeting_join"
+            android:visibility="gone" />
+
+        <Button
             android:id="@+id/meetingEndForAll"
             style="@style/ButtonStyle"
             android:layout_width="0dp"

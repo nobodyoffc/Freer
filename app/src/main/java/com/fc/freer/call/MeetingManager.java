@@ -1,9 +1,16 @@
 package com.fc.freer.call;
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.media.RingtoneManager;
 import android.os.Handler;
 import android.os.Looper;
+
+import androidx.core.app.NotificationCompat;
 
 import com.fc.fc_ajdk.call.CallKeys;
 import com.fc.fc_ajdk.call.CallSignal;
@@ -36,6 +43,11 @@ public final class MeetingManager {
     private static final String TAG = "MeetingManager";
     /** A member's MEETING_END is checked with the relay after the relay would have closed an empty meeting (§7.6). */
     private static final long CONFIRM_END_AFTER_MS = 70_000;
+    /** A new meeting rings only if it started this recently: a card that arrives late is not a call. */
+    static final long RING_FRESH_MS = 120_000;
+    /** A meeting rings this long, as a call does (§6.3). */
+    static final long RING_FOR_MS = 45_000;
+    static final int NOTIFY_MEETING = 7104;
 
     public enum Phase { IDLE, CONNECTING, IN_MEETING, ENDED }
 
@@ -114,6 +126,10 @@ public final class MeetingManager {
     private volatile boolean speaker = true; // a meeting is usually on the speaker
     /** The meeting's Room or Team name, looked up once off the main thread. */
     private volatile String entityName;
+    /** A new meeting ringing this device, not yet joined or declined; main thread only. */
+    private MeetingBoard.Meeting ringing;
+    private android.media.Ringtone ringtone;
+    private final Runnable ringTimeout = this::stopRinging;
 
     private MeetingManager(Context context) {
         this.context = context;
@@ -189,6 +205,11 @@ public final class MeetingManager {
 
     public String endReason() {
         return endReason;
+    }
+
+    /** The meeting ringing this device, or null. */
+    public MeetingBoard.Meeting ringing() {
+        return ringing;
     }
 
     public boolean isSpeaker() {
@@ -379,6 +400,11 @@ public final class MeetingManager {
                 : b.onEnd(entityId, senderFid, s);
         if (r == MeetingBoard.Result.CONFIRM) confirmEndLater(s.meetingId);
         if (r != MeetingBoard.Result.UNCHANGED && r != MeetingBoard.Result.CONFIRM) main.post(this::notifyCards);
+        if (r == MeetingBoard.Result.NEW && s.op == MeetingSignal.Op.MEETING_START && s.keyEpochOrZero() == 0) {
+            main.post(() -> maybeRing(s.meetingId, senderFid));
+        } else if (r == MeetingBoard.Result.UPDATED && s.op == MeetingSignal.Op.MEETING_END) {
+            main.post(() -> stopRingingFor(s.meetingId));
+        }
         return r;
     }
 
@@ -394,7 +420,10 @@ public final class MeetingManager {
             Boolean open = probeOpen(m);
             if (Boolean.FALSE.equals(open)) {
                 b.markEnded(meetingId, 0);
-                main.post(this::notifyCards);
+                main.post(() -> {
+                    stopRingingFor(meetingId);
+                    notifyCards();
+                });
             }
         }, CONFIRM_END_AFTER_MS, TimeUnit.MILLISECONDS);
     }
@@ -453,6 +482,7 @@ public final class MeetingManager {
             });
         }
         phase = Phase.CONNECTING;
+        stopRinging(); // after the phase: a ring answered turns into the meeting, not into nothing
         endReason = null;
         endForAllRequested = false;
         Hooks h = hooks;
@@ -609,7 +639,107 @@ public final class MeetingManager {
             hooks.forgetKey(s.meetingId);
         }
         if (r == MeetingBoard.Result.NEW || r == MeetingBoard.Result.UPDATED) main.post(this::notifyCards);
+        if (r == MeetingBoard.Result.NEW && s.op == MeetingSignal.Op.MEETING_INVITE) {
+            main.post(() -> maybeRing(s.meetingId, senderFid));
+        } else if (r == MeetingBoard.Result.UPDATED && s.op == MeetingSignal.Op.MEETING_END) {
+            main.post(() -> stopRingingFor(s.meetingId));
+        }
         return r;
+    }
+
+    // ===== Ringing =====
+
+    /**
+     * A new meeting in one of my chats rings like a call: someone else's, just
+     * started, while this device is in no call or meeting. One at a time.
+     */
+    private void maybeRing(String meetingId, String senderFid) {
+        MeetingBoard b = board;
+        MeetingBoard.Meeting m = b == null ? null : b.get(meetingId);
+        if (m == null || m.ended || senderFid == null || senderFid.equals(myFid)) return;
+        if (ringing != null || busyReason() != null) return;
+        // The host's clock, not ours: a little skew either way still counts as just started.
+        if (Math.abs(System.currentTimeMillis() - m.started) > RING_FRESH_MS) return;
+        ringing = m;
+        TimberLogger.i(TAG, "meeting %s rings", meetingId);
+        NotificationManager nm = context.getSystemService(NotificationManager.class);
+        nm.createNotificationChannel(new NotificationChannel(CallManager.CHANNEL_INCOMING,
+                context.getString(R.string.call_channel_incoming), NotificationManager.IMPORTANCE_HIGH));
+        Intent open = new Intent(context, MeetingActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        PendingIntent pi = PendingIntent.getActivity(context, 1, open,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        nm.notify(NOTIFY_MEETING, new NotificationCompat.Builder(context, CallManager.CHANNEL_INCOMING)
+                .setSmallIcon(R.drawable.ic_call)
+                .setContentTitle(context.getString(R.string.meeting_ringing_title))
+                .setContentText(ringText(m))
+                .setCategory(NotificationCompat.CATEGORY_CALL)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setOngoing(true)
+                .setContentIntent(pi)
+                .setFullScreenIntent(pi, true)
+                .build());
+        try {
+            ringtone = RingtoneManager.getRingtone(context, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE));
+            if (ringtone != null) ringtone.play();
+        } catch (RuntimeException e) {
+            TimberLogger.w(TAG, "no ringtone: %s", e.getMessage());
+        }
+        main.postDelayed(ringTimeout, RING_FOR_MS);
+        // If the app is in front, go straight to the meeting screen.
+        try {
+            context.startActivity(open);
+        } catch (RuntimeException ignored) {
+            // from the background the notification does it
+        }
+        notifyUi();
+    }
+
+    /** "Alice started a meeting", for the ring. */
+    public String ringText(MeetingBoard.Meeting m) {
+        String who = hostName(m.hostFid);
+        return m.title == null || m.title.isEmpty() ? context.getString(R.string.meeting_ringing_text, who)
+                : context.getString(R.string.meeting_ringing_text_titled, who, m.title);
+    }
+
+    private static String hostName(String fid) {
+        com.fc.freer.im.ImManager im = com.fc.freer.manager.FidManager.getInstance().getImManager();
+        var p = im == null ? null : im.getTalkPartner(fid);
+        String cid = p == null ? null : p.getCid();
+        return cid != null && !cid.isEmpty() ? cid : com.fc.fc_ajdk.utils.StringUtils.omitMiddle(fid, 20);
+    }
+
+    /** Join the ringing meeting; {@code done} as for {@link #join}. */
+    public void answerRing(java.util.function.Consumer<String> done) {
+        MeetingBoard.Meeting m = ringing;
+        if (m == null) {
+            done.accept(context.getString(R.string.meeting_unknown));
+            return;
+        }
+        // Joining stops the ring once it is connecting, so the screen never sees neither.
+        join(m.meetingId, error -> {
+            if (error != null) stopRinging();
+            done.accept(error);
+        });
+    }
+
+    public void declineRing() {
+        stopRinging();
+    }
+
+    /** Stop ringing, whatever rang: a call rang, the meeting was joined, declined or ended, or 45 s passed. */
+    public void stopRinging() {
+        main.removeCallbacks(ringTimeout);
+        if (ringtone != null) ringtone.stop();
+        ringtone = null;
+        context.getSystemService(NotificationManager.class).cancel(NOTIFY_MEETING);
+        if (ringing != null) {
+            ringing = null;
+            notifyUi();
+        }
+    }
+
+    private void stopRingingFor(String meetingId) {
+        if (ringing != null && ringing.meetingId.equals(meetingId)) stopRinging();
     }
 
     private void notifyUi() {
