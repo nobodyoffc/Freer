@@ -56,7 +56,8 @@ public final class MeetingManager {
         /** The relay a new meeting runs on: the entity's home.CALL, else my own (§8). Blocking. */
         String relayFor(String entityType, String entityId);
 
-        String entityName(String entityId);
+        /** The Room's or Team's name. May touch the network: never on the main thread. */
+        String entityName(String entityType, String entityId);
 
         MeetingSession.Keys keys();
 
@@ -108,6 +109,8 @@ public final class MeetingManager {
     private boolean endForAllRequested;
     private String endReason;
     private volatile boolean speaker = true; // a meeting is usually on the speaker
+    /** The meeting's Room or Team name, looked up once off the main thread. */
+    private volatile String entityName;
 
     private MeetingManager(Context context) {
         this.context = context;
@@ -194,7 +197,7 @@ public final class MeetingManager {
         MeetingBoard.Meeting m = meeting;
         if (m == null) return null;
         if (m.title != null && !m.title.isEmpty()) return m.title;
-        String name = hooks == null ? null : hooks.entityName(m.entityId);
+        String name = entityName;
         return name != null ? name : m.entityId;
     }
 
@@ -433,6 +436,19 @@ public final class MeetingManager {
 
     private void run(MeetingBoard.Meeting m, boolean creating) {
         meeting = m;
+        entityName = null;
+        Hooks names = hooks;
+        if (names != null) {
+            background.execute(() -> {
+                String n = names.entityName(m.entityType, m.entityId);
+                main.post(() -> {
+                    if (meeting == m) {
+                        entityName = n;
+                        notifyUi();
+                    }
+                });
+            });
+        }
         phase = Phase.CONNECTING;
         endReason = null;
         endForAllRequested = false;

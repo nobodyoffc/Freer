@@ -2089,11 +2089,13 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         }
 
         @Override
-        public String entityName(String entityId) {
+        public String entityName(String entityType, String entityId) {
+            if (ImType.ROOM.name().equals(entityType)) {
+                Room room = roomHandler != null ? roomHandler.getRoom(entityId) : null;
+                return room != null ? room.getName() : null;
+            }
             Team team = teamHandler != null ? teamHandler.getTeam(entityId) : null;
-            if (team != null && team.getStdName() != null) return team.getStdName();
-            Room room = roomHandler != null ? roomHandler.getRoom(entityId) : null;
-            return room != null ? room.getName() : null;
+            return team != null ? team.getStdName() : null;
         }
 
         @Override

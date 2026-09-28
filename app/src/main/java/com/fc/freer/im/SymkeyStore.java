@@ -221,7 +221,9 @@ public class SymkeyStore {
             entry.setActive(true);
 
             db.put(id, entry);
-            keyCache.put(id, symkey);
+            // A copy: a caller that erases its own key afterwards, as key handling should,
+            // must not erase the one this store hands out.
+            keyCache.put(id, symkey.clone());
             index(entityId, id);
             return StoreResult.STORED;
         } catch (Exception e) {
