@@ -3371,6 +3371,30 @@ public class ChatActivity extends BaseCryptoActivity
         if (adapter != null) adapter.notifyDataSetChanged(); // a card opened or ended
     };
 
+    /**
+     * Back from a meeting: this screen was paused while the meeting posted its
+     * card or it ended, and heard of neither. Reload if an open meeting of this
+     * chat has no card here; redraw the cards either way.
+     */
+    private void catchUpMeetingCards() {
+        com.fc.freer.call.MeetingBoard board = com.fc.freer.call.MeetingManager.getInstance(this).board();
+        if (board == null || targetId == null || adapter == null) return;
+        for (com.fc.freer.call.MeetingBoard.Meeting m : board.open(targetId)) {
+            boolean shown = false;
+            for (ImMessage x : messages) {
+                if (com.fc.freer.call.CallText.isCall(x) && x.getContent() != null && x.getContent().contains(m.meetingId)) {
+                    shown = true;
+                    break;
+                }
+            }
+            if (!shown) {
+                loadMessages();
+                return;
+            }
+        }
+        adapter.notifyDataSetChanged();
+    }
+
     private void withMeetingMic(Runnable next) {
         afterMeetingMic = next;
         java.util.List<String> needed = new java.util.ArrayList<>();
@@ -3514,6 +3538,7 @@ public class ChatActivity extends BaseCryptoActivity
         dismissLeaveTeamDialog();
 
         com.fc.freer.call.MeetingManager.getInstance(this).addCardListener(meetingCards);
+        catchUpMeetingCards();
         if (imManager != null) {
             imManager.addListener(this);
             imManager.setActiveChatDock(imType, targetId);

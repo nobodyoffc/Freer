@@ -408,6 +408,17 @@ public class P2pHandler extends BaseHandler {
      * @return true if at least one channel took it
      */
     public boolean sendCallSignal(ImMessage message) {
+        return sendOnEveryChannel(message, true);
+    }
+
+    /**
+     * {@link #sendCallSignal}'s fan-out for any message that must arrive now
+     * rather than at the next DOCK check, such as a rotated symkey (VOICE_SPEC
+     * §4.5): a meeting gives its members 30 s to prove the new key.
+     *
+     * @param dock also put it on the DOCK; false when the retry queue already does
+     */
+    public boolean sendOnEveryChannel(ImMessage message, boolean dock) {
         String targetFid = message.getTargetId();
         byte[] envelope = signedWire(message);
         if (targetFid == null || envelope == null) return false;
@@ -442,7 +453,7 @@ public class P2pHandler extends BaseHandler {
                 }
             }
         }
-        if (routes.dockUrl() != null) {
+        if (dock && routes.dockUrl() != null) {
             FapiClient ownDockClient = ApiCenter.getInstance().getClient(ApiCenter.ConnectionRole.DOCK);
             if (deliverToDock(routes.dockUrl(), sealed, message, targetFid, ownDockClient)) any = true;
         }

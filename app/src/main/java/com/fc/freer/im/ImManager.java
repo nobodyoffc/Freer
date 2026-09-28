@@ -361,6 +361,20 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         // retried automatically (e.g. when the recipient's DOCK is temporarily down).
         // isRoomControlType() covers both types, so send() skips DB/conversation indexing.
         BaseHandler.P2pSender p2pSender = message -> {
+            // Key material, and asks for it, also leave at once on every channel: a rotated
+            // key must reach members in seconds, not at their next DOCK check (VOICE_SPEC
+            // §4.5). Same message id, so the queue's DOCK copy is a duplicate the receiver drops.
+            boolean urgent = message != null && message.getType() == ImType.P2P
+                    && (message.getContentType() == ContentType.ROOM_INFO || message.getContentType() == ContentType.SYMKEY);
+            if (urgent) {
+                if (!message.hasFudpId() && fudpNode != null) message.setIdFromLong(fudpNode.generateMessageId());
+                message.setSenderId(liveFid);
+                executor.execute(() -> {
+                    boolean any = p2pHandler.sendOnEveryChannel(message, false);
+                    TimberLogger.i(TAG, "Key message %s (%s) to %s, sent at once: %s", message.getId(),
+                            message.getContentType(), message.getTargetId(), any);
+                });
+            }
             send(message);
             return MessageQueue.SendResult.SUCCESS;
         };
