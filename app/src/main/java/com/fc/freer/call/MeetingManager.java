@@ -43,6 +43,11 @@ public final class MeetingManager {
         void onMeetingChanged();
     }
 
+    /** For the chat: a meeting card opened, changed or ended. Not called for what goes on inside a meeting. */
+    public interface CardListener {
+        void onCardsChanged();
+    }
+
     /** What the manager needs from the identity's IM layer. */
     public interface Hooks {
         /** Post a CALL message into the Room or Team chat (§3.3). */
@@ -66,6 +71,7 @@ public final class MeetingManager {
     private final Context context;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
+    private final List<CardListener> cardListeners = new CopyOnWriteArrayList<>();
     private final CallAudio audio;
     private final ExecutorService background = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "meetings");
@@ -126,6 +132,14 @@ public final class MeetingManager {
 
     public void removeListener(Listener l) {
         listeners.remove(l);
+    }
+
+    public void addCardListener(CardListener l) {
+        cardListeners.add(l);
+    }
+
+    public void removeCardListener(CardListener l) {
+        cardListeners.remove(l);
     }
 
     // ===== State for the UI =====
@@ -323,7 +337,7 @@ public final class MeetingManager {
                 ? b.onStart(entityId, entityType, senderFid, s)
                 : b.onEnd(entityId, senderFid, s);
         if (r == MeetingBoard.Result.CONFIRM) confirmEndLater(s.meetingId);
-        if (r != MeetingBoard.Result.UNCHANGED) main.post(this::notifyUi);
+        if (r != MeetingBoard.Result.UNCHANGED && r != MeetingBoard.Result.CONFIRM) main.post(this::notifyCards);
         return r;
     }
 
@@ -339,7 +353,7 @@ public final class MeetingManager {
             Boolean open = probeOpen(m);
             if (Boolean.FALSE.equals(open)) {
                 b.markEnded(meetingId, 0);
-                main.post(this::notifyUi);
+                main.post(this::notifyCards);
             }
         }, CONFIRM_END_AFTER_MS, TimeUnit.MILLISECONDS);
     }
@@ -441,6 +455,7 @@ public final class MeetingManager {
         MeetingBoard b = board;
         if (b != null) b.onStart(m.entityId, m.entityType, myFid, start);
         hooks.post(m.entityType, m.entityId, start);
+        notifyCards();
     }
 
     private void ended(MeetingBoard.Meeting m, MeetingSession.End why, String detail) {
@@ -453,6 +468,7 @@ public final class MeetingManager {
             if (b != null) b.markEnded(m.meetingId, duration);
             // The host who closed it says so in the chat; members learn it from there (§8).
             if (endForAllRequested && hooks != null) hooks.post(m.entityType, m.entityId, MeetingSignal.end(m.meetingId, duration));
+            notifyCards();
         }
         session = null;
         audio.leave();
@@ -472,5 +488,9 @@ public final class MeetingManager {
 
     private void notifyUi() {
         for (Listener l : listeners) l.onMeetingChanged();
+    }
+
+    private void notifyCards() {
+        for (CardListener l : cardListeners) l.onCardsChanged();
     }
 }

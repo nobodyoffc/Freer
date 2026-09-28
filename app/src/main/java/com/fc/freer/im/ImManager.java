@@ -1956,7 +1956,14 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
     private final class MeetingHooks implements com.fc.freer.call.MeetingManager.Hooks {
         @Override
         public void post(String entityType, String entityId, com.fc.fc_ajdk.call.MeetingSignal signal) {
-            send(ImMessage.createCall(ImType.valueOf(entityType), liveFid, entityId, signal.toJson()));
+            ImMessage m = ImMessage.createCall(ImType.valueOf(entityType), liveFid, entityId, signal.toJson());
+            send(m);
+            // A new card shows in the open chat at once, as a message typed there would.
+            if (!isMeetingControl(m)) {
+                mainHandler.post(() -> {
+                    for (ImListener l : listeners) l.onMessageReceived(m);
+                });
+            }
         }
 
         /**

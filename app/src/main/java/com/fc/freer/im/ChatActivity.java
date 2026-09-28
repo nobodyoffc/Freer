@@ -1641,8 +1641,10 @@ public class ChatActivity extends BaseCryptoActivity
         if (message.getContentType() == ContentType.RECEIPT) return;
         
         if (isMessageForThisChat(message)) {
+            // Except a meeting card: the meeting posts it, not this screen, so it is not here yet.
             if ((imType == ImType.SQUARE || imType == ImType.TEAM || imType == ImType.ROOM)
-                    && liveFid != null && liveFid.equals(message.getSenderId())) {
+                    && liveFid != null && liveFid.equals(message.getSenderId())
+                    && message.getContentType() != ContentType.CALL) {
                 TimberLogger.d(TAG, "Ignoring self-sent group message: id=%s", message.getId());
                 return;
             }
@@ -3365,7 +3367,7 @@ public class ChatActivity extends BaseCryptoActivity
                 }
             });
 
-    private final com.fc.freer.call.MeetingManager.Listener meetingCards = () -> {
+    private final com.fc.freer.call.MeetingManager.CardListener meetingCards = () -> {
         if (adapter != null) adapter.notifyDataSetChanged(); // a card opened or ended
     };
 
@@ -3511,7 +3513,7 @@ public class ChatActivity extends BaseCryptoActivity
         super.onResume();
         dismissLeaveTeamDialog();
 
-        com.fc.freer.call.MeetingManager.getInstance(this).addListener(meetingCards);
+        com.fc.freer.call.MeetingManager.getInstance(this).addCardListener(meetingCards);
         if (imManager != null) {
             imManager.addListener(this);
             imManager.setActiveChatDock(imType, targetId);
@@ -3550,7 +3552,7 @@ public class ChatActivity extends BaseCryptoActivity
         saveDraft();
         if (isRecording) cancelRecording();
         if (voicePlayer != null) voicePlayer.stop();
-        com.fc.freer.call.MeetingManager.getInstance(this).removeListener(meetingCards);
+        com.fc.freer.call.MeetingManager.getInstance(this).removeCardListener(meetingCards);
         if (imManager != null) {
             imManager.removeListener(this);
             imManager.clearActiveChatDock();

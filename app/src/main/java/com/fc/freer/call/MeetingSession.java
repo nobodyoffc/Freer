@@ -530,6 +530,7 @@ public final class MeetingSession {
             for (Integer gone : new HashSet<>(fidOfSsrc.keySet())) {
                 if (!present.contains(gone)) {
                     fidOfSsrc.remove(gone);
+                    arrivals.remove(gone);
                     if (m != null) m.removePeer(gone);
                 }
             }
