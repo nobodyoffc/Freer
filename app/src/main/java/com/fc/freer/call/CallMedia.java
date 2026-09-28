@@ -23,8 +23,9 @@ import java.util.TreeMap;
  * <p>
  * In a meeting a sender's audio pauses when its attestations are late, and
  * resumes once one vouches for what was held (Decision 15); only a digest
- * that does not match silences it for good. A rekey (§4.5) moves everyone to
- * a new key epoch; the previous epoch's keys open frames for 5 s more.
+ * that does not match silences it for good. A rekey (§4.5) adds a new key
+ * epoch; senders move to it once everyone holds it (Decision 19), and the
+ * previous epoch's keys open frames for 5 s after that.
  * <p>
  * No Android and no network in here. Thread-safety: every method is
  * synchronized; {@link #seal} runs on the capture thread, {@link #open} on the
@@ -81,6 +82,8 @@ public final class CallMedia {
     private int myEpoch = KEY_EPOCH;
     private byte[] myKey;
     private int previousEpoch = -1;
+    private int pendingEpoch = -1;
+    private byte[] pendingKey;
     private long previousUntilMs;
     private final byte[] tPriv;
     private final Map<Integer, Peer> peers = new HashMap<>();
@@ -147,20 +150,40 @@ public final class CallMedia {
     }
 
     /**
-     * Move to a new key epoch (§4.5): our frames go out under it at once, and
-     * everyone's frames open under it. The previous epoch's keys open frames
-     * already in flight for {@link #PREVIOUS_EPOCH_MS} more.
+     * A new key epoch (§4.5): everyone's frames open under it from now on, but
+     * ours go out under it only at {@link #switchSending}, once everyone still
+     * in the meeting holds it (Decision 19). Until then the current epoch's keys
+     * keep both working.
      */
     public synchronized void rekey(byte[] newSecret, int keyEpoch, long nowMs) {
         int epoch = keyEpoch & 0xFF; // the header carries it as a u8
-        if (epoch == myEpoch) return;
+        if (epoch == myEpoch || epoch == pendingEpoch) return;
+        if (pendingEpoch >= 0) switchSending(nowMs); // a second rekey before the first settled
+        secrets.put(epoch, newSecret.clone());
+        for (Peer p : peers.values()) p.keys.put(epoch, CallKeys.senderKey(newSecret, p.fid, p.ssrc, epoch));
+        pendingEpoch = epoch;
+        pendingKey = CallKeys.senderKey(newSecret, myFid, mySsrc, epoch);
+    }
+
+    /**
+     * Send under the epoch {@link #rekey} added. The previous epoch's keys open
+     * frames for {@link #PREVIOUS_EPOCH_MS} more: other senders switch at about
+     * the same moment, and some frames are in flight.
+     */
+    public synchronized void switchSending(long nowMs) {
+        if (pendingEpoch < 0) return;
         dropPreviousEpoch();
         previousEpoch = myEpoch;
         previousUntilMs = nowMs + PREVIOUS_EPOCH_MS;
-        secrets.put(epoch, newSecret.clone());
-        for (Peer p : peers.values()) p.keys.put(epoch, CallKeys.senderKey(newSecret, p.fid, p.ssrc, epoch));
-        myEpoch = epoch;
-        myKey = CallKeys.senderKey(newSecret, myFid, mySsrc, epoch);
+        myEpoch = pendingEpoch;
+        myKey = pendingKey;
+        pendingEpoch = -1;
+        pendingKey = null;
+    }
+
+    /** The epoch added by {@link #rekey} and not yet sent under, or -1. */
+    public synchronized int pendingEpoch() {
+        return pendingEpoch;
     }
 
     public synchronized int keyEpoch() {

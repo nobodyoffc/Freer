@@ -122,6 +122,8 @@ public final class MeetingSession {
     private volatile String mutedByHost;
     private volatile long symkeyVersion;
     private volatile long rekeyTriedVersion = -1, rekeyTriedAtMs;
+    /** A rekey's epoch, as the relay counts it, that we hold but do not send under yet (Decision 19); -1 if none. */
+    private volatile int pendingEpoch = -1;
     private volatile boolean over;
     private volatile long joinedAtMs = -1;
     private final Set<Integer> unverified = new HashSet<>();
@@ -408,7 +410,11 @@ public final class MeetingSession {
 
     private void startMedia(byte[] secret, int epoch) {
         CallMedia m = new CallMedia(meeting.meetingId, secret, myFid, capture.ssrc(), tPriv);
-        if (epoch != CallMedia.KEY_EPOCH) m.rekey(secret, epoch, System.currentTimeMillis());
+        if (epoch != CallMedia.KEY_EPOCH) {
+            // Joined after a rekey: everyone already holds this epoch.
+            m.rekey(secret, epoch, System.currentTimeMillis());
+            m.switchSending(System.currentTimeMillis());
+        }
         m.setRouteId(routeId);
         PlayoutEngine p = new PlayoutEngine(AudioIo.Backend.AAUDIO);
         m.setListener(new CallMedia.Listener() {
@@ -544,7 +550,28 @@ public final class MeetingSession {
             applyMute();
         }
         participants = List.copyOf(list);
+        int pending = pendingEpoch;
+        if (pending >= 0 && everyoneHas(roster, pending)) switchSending(pending, "everyone has it");
         listener.onChanged();
+    }
+
+    /** Every roster entry has proved {@code epoch}: the relay says so in each entry (§4.5). */
+    private static boolean everyoneHas(Map<String, Object> roster, int epoch) {
+        List<Map<String, Object>> entries = CallRelayLink.roster(roster);
+        if (entries.isEmpty()) return false;
+        for (Map<String, Object> e : entries) {
+            if (!(e.get("keyEpoch") instanceof Number n) || n.intValue() < epoch) return false;
+        }
+        return true;
+    }
+
+    /** Send under the rekey's epoch from now on, once. */
+    private synchronized void switchSending(int epoch, String why) {
+        CallMedia m = media;
+        if (pendingEpoch != epoch || m == null) return;
+        pendingEpoch = -1;
+        m.switchSending(System.currentTimeMillis());
+        step("sending under key epoch " + epoch + ": " + why);
     }
 
     /**
@@ -561,7 +588,7 @@ public final class MeetingSession {
         long within = notice.get("proveWithinSeconds") instanceof Number w ? w.longValue() * 1000 : 30_000;
         if (version < 0 || epoch < 0 || nonce == null || authPub == null) return;
         CallMedia m = media;
-        if (m != null && m.keyEpoch() == (epoch & 0xFF)) return; // already there
+        if (m != null && (m.keyEpoch() == (epoch & 0xFF) || m.pendingEpoch() == (epoch & 0xFF))) return; // already there
         byte[] secret = MeetingKeys.secret(keys.symkeys(meeting.entityId, version), Hex.fromHex(nonce),
                 meeting.entityId, version, meeting.meetingId, authPub);
         if (secret == null) {
@@ -575,7 +602,14 @@ public final class MeetingSession {
             return;
         }
         byte[] authPriv = CallKeys.authPriv(secret);
-        if (m != null) m.rekey(secret, epoch, System.currentTimeMillis());
+        if (m != null) {
+            // Held, not yet sent under: everyone keeps hearing us until all have the new key,
+            // or the relay's deadline drops those who could not get it (Decision 19).
+            m.rekey(secret, epoch, System.currentTimeMillis());
+            pendingEpoch = epoch;
+            long left = since + within - System.currentTimeMillis();
+            timer.schedule(() -> switchSending(epoch, "the relay's deadline"), Math.max(0, left), TimeUnit.MILLISECONDS);
+        }
         Arrays.fill(secret, (byte) 0);
         symkeyVersion = version;
         submit(() -> {

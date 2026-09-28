@@ -203,26 +203,36 @@ public class CallMediaTest {
     }
 
     @Test
-    public void aRekeyMovesEveryoneToTheNewEpochAndTheOldOneLapses() {
+    public void aRekeyWaitsForEveryoneThenTheOldEpochLapses() {
         byte[] next = key();
-        byte[] inFlight = alice.media.seal(frame(alice, 0), now); // sealed under epoch 0
         alice.media.rekey(next, 1, now);
         bob.media.rekey(next, 1, now);
+        CallMedia behind = new CallMedia(CALL_ID, secret, "FDave", RNG.nextInt(), key());
+        behind.addPeer(alice.fid, alice.ssrc, alice.tPub);
+
+        // Held, not yet sent under (Decision 19): a member still waiting for the key hears Alice.
+        byte[] held = alice.media.seal(frame(alice, 0), now);
+        assertEquals(0, MediaFrame.Header.parse(held).keyEpoch());
+        assertEquals(1, alice.media.pendingEpoch());
+        assertNotNull("the one without the new key still hears", behind.open(held, now));
+        assertNotNull(bob.media.open(held, now));
+
+        // Everyone has it: Alice switches.
+        alice.media.switchSending(now);
         assertEquals(1, alice.media.keyEpoch());
+        assertEquals(-1, alice.media.pendingEpoch());
         byte[] fresh = alice.media.seal(frame(alice, 1), now);
         assertEquals(1, MediaFrame.Header.parse(fresh).keyEpoch());
         assertNotNull("the new epoch opens", bob.media.open(fresh, now));
-        assertNotNull("a frame in flight from before still opens", bob.media.open(inFlight, now + 1_000));
+        assertNull("and only for those who hold it", behind.open(fresh, now));
 
-        byte[] late = CallMediaTest.sealUnder(secret, alice, 2, 0);
+        // Bob switches a moment later; in the meantime his old-epoch frames still open at Alice.
+        assertNotNull(alice.media.open(bob.media.seal(frame(bob, 0), now), now + 1_000));
+        bob.media.switchSending(now + 1_000);
+        byte[] late = CallMediaTest.sealUnder(secret, bob, 5, 0);
         now += CallMedia.PREVIOUS_EPOCH_MS;
-        bob.media.tick(now);
-        assertNull("the old epoch's keys are gone after 5 s", bob.media.open(late, now));
-
-        CallMedia behind = new CallMedia(CALL_ID, secret, "FDave", RNG.nextInt(), key());
-        behind.addPeer(alice.fid, alice.ssrc, alice.tPub);
-        assertNull("a member without the new key hears nothing new",
-                behind.open(alice.media.seal(frame(alice, 3), now), now));
+        alice.media.tick(now);
+        assertNull("the old epoch's keys are gone 5 s after switching", alice.media.open(late, now));
     }
 
     /** A frame of {@code p}'s sealed under {@code secret} at {@code epoch}, as a sender still on it would. */
