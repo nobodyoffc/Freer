@@ -2705,6 +2705,11 @@
     <string name="meeting_hand">举手</string>
     <string name="meeting_connecting">正在加入…</string>
     <string name="meeting_participants">%1$d 人在会议中</string>
+    <string name="dock_checking">消息检查</string>
+    <string name="dock_checking_fast">快速</string>
+    <string name="dock_checking_normal">标准</string>
+    <string name="dock_checking_saver">省电</string>
+    <string name="dock_checking_hint">本机检查来电、会议响铃和消息的频率。标准：应用打开时，每 3 秒检查打给你的来电，每 10 秒检查群聊和团队。快速会更频繁；省电则为每 10 秒和每 1 分钟。在后台，仅当开启“随时可接听”时才会持续检查，否则最多每 3 分钟一次。打开的聊天始终每 3 秒检查一次。</string>
     <string name="meeting_card_title">语音会议</string>
     <string name="meeting_card_title_named">语音会议：%1$s</string>
     <string name="meeting_card_by">由 %1$s 发起</string>

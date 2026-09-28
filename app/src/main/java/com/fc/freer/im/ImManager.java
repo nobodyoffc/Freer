@@ -517,9 +517,10 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                         squareHandler.getAllSquares(),
                         fapiClient
                 );
+                applyDockIntervals();
                 dockScheduler.start();
                 // Fetch immediately while bootstrap connections are still fresh.
-                // Without this, the first fetch waits 60s (NORMAL layer) and the
+                // Without this, the first fetch waits for its interval and the
                 // FUDP connection to the dock server may have gone idle by then.
                 dockScheduler.fetchNow();
                 TimberLogger.i(TAG, "DOCK scheduler started with %d entries", dockRegistry.size());
@@ -3155,6 +3156,34 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 dockRegistry.getFailedDocks().size());
         dockRegistry.resetRetryCooldowns();
         dockScheduler.fetchNow();
+    }
+
+    /** Whether an activity of this app is on screen; the application tells us. */
+    private static volatile boolean appInFront = true;
+
+    /** The app came to the front or went behind: check the DOCKs at the matching pace. */
+    public void setAppInFront(boolean inFront) {
+        appInFront = inFront;
+        applyDockIntervals();
+    }
+
+    /**
+     * How often to check each DOCK (VOICE_SPEC §6.3, Decision 22): the user's
+     * level, in front or behind; behind, only as often as the process is kept
+     * alive to, which <i>Available for calls</i> does.
+     */
+    public void applyDockIntervals() {
+        DockFetchScheduler s = dockScheduler;
+        if (s == null) return;
+        com.fc.freer.im.dock.DockCheckLevel level = com.fc.freer.im.dock.DockCheckLevel.get(context);
+        if (appInFront) {
+            s.setIntervals(level.ownForegroundMs, level.groupsForegroundMs);
+        } else if (com.fc.freer.call.CallManager.getInstance(context).availableForCalls()) {
+            s.setIntervals(level.ownBackgroundMs, level.groupsBackgroundMs);
+        } else {
+            long every = com.fc.freer.im.dock.DockCheckLevel.UNKEPT_BACKGROUND_MS;
+            s.setIntervals(every, every);
+        }
     }
 
     /**

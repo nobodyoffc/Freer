@@ -9,13 +9,17 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.RadioGroup;
 
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.fc.freer.R;
+import com.fc.freer.im.ImManager;
+import com.fc.freer.im.dock.DockCheckLevel;
+import com.fc.freer.manager.FidManager;
 import com.fc.freer.utils.ToolbarUtils;
 
-/** Call settings (VOICE_SPEC §10): Available for calls, Always relay, and in debug builds a test relay. */
+/** Call settings (VOICE_SPEC §10): Available for calls, Message checking, Always relay, and in debug builds a test relay. */
 public class CallSettingsActivity extends AppCompatActivity {
 
     @Override
@@ -30,6 +34,20 @@ public class CallSettingsActivity extends AppCompatActivity {
         available.setOnCheckedChangeListener((b, on) -> {
             calls.setAvailableForCalls(on);
             if (on) askToIgnoreBatteryOptimisation();
+        });
+
+        // How often the DOCKs are checked, and so how soon calls, meetings and messages arrive (§6.3).
+        RadioGroup checking = findViewById(R.id.rgDockChecking);
+        checking.check(switch (DockCheckLevel.get(this)) {
+            case FAST -> R.id.rbDockFast;
+            case BATTERY_SAVER -> R.id.rbDockSaver;
+            default -> R.id.rbDockNormal;
+        });
+        checking.setOnCheckedChangeListener((g, id) -> {
+            DockCheckLevel.set(this, id == R.id.rbDockFast ? DockCheckLevel.FAST
+                    : id == R.id.rbDockSaver ? DockCheckLevel.BATTERY_SAVER : DockCheckLevel.NORMAL);
+            ImManager im = FidManager.getInstance().getImManager();
+            if (im != null) im.applyDockIntervals();
         });
 
         CheckBox alwaysRelay = findViewById(R.id.cbAlwaysRelay);

@@ -115,6 +115,7 @@ public class FreerApplication extends Application {
             @Override
             public void onActivityStarted(android.app.Activity activity) {
                 BackgroundTimeoutManager.onActivityStarted();
+                if (startedActivities++ == 0) notifyImInFront(true);
             }
 
             @Override
@@ -134,6 +135,7 @@ public class FreerApplication extends Application {
             @Override
             public void onActivityStopped(android.app.Activity activity) {
                 BackgroundTimeoutManager.onActivityStopped();
+                if (startedActivities > 0 && --startedActivities == 0) notifyImInFront(false);
             }
 
             @Override
@@ -149,6 +151,21 @@ public class FreerApplication extends Application {
         super.onTerminate();
         // Close the database when the application is terminating
         DatabaseManager.shutdown();
+    }
+
+    /** Activities started and not yet stopped: none means the app is behind. Main thread only. */
+    private static int startedActivities;
+
+    /** The DOCKs are checked faster while the app is in front (VOICE_SPEC §6.3). */
+    private static void notifyImInFront(boolean inFront) {
+        try {
+            SettingManager sm = SettingManager.getInstance();
+            Setting setting = sm == null ? null : sm.getCurrentSetting();
+            ImManager imManager = setting == null ? null : setting.getImManager();
+            if (imManager != null) imManager.setAppInFront(inFront);
+        } catch (Exception e) {
+            TimberLogger.w("FreerApp", "notifyImInFront failed: " + e.getMessage());
+        }
     }
 
     /**

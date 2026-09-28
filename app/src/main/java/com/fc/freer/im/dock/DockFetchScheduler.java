@@ -27,10 +27,11 @@ import java.util.concurrent.TimeUnit;
 /**
  * Periodically fetches DockItems from all registered DOCK servers.
  * <p>
- * Uses layered intervals:
- * - Active layer: 10s (when app is actively in a chat)
- * - Normal layer: 60s (app is open but not in chat)
- * - Background layer: 5 min (app in background)
+ * Each DOCK is due by its own interval, checked once a second: an open
+ * chat's every 3 s; my own DOCK, where calls and invitations land, and every
+ * other DOCK at the intervals {@link #setIntervals} gives, which follow the
+ * user's {@link DockCheckLevel} and whether the app is in front (VOICE_SPEC
+ * §6.3). A DOCK is never fetched twice at once: its cursor would race.
  * <p>
  * For each DOCK URL, fetches all recipient IDs in a single dock.fetch call,
  * tracks pagination cursors per DOCK URL, and delegates items to a DockItemRouter.
@@ -47,6 +48,8 @@ public class DockFetchScheduler {
     public enum FetchLayer {
         ACTIVE, NORMAL, BACKGROUND
     }
+
+    private static final long TICK_MS = 1_000;
 
     /**
      * Callback for fetched dock items.
@@ -67,9 +70,14 @@ public class DockFetchScheduler {
 
     private volatile FetchLayer currentLayer = FetchLayer.NORMAL;
     private volatile boolean running = false;
+    private final String liveFid;
+    /** My own DOCK's interval, and every other's; set by the owner from the check level. */
+    private volatile long ownIntervalMs = NORMAL_INTERVAL_MS, othersIntervalMs = NORMAL_INTERVAL_MS;
+    /** When each DOCK was last asked; 0 until it is. */
+    private final Map<String, Long> lastFetchMs = new ConcurrentHashMap<>();
+    private final Set<String> inFlight = ConcurrentHashMap.newKeySet();
 
     private final Set<String> priorityDockUrls = ConcurrentHashMap.newKeySet();
-    private ScheduledFuture<?> priorityTask;
 
     private static final String MMKV_PREFIX = "dock_cursors_";
     private static final String CURSORS_KEY = "cursors";
@@ -84,6 +92,7 @@ public class DockFetchScheduler {
 
     public DockFetchScheduler(DockServiceRegistry registry, String liveFid) {
         this.registry = registry;
+        this.liveFid = liveFid;
         this.cursorStore = MMKV.mmkvWithID(MMKV_PREFIX + liveFid, MMKV.SINGLE_PROCESS_MODE);
         loadCursors();
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -109,11 +118,7 @@ public class DockFetchScheduler {
     public void start() {
         if (running) return;
         running = true;
-        scheduleNext();
-        if (!priorityDockUrls.isEmpty()) {
-            fetchExecutor.execute(this::fetchFromPriorityDocks);
-            scheduleNextPriority();
-        }
+        scheduledTask = scheduler.scheduleWithFixedDelay(this::tick, 0, TICK_MS, TimeUnit.MILLISECONDS);
         TimberLogger.i(TAG, "Started with layer: %s, pending priority docks: %d",
                 currentLayer, priorityDockUrls.size());
     }
@@ -127,23 +132,29 @@ public class DockFetchScheduler {
             scheduledTask.cancel(false);
             scheduledTask = null;
         }
-        cancelPriorityTask();
         priorityDockUrls.clear();
         TimberLogger.i(TAG, "Stopped");
     }
 
     /**
+     * How often to check my own DOCK and every other DOCK (not an open chat's,
+     * which is always 3 s). A shorter interval than before takes effect at the
+     * next tick.
+     */
+    public void setIntervals(long ownMs, long othersMs) {
+        if (ownMs == ownIntervalMs && othersMs == othersIntervalMs) return;
+        ownIntervalMs = ownMs;
+        othersIntervalMs = othersMs;
+        TimberLogger.i(TAG, "Intervals: own DOCK %d s, others %d s", ownMs / 1000, othersMs / 1000);
+    }
+
+    /**
      * Change the fetch layer (adjusts polling interval).
+     * @deprecated the intervals come from {@link #setIntervals}; kept for callers that still set it
      */
     public void setLayer(FetchLayer layer) {
         if (layer == currentLayer) return;
         currentLayer = layer;
-        if (running) {
-            if (scheduledTask != null) {
-                scheduledTask.cancel(false);
-            }
-            scheduleNext();
-        }
         TimberLogger.d(TAG, "Layer changed to: %s", layer);
     }
 
@@ -153,12 +164,8 @@ public class DockFetchScheduler {
      */
     public void setPriorityDock(String dockUrl) {
         if (dockUrl == null) return;
-        priorityDockUrls.add(dockUrl);
-        if (running) {
-            cancelPriorityTask();
-            fetchExecutor.execute(() -> fetchFromPriorityDocks());
-            scheduleNextPriority();
-        }
+        boolean added = priorityDockUrls.add(dockUrl);
+        if (running && added) lastFetchMs.remove(dockUrl); // due at the next tick
         TimberLogger.d(TAG, "Priority dock added: %s (total: %d)", dockUrl, priorityDockUrls.size());
     }
 
@@ -167,7 +174,6 @@ public class DockFetchScheduler {
      */
     public void clearPriorityDock() {
         priorityDockUrls.clear();
-        cancelPriorityTask();
         TimberLogger.d(TAG, "Priority docks cleared");
     }
 
@@ -187,70 +193,56 @@ public class DockFetchScheduler {
         return running;
     }
 
-    private void scheduleNext() {
+    /** Once a second: fetch every DOCK that is due and not already being fetched. */
+    private void tick() {
         if (!running) return;
-        long interval = switch (currentLayer) {
-            case ACTIVE -> ACTIVE_INTERVAL_MS;
-            case NORMAL -> NORMAL_INTERVAL_MS;
-            case BACKGROUND -> BACKGROUND_INTERVAL_MS;
-        };
-        scheduledTask = scheduler.schedule(() -> {
-            doFetchAll();
-            scheduleNext();
-        }, interval, TimeUnit.MILLISECONDS);
+        try {
+            registry.ensureSelfDockRegistered();
+            Map<String, List<DockServiceRegistry.DockEntry>> grouped = registry.getEntriesByDockUrl();
+            String own = registry.getDockUrl("p2p_self", liveFid);
+            long now = System.currentTimeMillis();
+            for (Map.Entry<String, List<DockServiceRegistry.DockEntry>> entry : grouped.entrySet()) {
+                String dockUrl = entry.getKey();
+                long every = priorityDockUrls.contains(dockUrl) ? PRIORITY_INTERVAL_MS
+                        : dockUrl.equals(own) ? ownIntervalMs : othersIntervalMs;
+                Long last = lastFetchMs.get(dockUrl);
+                if (last != null && now - last < every) continue;
+                fetch(dockUrl, entry.getValue());
+            }
+        } catch (RuntimeException e) {
+            TimberLogger.w(TAG, "tick: %s", e.getMessage());
+        }
     }
 
     private void doFetchAll() {
         if (!running) return;
-
-        // Self-heal: make sure the user's own DOCK is registered before fetching,
-        // so incoming P2P messages are polled even if registration at start() ran
-        // before the DOCK client was ready.
         registry.ensureSelfDockRegistered();
-
         Map<String, List<DockServiceRegistry.DockEntry>> grouped = registry.getEntriesByDockUrl();
         if (grouped.isEmpty()) {
             TimberLogger.d(TAG, "No DOCK servers registered, skipping fetch");
             return;
         }
-
+        // Failed docks are not skipped here: fetchFromDock attempts a
+        // cooldown-guarded reconnect so a dock that died during sleep recovers.
         for (Map.Entry<String, List<DockServiceRegistry.DockEntry>> entry : grouped.entrySet()) {
-            String dockUrl = entry.getKey();
-            if (priorityDockUrls.contains(dockUrl)) continue;
-            // Failed docks are not skipped here: fetchFromDock attempts a
-            // cooldown-guarded reconnect so a dock that died during sleep recovers.
-            List<DockServiceRegistry.DockEntry> entries = entry.getValue();
-            fetchExecutor.execute(() -> fetchFromDock(dockUrl, entries));
+            fetch(entry.getKey(), entry.getValue());
         }
     }
 
-    private void fetchFromPriorityDocks() {
-        if (!running || priorityDockUrls.isEmpty()) return;
-
-        registry.ensureSelfDockRegistered();
-
-        Map<String, List<DockServiceRegistry.DockEntry>> grouped = registry.getEntriesByDockUrl();
-        for (String dockUrl : priorityDockUrls) {
-            // Failed docks recover via fetchFromDock's cooldown-guarded reconnect.
-            List<DockServiceRegistry.DockEntry> entries = grouped.get(dockUrl);
-            if (entries != null && !entries.isEmpty()) {
-                fetchExecutor.execute(() -> fetchFromDock(dockUrl, entries));
-            }
-        }
-    }
-
-    private void scheduleNextPriority() {
-        if (!running || priorityDockUrls.isEmpty()) return;
-        priorityTask = scheduler.schedule(() -> {
-            fetchFromPriorityDocks();
-            scheduleNextPriority();
-        }, PRIORITY_INTERVAL_MS, TimeUnit.MILLISECONDS);
-    }
-
-    private void cancelPriorityTask() {
-        if (priorityTask != null) {
-            priorityTask.cancel(false);
-            priorityTask = null;
+    /** One fetch of one DOCK, unless one is already running: two would race on its cursor. */
+    private void fetch(String dockUrl, List<DockServiceRegistry.DockEntry> entries) {
+        if (!inFlight.add(dockUrl)) return;
+        lastFetchMs.put(dockUrl, System.currentTimeMillis());
+        try {
+            fetchExecutor.execute(() -> {
+                try {
+                    fetchFromDock(dockUrl, entries);
+                } finally {
+                    inFlight.remove(dockUrl);
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            inFlight.remove(dockUrl);
         }
     }
 

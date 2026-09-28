@@ -35,6 +35,51 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="13sp" />
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/dock_checking"
+                android:textColor="@color/text"
+                android:textSize="15sp" />
+
+            <RadioGroup
+                android:id="@+id/rgDockChecking"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:orientation="vertical">
+
+                <RadioButton
+                    android:id="@+id/rbDockFast"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/dock_checking_fast"
+                    android:textColor="@color/text" />
+
+                <RadioButton
+                    android:id="@+id/rbDockNormal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/dock_checking_normal"
+                    android:textColor="@color/text" />
+
+                <RadioButton
+                    android:id="@+id/rbDockSaver"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/dock_checking_saver"
+                    android:textColor="@color/text" />
+            </RadioGroup>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginBottom="16dp"
+                android:text="@string/dock_checking_hint"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
             <CheckBox
                 android:id="@+id/cbAlwaysRelay"
                 android:layout_width="match_parent"

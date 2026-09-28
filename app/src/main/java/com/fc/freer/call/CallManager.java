@@ -228,6 +228,9 @@ public final class CallManager implements CallSignaller.Listener {
         prefs().edit().putBoolean(PREF_AVAILABLE, on).apply();
         if (on) CallAvailabilityService.start(context);
         else CallAvailabilityService.stop(context);
+        // Behind, the DOCKs are checked only as often as the process is kept alive to.
+        com.fc.freer.im.ImManager im = com.fc.freer.manager.FidManager.getInstance().getImManager();
+        if (im != null) im.applyDockIntervals();
     }
 
     /** Audio is on a direct path rather than the relay. */
