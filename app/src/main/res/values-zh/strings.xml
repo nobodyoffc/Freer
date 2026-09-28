@@ -2740,4 +2740,12 @@
     <string name="meeting_kick_confirm">将 %1$s 移出本次会议？对方无法再加入本次会议，但在群主轮换密钥之前仍持有该聊天的密钥。</string>
     <string name="meeting_control_failed">中继拒绝：%1$s</string>
     <string name="meeting_unverified_warning">声称来自 %1$s 的音频无法验证，已静音。</string>
+    <string name="meeting_card_invited">📞 %1$s 发起了仅限受邀者的会议 · 点击加入</string>
+    <string name="meeting_card_invited_titled">📞 %1$s 发起了仅限受邀者的“%2$s” · 点击加入</string>
+    <string name="meeting_everyone">聊天中的所有人</string>
+    <string name="meeting_choose_people">选择参会者…</string>
+    <string name="meeting_choose_title">邀请谁？</string>
+    <string name="meeting_invite_people">邀请参会者</string>
+    <string name="meeting_nobody_chosen">请至少选择一人。</string>
+    <string name="meeting_no_one_else">该聊天中没有其他人可邀请。</string>
 </resources>

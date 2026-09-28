@@ -52,9 +52,21 @@ public final class MeetingBoard {
         public List<Keys> keys = new ArrayList<>();
         public boolean ended;
         public long duration;
+        /** Only chosen people (Decision 20): keyed by its own random key, not the entity's symkey. */
+        public boolean invited;
+        /** Whom the host invited, for its own board. */
+        public List<String> invitees = new ArrayList<>();
 
         public Keys newestKeys() {
             return keys.isEmpty() ? null : keys.get(0);
+        }
+
+        /**
+         * Whose symkey the call secret comes from: the Room or Team, or, for a
+         * chosen-people meeting, the pseudo-entity its meetingId names (§4.2).
+         */
+        public String keyEntity() {
+            return invited ? meetingId : entityId;
         }
     }
 
@@ -133,6 +145,37 @@ public final class MeetingBoard {
         m.keys.sort(Comparator.comparingLong(Keys::keyEpoch).reversed());
         save();
         return Result.UPDATED;
+    }
+
+    /**
+     * A {@code MEETING_INVITE} to a chosen-people meeting (Decision 20), from
+     * {@code hostFid}, a member of the entity: the caller has checked that and
+     * stored the key. The card it makes is only on this device.
+     */
+    public synchronized Result onInvite(String hostFid, MeetingSignal s) {
+        if (s == null || s.op != MeetingSignal.Op.MEETING_INVITE) return Result.UNCHANGED;
+        if (meetings.containsKey(s.meetingId)) return Result.UNCHANGED;
+        Meeting m = new Meeting();
+        m.meetingId = s.meetingId;
+        m.entityId = s.entityId;
+        m.entityType = s.entityType;
+        m.hostFid = hostFid;
+        m.relay = s.relay;
+        m.title = s.title;
+        m.started = s.started;
+        m.invited = true;
+        m.keys.add(new Keys(s.nonce, s.symkeyVersion, s.authPub, 0));
+        meetings.put(s.meetingId, m);
+        trim();
+        save();
+        return Result.NEW;
+    }
+
+    /** The host's own chosen-people meeting, and whom it invited. */
+    public synchronized void putHosted(Meeting m) {
+        meetings.put(m.meetingId, m);
+        trim();
+        save();
     }
 
     /**

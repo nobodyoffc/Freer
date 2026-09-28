@@ -87,6 +87,17 @@
             android:text="@string/meeting_hand" />
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/meetingInvite"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:background="?android:attr/selectableItemBackground"
+        android:padding="8dp"
+        android:text="@string/meeting_invite_people"
+        android:textColor="@color/text"
+        android:visibility="gone" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

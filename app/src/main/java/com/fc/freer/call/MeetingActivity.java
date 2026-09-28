@@ -45,6 +45,7 @@ public class MeetingActivity extends AppCompatActivity implements MeetingManager
     private TextView title, status, path, warning;
     private CheckBox mute, speaker, hand;
     private Button leave, endForAll;
+    private TextView invite;
     private View toggles;
     private final ParticipantAdapter adapter = new ParticipantAdapter();
 
@@ -65,6 +66,14 @@ public class MeetingActivity extends AppCompatActivity implements MeetingManager
         leave = findViewById(R.id.meetingLeave);
         endForAll = findViewById(R.id.meetingEndForAll);
         toggles = findViewById(R.id.meetingToggles);
+        invite = findViewById(R.id.meetingInvite);
+        invite.setOnClickListener(v -> {
+            MeetingBoard.Meeting m = meetings.meeting();
+            if (m == null) return;
+            java.util.Set<String> except = new java.util.HashSet<>(m.invitees);
+            except.add(meetings.myFid());
+            MemberPicker.show(this, MemberPicker.members(m.entityType, m.entityId, except), meetings::invite);
+        });
         RecyclerView list = findViewById(R.id.meetingParticipants);
         list.setLayoutManager(new LinearLayoutManager(this));
         list.setAdapter(adapter);
@@ -138,6 +147,9 @@ public class MeetingActivity extends AppCompatActivity implements MeetingManager
         speaker.setChecked(meetings.isSpeaker());
         hand.setChecked(s != null && s.handRaised());
         endForAll.setVisibility(live && s != null && s.isHost() ? View.VISIBLE : View.GONE);
+        MeetingBoard.Meeting meeting = meetings.meeting();
+        // Only chosen people hold its key: the host brings in more by inviting them (Decision 20).
+        invite.setVisibility(live && s != null && s.isHost() && meeting != null && meeting.invited ? View.VISIBLE : View.GONE);
         leave.setText(live ? R.string.meeting_leave : R.string.call_close);
 
         adapter.show(s, people);

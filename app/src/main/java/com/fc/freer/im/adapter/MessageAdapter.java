@@ -519,8 +519,11 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                         com.fc.freer.call.CallActivity.duration(m.duration)) : ctx.getString(R.string.meeting_card_ended_plain);
             } else {
                 String who = meetingSenderName(message.getSenderId());
-                text = s.title == null || s.title.isEmpty() ? ctx.getString(R.string.meeting_card_open, who)
-                        : ctx.getString(R.string.meeting_card_open_titled, who, s.title);
+                boolean invited = m != null && m.invited;
+                text = s.title == null || s.title.isEmpty()
+                        ? ctx.getString(invited ? R.string.meeting_card_invited : R.string.meeting_card_open, who)
+                        : ctx.getString(invited ? R.string.meeting_card_invited_titled : R.string.meeting_card_open_titled,
+                                who, s.title);
             }
             systemMessage.setText(text + when);
             boolean joinable = s != null && !ended && listener != null;

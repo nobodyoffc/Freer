@@ -375,8 +375,8 @@ public final class MeetingSession {
         Exception last = null;
         boolean anyKey = false;
         for (MeetingBoard.Keys k : sets) {
-            byte[] secret = MeetingKeys.secret(keys.symkeys(meeting.entityId, k.symkeyVersion()),
-                    Hex.fromHex(k.nonce()), meeting.entityId, k.symkeyVersion(), meeting.meetingId, k.authPub());
+            byte[] secret = MeetingKeys.secret(keys.symkeys(meeting.keyEntity(), k.symkeyVersion()),
+                    Hex.fromHex(k.nonce()), meeting.keyEntity(), k.symkeyVersion(), meeting.meetingId, k.authPub());
             if (secret == null) continue;
             anyKey = true;
             byte[] authPriv = CallKeys.authPriv(secret);
@@ -402,7 +402,8 @@ public final class MeetingSession {
         }
         if (!anyKey) {
             MeetingBoard.Keys newest = meeting.newestKeys();
-            if (newest != null) keys.request(meeting.entityId, newest.symkeyVersion());
+            // A chat's key can be asked for; a chosen-people meeting's key only comes with its invitation.
+            if (newest != null && !meeting.invited) keys.request(meeting.entityId, newest.symkeyVersion());
             throw new Ended(End.NO_KEY, "no key for symkey version " + (newest == null ? "?" : newest.symkeyVersion()));
         }
         throw last != null ? last : new IOException("could not join");
@@ -589,12 +590,12 @@ public final class MeetingSession {
         if (version < 0 || epoch < 0 || nonce == null || authPub == null) return;
         CallMedia m = media;
         if (m != null && (m.keyEpoch() == (epoch & 0xFF) || m.pendingEpoch() == (epoch & 0xFF))) return; // already there
-        byte[] secret = MeetingKeys.secret(keys.symkeys(meeting.entityId, version), Hex.fromHex(nonce),
-                meeting.entityId, version, meeting.meetingId, authPub);
+        byte[] secret = MeetingKeys.secret(keys.symkeys(meeting.keyEntity(), version), Hex.fromHex(nonce),
+                meeting.keyEntity(), version, meeting.meetingId, authPub);
         if (secret == null) {
             if (!asked) {
                 step("rekeyed to symkey version " + version + ", which this device lacks: asking for it");
-                keys.request(meeting.entityId, version);
+                if (!meeting.invited) keys.request(meeting.entityId, version);
             }
             if (System.currentTimeMillis() - since < within) {
                 timer.schedule(() -> rekeyAttempt(notice, since, true), REKEY_RETRY_MS, TimeUnit.MILLISECONDS);
@@ -634,6 +635,7 @@ public final class MeetingSession {
      * rekey notice then moves this device too.
      */
     private void followSymkey(long now) {
+        if (meeting.invited) return; // keyed by its own key, not the chat's: no rotation to follow
         long current = keys.currentVersion(meeting.entityId);
         if (current <= symkeyVersion) return;
         if (current == rekeyTriedVersion && now - rekeyTriedAtMs < REKEY_BACKOFF_MS) return;

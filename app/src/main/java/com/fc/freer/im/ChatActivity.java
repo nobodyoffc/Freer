@@ -3408,16 +3408,20 @@ public class ChatActivity extends BaseCryptoActivity
         android.widget.EditText title = new android.widget.EditText(this);
         title.setHint(R.string.meeting_start_title_hint);
         title.setSingleLine(true);
+        // Everyone, keyed by the chat's key; or chosen people, under a key of the meeting's own (Decision 20).
         DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.meeting_start)
                 .setView(title)
-                .setPositiveButton(R.string.meeting_start,
-                        (d, w) -> withMeetingMic(() -> startMeeting(title.getText().toString().trim())))
+                .setPositiveButton(R.string.meeting_everyone,
+                        (d, w) -> withMeetingMic(() -> startMeeting(title.getText().toString().trim(), null)))
+                .setNeutralButton(R.string.meeting_choose_people, (d, w) -> com.fc.freer.call.MemberPicker.show(this,
+                        com.fc.freer.call.MemberPicker.members(imType.name(), targetId, java.util.Set.of(liveFid)),
+                        chosen -> withMeetingMic(() -> startMeeting(title.getText().toString().trim(), chosen))))
                 .setNegativeButton(R.string.cancel, null));
     }
 
-    private void startMeeting(String title) {
-        com.fc.freer.call.MeetingManager.getInstance(this).start(imType.name(), targetId, title, error -> {
+    private void startMeeting(String title, java.util.List<String> invitees) {
+        com.fc.freer.call.MeetingManager.getInstance(this).start(imType.name(), targetId, title, invitees, error -> {
             if (error != null) {
                 ToastUtils.makeText(this, error);
                 return;

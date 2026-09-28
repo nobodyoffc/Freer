@@ -42,6 +42,27 @@ public class MeetingSignalTest {
     }
 
     @Test
+    public void anInvitationCarriesTheKeyAndItsCardDoesNot() {
+        byte[] key = new byte[32];
+        key[5] = 9;
+        MeetingSignal inv = MeetingSignal.invite(ID, "FRoom", "ROOM", new CallSignal.Relay("fudp://r:1"), NONCE,
+                AUTH_PUB, key, "1:1 review", 42);
+        MeetingSignal back = MeetingSignal.fromJson(inv.toJson());
+        assertNotNull(back);
+        assertEquals(MeetingSignal.Op.MEETING_INVITE, back.op);
+        assertArrayEquals(key, back.keyBytes());
+        assertEquals(MeetingSignal.INVITED_VERSION, back.symkeyVersion);
+        assertEquals("FRoom", back.entityId);
+        MeetingSignal card = back.withoutKey();
+        assertEquals(MeetingSignal.Op.MEETING_START, card.op);
+        assertNull(card.key, "the card never holds the key");
+        assertNull(MeetingSignal.fromJson(inv.toJson().replace("\"ROOM\"", "\"SQUARE\"")), "a Room or a Team");
+        MeetingSignal noKey = MeetingSignal.fromJson(inv.toJson());
+        noKey.key = null;
+        assertNull(MeetingSignal.fromJson(noKey.toJson()), "an invitation without its key is none");
+    }
+
+    @Test
     public void malformedIsRefused() {
         assertNull(MeetingSignal.fromJson("not json"));
         assertNull(MeetingSignal.fromJson("{\"op\":\"INVITE\",\"callId\":\"00112233445566778899aabbccddeeff\"}"),

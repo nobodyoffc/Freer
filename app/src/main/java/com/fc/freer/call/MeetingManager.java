@@ -59,6 +59,17 @@ public final class MeetingManager {
         String entityName(String entityId);
 
         MeetingSession.Keys keys();
+
+        /** Keep a chosen-people meeting's key as the symkey of {@code keyEntity}, encrypted like any (Decision 20). */
+        void storeKey(String keyEntity, long version, byte[] key);
+
+        void forgetKey(String keyEntity);
+
+        /** A 1:1 CALL message to {@code fid} on every channel: an invitation or its MEETING_END. */
+        void sendDirect(String fid, MeetingSignal signal);
+
+        /** A chosen-people meeting's card, in this device's copy of the chat only. */
+        void storeCard(String entityType, String entityId, String hostFid, MeetingSignal card);
     }
 
     private static MeetingManager instance;
@@ -205,6 +216,15 @@ public final class MeetingManager {
      * @param done gets null once connecting, or why it cannot start; on the main thread
      */
     public void start(String entityType, String entityId, String title, java.util.function.Consumer<String> done) {
+        start(entityType, entityId, title, null, done);
+    }
+
+    /**
+     * @param invitees null for everyone in the chat; otherwise only these
+     *                 members, under a key of the meeting's own (Decision 20)
+     */
+    public void start(String entityType, String entityId, String title, List<String> invitees,
+                      java.util.function.Consumer<String> done) {
         String busy = busyReason();
         if (busy != null || hooks == null) {
             done.accept(busy != null ? busy : context.getString(R.string.meeting_not_ready));
@@ -227,7 +247,7 @@ public final class MeetingManager {
                     done.accept(context.getString(R.string.meeting_no_relay));
                     return;
                 }
-                if (held == null || held.isEmpty()) {
+                if (invitees == null && (held == null || held.isEmpty())) {
                     phase = Phase.IDLE;
                     notifyUi();
                     done.accept(context.getString(R.string.meeting_no_key));
@@ -245,8 +265,23 @@ public final class MeetingManager {
                 m.relay = new CallSignal.Relay(relayUrl);
                 m.title = title;
                 m.started = System.currentTimeMillis();
-                byte[] secret = CallKeys.meetingSecret(held.get(0), nonce, entityId, version, m.meetingId);
-                m.keys.add(new MeetingBoard.Keys(Hex.toHex(nonce), version,
+                byte[] secret;
+                long keyVersion;
+                if (invitees == null) {
+                    keyVersion = version;
+                    secret = CallKeys.meetingSecret(held.get(0), nonce, entityId, version, m.meetingId);
+                } else {
+                    // Its own key, stored as the symkey of an entity named by the meeting (§4.2).
+                    m.invited = true;
+                    m.invitees = new java.util.ArrayList<>(invitees);
+                    keyVersion = MeetingSignal.INVITED_VERSION;
+                    byte[] key = new byte[32];
+                    rng.nextBytes(key);
+                    h.storeKey(m.meetingId, keyVersion, key);
+                    secret = CallKeys.meetingSecret(key, nonce, m.meetingId, keyVersion, m.meetingId);
+                    Arrays.fill(key, (byte) 0);
+                }
+                m.keys.add(new MeetingBoard.Keys(Hex.toHex(nonce), keyVersion,
                         Hex.toHex(CallKeys.authPub(CallKeys.authPriv(secret))), 0));
                 Arrays.fill(secret, (byte) 0);
                 run(m, true);
@@ -450,6 +485,16 @@ public final class MeetingManager {
         CallSignal.Relay relay = s != null && s.relayPubkey() != null
                 ? new CallSignal.Relay(m.relay.url(), s.relayPubkey(), s.relaySid()) : m.relay;
         m.relay = relay;
+        if (m.invited) {
+            // Only the chosen: each gets the key in an invitation sealed to them alone (Decision 20).
+            MeetingBoard b = board;
+            if (b != null) b.putHosted(m);
+            sendInvites(m, m.invitees);
+            MeetingSignal inv = invitation(m);
+            if (inv != null) hooks.storeCard(m.entityType, m.entityId, myFid, inv.withoutKey());
+            notifyCards();
+            return;
+        }
         MeetingSignal start = MeetingSignal.start(m.meetingId, relay, Hex.fromHex(k.nonce()), k.symkeyVersion(),
                 Hex.fromHex(k.authPub()), k.keyEpoch(), m.title, m.started);
         MeetingBoard b = board;
@@ -467,7 +512,17 @@ public final class MeetingManager {
         if (why == MeetingSession.End.ENDED_BY_HOST || why == MeetingSession.End.GONE) {
             if (b != null) b.markEnded(m.meetingId, duration);
             // The host who closed it says so in the chat; members learn it from there (§8).
-            if (endForAllRequested && hooks != null) hooks.post(m.entityType, m.entityId, MeetingSignal.end(m.meetingId, duration));
+            if (endForAllRequested && hooks != null) {
+                if (m.invited) {
+                    MeetingSignal end = MeetingSignal.end(m.meetingId, duration);
+                    end.entityId = m.entityId;
+                    end.entityType = m.entityType;
+                    for (String fid : m.invitees) hooks.sendDirect(fid, end);
+                } else {
+                    hooks.post(m.entityType, m.entityId, MeetingSignal.end(m.meetingId, duration));
+                }
+            }
+            if (m.invited && hooks != null) hooks.forgetKey(m.meetingId); // over: its key has no further use
             notifyCards();
         }
         session = null;
@@ -484,6 +539,56 @@ public final class MeetingManager {
             case FAILED -> context.getString(R.string.meeting_failed, detail == null ? "" : detail);
         };
         notifyUi();
+    }
+
+    /** Host of a chosen-people meeting: invite more members to it (Decision 20). */
+    public void invite(List<String> fids) {
+        MeetingBoard.Meeting m = meeting;
+        MeetingSession s = session;
+        if (m == null || !m.invited || s == null || !s.isHost() || fids == null || fids.isEmpty()) return;
+        List<String> fresh = new java.util.ArrayList<>();
+        for (String f : fids) if (!m.invitees.contains(f)) fresh.add(f);
+        m.invitees.addAll(fresh);
+        MeetingBoard b = board;
+        if (b != null) b.putHosted(m);
+        sendInvites(m, fresh);
+    }
+
+    /** The invitation, with the key read back from where it is kept; null if this device lacks it. */
+    private MeetingSignal invitation(MeetingBoard.Meeting m) {
+        MeetingBoard.Keys k = m.newestKeys();
+        List<byte[]> key = hooks.keys().symkeys(m.meetingId, MeetingSignal.INVITED_VERSION);
+        if (k == null || key == null || key.isEmpty()) return null;
+        return MeetingSignal.invite(m.meetingId, m.entityId, m.entityType, m.relay, Hex.fromHex(k.nonce()),
+                Hex.fromHex(k.authPub()), key.get(0), m.title, m.started);
+    }
+
+    private void sendInvites(MeetingBoard.Meeting m, List<String> fids) {
+        Hooks h = hooks;
+        if (h == null || fids.isEmpty()) return;
+        background.execute(() -> {
+            MeetingSignal inv = invitation(m);
+            if (inv == null) return;
+            for (String fid : fids) {
+                if (!fid.equals(myFid)) h.sendDirect(fid, inv);
+            }
+        });
+    }
+
+    /**
+     * A 1:1 meeting signal from a member of its entity (the caller checked):
+     * an invitation, whose key the caller has stored, or its end.
+     */
+    public MeetingBoard.Result onDirectSignal(String senderFid, MeetingSignal s) {
+        MeetingBoard b = board;
+        if (b == null || s == null) return MeetingBoard.Result.UNCHANGED;
+        MeetingBoard.Result r = s.op == MeetingSignal.Op.MEETING_INVITE ? b.onInvite(senderFid, s)
+                : b.onEnd(s.entityId, senderFid, s);
+        if (s.op == MeetingSignal.Op.MEETING_END && r == MeetingBoard.Result.UPDATED && hooks != null) {
+            hooks.forgetKey(s.meetingId);
+        }
+        if (r == MeetingBoard.Result.NEW || r == MeetingBoard.Result.UPDATED) main.post(this::notifyCards);
+        return r;
     }
 
     private void notifyUi() {

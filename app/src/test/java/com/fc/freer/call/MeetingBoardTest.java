@@ -85,6 +85,21 @@ public class MeetingBoardTest {
     }
 
     @Test
+    public void anInvitationMakesAPrivateCardKeyedByTheMeeting() {
+        MeetingSignal inv = MeetingSignal.invite(ID, "FRoom", "ROOM", new CallSignal.Relay("fudp://relay:1"),
+                new byte[32], new byte[33], new byte[32], null, 5);
+        assertEquals(MeetingBoard.Result.NEW, board.onInvite("FHost", inv));
+        assertEquals(MeetingBoard.Result.UNCHANGED, board.onInvite("FHost", inv));
+        MeetingBoard.Meeting m = board.get(ID);
+        assertTrue(m.invited);
+        assertEquals("FRoom", m.entityId);
+        assertEquals("its key is its own, not the Room's", ID, m.keyEntity());
+        assertEquals(1, board.open("FRoom").size());
+        assertEquals("the host ends it with a 1:1 MEETING_END", MeetingBoard.Result.UPDATED,
+                board.onEnd("FRoom", "FHost", MeetingSignal.end(ID, 1)));
+    }
+
+    @Test
     public void itSurvivesARestart() {
         board.onStart(TEAM, "TEAM", "FHost", start(ID, 0, (byte) 1));
         board.markEnded(ID, 42);

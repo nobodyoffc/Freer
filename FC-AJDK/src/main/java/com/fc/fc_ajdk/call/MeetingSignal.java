@@ -11,8 +11,15 @@ import com.google.gson.JsonSyntaxException;
  *
  * <pre>
  * MEETING_START  meetingId relay{url, pubkey?, sid?} nonce symkeyVersion authPub keyEpoch title? started
- * MEETING_END    meetingId duration (ms)
+ * MEETING_END    meetingId duration (ms) [entityId entityType, when sent 1:1]
+ * MEETING_INVITE meetingId entityId entityType relay nonce authPub key title? started
  * </pre>
+ *
+ * A meeting of chosen people (Decision 20) is keyed by a random {@code key}
+ * instead of the entity's symkey, and each invitee gets it in a
+ * {@code MEETING_INVITE}: a 1:1 message, sealed to that invitee alone. Its
+ * {@code symkeyVersion} is 1, and the key stands in for the symkey of an
+ * entity named by the {@code meetingId} (§4.2).
  *
  * A host that rekeys a live meeting (§4.5) posts {@code MEETING_START} again
  * for the same {@code meetingId}, with the new keys and a higher
@@ -20,7 +27,10 @@ import com.google.gson.JsonSyntaxException;
  */
 public final class MeetingSignal {
 
-    public enum Op { MEETING_START, MEETING_END }
+    public enum Op { MEETING_START, MEETING_END, MEETING_INVITE }
+
+    /** A chosen-people meeting's key is the symkey of this version of an entity named by the meetingId. */
+    public static final long INVITED_VERSION = 1;
 
     public static final String ID_PREFIX = "mtg_";
 
@@ -37,6 +47,12 @@ public final class MeetingSignal {
     public String title;
     public Long started;
     public Long duration;
+    /** MEETING_INVITE, and a 1:1 MEETING_END: the Room or Team the meeting belongs to. */
+    public String entityId;
+    /** TEAM or ROOM. */
+    public String entityType;
+    /** MEETING_INVITE: the meeting's key, 32 bytes hex. Only ever inside a message sealed to one invitee. */
+    public String key;
 
     public static MeetingSignal start(String meetingId, CallSignal.Relay relay, byte[] nonce, long symkeyVersion,
                                       byte[] authPub, long keyEpoch, String title, long startedMs) {
@@ -51,6 +67,30 @@ public final class MeetingSignal {
         s.title = title == null || title.isEmpty() ? null : title;
         s.started = startedMs;
         return s;
+    }
+
+    /** A chosen-people meeting's invitation (Decision 20). */
+    public static MeetingSignal invite(String meetingId, String entityId, String entityType, CallSignal.Relay relay,
+                                       byte[] nonce, byte[] authPub, byte[] key, String title, long startedMs) {
+        MeetingSignal s = start(meetingId, relay, nonce, INVITED_VERSION, authPub, 0, title, startedMs);
+        s.op = Op.MEETING_INVITE;
+        s.entityId = entityId;
+        s.entityType = entityType;
+        s.key = Hex.toHex(key);
+        return s;
+    }
+
+    /** The card for a chat: this invitation without its key. */
+    public MeetingSignal withoutKey() {
+        MeetingSignal s = fromJson(toJson());
+        if (s == null) return null;
+        s.op = Op.MEETING_START;
+        s.key = null;
+        return s;
+    }
+
+    public byte[] keyBytes() {
+        return key == null ? null : Hex.fromHex(key);
     }
 
     public static MeetingSignal end(String meetingId, long durationMs) {
@@ -83,6 +123,10 @@ public final class MeetingSignal {
                     && hexLength(nonce) == 32 && hexLength(authPub) == 33 && symkeyVersion != null
                     && symkeyVersion >= 0 && started != null && (keyEpoch == null || keyEpoch >= 0);
             case MEETING_END -> true;
+            case MEETING_INVITE -> relay != null && relay.url() != null && !relay.url().isEmpty()
+                    && hexLength(nonce) == 32 && hexLength(authPub) == 33 && hexLength(key) == 32
+                    && entityId != null && !entityId.isEmpty()
+                    && ("TEAM".equals(entityType) || "ROOM".equals(entityType)) && started != null;
         };
     }
 

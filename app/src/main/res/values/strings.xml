@@ -2818,4 +2818,12 @@
     <string name="meeting_kick_confirm">Remove %1$s from this meeting? They cannot rejoin it, but they still hold the chat\'s key until its owner rotates it.</string>
     <string name="meeting_control_failed">The relay refused: %1$s</string>
     <string name="meeting_unverified_warning">Audio claimed to be from %1$s could not be verified and is silenced.</string>
+    <string name="meeting_card_invited">📞 %1$s started a meeting for invited people · tap to join</string>
+    <string name="meeting_card_invited_titled">📞 %1$s started “%2$s” for invited people · tap to join</string>
+    <string name="meeting_everyone">Everyone in this chat</string>
+    <string name="meeting_choose_people">Choose people…</string>
+    <string name="meeting_choose_title">Who is invited?</string>
+    <string name="meeting_invite_people">Invite people</string>
+    <string name="meeting_nobody_chosen">Choose at least one person.</string>
+    <string name="meeting_no_one_else">There is no one else in this chat to invite.</string>
 </resources>

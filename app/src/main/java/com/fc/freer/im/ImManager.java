@@ -1890,6 +1890,11 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         if (callSignaller == null || message.getType() != ImType.P2P || sender == null || sender.equals(liveFid)) {
             return;
         }
+        com.fc.fc_ajdk.call.MeetingSignal meeting = com.fc.fc_ajdk.call.MeetingSignal.fromJson(message.getContent());
+        if (meeting != null && meeting.entityId != null) {
+            handleMeetingDirect(message, meeting);
+            return;
+        }
         CallSignal signal = CallSignal.fromJson(message.getContent());
         if (signal == null || contactPolicy.isBlacklisted(sender)) return;
         TimberLogger.i(TAG, "Call signal %s in: call %s from %s", signal.op, signal.callId, sender);
@@ -1937,6 +1942,58 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         updateConversation(message);
         mainHandler.post(() -> {
             for (ImListener l : listeners) l.onMessageReceived(message);
+        });
+    }
+
+    /**
+     * A 1:1 invitation to a chosen-people meeting, or its end (Decision 20).
+     * It counts only from a member of the Room or Team it names, and only if
+     * this identity is one too: membership is what an invitation vouches for.
+     * The key goes into the SymkeyStore, encrypted like any symkey; the card
+     * goes into this device's copy of the chat, and nowhere else.
+     */
+    private void handleMeetingDirect(ImMessage message, com.fc.fc_ajdk.call.MeetingSignal s) {
+        String sender = message.getSenderId();
+        if (contactPolicy.isBlacklisted(sender)) return;
+        ImType type;
+        try {
+            type = ImType.valueOf(s.entityType);
+        } catch (RuntimeException e) {
+            return;
+        }
+        if (!isEntityMember(type, s.entityId, sender) || !isEntityMember(type, s.entityId, liveFid)) {
+            TimberLogger.w(TAG, "Meeting %s for %s from %s: not both members; dropped", s.op, s.entityId, sender);
+            return;
+        }
+        if (s.op == com.fc.fc_ajdk.call.MeetingSignal.Op.MEETING_INVITE) {
+            byte[] key = s.keyBytes();
+            if (symkeyStore == null || key == null) return;
+            symkeyStore.put(s.meetingId, s.symkeyVersion, key);
+            java.util.Arrays.fill(key, (byte) 0);
+        }
+        com.fc.freer.call.MeetingBoard.Result r = com.fc.freer.call.MeetingManager.getInstance(context)
+                .onDirectSignal(sender, s);
+        TimberLogger.i(TAG, "Meeting %s for %s in %s from %s: %s", s.op, s.meetingId, s.entityId, sender, r);
+        if (s.op == com.fc.fc_ajdk.call.MeetingSignal.Op.MEETING_INVITE && r == com.fc.freer.call.MeetingBoard.Result.NEW) {
+            storeMeetingCard(type, s.entityId, sender, s.withoutKey(), message.getTimestamp());
+        }
+    }
+
+    /** A meeting card in this device's copy of a Room or Team chat; sent to no one. */
+    private void storeMeetingCard(ImType type, String entityId, String hostFid,
+                                  com.fc.fc_ajdk.call.MeetingSignal card, Long timestamp) {
+        if (card == null) return;
+        ImMessage m = ImMessage.createCall(type, hostFid, entityId, card.toJson());
+        if (fudpNode != null) m.setIdFromLong(fudpNode.generateMessageId());
+        else m.setId("meeting-" + card.meetingId);
+        m.setTimestamp(timestamp != null ? timestamp : System.currentTimeMillis());
+        m.setStatus(hostFid.equals(liveFid) ? MessageStatus.SENT : MessageStatus.DELIVERED);
+        m.setUnread(!hostFid.equals(liveFid));
+        messagesDb.put(m.getId(), m);
+        addToConversationIndex(m);
+        updateConversation(m);
+        mainHandler.post(() -> {
+            for (ImListener l : listeners) l.onMessageReceived(m);
         });
     }
 
@@ -2000,6 +2057,35 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             if (url != null) return url;
             com.fc.fc_ajdk.data.fcData.KeyInfo mine = com.fc.freer.manager.FidManager.getInstance().getLiveKeyInfo();
             return callServiceUrl(mine != null ? mine.getHome() : null);
+        }
+
+        @Override
+        public void storeKey(String keyEntity, long version, byte[] key) {
+            if (symkeyStore != null) symkeyStore.put(keyEntity, version, key);
+        }
+
+        @Override
+        public void forgetKey(String keyEntity) {
+            if (symkeyStore != null) symkeyStore.forget(keyEntity);
+        }
+
+        /** On every channel at once, as a call signal: an invitation is meant to arrive now (§6.3). */
+        @Override
+        public void sendDirect(String fid, com.fc.fc_ajdk.call.MeetingSignal signal) {
+            ImMessage m = ImMessage.createCall(ImType.P2P, liveFid, fid, signal.toJson());
+            if (fudpNode != null) m.setIdFromLong(fudpNode.generateMessageId());
+            executor.execute(() -> {
+                boolean any = p2pHandler.sendCallSignal(m);
+                TimberLogger.i(TAG, "Meeting %s for %s to %s: %s", signal.op, signal.meetingId, fid,
+                        any ? "sent" : "found no channel");
+            });
+        }
+
+        @Override
+        public void storeCard(String entityType, String entityId, String hostFid,
+                              com.fc.fc_ajdk.call.MeetingSignal card) {
+            executor.execute(() -> storeMeetingCard(ImType.valueOf(entityType), entityId, hostFid, card,
+                    System.currentTimeMillis()));
         }
 
         @Override
