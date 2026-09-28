@@ -156,14 +156,90 @@ public class CallMediaTest {
     }
 
     @Test
-    public void audioWithNoAttestationIsSilencedAfterThreeSeconds() {
-        bob.media.open(alice.media.seal(frame(alice, 0), now), now);
+    public void aLateAttestationPausesAStreamAndAMatchingOneResumesIt() {
+        List<String> paused = new ArrayList<>();
+        bob.media.setListener(new CallMedia.Listener() {
+            @Override
+            public void onUnverified(String fid, int ssrc) {
+                unverified.add(fid);
+            }
+
+            @Override
+            public void onPaused(String fid, int ssrc, boolean on) {
+                paused.add(fid + (on ? " paused" : " resumed"));
+            }
+        });
+        assertNotNull(bob.media.open(alice.media.seal(frame(alice, 0), now), now));
         now += CallMedia.ATTEST_DEADLINE_MS - 1;
         bob.media.tick(now);
-        assertTrue(unverified.isEmpty());
+        assertTrue(paused.isEmpty());
         now += 1;
-        bob.media.tick(now); // the relay withheld the attestation
+        bob.media.tick(now); // the attestation is late (Decision 15)
+        assertEquals(List.of("FAlice paused"), paused);
+        assertTrue(bob.media.isPaused(alice.ssrc));
+        assertNull("paused: held, not played", bob.media.open(alice.media.seal(frame(alice, 1), now), now));
+
+        now += 5_000; // however late: nothing held is dropped while paused
+        bob.media.tick(now);
+        for (byte[] a : alice.media.finish(now)) bob.media.onAttestation(a, now);
+        assertEquals(List.of("FAlice paused", "FAlice resumed"), paused);
+        assertTrue("late is not forged", unverified.isEmpty());
+        assertNotNull("playing again", bob.media.open(alice.media.seal(frame(alice, 2), now), now));
+    }
+
+    @Test
+    public void aMismatchWhilePausedStillSilencesForGood() {
+        byte[] aliceKey = CallKeys.senderKey(secret, alice.fid, alice.ssrc, CallMedia.KEY_EPOCH);
+        byte[] forged = MediaFrame.seal(aliceKey, new MediaFrame.Header(MediaFrame.FLAG_VAD,
+                alice.ssrc ^ 0x5A5A5A5A, alice.ssrc, 0, 0, 20, 0), new byte[]{9, 9, 9});
+        bob.media.open(forged, now);
+        now += CallMedia.ATTEST_DEADLINE_MS;
+        bob.media.tick(now);
+        assertTrue(bob.media.isPaused(alice.ssrc));
+        alice.media.seal(frame(alice, 0), now); // Alice's real frame 0
+        for (byte[] a : alice.media.finish(now)) bob.media.onAttestation(a, now);
         assertEquals(List.of(alice.fid), unverified);
+        assertTrue(bob.media.isUnverified(alice.ssrc));
+    }
+
+    @Test
+    public void aRekeyWaitsForEveryoneThenTheOldEpochLapses() {
+        byte[] next = key();
+        alice.media.rekey(next, 1, now);
+        bob.media.rekey(next, 1, now);
+        CallMedia behind = new CallMedia(CALL_ID, secret, "FDave", RNG.nextInt(), key());
+        behind.addPeer(alice.fid, alice.ssrc, alice.tPub);
+
+        // Held, not yet sent under (Decision 19): a member still waiting for the key hears Alice.
+        byte[] held = alice.media.seal(frame(alice, 0), now);
+        assertEquals(0, MediaFrame.Header.parse(held).keyEpoch());
+        assertEquals(1, alice.media.pendingEpoch());
+        assertNotNull("the one without the new key still hears", behind.open(held, now));
+        assertNotNull(bob.media.open(held, now));
+
+        // Everyone has it: Alice switches.
+        alice.media.switchSending(now);
+        assertEquals(1, alice.media.keyEpoch());
+        assertEquals(-1, alice.media.pendingEpoch());
+        byte[] fresh = alice.media.seal(frame(alice, 1), now);
+        assertEquals(1, MediaFrame.Header.parse(fresh).keyEpoch());
+        assertNotNull("the new epoch opens", bob.media.open(fresh, now));
+        assertNull("and only for those who hold it", behind.open(fresh, now));
+
+        // Bob switches a moment later; in the meantime his old-epoch frames still open at Alice.
+        assertNotNull(alice.media.open(bob.media.seal(frame(bob, 0), now), now + 1_000));
+        bob.media.switchSending(now + 1_000);
+        byte[] late = CallMediaTest.sealUnder(secret, bob, 5, 0);
+        now += CallMedia.PREVIOUS_EPOCH_MS;
+        alice.media.tick(now);
+        assertNull("the old epoch's keys are gone 5 s after switching", alice.media.open(late, now));
+    }
+
+    /** A frame of {@code p}'s sealed under {@code secret} at {@code epoch}, as a sender still on it would. */
+    static byte[] sealUnder(byte[] secret, Party p, long seq, int epoch) {
+        byte[] k = CallKeys.senderKey(secret, p.fid, p.ssrc, epoch);
+        return MediaFrame.seal(k, new MediaFrame.Header(MediaFrame.FLAG_VAD, p.ssrc ^ 0x5A5A5A5A, p.ssrc, seq,
+                seq * 960, 30, epoch), new byte[]{(byte) seq});
     }
 
     @Test
@@ -176,7 +252,7 @@ public class CallMediaTest {
         bob.media.onAttestation(fake);
         now += CallMedia.ATTEST_DEADLINE_MS;
         bob.media.tick(now);
-        assertEquals("so the frame stays unattested", List.of(alice.fid), unverified);
+        assertTrue("so the frame stays unattested, and the stream pauses", bob.media.isPaused(alice.ssrc));
     }
 
     @Test

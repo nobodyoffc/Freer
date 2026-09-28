@@ -307,12 +307,40 @@ Rules:
 
 | `op` | From | Fields | Meaning |
 |---|---|---|---|
-| `MEETING_START` | host | `meetingId`, `relay` {`url`}, `nonce` (32 bytes, hex), `symkeyVersion`, `authPub`, `title` (optional), `started` | A meeting is open. It appears in the chat as a card with a **Join** button. |
+| `MEETING_START` | host | `meetingId`, `relay` {`url`, `pubkey`?, `sid`?}, `nonce` (32 bytes, hex), `symkeyVersion`, `authPub`, `keyEpoch` (0, or the epoch after a rekey), `title` (optional), `started` | A meeting is open. It appears in the chat as a card with a **Join** button. `pubkey` and `sid` are the relay's key and service id, as in an INVITE (§3.2), so joiners skip discovery. |
 | `MEETING_END` | host | `meetingId`, `duration` | Closed. The card changes to "ended". |
 
 `MEETING_START` is posted to the entity's DOCK like any chat message, so the
 meeting shows up in the conversation for everyone, including members who
 open the app later.
+
+**After a rekey** (§4.5) the host posts `MEETING_START` again for the same
+`meetingId`, with the new `nonce`, `symkeyVersion`, `authPub` and the new
+`keyEpoch`. The relay admits a joiner only under the current `authPub`, so
+without it a member who joins later could not prove the key. Receivers:
+
+- show one card per `meetingId`, from the first `MEETING_START`;
+- keep every key set they receive for it, newest `keyEpoch` first, and join with the newest one they can derive, falling back to an older one if the relay answers 401;
+- take a key set from any member, since the host role can pass on (§7.2). A bogus one only costs a joiner a failed attempt.
+
+`MEETING_END`, and a `MEETING_START` with `keyEpoch` above 0, change the
+card and are not chat rows of their own.
+
+**Meetings of chosen people (Decision 20).** The host may invite only some
+members. Such a meeting is keyed by a random 32-byte key `K` of its own
+(§4.2), not the entity's symkey, since every member holds that. Nothing is
+posted to the Room or Team. Instead each invitee gets a 1:1 `CALL` message,
+sealed `asy2way` to it alone and sent on every channel like a call signal
+(§6.3):
+
+| `op` | From | Fields | Meaning |
+|---|---|---|---|
+| `MEETING_INVITE` | host | `meetingId`, `entityId`, `entityType` (`ROOM` or `TEAM`), `relay`, `nonce`, `symkeyVersion` = 1, `authPub`, `key` (`K`, hex), `title` (optional), `started` | You are invited. |
+| `MEETING_END` | host | `meetingId`, `duration`, `entityId`, `entityType` | Closed; sent to each invitee. |
+
+- A receiver accepts an invitation only if its sender and the receiver are both members of `entityId`. It keeps `K` with its symkeys, under an entity named by the `meetingId`, and shows the card in its own copy of that chat. The card is never posted.
+- The host invites more members during the meeting the same way.
+- Such a meeting does not follow the entity's symkey rotations (§4.5). A host removes someone with `call.control kick`, and they still hold `K`.
 
 If the host picks *Notify members*, the same message is also sent through
 ROAD (`road.relay` with `targetFids` = members, up to 100). That rings the
@@ -390,6 +418,15 @@ callSecret = HKDF(ikm  = symkey(entityId, symkeyVersion),
                   info = "FreerCall v1 meeting" ‖ str(entityId) ‖ u64(symkeyVersion) ‖ str(meetingId))
 ```
 
+**Meeting of chosen people** (Decision 20): the same formula, with the
+random key `K` for the symkey, the `meetingId` for the entity, and version 1:
+
+```
+callSecret = HKDF(ikm  = K,
+                  salt = nonce,
+                  info = "FreerCall v1 meeting" ‖ str(meetingId) ‖ u64(1) ‖ str(meetingId))
+```
+
 A member may hold two keys at one version (FIMP2 §7.1). It picks the one
 whose derived `authPub` (§4.4) equals the `authPub` in `MEETING_START`.
 This is decided without sending the key or its hash.
@@ -440,8 +477,19 @@ version during the meeting, usually because a member was removed (FIMP2
 4. Each participant has **30 s** to prove itself with a signature under the new `authPriv`. The relay drops anyone who does not.
 5. A participant that lacks the new symkey version asks for it the FIMP way (FIMP2 §7.4, FIMP4 §7.4) and stays connected until the 30 s runs out.
 
-Senders switch to the new `keyEpoch` as soon as they have it. Receivers keep
-the previous epoch's keys for **5 s**, to cover frames already in flight.
+**Switching (Decision 19).** A participant that has the new key opens frames
+under both epochs, but keeps *sending* under the previous one until every
+roster entry shows the new `keyEpoch` (the relay puts each participant's
+proven epoch in its roster entry, and pushes the roster on each
+`call.prove`), or until the 30 s deadline, when the relay drops those who
+did not prove. Then it sends under the new epoch, and keeps the previous
+epoch's keys **5 s** longer for frames already in flight. So a member still
+waiting for the new symkey keeps hearing everyone. In the Phase 5 test the
+key reached the member who stayed 22 s after the rotation, and switching at
+once had silenced the host for all of them. The cost: a removed member who
+is still connected can listen for up to 30 s more. A host that removes
+someone should also `kick` them (§7.2), which cuts them off at the relay at
+once.
 
 The host does not rotate the symkey itself. FIMP forbids automatic rotation
 (FIMP2 §7.2), and a meeting is no reason to break that rule. The host only
@@ -685,7 +733,7 @@ caller's delegation, and the relay verifies it (§4.1). For `kind = p2p`, the
 | Method | Who | Params | Result |
 |---|---|---|---|
 | `call.create` | host | `meetingId`, `kind` ∈ {`p2p`, `meeting`}, `authPub` (a meeting sends it now; `p2p` sends it later, §4.4), `maxParticipants` (≤ 64; `p2p` defaults to 2), `maxCostPerMinute` | `price` {`perKBIn`, `perKBOut`}, `maxParticipants`. The host's `routeId` comes from its `call.join`. |
-| `call.join` | anyone | `meetingId`, `ssrc`, `maxCostPerMinute` (optional), `ts` (ms), `admitSig` = Schnorr(`authPriv`, `"FreerCall-admit-v1" ‖ str(meetingId) ‖ tPub ‖ u32(ssrc) ‖ u64(ts)`), `candidates` (optional, up to 8 `{t: lan, a}`), `reflexive` (optional bool) | `routeId`, `datagram: true`, `roster`, `keyEpoch`, `speakers` (N) |
+| `call.join` | anyone | `meetingId`, `ssrc`, `maxCostPerMinute` (optional), `ts` (ms), `admitSig` = Schnorr(`authPriv`, `"FreerCall-admit-v1" ‖ str(meetingId) ‖ tPub ‖ u32(ssrc) ‖ u64(ts)`), `candidates` (optional, up to 8 `{t: lan, a}`), `reflexive` (optional bool) | `routeId`, `datagram: true`, `roster`, `host`, `keyEpoch`, `speakers` (N). `host` because the joiner gets no roster notice of its own join. |
 | `call.leave` | participant | `meetingId` | — |
 | `call.register` | host (`p2p` only) | `meetingId`, `authPub` | — |
 | `call.rekey` | host | `meetingId`, `symkeyVersion`, `nonce`, `authPub` | new `keyEpoch` |
@@ -715,7 +763,7 @@ Rules for `call.join`:
 
 Pushed by the relay (FUDP NOTIFY with `dataType = 1`, JSON with a `type` and the `meetingId`):
 
-- `roster` — someone joined or left, or a mute or host changed: `{type, meetingId, host, roster: [{fid, ssrc, routeId, delegation, candidates?}]}`. The delegation is the JSON the participant sent, so receivers can verify it themselves (§5.1). `ssrc` and `routeId` are unsigned numbers.
+- `roster` — someone joined or left, proved a new key, or a mute or host changed: `{type, meetingId, host, roster: [{fid, ssrc, routeId, delegation, keyEpoch, muted?, hand?, candidates?}]}`. `keyEpoch` is the epoch that participant has proved (§4.5). The delegation is the JSON the participant sent, so receivers can verify it themselves (§5.1). `ssrc` and `routeId` are unsigned numbers.
 - `rekey` — as in §4.5.
 - `muted` — to the participant concerned.
 - `knock` — to the host, when a join is refused with 409 because `authPub` is not registered yet: `{type, meetingId, fid, delegation}`, the delegation the joiner sent (§6.2 step 3).
@@ -1291,6 +1339,18 @@ Shanghai.
 **Gate:** a 10-person meeting on real devices, including a member removal
 with the owner rotating the key mid-meeting.
 
+**Result (2026-09-28): accepted on three phones** (Galaxy S22+, Galaxy A05s
+and a 2602BRT18C), with the Phase 4 load test standing in for scale: 40
+synthetic participants on the relay. A 10-device check waits for the devices.
+
+- **Working on the phones:** joining from the card, speaking indicators, raised hands, host mute and mute-and-lock, handing over the host role, leaving, and End for all.
+- **Key rotation:** the owner removed a member from the Room mid-meeting. The host rekeyed within a second. The member who stayed proved the new key within seconds and never lost the host's audio. The removed member was dropped at 30 s.
+- **Found on the way:**
+  - Phones in one room on speaker capture each other and garble the meeting: test with them apart.
+  - On the earpiece, a phone's handset tuning barely hears a voice from arm's length.
+  - A rotated key travelled over DOCK only, 20–40 s. Key messages now go on every channel.
+  - Switching to a new key at once silenced members still waiting for it (Decision 19).
+
 ### Phase 6 — Mac
 
 - Port Phases 3 and 5 against the frozen spec and vectors.
@@ -1345,3 +1405,8 @@ Answered 2026-09-27, after the Phase 4 load test:
 
 17. **§7.5 gives measured figures,** about 1.1 MB a minute out per participant rather than 0.8. The gap is FUDP's per-packet cost and the attestations, and is accepted. Moving attestations into the media packets was rejected: they must be reliable (§5.1).
 18. **Frame length follows §9.1:** 40 ms, and 20 ms only on a fast direct path. Senders may switch mid-call, and receivers follow each packet's TOC byte. Until then the Android client always sent 20 ms frames.
+
+Answered 2026-09-28, during Phase 5:
+
+19. **After a rekey, senders keep the previous key until everyone has proved the new one, or 30 s pass** (§4.5). Switching at once left members still waiting for the rotated symkey unable to hear anyone. The removed member can listen up to 30 s longer unless the host also kicks it.
+20. **A host may invite only chosen members** (§3.3), under a random key of the meeting's own, sent to each invitee 1:1. The entity's symkey cannot limit a meeting, since every member holds it. Asked for on 2026-09-28 after the Phase 5 tests.

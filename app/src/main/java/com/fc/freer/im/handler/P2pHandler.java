@@ -408,44 +408,76 @@ public class P2pHandler extends BaseHandler {
      * @return true if at least one channel took it
      */
     public boolean sendCallSignal(ImMessage message) {
+        return sendOnEveryChannel(message, true);
+    }
+
+    /**
+     * {@link #sendCallSignal}'s fan-out for any message that must arrive now
+     * rather than at the next DOCK check, such as a rotated symkey (VOICE_SPEC
+     * §4.5): a meeting gives its members 30 s to prove the new key.
+     *
+     * @param dock also put it on the DOCK; false when the retry queue already does
+     */
+    public boolean sendOnEveryChannel(ImMessage message, boolean dock) {
         String targetFid = message.getTargetId();
         byte[] envelope = signedWire(message);
         if (targetFid == null || envelope == null) return false;
         boolean any = false;
+        // One line per message saying which channel took it: a slow arrival is the channel's doing.
+        String fudpWay, roadWay, dockWay;
 
-        if (isFudpAllowed() && hasTargetFudpRegistered(targetFid) && fudpNode != null) {
+        if (!isFudpAllowed() || fudpNode == null) {
+            fudpWay = "off";
+        } else if (!hasTargetFudpRegistered(targetFid)) {
+            fudpWay = "not registered";
+        } else {
             try {
                 fudpNode.sendNotifyWithAck(targetFid, envelope);
                 any = true;
+                fudpWay = "ok";
             } catch (Exception e) {
-                TimberLogger.d(TAG, "Call signal over FUDP failed: %s", e.getMessage());
+                fudpWay = "failed (" + e.getMessage() + ")";
             }
         }
 
         RelayRoutes routes = resolveRelayRoutes(targetFid, true);
-        if (routes.dockUrl() == null && routes.roadUrl() == null) return any;
-        // As for any message: a body that cannot be sealed to the recipient does not go.
-        byte[] sealed = sealedEnvelope(message, targetFid);
-        if (sealed == null) {
-            TimberLogger.e(TAG, "Refusing to send call signal %s to %s unencrypted", message.getId(), targetFid);
-            return any;
+        byte[] sealed = routes.dockUrl() == null && routes.roadUrl() == null ? null : sealedEnvelope(message, targetFid);
+        if (sealed == null && (routes.dockUrl() != null || routes.roadUrl() != null)) {
+            // As for any message: a body that cannot be sealed to the recipient does not go.
+            TimberLogger.e(TAG, "Refusing to send %s to %s unencrypted", message.getId(), targetFid);
         }
 
-        if (routes.roadUrl() != null) {
+        if (routes.roadUrl() == null) {
+            roadWay = "none in their home";
+        } else if (sealed == null) {
+            roadWay = "not sealed";
+        } else {
             FapiClient roadClient = ApiCenter.getInstance().getClient(ApiCenter.ConnectionRole.ROAD);
-            if (roadClient != null) {
+            if (roadClient == null) {
+                roadWay = "no ROAD client";
+            } else {
                 try {
                     FapiClient.RoadRelayResult result = roadClient.roadRelay(targetFid, sealed, routes.roadUrl());
-                    if (result != null && result.success()) any = true;
+                    boolean ok = result != null && result.success();
+                    if (ok) any = true;
+                    roadWay = ok ? "ok" : "refused";
                 } catch (Exception e) {
-                    TimberLogger.d(TAG, "Call signal over ROAD failed: %s", e.getMessage());
+                    roadWay = "failed (" + e.getMessage() + ")";
                 }
             }
         }
-        if (routes.dockUrl() != null) {
+        if (!dock) {
+            dockWay = "by the queue";
+        } else if (routes.dockUrl() == null || sealed == null) {
+            dockWay = "none";
+        } else {
             FapiClient ownDockClient = ApiCenter.getInstance().getClient(ApiCenter.ConnectionRole.DOCK);
-            if (deliverToDock(routes.dockUrl(), sealed, message, targetFid, ownDockClient)) any = true;
+            boolean ok = deliverToDock(routes.dockUrl(), sealed, message, targetFid, ownDockClient);
+            if (ok) any = true;
+            dockWay = ok ? "ok" : "failed";
         }
+        TimberLogger.i(TAG, "%s %s to %s: FUDP %s, ROAD %s, DOCK %s", message.getContentType(), message.getId(),
+                targetFid, fudpWay, roadWay, dockWay);
         return any;
     }
 

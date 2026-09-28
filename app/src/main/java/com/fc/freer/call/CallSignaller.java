@@ -120,6 +120,8 @@ public final class CallSignaller {
     private final SecureRandom random = new SecureRandom();
     /** Which relays I answer on: my own home.CALL (§6.2). Anything, until set. */
     private volatile java.util.function.Predicate<CallSignal.Relay> relayPolicy = r -> true;
+    /** Busy for another reason, such as a meeting (§3.2: one call at a time). */
+    private volatile java.util.function.BooleanSupplier alsoBusy = () -> false;
     private final Map<String, Call> calls = new HashMap<>();
     private final Map<String, Boolean> seen = new LinkedHashMap<>(16, 0.75f, false) {
         @Override
@@ -189,6 +191,10 @@ public final class CallSignaller {
     /** Answer only INVITEs whose relay passes: my own home.CALL (§6.2). */
     public void setRelayPolicy(java.util.function.Predicate<CallSignal.Relay> policy) {
         relayPolicy = policy == null ? r -> true : policy;
+    }
+
+    public void setAlsoBusy(java.util.function.BooleanSupplier busy) {
+        alsoBusy = busy == null ? () -> false : busy;
     }
 
     /** The caller gives up before an answer. */
@@ -393,6 +399,7 @@ public final class CallSignaller {
 
     /** A call is in progress, other than {@code except}: new INVITEs get REJECT busy (§3.2). */
     public synchronized boolean busy(String except) {
+        if (alsoBusy.getAsBoolean()) return true;
         for (Call c : calls.values()) {
             if (c.state != State.ENDED && !c.callId.equals(except)) return true;
         }

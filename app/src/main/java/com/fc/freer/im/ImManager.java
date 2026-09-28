@@ -361,6 +361,20 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         // retried automatically (e.g. when the recipient's DOCK is temporarily down).
         // isRoomControlType() covers both types, so send() skips DB/conversation indexing.
         BaseHandler.P2pSender p2pSender = message -> {
+            // Key material, and asks for it, also leave at once on every channel: a rotated
+            // key must reach members in seconds, not at their next DOCK check (VOICE_SPEC
+            // §4.5). Same message id, so the queue's DOCK copy is a duplicate the receiver drops.
+            boolean urgent = message != null && message.getType() == ImType.P2P
+                    && (message.getContentType() == ContentType.ROOM_INFO || message.getContentType() == ContentType.SYMKEY);
+            if (urgent) {
+                if (!message.hasFudpId() && fudpNode != null) message.setIdFromLong(fudpNode.generateMessageId());
+                message.setSenderId(liveFid);
+                executor.execute(() -> {
+                    boolean any = p2pHandler.sendOnEveryChannel(message, false);
+                    TimberLogger.i(TAG, "Key message %s (%s) to %s, sent at once: %s", message.getId(),
+                            message.getContentType(), message.getTargetId(), any);
+                });
+            }
             send(message);
             return MessageQueue.SendResult.SUCCESS;
         };
@@ -892,7 +906,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         boolean isReceipt = message.getContentType() == ContentType.RECEIPT;
 
         if (!isReceipt && !isRoomControlType(message.getContentType())
-                && !isTeamNotification(message)) {
+                && !isTeamNotification(message) && !isMeetingControl(message)) {
             messagesDb.put(message.getId(), message);
             addToConversationIndex(message);
             updateConversation(message);
@@ -1658,6 +1672,19 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
      * Transport-only messages: never stored as chat messages or shown in conversation lists.
      * Includes all ROOM control signals plus ROOM_INFO and SYMKEY distribution messages.
      */
+    /**
+     * A MEETING_END, or a host's re-post of a rekeyed meeting's keys (VOICE_SPEC
+     * §3.3): they change a meeting's card, and are no chat row of their own.
+     */
+    private static boolean isMeetingControl(ImMessage message) {
+        if (message.getContentType() != ContentType.CALL
+                || (message.getType() != ImType.TEAM && message.getType() != ImType.ROOM)) {
+            return false;
+        }
+        com.fc.fc_ajdk.call.MeetingSignal s = com.fc.fc_ajdk.call.MeetingSignal.fromJson(message.getContent());
+        return s != null && (s.op == com.fc.fc_ajdk.call.MeetingSignal.Op.MEETING_END || s.keyEpochOrZero() > 0);
+    }
+
     private static boolean isRoomControlType(ContentType ct) {
         return ct == ContentType.ROOM_LEAVE || ct == ContentType.ROOM_ACCEPT
                 || ct == ContentType.ROOM_DISBAND || ct == ContentType.ROOM_REMOVED
@@ -1811,6 +1838,9 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 System::currentTimeMillis);
         callSignaller.setRelayPolicy(this::acceptsCallRelay);
         com.fc.freer.call.CallManager.getInstance(context).attach(liveFid, callSignaller);
+        com.fc.freer.call.MeetingManager meetings = com.fc.freer.call.MeetingManager.getInstance(context);
+        callSignaller.setAlsoBusy(meetings::isActive); // one call or meeting at a time (§3.2)
+        meetings.attach(liveFid, userPrikey, new MeetingHooks());
         callTicker = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "call-signal-tick");
             t.setDaemon(true);
@@ -1852,8 +1882,17 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
      * stranger's first message (§3.2). Anything else from a stranger is dropped.
      */
     private void handleCallMessage(ImMessage message) {
+        if (message.getType() == ImType.TEAM || message.getType() == ImType.ROOM) {
+            handleMeetingMessage(message);
+            return;
+        }
         String sender = message.getSenderId();
         if (callSignaller == null || message.getType() != ImType.P2P || sender == null || sender.equals(liveFid)) {
+            return;
+        }
+        com.fc.fc_ajdk.call.MeetingSignal meeting = com.fc.fc_ajdk.call.MeetingSignal.fromJson(message.getContent());
+        if (meeting != null && meeting.entityId != null) {
+            handleMeetingDirect(message, meeting);
             return;
         }
         CallSignal signal = CallSignal.fromJson(message.getContent());
@@ -1876,6 +1915,221 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         if (firstContact && contactPolicy.getStrategy() == ContactPolicy.Strategy.ACCEPT_ALL) {
             requestStrangerConfirmation(sender);
         }
+    }
+
+    /**
+     * A meeting signal in a Room or Team chat (§3.3), already decrypted with
+     * the entity's symkey and signature-checked. Only a member's counts
+     * (FIMP2 §8.4, FIMP4 §8.2). A new meeting's MEETING_START becomes its card
+     * in the chat; everything else only changes the card.
+     */
+    private void handleMeetingMessage(ImMessage message) {
+        String sender = message.getSenderId();
+        String entityId = message.getTargetId();
+        com.fc.fc_ajdk.call.MeetingSignal s = com.fc.fc_ajdk.call.MeetingSignal.fromJson(message.getContent());
+        if (s == null || sender == null || entityId == null) return;
+        if (!isEntityMember(message.getType(), entityId, sender)) {
+            TimberLogger.w(TAG, "Meeting signal %s in %s from %s, who is not a member: dropped", s.op, entityId, sender);
+            return;
+        }
+        com.fc.freer.call.MeetingBoard.Result r = com.fc.freer.call.MeetingManager.getInstance(context)
+                .onChatSignal(message.getType().name(), entityId, sender, s);
+        TimberLogger.i(TAG, "Meeting signal %s for %s in %s from %s: %s", s.op, s.meetingId, entityId, sender, r);
+        if (r != com.fc.freer.call.MeetingBoard.Result.NEW || messagesDb.get(message.getId()) != null) return;
+        message.setUnread(!sender.equals(liveFid));
+        messagesDb.put(message.getId(), message);
+        addToConversationIndex(message);
+        updateConversation(message);
+        mainHandler.post(() -> {
+            for (ImListener l : listeners) l.onMessageReceived(message);
+        });
+    }
+
+    /**
+     * A 1:1 invitation to a chosen-people meeting, or its end (Decision 20).
+     * It counts only from a member of the Room or Team it names, and only if
+     * this identity is one too: membership is what an invitation vouches for.
+     * The key goes into the SymkeyStore, encrypted like any symkey; the card
+     * goes into this device's copy of the chat, and nowhere else.
+     */
+    private void handleMeetingDirect(ImMessage message, com.fc.fc_ajdk.call.MeetingSignal s) {
+        String sender = message.getSenderId();
+        if (contactPolicy.isBlacklisted(sender)) return;
+        ImType type;
+        try {
+            type = ImType.valueOf(s.entityType);
+        } catch (RuntimeException e) {
+            return;
+        }
+        if (!isEntityMember(type, s.entityId, sender) || !isEntityMember(type, s.entityId, liveFid)) {
+            TimberLogger.w(TAG, "Meeting %s for %s from %s: not both members; dropped", s.op, s.entityId, sender);
+            return;
+        }
+        if (s.op == com.fc.fc_ajdk.call.MeetingSignal.Op.MEETING_INVITE) {
+            byte[] key = s.keyBytes();
+            if (symkeyStore == null || key == null) return;
+            symkeyStore.put(s.meetingId, s.symkeyVersion, key);
+            java.util.Arrays.fill(key, (byte) 0);
+        }
+        com.fc.freer.call.MeetingBoard.Result r = com.fc.freer.call.MeetingManager.getInstance(context)
+                .onDirectSignal(sender, s);
+        TimberLogger.i(TAG, "Meeting %s for %s in %s from %s: %s", s.op, s.meetingId, s.entityId, sender, r);
+        if (s.op == com.fc.fc_ajdk.call.MeetingSignal.Op.MEETING_INVITE && r == com.fc.freer.call.MeetingBoard.Result.NEW) {
+            storeMeetingCard(type, s.entityId, sender, s.withoutKey(), message.getTimestamp());
+        }
+    }
+
+    /** A meeting card in this device's copy of a Room or Team chat; sent to no one. */
+    private void storeMeetingCard(ImType type, String entityId, String hostFid,
+                                  com.fc.fc_ajdk.call.MeetingSignal card, Long timestamp) {
+        if (card == null) return;
+        ImMessage m = ImMessage.createCall(type, hostFid, entityId, card.toJson());
+        if (fudpNode != null) m.setIdFromLong(fudpNode.generateMessageId());
+        else m.setId("meeting-" + card.meetingId);
+        m.setTimestamp(timestamp != null ? timestamp : System.currentTimeMillis());
+        m.setStatus(hostFid.equals(liveFid) ? MessageStatus.SENT : MessageStatus.DELIVERED);
+        m.setUnread(!hostFid.equals(liveFid));
+        messagesDb.put(m.getId(), m);
+        addToConversationIndex(m);
+        updateConversation(m);
+        mainHandler.post(() -> {
+            for (ImListener l : listeners) l.onMessageReceived(m);
+        });
+    }
+
+    /**
+     * A meeting card already in the chat whose meeting the board does not know,
+     * such as one decrypted after its key arrived: learn it now, with the same
+     * membership check. Runs on the caller's thread.
+     */
+    public void noteMeetingCard(ImMessage message) {
+        if (message == null || message.getContentType() != ContentType.CALL) return;
+        String sender = message.getSenderId();
+        String entityId = message.getTargetId();
+        com.fc.fc_ajdk.call.MeetingSignal s = com.fc.fc_ajdk.call.MeetingSignal.fromJson(message.getContent());
+        if (s == null || sender == null || entityId == null || !isEntityMember(message.getType(), entityId, sender)) {
+            return;
+        }
+        com.fc.freer.call.MeetingManager.getInstance(context).onChatSignal(message.getType().name(), entityId, sender, s);
+    }
+
+    private boolean isEntityMember(ImType type, String entityId, String fid) {
+        if (isEntityOwner(entityId, fid)) return true;
+        if (type == ImType.TEAM) return teamHandler != null && teamHandler.isMember(entityId, fid);
+        if (type == ImType.ROOM) {
+            Room room = roomHandler != null ? roomHandler.getRoom(entityId) : null;
+            return room != null && room.isMember(fid);
+        }
+        return false;
+    }
+
+    /** What meetings need from this identity (§8): posting cards, the relay, and the entity's symkeys. */
+    private final class MeetingHooks implements com.fc.freer.call.MeetingManager.Hooks {
+        @Override
+        public void post(String entityType, String entityId, com.fc.fc_ajdk.call.MeetingSignal signal) {
+            ImMessage m = ImMessage.createCall(ImType.valueOf(entityType), liveFid, entityId, signal.toJson());
+            send(m);
+            // A new card shows in the open chat at once, as a message typed there would.
+            if (!isMeetingControl(m)) {
+                mainHandler.post(() -> {
+                    for (ImListener l : listeners) l.onMessageReceived(m);
+                });
+            }
+        }
+
+        /**
+         * The entity's home.CALL, else my own (§8). A debug build's relay
+         * override wins, as for 1:1 calls, for testing before one is on chain.
+         */
+        @Override
+        public String relayFor(String entityType, String entityId) {
+            String override = com.fc.freer.call.CallManager.getInstance(context).relayOverride();
+            if (!override.isEmpty()) return override;
+            Map<String, String> home = null;
+            if (ImType.TEAM.name().equals(entityType) && teamHandler != null) {
+                Team team = teamHandler.loadTeamInfo(entityId);
+                home = team != null ? team.getHome() : null;
+            } else if (ImType.ROOM.name().equals(entityType) && roomHandler != null) {
+                Room room = roomHandler.getRoom(entityId);
+                home = room != null ? room.getHome() : null;
+            }
+            String url = callServiceUrl(home);
+            if (url != null) return url;
+            com.fc.fc_ajdk.data.fcData.KeyInfo mine = com.fc.freer.manager.FidManager.getInstance().getLiveKeyInfo();
+            return callServiceUrl(mine != null ? mine.getHome() : null);
+        }
+
+        @Override
+        public void meetingDocks(String entityType, String entityId) {
+            setMeetingDocks(entityType, entityId);
+        }
+
+        @Override
+        public void storeKey(String keyEntity, long version, byte[] key) {
+            if (symkeyStore != null) symkeyStore.put(keyEntity, version, key);
+        }
+
+        @Override
+        public void forgetKey(String keyEntity) {
+            if (symkeyStore != null) symkeyStore.forget(keyEntity);
+        }
+
+        /** On every channel at once, as a call signal: an invitation is meant to arrive now (§6.3). */
+        @Override
+        public void sendDirect(String fid, com.fc.fc_ajdk.call.MeetingSignal signal) {
+            ImMessage m = ImMessage.createCall(ImType.P2P, liveFid, fid, signal.toJson());
+            if (fudpNode != null) m.setIdFromLong(fudpNode.generateMessageId());
+            executor.execute(() -> {
+                boolean any = p2pHandler.sendCallSignal(m);
+                TimberLogger.i(TAG, "Meeting %s for %s to %s: %s", signal.op, signal.meetingId, fid,
+                        any ? "sent" : "found no channel");
+            });
+        }
+
+        @Override
+        public void storeCard(String entityType, String entityId, String hostFid,
+                              com.fc.fc_ajdk.call.MeetingSignal card) {
+            executor.execute(() -> storeMeetingCard(ImType.valueOf(entityType), entityId, hostFid, card,
+                    System.currentTimeMillis()));
+        }
+
+        @Override
+        public String entityName(String entityType, String entityId) {
+            if (ImType.ROOM.name().equals(entityType)) {
+                Room room = roomHandler != null ? roomHandler.getRoom(entityId) : null;
+                return room != null ? room.getName() : null;
+            }
+            Team team = teamHandler != null ? teamHandler.getTeam(entityId) : null;
+            return team != null ? team.getStdName() : null;
+        }
+
+        @Override
+        public com.fc.freer.call.MeetingSession.Keys keys() {
+            return new com.fc.freer.call.MeetingSession.Keys() {
+                @Override
+                public List<byte[]> symkeys(String entityId, long version) {
+                    return symkeyStore == null ? List.of() : symkeyStore.getSymkeys(entityId, version);
+                }
+
+                @Override
+                public long currentVersion(String entityId) {
+                    return symkeyStore == null ? -1 : symkeyStore.getCurrentVersion(entityId);
+                }
+
+                @Override
+                public void request(String entityId, long version) {
+                    requestSymkey(entityId, version, null);
+                }
+            };
+        }
+    }
+
+    private String callServiceUrl(Map<String, String> home) {
+        if (home == null || fapiClient == null) return null;
+        String value = home.get(com.fc.fc_ajdk.constants.Constants.CALL_NO1_NRC7);
+        if (value == null || value.isEmpty()) return null;
+        return fapiClient.getHomeServiceResolver().resolveFromHome(home, com.fc.fc_ajdk.constants.Constants.CALL_NO1_NRC7,
+                fapiClient);
     }
 
     /** Signals leave on every channel at once, not through the retry queue (§6.3). */
@@ -2933,8 +3187,31 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             };
             if (entityType != null) {
                 setDockPriorityIfRegistered(entityType, targetId);
+                // What arrives 1:1 about a group chat -- meeting invitations, key shares and
+                // key requests -- lands in my own DOCK, which may be another server (§3.3).
+                setDockPriorityIfRegistered("p2p_self", liveFid);
             }
         }
+    }
+
+    /** The Room or Team of the meeting running on this device, whose DOCKs stay hot; null if none. */
+    private volatile String[] meetingDocks;
+
+    /**
+     * Keep a meeting's DOCKs fetched every few seconds for as long as it runs,
+     * whatever screen is open: the entity's, for its cards, and my own, for
+     * key requests and shares after a rotation (§4.5). Null ends it.
+     */
+    public void setMeetingDocks(String entityType, String entityId) {
+        meetingDocks = entityType == null ? null : new String[]{entityType, entityId};
+        if (meetingDocks != null && dockScheduler != null) applyMeetingDocks();
+    }
+
+    private void applyMeetingDocks() {
+        String[] m = meetingDocks;
+        if (m == null || dockRegistry == null) return;
+        setDockPriorityIfRegistered("TEAM".equals(m[0]) ? TEAM : ROOM, m[1]);
+        setDockPriorityIfRegistered("p2p_self", liveFid);
     }
 
     private void setDockPriorityIfRegistered(String entityType, String entityId) {
@@ -2950,6 +3227,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
     public void clearActiveChatDock() {
         if (dockScheduler != null) {
             dockScheduler.clearPriorityDock();
+            applyMeetingDocks(); // a meeting still running keeps its own
         }
     }
     

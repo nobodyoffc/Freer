@@ -1641,8 +1641,10 @@ public class ChatActivity extends BaseCryptoActivity
         if (message.getContentType() == ContentType.RECEIPT) return;
         
         if (isMessageForThisChat(message)) {
+            // Except a meeting card: the meeting posts it, not this screen, so it is not here yet.
             if ((imType == ImType.SQUARE || imType == ImType.TEAM || imType == ImType.ROOM)
-                    && liveFid != null && liveFid.equals(message.getSenderId())) {
+                    && liveFid != null && liveFid.equals(message.getSenderId())
+                    && message.getContentType() != ContentType.CALL) {
                 TimberLogger.d(TAG, "Ignoring self-sent group message: id=%s", message.getId());
                 return;
             }
@@ -2324,6 +2326,10 @@ public class ChatActivity extends BaseCryptoActivity
             popup.dismiss();
             openMemberList();
         });
+        menuView.findViewById(R.id.menu_start_meeting).setOnClickListener(v -> {
+            popup.dismiss();
+            askMeetingTitle();
+        });
 
         View ownerMenuItem = menuView.findViewById(R.id.menu_room_owner_menu);
         if (isOwner) {
@@ -2636,6 +2642,10 @@ public class ChatActivity extends BaseCryptoActivity
         menuView.findViewById(R.id.menu_team_members).setOnClickListener(v -> {
             popup.dismiss();
             openMemberList();
+        });
+        menuView.findViewById(R.id.menu_start_meeting).setOnClickListener(v -> {
+            popup.dismiss();
+            askMeetingTitle();
         });
 
         // Reading the consensus is offered to every member, not gated on owner or manager:
@@ -3341,6 +3351,109 @@ public class ChatActivity extends BaseCryptoActivity
         startActivity(new android.content.Intent(this, com.fc.freer.call.CallActivity.class));
     }
 
+    // ── Meetings (VOICE_SPEC §8) ────────────────────────────────────────
+
+    /** What to do once the microphone is allowed: start or join a meeting. */
+    private Runnable afterMeetingMic;
+
+    private final androidx.activity.result.ActivityResultLauncher<String[]> meetingPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), granted -> {
+                Runnable next = afterMeetingMic;
+                afterMeetingMic = null;
+                if (Boolean.TRUE.equals(granted.get(Manifest.permission.RECORD_AUDIO))) {
+                    if (next != null) next.run();
+                } else {
+                    ToastUtils.makeText(this, getString(R.string.call_need_mic));
+                }
+            });
+
+    private final com.fc.freer.call.MeetingManager.CardListener meetingCards = () -> {
+        if (adapter != null) adapter.notifyDataSetChanged(); // a card opened or ended
+    };
+
+    /**
+     * Back from a meeting: this screen was paused while the meeting posted its
+     * card or it ended, and heard of neither. Reload if an open meeting of this
+     * chat has no card here; redraw the cards either way.
+     */
+    private void catchUpMeetingCards() {
+        com.fc.freer.call.MeetingBoard board = com.fc.freer.call.MeetingManager.getInstance(this).board();
+        if (board == null || targetId == null || adapter == null) return;
+        for (com.fc.freer.call.MeetingBoard.Meeting m : board.open(targetId)) {
+            boolean shown = false;
+            for (ImMessage x : messages) {
+                if (com.fc.freer.call.CallText.isCall(x) && x.getContent() != null && x.getContent().contains(m.meetingId)) {
+                    shown = true;
+                    break;
+                }
+            }
+            if (!shown) {
+                loadMessages();
+                return;
+            }
+        }
+        adapter.notifyDataSetChanged();
+    }
+
+    private void withMeetingMic(Runnable next) {
+        afterMeetingMic = next;
+        java.util.List<String> needed = new java.util.ArrayList<>();
+        needed.add(Manifest.permission.RECORD_AUDIO);
+        if (android.os.Build.VERSION.SDK_INT >= 33) needed.add(Manifest.permission.POST_NOTIFICATIONS);
+        meetingPermissionLauncher.launch(needed.toArray(new String[0]));
+    }
+
+    private void askMeetingTitle() {
+        if (targetId == null || imType == null) return;
+        android.widget.EditText title = new android.widget.EditText(this);
+        title.setHint(R.string.meeting_start_title_hint);
+        title.setSingleLine(true);
+        // Everyone, keyed by the chat's key; or chosen people, under a key of the meeting's own (Decision 20).
+        DialogUtils.show(new AlertDialog.Builder(this)
+                .setTitle(R.string.meeting_start)
+                .setView(title)
+                .setPositiveButton(R.string.meeting_everyone,
+                        (d, w) -> withMeetingMic(() -> startMeeting(title.getText().toString().trim(), null)))
+                .setNeutralButton(R.string.meeting_choose_people, (d, w) -> com.fc.freer.call.MemberPicker.show(this,
+                        com.fc.freer.call.MemberPicker.members(imType.name(), targetId, java.util.Set.of(liveFid)),
+                        chosen -> withMeetingMic(() -> startMeeting(title.getText().toString().trim(), chosen))))
+                .setNegativeButton(R.string.cancel, null));
+    }
+
+    private void startMeeting(String title, java.util.List<String> invitees) {
+        com.fc.freer.call.MeetingManager.getInstance(this).start(imType.name(), targetId, title, invitees, error -> {
+            if (error != null) {
+                ToastUtils.makeText(this, error);
+                return;
+            }
+            startActivity(new android.content.Intent(this, com.fc.freer.call.MeetingActivity.class));
+        });
+    }
+
+    @Override
+    public void onJoinMeeting(ImMessage card, String meetingId) {
+        withMeetingMic(() -> {
+            com.fc.freer.call.MeetingManager meetings = com.fc.freer.call.MeetingManager.getInstance(this);
+            Runnable join = () -> meetings.join(meetingId, error -> {
+                if (error != null) {
+                    ToastUtils.makeText(this, error);
+                    return;
+                }
+                startActivity(new android.content.Intent(this, com.fc.freer.call.MeetingActivity.class));
+            });
+            com.fc.freer.call.MeetingBoard board = meetings.board();
+            if (board != null && board.get(meetingId) == null && imManager != null) {
+                // A card decrypted after its meeting signal went by: learn it now, off the main thread.
+                new Thread(() -> {
+                    imManager.noteMeetingCard(card);
+                    runOnUiThread(join);
+                }, "meeting-card").start();
+            } else {
+                join.run();
+            }
+        });
+    }
+
     // ── Request history ─────────────────────────────────────────────────
 
     private void showRequestHistoryMemberPicker() {
@@ -3428,6 +3541,8 @@ public class ChatActivity extends BaseCryptoActivity
         super.onResume();
         dismissLeaveTeamDialog();
 
+        com.fc.freer.call.MeetingManager.getInstance(this).addCardListener(meetingCards);
+        catchUpMeetingCards();
         if (imManager != null) {
             imManager.addListener(this);
             imManager.setActiveChatDock(imType, targetId);
@@ -3466,6 +3581,7 @@ public class ChatActivity extends BaseCryptoActivity
         saveDraft();
         if (isRecording) cancelRecording();
         if (voicePlayer != null) voicePlayer.stop();
+        com.fc.freer.call.MeetingManager.getInstance(this).removeCardListener(meetingCards);
         if (imManager != null) {
             imManager.removeListener(this);
             imManager.clearActiveChatDock();

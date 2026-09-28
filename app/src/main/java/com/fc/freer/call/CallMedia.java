@@ -21,6 +21,12 @@ import java.util.TreeMap;
  * checks every played frame against its sender's signed attestations. The
  * same bytes go direct or through the relay, which reads only the header.
  * <p>
+ * In a meeting a sender's audio pauses when its attestations are late, and
+ * resumes once one vouches for what was held (Decision 15); only a digest
+ * that does not match silences it for good. A rekey (§4.5) adds a new key
+ * epoch; senders move to it once everyone holds it (Decision 19), and the
+ * previous epoch's keys open frames for 5 s after that.
+ * <p>
  * No Android and no network in here. Thread-safety: every method is
  * synchronized; {@link #seal} runs on the capture thread, {@link #open} on the
  * network thread.
@@ -34,36 +40,51 @@ public final class CallMedia {
     static final long ATTEST_DEADLINE_MS = 3_000;
     /** Played frames' digests are kept this long (§5.1). */
     static final long KEEP_PLAYED_MS = 5_000;
+    /** A paused stream's held digests: at most this long, of frames never played (Decision 15). */
+    static final long KEEP_HELD_MS = 60_000;
+    /** After a rekey, the previous epoch's keys still open frames this long (§4.5). */
+    static final long PREVIOUS_EPOCH_MS = 5_000;
 
     public interface Listener {
         /** Audio claimed to be from {@code fid} could not be verified; that stream is now silent. */
         void onUnverified(String fid, int ssrc);
+
+        /** A meeting stream paused for late attestations, or resumed once vouched for (Decision 15). */
+        default void onPaused(String fid, int ssrc, boolean paused) {}
     }
 
-    private record Played(byte[] digest, long atMs) {}
+    /** A frame's digest, and whether it was played or only held while its stream was paused. */
+    private record Played(byte[] digest, long atMs, boolean heard) {}
 
     private static final class Peer {
         final String fid;
         final int ssrc;
         final byte[] tPub;
-        final byte[] key;
+        /** Sender keys by key epoch: the current one, and the previous one for a few seconds. */
+        final Map<Integer, byte[]> keys = new HashMap<>();
         final ReplayWindow window = new ReplayWindow();
         final TreeMap<Long, Played> played = new TreeMap<>();
         boolean unverified;
+        boolean paused;
 
-        Peer(String fid, int ssrc, byte[] tPub, byte[] key) {
+        Peer(String fid, int ssrc, byte[] tPub) {
             this.fid = fid;
             this.ssrc = ssrc;
             this.tPub = tPub;
-            this.key = key;
         }
     }
 
     private final String callId;
-    private final byte[] callSecret;
+    /** Call secrets by key epoch, as {@link Peer#keys}. */
+    private final Map<Integer, byte[]> secrets = new HashMap<>();
     private final String myFid;
     private final int mySsrc;
-    private final byte[] myKey;
+    private int myEpoch = KEY_EPOCH;
+    private byte[] myKey;
+    private int previousEpoch = -1;
+    private int pendingEpoch = -1;
+    private byte[] pendingKey;
+    private long previousUntilMs;
     private final byte[] tPriv;
     private final Map<Integer, Peer> peers = new HashMap<>();
     private Listener listener;
@@ -83,7 +104,7 @@ public final class CallMedia {
 
     public CallMedia(String callId, byte[] callSecret, String myFid, int mySsrc, byte[] tPriv) {
         this.callId = callId;
-        this.callSecret = callSecret.clone();
+        this.secrets.put(KEY_EPOCH, callSecret.clone());
         this.myFid = myFid;
         this.mySsrc = mySsrc;
         this.myKey = CallKeys.senderKey(callSecret, myFid, mySsrc, KEY_EPOCH);
@@ -121,7 +142,60 @@ public final class CallMedia {
      */
     public synchronized void addPeer(String fid, int ssrc, byte[] tPub) {
         if (ssrc == mySsrc || peers.containsKey(ssrc)) return;
-        peers.put(ssrc, new Peer(fid, ssrc, tPub.clone(), CallKeys.senderKey(callSecret, fid, ssrc, KEY_EPOCH)));
+        Peer p = new Peer(fid, ssrc, tPub.clone());
+        for (Map.Entry<Integer, byte[]> e : secrets.entrySet()) {
+            p.keys.put(e.getKey(), CallKeys.senderKey(e.getValue(), fid, ssrc, e.getKey()));
+        }
+        peers.put(ssrc, p);
+    }
+
+    /**
+     * A new key epoch (§4.5): everyone's frames open under it from now on, but
+     * ours go out under it only at {@link #switchSending}, once everyone still
+     * in the meeting holds it (Decision 19). Until then the current epoch's keys
+     * keep both working.
+     */
+    public synchronized void rekey(byte[] newSecret, int keyEpoch, long nowMs) {
+        int epoch = keyEpoch & 0xFF; // the header carries it as a u8
+        if (epoch == myEpoch || epoch == pendingEpoch) return;
+        if (pendingEpoch >= 0) switchSending(nowMs); // a second rekey before the first settled
+        secrets.put(epoch, newSecret.clone());
+        for (Peer p : peers.values()) p.keys.put(epoch, CallKeys.senderKey(newSecret, p.fid, p.ssrc, epoch));
+        pendingEpoch = epoch;
+        pendingKey = CallKeys.senderKey(newSecret, myFid, mySsrc, epoch);
+    }
+
+    /**
+     * Send under the epoch {@link #rekey} added. The previous epoch's keys open
+     * frames for {@link #PREVIOUS_EPOCH_MS} more: other senders switch at about
+     * the same moment, and some frames are in flight.
+     */
+    public synchronized void switchSending(long nowMs) {
+        if (pendingEpoch < 0) return;
+        dropPreviousEpoch();
+        previousEpoch = myEpoch;
+        previousUntilMs = nowMs + PREVIOUS_EPOCH_MS;
+        myEpoch = pendingEpoch;
+        myKey = pendingKey;
+        pendingEpoch = -1;
+        pendingKey = null;
+    }
+
+    /** The epoch added by {@link #rekey} and not yet sent under, or -1. */
+    public synchronized int pendingEpoch() {
+        return pendingEpoch;
+    }
+
+    public synchronized int keyEpoch() {
+        return myEpoch;
+    }
+
+    private void dropPreviousEpoch() {
+        if (previousEpoch < 0) return;
+        byte[] s = secrets.remove(previousEpoch);
+        if (s != null) Arrays.fill(s, (byte) 0);
+        for (Peer p : peers.values()) p.keys.remove(previousEpoch);
+        previousEpoch = -1;
     }
 
     public synchronized void removePeer(int ssrc) {
@@ -134,7 +208,7 @@ public final class CallMedia {
     public synchronized byte[] seal(EncodedFrame f, long nowMs) {
         int flags = (f.voiceActive() ? MediaFrame.FLAG_VAD : 0) | (f.afterDtx() ? MediaFrame.FLAG_DTX : 0);
         byte[] frame = MediaFrame.seal(myKey, new MediaFrame.Header(flags, routeId, mySsrc, f.seq(), f.timestamp(),
-                f.level(), KEY_EPOCH), f.opus());
+                f.level(), myEpoch), f.opus());
         if (pendingFirst >= 0) {
             long gap = f.seq() - (pendingFirst + pending.size());
             // Seqs skipped as DTX get an all-zero digest. If they would overflow the
@@ -185,8 +259,8 @@ public final class CallMedia {
 
     /**
      * @return the frame to play, or null: not a v1 media frame, an ssrc not in
-     *         the roster, one already found unverified, another key epoch,
-     *         failed authentication, or a replay
+     *         the roster, one already found unverified or paused, a key epoch
+     *         we hold no key for, failed authentication, or a replay
      */
     public synchronized EncodedFrame open(byte[] datagram, long nowMs) {
         return open(datagram, nowMs, false);
@@ -201,12 +275,16 @@ public final class CallMedia {
      */
     public synchronized EncodedFrame open(byte[] datagram, long nowMs, boolean fromPeerConnection) {
         MediaFrame.Header h = MediaFrame.Header.parse(datagram);
-        if (h == null || h.keyEpoch() != KEY_EPOCH) return null;
+        if (h == null) return null;
         Peer p = peers.get(h.ssrc());
         if (p == null || p.unverified) return null;
-        byte[] payload = MediaFrame.open(p.key, datagram);
+        byte[] key = p.keys.get(h.keyEpoch());
+        if (key == null) return null;
+        byte[] payload = MediaFrame.open(key, datagram);
         if (payload == null || !p.window.accept(h.seq())) return null; // window only after authentication
-        if (!fromPeerConnection) p.played.put(h.seq(), new Played(Attestation.digest(datagram), nowMs));
+        // Paused: keep the digest for when an attestation comes, but play nothing (Decision 15).
+        if (!fromPeerConnection) p.played.put(h.seq(), new Played(Attestation.digest(datagram), nowMs, !p.paused));
+        if (p.paused) return null;
         return new EncodedFrame(h.ssrc(), h.seq(), h.timestamp(), h.level(),
                 (h.flags() & MediaFrame.FLAG_VAD) != 0, (h.flags() & MediaFrame.FLAG_DTX) != 0, payload);
     }
@@ -216,11 +294,28 @@ public final class CallMedia {
      * roster names for that ssrc (§5.1 step 1); then every frame we played in
      * its range must match its digest.
      */
-    public synchronized void onAttestation(byte[] bytes) {
+    public void onAttestation(byte[] bytes) {
+        onAttestation(bytes, System.currentTimeMillis());
+    }
+
+    public void onAttestation(byte[] bytes, long nowMs) {
         Attestation a = Attestation.parse(bytes);
         if (a == null) return;
+        byte[] tPub;
+        synchronized (this) {
+            Peer p = peers.get(a.ssrc());
+            if (p == null || p.unverified) return;
+            tPub = p.tPub;
+        }
+        // The signature check is the slow part: done outside the lock, so frames keep
+        // opening and sealing meanwhile (on a budget phone it held both up).
+        if (!a.verify(tPub, callId)) return;
+        vouch(a, nowMs);
+    }
+
+    private synchronized void vouch(Attestation a, long nowMs) {
         Peer p = peers.get(a.ssrc());
-        if (p == null || p.unverified || !a.verify(p.tPub, callId)) return;
+        if (p == null || p.unverified) return;
         for (Iterator<Map.Entry<Long, Played>> it = p.played.subMap(a.firstSeq(), true, a.lastSeq(), true)
                 .entrySet().iterator(); it.hasNext(); ) {
             Map.Entry<Long, Played> e = it.next();
@@ -231,20 +326,40 @@ public final class CallMedia {
             }
             it.remove(); // vouched for
         }
+        // Everything overdue is now vouched for: the delay was the network's (Decision 15).
+        if (p.paused && !overdue(p, nowMs)) {
+            p.paused = false;
+            if (listener != null) listener.onPaused(p.fid, p.ssrc, false);
+        }
     }
 
-    /** Call about once a second: anything played 3 s ago and still unattested is unverified. */
+    /**
+     * Call about once a second. In a meeting, a stream with a frame played 3 s
+     * ago and still unattested pauses until an attestation vouches for it.
+     */
     public synchronized void tick(long nowMs) {
+        if (previousEpoch >= 0 && nowMs >= previousUntilMs) dropPreviousEpoch();
         for (Peer p : new ArrayList<>(peers.values())) {
             if (p.unverified) continue;
-            for (Played pl : oneToOne ? List.<Played>of() : p.played.values()) {
-                if (nowMs - pl.atMs() >= ATTEST_DEADLINE_MS) {
-                    unverified(p);
-                    break;
-                }
+            if (!oneToOne && !p.paused && overdue(p, nowMs)) {
+                p.paused = true;
+                if (listener != null) listener.onPaused(p.fid, p.ssrc, true);
             }
-            p.played.values().removeIf(pl -> nowMs - pl.atMs() > KEEP_PLAYED_MS);
+            if (p.paused) {
+                // Keep what was played until vouched for; what was only held, for a minute.
+                p.played.values().removeIf(pl -> !pl.heard() && nowMs - pl.atMs() > KEEP_HELD_MS);
+            } else {
+                p.played.values().removeIf(pl -> nowMs - pl.atMs() > KEEP_PLAYED_MS);
+            }
         }
+    }
+
+    /** A digest older than the deadline that no attestation has vouched for yet. */
+    private static boolean overdue(Peer p, long nowMs) {
+        for (Played pl : p.played.values()) {
+            if (nowMs - pl.atMs() >= ATTEST_DEADLINE_MS) return true;
+        }
+        return false;
     }
 
     public synchronized boolean isUnverified(int ssrc) {
@@ -252,8 +367,14 @@ public final class CallMedia {
         return p != null && p.unverified;
     }
 
+    public synchronized boolean isPaused(int ssrc) {
+        Peer p = peers.get(ssrc);
+        return p != null && p.paused;
+    }
+
     private void unverified(Peer p) {
         p.unverified = true;
+        p.paused = false;
         p.played.clear();
         if (listener != null) listener.onUnverified(p.fid, p.ssrc);
     }

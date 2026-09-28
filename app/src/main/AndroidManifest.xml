@@ -341,6 +341,11 @@
             android:launchMode="singleTop"
             android:screenOrientation="portrait" />
 
+        <activity android:name="com.fc.freer.call.MeetingActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:screenOrientation="portrait" />
+
         <service android:name="com.fc.freer.call.CallService"
             android:exported="false"
             android:foregroundServiceType="microphone|phoneCall" />
