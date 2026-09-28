@@ -2060,6 +2060,11 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         }
 
         @Override
+        public void meetingDocks(String entityType, String entityId) {
+            setMeetingDocks(entityType, entityId);
+        }
+
+        @Override
         public void storeKey(String keyEntity, long version, byte[] key) {
             if (symkeyStore != null) symkeyStore.put(keyEntity, version, key);
         }
@@ -3182,8 +3187,31 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             };
             if (entityType != null) {
                 setDockPriorityIfRegistered(entityType, targetId);
+                // What arrives 1:1 about a group chat -- meeting invitations, key shares and
+                // key requests -- lands in my own DOCK, which may be another server (§3.3).
+                setDockPriorityIfRegistered("p2p_self", liveFid);
             }
         }
+    }
+
+    /** The Room or Team of the meeting running on this device, whose DOCKs stay hot; null if none. */
+    private volatile String[] meetingDocks;
+
+    /**
+     * Keep a meeting's DOCKs fetched every few seconds for as long as it runs,
+     * whatever screen is open: the entity's, for its cards, and my own, for
+     * key requests and shares after a rotation (§4.5). Null ends it.
+     */
+    public void setMeetingDocks(String entityType, String entityId) {
+        meetingDocks = entityType == null ? null : new String[]{entityType, entityId};
+        if (meetingDocks != null && dockScheduler != null) applyMeetingDocks();
+    }
+
+    private void applyMeetingDocks() {
+        String[] m = meetingDocks;
+        if (m == null || dockRegistry == null) return;
+        setDockPriorityIfRegistered("TEAM".equals(m[0]) ? TEAM : ROOM, m[1]);
+        setDockPriorityIfRegistered("p2p_self", liveFid);
     }
 
     private void setDockPriorityIfRegistered(String entityType, String entityId) {
@@ -3199,6 +3227,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
     public void clearActiveChatDock() {
         if (dockScheduler != null) {
             dockScheduler.clearPriorityDock();
+            applyMeetingDocks(); // a meeting still running keeps its own
         }
     }
     

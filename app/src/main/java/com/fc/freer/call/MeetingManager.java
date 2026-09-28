@@ -61,6 +61,9 @@ public final class MeetingManager {
 
         MeetingSession.Keys keys();
 
+        /** Keep this meeting's DOCKs fetched every few seconds while it runs; null, null when it ends. */
+        void meetingDocks(String entityType, String entityId);
+
         /** Keep a chosen-people meeting's key as the symkey of {@code keyEntity}, encrypted like any (Decision 20). */
         void storeKey(String keyEntity, long version, byte[] key);
 
@@ -490,6 +493,7 @@ public final class MeetingManager {
                 });
         session = s;
         s.start();
+        if (h != null) h.meetingDocks(m.entityType, m.entityId);
         CallService.start(context);
         notifyUi();
     }
@@ -542,6 +546,7 @@ public final class MeetingManager {
             notifyCards();
         }
         session = null;
+        if (hooks != null) hooks.meetingDocks(null, null);
         audio.leave();
         CallService.stop(context);
         phase = Phase.ENDED;
