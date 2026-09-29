@@ -60,6 +60,11 @@ public final class VoiceService extends Service {
     // Touched on the main looper only.
     private CallSession call;
     private MeetingSession meeting;
+    /**
+     * Told to end, and tearing down: its audio has stopped, and it may take
+     * seconds more to leave the relay. It must not keep the next one out.
+     */
+    private boolean callEnding, meetingEnding;
     private RemoteSecrets secrets;
     private ScheduledFuture<?> status;
 
@@ -119,7 +124,10 @@ public final class VoiceService extends Service {
                 }
                 case VoiceProtocol.MEETING_JOIN -> joinMeeting(b);
                 case VoiceProtocol.MEETING_LEAVE -> {
-                    if (meeting != null) meeting.leave(b.getBoolean(VoiceProtocol.END_FOR_ALL));
+                    if (meeting != null) {
+                        meetingEnding = true;
+                        meeting.leave(b.getBoolean(VoiceProtocol.END_FOR_ALL));
+                    }
                 }
                 case VoiceProtocol.MEETING_HAND -> {
                     if (meeting != null) meeting.setHand(b.getBoolean(VoiceProtocol.ON));
@@ -157,9 +165,18 @@ public final class VoiceService extends Service {
         }
     }
 
+    /** A call or meeting that is running and not on its way out. */
+    private boolean busy() {
+        return (call != null && !callEnding) || (meeting != null && !meetingEnding);
+    }
+
     private void startCall(Bundle b) {
-        if (call != null || meeting != null) {
+        if (busy()) {
             TimberLogger.w(TAG, "a call or meeting is already running: refusing another");
+            Bundle e = forCall(b.getString(VoiceProtocol.CALL_ID));
+            e.putString(VoiceProtocol.STATE, CallSession.State.FAILED.name());
+            e.putString(VoiceProtocol.DETAIL, "another call or meeting is still running");
+            send(VoiceProtocol.EVT_CALL_STATE, e);
             return;
         }
         String callId = b.getString(VoiceProtocol.CALL_ID);
@@ -236,6 +253,8 @@ public final class VoiceService extends Service {
             }
         });
         call = s;
+        callEnding = false;
+        if (status != null) status.cancel(false); // the ending call's
         status = timer.scheduleWithFixedDelay(() -> handler.post(this::pushStatus), STATUS_EVERY_MS, STATUS_EVERY_MS,
                 TimeUnit.MILLISECONDS);
         if (b.getBoolean(VoiceProtocol.OUTGOING)) s.startOutgoing();
@@ -245,6 +264,7 @@ public final class VoiceService extends Service {
     private void endCall(String callId) {
         CallSession c = call;
         if (c == null || !c.callId().equals(callId)) return;
+        callEnding = true;
         c.end(); // reports ENDED, which finishes it here
     }
 
@@ -253,6 +273,7 @@ public final class VoiceService extends Service {
         CallSession c = call;
         if (c == null || !c.callId().equals(callId)) return;
         call = null;
+        callEnding = false;
         if (status != null) status.cancel(false);
         status = null;
         try {
@@ -260,7 +281,7 @@ public final class VoiceService extends Service {
         } catch (java.util.concurrent.RejectedExecutionException ignored) {
             // already ended
         }
-        audio.leave();
+        leaveAudioIfIdle();
     }
 
     private void pushStatus() {
@@ -274,11 +295,15 @@ public final class VoiceService extends Service {
     }
 
     private void joinMeeting(Bundle b) {
-        if (call != null || meeting != null) {
+        MeetingBoard.Meeting m = GSON.fromJson(b.getString(VoiceProtocol.MEETING), MeetingBoard.Meeting.class);
+        if (busy()) {
             TimberLogger.w(TAG, "a call or meeting is already running: refusing another");
+            Bundle e = forMeeting(m.meetingId);
+            e.putString(VoiceProtocol.WHY, MeetingSession.End.FAILED.name());
+            e.putString(VoiceProtocol.DETAIL, "another call or meeting is still running");
+            send(VoiceProtocol.EVT_MEETING_ENDED, e);
             return;
         }
-        MeetingBoard.Meeting m = GSON.fromJson(b.getString(VoiceProtocol.MEETING), MeetingBoard.Meeting.class);
         RemoteSecrets s = new RemoteSecrets(m.meetingId);
         ArrayList<Bundle> given = b.getParcelableArrayList(VoiceProtocol.SECRETS);
         if (given != null) for (Bundle g : given) s.answer(g);
@@ -324,21 +349,31 @@ public final class VoiceService extends Service {
                 e.putString(VoiceProtocol.WHY, why.name());
                 e.putString(VoiceProtocol.DETAIL, detail);
                 send(VoiceProtocol.EVT_MEETING_ENDED, e);
-                handler.post(() -> finishMeeting(id));
+                handler.post(() -> finishMeeting(id, s));
             }
         });
         meeting = session;
+        meetingEnding = false;
         session.start();
     }
 
-    private void finishMeeting(String meetingId) {
+    /** @param its the secrets of that meeting: a newer one may be running by now */
+    private void finishMeeting(String meetingId, RemoteSecrets its) {
+        its.erase();
+        if (secrets == its) secrets = null;
         MeetingSession m = meeting;
-        if (m == null || !m.meetingId().equals(meetingId)) return;
+        if (m == null || !m.meetingId().equals(meetingId)) {
+            leaveAudioIfIdle();
+            return;
+        }
         meeting = null;
-        RemoteSecrets s = secrets;
-        secrets = null;
-        if (s != null) s.erase();
-        audio.leave();
+        meetingEnding = false;
+        leaveAudioIfIdle();
+    }
+
+    /** Call audio mode ends with the last call or meeting, not with one that ended while the next began. */
+    private void leaveAudioIfIdle() {
+        if (call == null && meeting == null) audio.leave();
     }
 
     private void pushView() {

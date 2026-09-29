@@ -39,6 +39,9 @@ public final class CallAudio {
     @SuppressWarnings("deprecation")
     public synchronized void setSpeaker(boolean on) {
         if (focus == null) return;
+        // Android may have put us back in normal mode (seen on an A05s after a route
+        // change); call mode is what turns the phone's echo control and call routing on.
+        if (audio.getMode() != AudioManager.MODE_IN_COMMUNICATION) audio.setMode(AudioManager.MODE_IN_COMMUNICATION);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (!on) {
                 audio.clearCommunicationDevice();
