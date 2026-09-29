@@ -346,8 +346,14 @@
             android:launchMode="singleTop"
             android:screenOrientation="portrait" />
 
+        <!-- Calls' audio and media run in their own process (VOICE_SPEC §11.3). -->
+        <service android:name="com.fc.freer.call.VoiceService"
+            android:exported="false"
+            android:process=":voice" />
+
         <service android:name="com.fc.freer.call.CallService"
             android:exported="false"
+            android:process=":voice"
             android:foregroundServiceType="microphone|phoneCall" />
 
         <service android:name="com.fc.freer.call.CallAvailabilityService"

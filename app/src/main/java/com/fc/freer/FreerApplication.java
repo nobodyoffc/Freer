@@ -94,6 +94,10 @@ public class FreerApplication extends Application {
             new FreerMessageCallback(this)
         );
 
+        // The :voice process runs only a call's media (VOICE_SPEC §11.3): it needs the
+        // crypto providers and logging above, and none of the wallet or chat below.
+        if (isVoiceProcess()) return;
+
         // Use FAPI as the primary API service
         serviceNumberMap.put(Service.ServiceType.FAPI_No1_NrC7, 1);
 
@@ -144,6 +148,12 @@ public class FreerApplication extends Application {
             @Override
             public void onActivityDestroyed(android.app.Activity activity) {}
         });
+    }
+
+    /** This is the process calls' audio runs in, not the app's main one. */
+    public static boolean isVoiceProcess() {
+        String name = Application.getProcessName();
+        return name != null && name.endsWith(":voice");
     }
 
     @Override
