@@ -48,8 +48,9 @@ public final class CallSession {
     public enum State { CONNECTING, RINGING, CONNECTED, ENDED, FAILED }
 
     /** What the session needs to know of the call; no signalling, no identity key. */
+    /** @param ownEchoCanceller cancel echo with the app's {@link com.fc.freer.call.engine.Apm}, not the phone's (§11.1) */
     public record Params(String callId, String peerFid, String relayUrl, String relayPubkey, String relaySid,
-                         byte[] tPriv, Delegation myDelegation, Delegation peerDelegation) {}
+                         byte[] tPriv, Delegation myDelegation, Delegation peerDelegation, boolean ownEchoCanceller) {}
 
     /** The signalling side of the call (§3.2), which lives where the identity does. */
     public interface Host {
@@ -105,6 +106,8 @@ public final class CallSession {
     private volatile CallRelayLink link;
     private volatile CallMedia media;
     private volatile PlayoutEngine playout;
+    /** The app's own echo canceller, when the call uses it. */
+    private volatile com.fc.freer.call.engine.Apm apm;
     private volatile Map<String, Object> lastRoster;
     private volatile State state = State.CONNECTING;
     private volatile int routeId;
@@ -359,6 +362,13 @@ public final class CallSession {
     }
 
     /** Levels are -dBov: 127 is silence, speech is roughly 20-50. */
+    /** Play-to-capture delay as the devices report it, as a hint for the app's echo canceller. */
+    private void noteEchoDelay(PlayoutEngine p) {
+        if (apm == null) return;
+        int out = p.outputLatencyMs(), in = capture.inputLatencyMs();
+        if (out >= 0) capture.setEchoDelayMs(out + Math.max(0, in));
+    }
+
     private void logStats(PlayoutEngine p) {
         StringBuilder in = new StringBuilder();
         for (PlayoutEngine.Stream s : p.streams().values()) {
@@ -371,6 +381,8 @@ public final class CallSession {
                 capture.level(), muted ? " (muted)" : "", capture.framesSent(), capture.dtxSkipped(),
                 capture.describe(), capture.effects(), framesOpened,
                 in.length() == 0 ? " nothing" : in, p.underruns(), p.describe()));
+        com.fc.freer.call.engine.Apm a = apm;
+        if (a != null) step("echo canceller: " + a.describe());
     }
 
     /** One line per step, timed from the session's start, so a failed call shows where it stopped. */
@@ -384,6 +396,14 @@ public final class CallSession {
         Arrays.fill(secret, (byte) 0);
         m.setRouteId(routeId);
         PlayoutEngine p = new PlayoutEngine(backend);
+        if (call.ownEchoCanceller()) {
+            apm = com.fc.freer.call.engine.Apm.create();
+            if (apm != null) {
+                capture.setEchoCanceller(apm);
+                p.setEchoCanceller(apm);
+            }
+            step("echo cancellation: " + (apm != null ? "the app's own (AEC3)" : "the phone's (the app's failed to start)"));
+        }
         m.setListener((fid, ssrc) -> {
             step("peer's audio unverified and silenced");
             p.silence(ssrc);
@@ -402,6 +422,7 @@ public final class CallSession {
             m.tick(now);
             adaptFrameLength(now);
             if (++statTicks % (STATS_EVERY_MS / ATTEST_CHECK_MS) == 0) logStats(p);
+            if (statTicks % 5 == 0) noteEchoDelay(p);
             notePeerSilence(now);
             // Checked 5 times a second so each attestation leaves ~1 s after its
             // first frame, not up to 2 s: the far end mutes us at 3 s (§5.1).
@@ -545,6 +566,9 @@ public final class CallSession {
         capture.stop();
         PlayoutEngine p = playout;
         if (p != null) p.stop();
+        com.fc.freer.call.engine.Apm echo = apm;
+        apm = null;
+        if (echo != null) echo.close(); // after both engines: they call into it
         CallMedia m = media;
         CallRelayLink l = link;
         if (m != null && l != null) {

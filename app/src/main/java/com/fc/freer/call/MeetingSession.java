@@ -129,6 +129,9 @@ public final class MeetingSession {
     private volatile CallRelayLink link;
     private volatile CallMedia media;
     private volatile PlayoutEngine playout;
+    private final boolean ownEchoCanceller;
+    /** The app's own echo canceller, when the meeting uses it. */
+    private volatile com.fc.freer.call.engine.Apm apm;
     private volatile List<Participant> participants = List.of();
     private volatile String hostFid;
     private volatile int routeId;
@@ -159,6 +162,14 @@ public final class MeetingSession {
     public MeetingSession(Context context, MeetingBoard.Meeting meeting, String myFid, byte[] tPriv,
                           Delegation delegation, AudioIo.Backend backend, boolean creating, Secrets secrets,
                           Listener listener) {
+        this(context, meeting, myFid, tPriv, delegation, backend, creating, false, secrets, listener);
+    }
+
+    /** @param ownEchoCanceller cancel echo with the app's {@link com.fc.freer.call.engine.Apm}, not the phone's (§11.1) */
+    public MeetingSession(Context context, MeetingBoard.Meeting meeting, String myFid, byte[] tPriv,
+                          Delegation delegation, AudioIo.Backend backend, boolean creating, boolean ownEchoCanceller,
+                          Secrets secrets, Listener listener) {
+        this.ownEchoCanceller = ownEchoCanceller;
         this.context = context.getApplicationContext();
         this.meeting = meeting;
         this.myFid = myFid;
@@ -436,6 +447,14 @@ public final class MeetingSession {
         }
         m.setRouteId(routeId);
         PlayoutEngine p = new PlayoutEngine(AudioIo.Backend.AAUDIO);
+        if (ownEchoCanceller) {
+            apm = com.fc.freer.call.engine.Apm.create();
+            if (apm != null) {
+                capture.setEchoCanceller(apm);
+                p.setEchoCanceller(apm);
+            }
+            step("echo cancellation: " + (apm != null ? "the app's own (AEC3)" : "the phone's (the app's failed to start)"));
+        }
         m.setListener(new CallMedia.Listener() {
             @Override
             public void onUnverified(String fid, int ssrc) {
@@ -480,6 +499,12 @@ public final class MeetingSession {
             m.tick(now);
             if (++ticks % (HOST_CHECK_MS / TICK_MS) == 0 && isHost()) followSymkey(now);
             if (ticks % (STATS_EVERY_MS / TICK_MS) == 0) logStats();
+            if (apm != null && ticks % 5 == 0) {
+                // Play-to-capture delay as the devices report it: a hint for the echo canceller.
+                PlayoutEngine pl = playout;
+                int out = pl == null ? -1 : pl.outputLatencyMs(), in = capture.inputLatencyMs();
+                if (out >= 0) capture.setEchoDelayMs(out + Math.max(0, in));
+            }
             if (ticks % 5 == 0) listener.onChanged(); // who is speaking
         } catch (RuntimeException e) {
             TimberLogger.w(TAG, "tick: %s", e.getMessage());
@@ -684,6 +709,8 @@ public final class MeetingSession {
         step(String.format(java.util.Locale.US, "stats: %d in the roster, %d playing, mic level %d%s, sent %d, dtx %d, rtt %d ms",
                 participants.size(), p == null ? 0 : p.streams().size(), capture.level(), isMuted() ? " (muted)" : "",
                 capture.framesSent(), capture.dtxSkipped(), rttMs()));
+        com.fc.freer.call.engine.Apm a = apm;
+        if (a != null) step("echo canceller: " + a.describe());
         for (Map.Entry<Integer, long[]> e : arrivals.entrySet()) {
             int ssrc = e.getKey();
             String fid;
@@ -724,6 +751,9 @@ public final class MeetingSession {
             capture.stop();
             PlayoutEngine p = playout;
             if (p != null) p.stop();
+            com.fc.freer.call.engine.Apm echo = apm;
+            apm = null;
+            if (echo != null) echo.close(); // after both engines: they call into it
             CallMedia m = media;
             CallRelayLink l = link;
             if (m != null && l != null) for (byte[] a : m.finish(System.currentTimeMillis())) l.sendAttestation(a);

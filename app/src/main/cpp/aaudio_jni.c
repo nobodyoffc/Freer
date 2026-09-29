@@ -35,10 +35,13 @@ static int16_t *scratchFor(Stream *s, int32_t n) {
     return s->scratch;
 }
 
-// Voice-call settings either way: the input preset and output usage are what
-// the platform keys its echo canceller and routing on.
+// Voice-call settings: the input preset and output usage are what the platform
+// keys its echo canceller and routing on. With the app's own echo canceller
+// (apm_jni.cc) the input takes VOICE_RECOGNITION instead, which leaves the
+// platform's echo control out: two in series fight.
 JNIEXPORT jlong JNICALL
-Java_com_fc_freer_call_engine_AAudio_open(JNIEnv *env, jclass cls, jboolean input, jint rate, jboolean exclusive) {
+Java_com_fc_freer_call_engine_AAudio_open(JNIEnv *env, jclass cls, jboolean input, jint rate, jboolean exclusive,
+                                          jboolean platformEffects) {
     AAudioStreamBuilder *b = NULL;
     if (AAudio_createStreamBuilder(&b) != AAUDIO_OK) return 0;
     AAudioStreamBuilder_setDirection(b, input ? AAUDIO_DIRECTION_INPUT : AAUDIO_DIRECTION_OUTPUT);
@@ -48,7 +51,8 @@ Java_com_fc_freer_call_engine_AAudio_open(JNIEnv *env, jclass cls, jboolean inpu
     AAudioStreamBuilder_setSampleRate(b, rate);
     AAudioStreamBuilder_setChannelCount(b, 1);
     if (input) {
-        AAudioStreamBuilder_setInputPreset(b, AAUDIO_INPUT_PRESET_VOICE_COMMUNICATION);
+        AAudioStreamBuilder_setInputPreset(b, platformEffects ? AAUDIO_INPUT_PRESET_VOICE_COMMUNICATION
+                                                              : AAUDIO_INPUT_PRESET_VOICE_RECOGNITION);
         AAudioStreamBuilder_setSessionId(b, AAUDIO_SESSION_ID_ALLOCATE);
     } else {
         AAudioStreamBuilder_setUsage(b, AAUDIO_USAGE_VOICE_COMMUNICATION);

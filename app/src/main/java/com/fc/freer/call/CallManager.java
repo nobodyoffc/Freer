@@ -40,6 +40,7 @@ public final class CallManager implements CallSignaller.Listener {
     private static final String PREF_RELAY = "relay_override";
     private static final String PREF_ALWAYS_RELAY = "always_relay";
     private static final String PREF_AVAILABLE = "available_for_calls";
+    private static final String PREF_OWN_AEC = "own_echo_canceller";
 
     public enum Phase { IDLE, CALLING, RINGING_IN, CONNECTING, CONNECTED, ENDED }
 
@@ -234,6 +235,19 @@ public final class CallManager implements CallSignaller.Listener {
     }
 
     /** Never try a direct path, which would show each side the other's IP (Decision 8). Off by default. */
+    /**
+     * Cancel echo with the app's own canceller (AEC3) instead of the phone's
+     * voice processing (§11.1): for phones that cut one side off when both
+     * talk on the loudspeaker. Off by default. Read when a call or meeting starts.
+     */
+    public boolean ownEchoCanceller() {
+        return prefs().getBoolean(PREF_OWN_AEC, false);
+    }
+
+    public void setOwnEchoCanceller(boolean on) {
+        prefs().edit().putBoolean(PREF_OWN_AEC, on).apply();
+    }
+
     public boolean alwaysRelay() {
         return prefs().getBoolean(PREF_ALWAYS_RELAY, false);
     }
@@ -429,6 +443,7 @@ public final class CallManager implements CallSignaller.Listener {
         if (secret != null) b.putByteArray(VoiceProtocol.SECRET, secret);
         b.putBoolean(VoiceProtocol.OUTGOING, outgoing);
         b.putBoolean(VoiceProtocol.ALLOW_DIRECT, allowDirect(c.peerFid));
+        b.putBoolean(VoiceProtocol.OWN_AEC, ownEchoCanceller());
         b.putBoolean(VoiceProtocol.ON, speaker);
         sessionCallId = c.callId;
         voice.send(VoiceProtocol.CALL_START, b);

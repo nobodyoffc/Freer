@@ -2789,6 +2789,8 @@
     <string name="dock_checking_saver">Battery saver</string>
     <string name="dock_checking_hint">How often this phone checks for calls, meeting rings and messages. Normal: every 3 s for calls to you and every 10 s for Rooms and Teams while the app is open. Fast checks more often; Battery saver every 10 s and 1 min. In the background the app checks only while Available for calls is on, and at most every 3 minutes otherwise. An open chat is always checked every 3 s.</string>
     <string name="call_voice_died">the call\'s audio stopped unexpectedly</string>
+    <string name="call_setting_own_aec">Use Freer\'s echo canceller</string>
+    <string name="call_setting_own_aec_hint">Try this if, on the loudspeaker, one side cuts out whenever you both talk. Freer then removes the echo itself instead of the phone doing it. Takes effect from the next call.</string>
     <string name="meeting_card_title">Voice meeting</string>
     <string name="meeting_card_title_named">Voice meeting: %1$s</string>
     <string name="meeting_card_by">Started by %1$s</string>
