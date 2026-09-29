@@ -20,6 +20,19 @@ interface KnownRelays {
 
     void forget(String url);
 
+    /**
+     * UDP got no answer from this relay on this network lately (§11.1): go
+     * straight to TCP. Remembered for {@link #TCP_FIRST_MS}.
+     */
+    default boolean tcpFirst(String url) {
+        return false;
+    }
+
+    default void noteUdpSilent(String url, boolean silent) {}
+
+    /** Half an hour: long enough for the calls of one network, short enough to try UDP again after a move. */
+    long TCP_FIRST_MS = 30 * 60_000;
+
     static KnownRelays of(Context context) {
         SharedPreferences prefs = context.getSharedPreferences("call_relays", Context.MODE_PRIVATE);
         return new KnownRelays() {
@@ -40,6 +53,18 @@ interface KnownRelays {
             @Override
             public void forget(String url) {
                 prefs.edit().remove(url).apply();
+            }
+
+            @Override
+            public boolean tcpFirst(String url) {
+                return url != null && System.currentTimeMillis() - prefs.getLong("tcpFirst:" + url, 0) < TCP_FIRST_MS;
+            }
+
+            @Override
+            public void noteUdpSilent(String url, boolean silent) {
+                if (url == null) return;
+                if (silent) prefs.edit().putLong("tcpFirst:" + url, System.currentTimeMillis()).apply();
+                else prefs.edit().remove("tcpFirst:" + url).apply();
             }
         };
     }

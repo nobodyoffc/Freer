@@ -145,6 +145,15 @@ public final class CallRelayLink implements AutoCloseable {
         connect(relayUrl, relayPubkeyHex, relaySid, null);
     }
 
+    /** How long UDP gets to show the relay answers, before TCP is tried (§11.1). */
+    static final long UDP_WAIT_MS = 4_000;
+
+    /** Whether this link reached its relay over TCP (FUDP8) because UDP got no answer. */
+    private volatile boolean overTcp;
+
+    /** Tests only: behave as on a network that drops every UDP reply. */
+    static volatile boolean udpBlockedForTesting;
+
     /**
      * @param known relays reached before: a caller, which has no INVITE to
      *              name the key, tries the remembered one first, and
@@ -154,26 +163,117 @@ public final class CallRelayLink implements AutoCloseable {
     public String connect(String relayUrl, String relayPubkeyHex, String relaySid, KnownRelays known)
             throws IOException {
         node.start();
-        if (relayPubkeyHex != null && relaySid != null && withKey(relayUrl, relayPubkeyHex, relaySid)) {
+        FapiClient.Endpoint ep = FapiClient.parseFudpUrl(relayUrl);
+        if (ep == null) throw new IOException("not a fudp:// url: " + relayUrl);
+        boolean tcpFirst = udpBlockedForTesting || (known != null && known.tcpFirst(relayUrl));
+        if (!tcpFirst) {
+            String how = reach(relayUrl, relayPubkeyHex, relaySid, known, UDP_WAIT_MS, 1);
+            if (how != null) {
+                if (known != null) known.noteUdpSilent(relayUrl, false);
+                return how;
+            }
+        }
+        // Nothing came back over UDP. Some networks let UDP out to the relay and drop
+        // every reply (§11.1); TCP to the same relay, 443 above all, gets through.
+        java.net.InetSocketAddress as = new java.net.InetSocketAddress(ep.host(), ep.port());
+        for (int port : openTcpPorts(ep.host(), tcpPorts(ep.port()))) {
+            try {
+                node.getProtocol().tcp().connect(ep.host(), port, as);
+            } catch (IOException e) {
+                continue;
+            }
+            forgetRelay();
+            String how = reach(relayUrl, relayPubkeyHex, relaySid, known, VERIFY_MS, DISCOVERY_ATTEMPTS);
+            if (how != null) {
+                overTcp = true;
+                // So the next call on this network does not wait for UDP first.
+                if (known != null && !tcpFirst) known.noteUdpSilent(relayUrl, true);
+                return how + ", over TCP port " + port + (tcpFirst ? " (UDP got no answer lately)" : " (no answer over UDP)");
+            }
+            node.getProtocol().tcp().disconnect(as);
+            forgetRelay();
+        }
+        if (tcpFirst) {
+            // TCP failed too: perhaps this is another network now, where UDP works.
+            if (known != null) known.noteUdpSilent(relayUrl, false);
+            String how = udpBlockedForTesting ? null : reach(relayUrl, relayPubkeyHex, relaySid, known, UDP_WAIT_MS, 1);
+            if (how != null) return how;
+        }
+        throw new IOException("relay unreachable over UDP or TCP: " + relayUrl);
+    }
+
+    /**
+     * Which of {@code ports} accept a TCP connection, tried all at once: a port
+     * whose packets are dropped costs its whole connect timeout, and should not
+     * make the others wait. In the order given.
+     */
+    static java.util.List<Integer> openTcpPorts(String host, int[] ports) {
+        java.util.List<java.util.concurrent.CompletableFuture<Boolean>> tries = new java.util.ArrayList<>();
+        for (int port : ports) {
+            tries.add(java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                try (java.net.Socket s = new java.net.Socket()) {
+                    s.connect(new java.net.InetSocketAddress(host, port), TCP_PROBE_MS);
+                    return true;
+                } catch (IOException e) {
+                    return false;
+                }
+            }));
+        }
+        java.util.List<Integer> open = new java.util.ArrayList<>();
+        for (int i = 0; i < ports.length; i++) {
+            if (Boolean.TRUE.equals(tries.get(i).join())) open.add(ports[i]);
+        }
+        return open;
+    }
+
+    /** How long a TCP port gets to accept, when probing. */
+    static final int TCP_PROBE_MS = 4_000;
+
+    /** TCP ports to try when UDP gets no answer: 443 first, which networks rarely block, then the relay's own. */
+    static int[] tcpPorts(int udpPort) {
+        return udpPort == 443 ? new int[]{443} : new int[]{443, udpPort};
+    }
+
+    /** Whether this link reached its relay over TCP, because UDP got no answer. */
+    public boolean overTcp() {
+        return overTcp;
+    }
+
+    /**
+     * Reach the relay and see it answer, on whatever carries packets to it now:
+     * with the INVITE's key, a remembered one, or by discovery. A key only
+     * counts once a PING over FUDP's own handshake, which resends lost packets,
+     * comes back within {@code waitMs}. @return how, or null if nothing answered
+     */
+    private String reach(String relayUrl, String relayPubkeyHex, String relaySid, KnownRelays known, long waitMs,
+                         int discoveryAttempts) {
+        if (relayPubkeyHex != null && relaySid != null && withKey(relayUrl, relayPubkeyHex, relaySid)
+                && answersPing(waitMs)) {
             return "with the key from the INVITE";
         }
+        forgetRelay();
         String[] remembered = known == null ? null : known.get(relayUrl);
-        if (remembered != null && withKey(relayUrl, remembered[0], remembered[1])) {
-            if (answersPing()) return "with its remembered key";
-            // Stale: the relay has a new key, or is gone. Forget it and discover.
-            node.removePeer(relayFid());
-            fapi = null;
-            known.forget(relayUrl);
+        if (remembered != null && withKey(relayUrl, remembered[0], remembered[1]) && answersPing(waitMs)) {
+            return "with its remembered key";
         }
+        // Stale, or this path does not reach it: discovery finds the key again, and a new one replaces it.
+        forgetRelay();
         FapiClient found = null;
-        for (int attempt = 1; attempt <= DISCOVERY_ATTEMPTS && found == null; attempt++) {
-            found = FapiClient.bootstrapFromUrl(node, relayUrl, null);
+        for (int attempt = 1; attempt <= discoveryAttempts && found == null; attempt++) {
+            found = FapiClient.bootstrapFromUrl(node, relayUrl, null, waitMs, waitMs);
         }
-        if (found == null) throw new IOException("relay unreachable: " + relayUrl);
+        if (found == null) return null;
         fapi = new FapiClient(node, found.getServicePeerId(), found.getServiceSid(), REQUEST_TIMEOUT_S);
         fapi.setServerUrl(relayUrl);
         if (known != null) known.put(relayUrl, relayPubkey(), relaySid());
         return "by discovery";
+    }
+
+    /** Drop a relay that did not answer, so the next attempt starts clean. */
+    private void forgetRelay() {
+        String fid = relayFid();
+        if (!fid.isEmpty()) node.removePeer(fid);
+        fapi = null;
     }
 
     /** Set up the relay as a known peer: no packet is sent until the first request. */
@@ -194,9 +294,9 @@ public final class CallRelayLink implements AutoCloseable {
     }
 
     /** A PING over FUDP's own handshake, which resends lost packets, unlike discovery's. */
-    private boolean answersPing() {
+    private boolean answersPing(long waitMs) {
         try {
-            node.pingAwaitPong(relayFid(), false, VERIFY_MS).get(VERIFY_MS + 1_000, java.util.concurrent.TimeUnit.MILLISECONDS);
+            node.pingAwaitPong(relayFid(), false, waitMs).get(waitMs + 1_000, java.util.concurrent.TimeUnit.MILLISECONDS);
             return true;
         } catch (Exception e) {
             return false;

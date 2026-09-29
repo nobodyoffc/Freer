@@ -81,6 +81,20 @@ public class CallRelayLinkLiveTest {
     }
 
     /**
+     * On a network that drops every UDP reply (§11.1), both sides fall back to
+     * FUDP over TCP, and the call runs over it as over UDP.
+     */
+    @Test
+    public void aCallOverTcpWhenUdpGetsNoAnswer() throws Exception {
+        CallRelayLink.udpBlockedForTesting = true;
+        try {
+            run(false);
+        } finally {
+            CallRelayLink.udpBlockedForTesting = false;
+        }
+    }
+
+    /**
      * Both share candidates through the relay's roster (§6.1), punch, and move
      * audio to the direct path (§6.2 steps 6-8). Needs a relay that knows
      * candidates, and both sides on this machine or one network.
@@ -221,6 +235,8 @@ public class CallRelayLinkLiveTest {
         try {
             // Caller: connect, create, join, and wait (§6.2 step 1).
             caller.open(callId, relay);
+            assertEquals("UDP when it answers, TCP when it does not", CallRelayLink.udpBlockedForTesting,
+                    caller.link.overTcp());
             caller.link.createRetrying();
             Map<String, Object> cj = caller.link.join(caller.ssrc, null, direct);
             assertEquals(Boolean.TRUE, cj.get("datagram"));
