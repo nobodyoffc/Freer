@@ -57,8 +57,16 @@ public final class AudioIo {
     private AudioIo() {}
 
     public static Input openInput(Backend backend, int frameSamples) {
-        return backend == Backend.JAVA ? new JavaInput(frameSamples)
-                : new AAudio.Input(backend == Backend.AAUDIO_EXCLUSIVE);
+        return openInput(backend, frameSamples, true);
+    }
+
+    /**
+     * @param platformEffects the platform's voice processing (VOICE_COMMUNICATION);
+     *                        false when the app cancels echo itself (VOICE_RECOGNITION)
+     */
+    public static Input openInput(Backend backend, int frameSamples, boolean platformEffects) {
+        return backend == Backend.JAVA ? new JavaInput(frameSamples, platformEffects)
+                : new AAudio.Input(backend == Backend.AAUDIO_EXCLUSIVE, platformEffects);
     }
 
     public static Output openOutput(Backend backend, int frameSamples) {
@@ -66,7 +74,7 @@ public final class AudioIo {
                 : new AAudio.Output(backend == Backend.AAUDIO_EXCLUSIVE);
     }
 
-    /** AudioRecord with the VOICE_COMMUNICATION source. */
+    /** AudioRecord with the VOICE_COMMUNICATION source, or VOICE_RECOGNITION under the app's own echo canceller. */
     static final class JavaInput implements Input {
         private final AudioRecord record;
         private final String effects;
@@ -74,10 +82,11 @@ public final class AudioIo {
         private long samplesRead;
 
         @SuppressLint("MissingPermission") // the caller has checked RECORD_AUDIO
-        JavaInput(int frameSamples) {
+        JavaInput(int frameSamples, boolean platformEffects) {
             int minBytes = AudioRecord.getMinBufferSize(Opus.SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT);
-            record = new AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, Opus.SAMPLE_RATE,
+            record = new AudioRecord(platformEffects ? MediaRecorder.AudioSource.VOICE_COMMUNICATION
+                    : MediaRecorder.AudioSource.VOICE_RECOGNITION, Opus.SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
                     Math.max(minBytes, 4 * frameSamples * 2));
             if (record.getState() != AudioRecord.STATE_INITIALIZED) {

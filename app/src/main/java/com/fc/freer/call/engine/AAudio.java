@@ -33,7 +33,7 @@ final class AAudio {
 
     private AAudio() {}
 
-    static native long open(boolean input, int sampleRate, boolean exclusive);
+    static native long open(boolean input, int sampleRate, boolean exclusive, boolean platformEffects);
     static native int read(long h, short[] buf, int off, int n, long timeoutNs);
     static native int write(long h, short[] buf, int off, int n, long timeoutNs);
     static native int query(long h, int what);
@@ -55,9 +55,13 @@ final class AAudio {
         private volatile String mode;
         private volatile int reopens;
 
-        Input(boolean exclusive) {
+        private final boolean platformEffects;
+
+        /** @param platformEffects the platform's voice processing; off when the app cancels echo itself */
+        Input(boolean exclusive, boolean platformEffects) {
+            this.platformEffects = platformEffects;
             this.exclusive = exclusive;
-            h = open(true, Opus.SAMPLE_RATE, exclusive);
+            h = open(true, Opus.SAMPLE_RATE, exclusive, platformEffects);
             if (h == 0) throw new IllegalStateException("AAudio input would not open at 48 kHz mono");
             effects = AudioIo.JavaInput.describeEffects(query(h, Q_SESSION));
             mode = mode(h);
@@ -69,7 +73,7 @@ final class AAudio {
             reopens++;
             com.fc.fc_ajdk.utils.TimberLogger.w(TAG, "input failed (%d): reopening, time %d", error, reopens);
             AAudio.close(h);
-            h = open(true, Opus.SAMPLE_RATE, exclusive);
+            h = open(true, Opus.SAMPLE_RATE, exclusive, platformEffects);
             if (h == 0) return false;
             effects = AudioIo.JavaInput.describeEffects(query(h, Q_SESSION));
             mode = mode(h);
@@ -114,7 +118,7 @@ final class AAudio {
 
         Output(boolean exclusive) {
             this.exclusive = exclusive;
-            h = open(false, Opus.SAMPLE_RATE, exclusive);
+            h = open(false, Opus.SAMPLE_RATE, exclusive, true);
             if (h == 0) throw new IllegalStateException("AAudio output would not open at 48 kHz mono");
             mode = mode(h);
         }
@@ -124,7 +128,7 @@ final class AAudio {
             reopens++;
             com.fc.fc_ajdk.utils.TimberLogger.w(TAG, "output failed (%d): reopening, time %d", error, reopens);
             AAudio.close(h);
-            h = open(false, Opus.SAMPLE_RATE, exclusive);
+            h = open(false, Opus.SAMPLE_RATE, exclusive, true);
             xruns = 0;
             if (h == 0) return false;
             mode = mode(h);

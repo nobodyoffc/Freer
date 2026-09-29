@@ -2711,6 +2711,8 @@
     <string name="dock_checking_saver">省电</string>
     <string name="dock_checking_hint">本机检查来电、会议响铃和消息的频率。标准：应用打开时，每 3 秒检查打给你的来电，每 10 秒检查群聊和团队。快速会更频繁；省电则为每 10 秒和每 1 分钟。在后台，仅当开启“随时可接听”时才会持续检查，否则最多每 3 分钟一次。打开的聊天始终每 3 秒检查一次。</string>
     <string name="call_voice_died">通话音频意外停止</string>
+    <string name="call_setting_own_aec">使用 Freer 的回声消除</string>
+    <string name="call_setting_own_aec_hint">如果使用扬声器时，双方同时说话会有一方声音中断，请试试此项。开启后由 Freer 自己消除回声，而不是由手机处理。从下一次通话起生效。</string>
     <string name="meeting_card_title">语音会议</string>
     <string name="meeting_card_title_named">语音会议：%1$s</string>
     <string name="meeting_card_by">由 %1$s 发起</string>

@@ -50,6 +50,10 @@ public class CallSettingsActivity extends AppCompatActivity {
             if (im != null) im.applyDockIntervals();
         });
 
+        CheckBox ownAec = findViewById(R.id.cbOwnEchoCanceller);
+        ownAec.setChecked(calls.ownEchoCanceller());
+        ownAec.setOnCheckedChangeListener((b, on) -> calls.setOwnEchoCanceller(on));
+
         CheckBox alwaysRelay = findViewById(R.id.cbAlwaysRelay);
         alwaysRelay.setChecked(calls.alwaysRelay());
         alwaysRelay.setOnCheckedChangeListener((b, on) -> calls.setAlwaysRelay(on));

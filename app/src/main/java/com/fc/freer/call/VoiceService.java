@@ -168,7 +168,7 @@ public final class VoiceService extends Service {
                 b.getString(VoiceProtocol.RELAY_URL), b.getString(VoiceProtocol.RELAY_PUBKEY),
                 b.getString(VoiceProtocol.RELAY_SID), b.getByteArray(VoiceProtocol.T_PRIV),
                 Delegation.fromJson(b.getString(VoiceProtocol.MY_DELEGATION)),
-                peerJson == null ? null : Delegation.fromJson(peerJson));
+                peerJson == null ? null : Delegation.fromJson(peerJson), b.getBoolean(VoiceProtocol.OWN_AEC));
         speaker = b.getBoolean(VoiceProtocol.ON);
         CallSession.Host host = new CallSession.Host() {
             @Override
@@ -287,7 +287,8 @@ public final class VoiceService extends Service {
         String id = m.meetingId;
         MeetingSession session = new MeetingSession(this, m, b.getString(VoiceProtocol.MY_FID),
                 b.getByteArray(VoiceProtocol.T_PRIV), Delegation.fromJson(b.getString(VoiceProtocol.MY_DELEGATION)),
-                AudioIo.Backend.AAUDIO, b.getBoolean(VoiceProtocol.CREATING), s, new MeetingSession.Listener() {
+                AudioIo.Backend.AAUDIO, b.getBoolean(VoiceProtocol.CREATING), b.getBoolean(VoiceProtocol.OWN_AEC), s,
+                new MeetingSession.Listener() {
             @Override
             public void onJoined() {
                 // With the view: the host announces the meeting with the relay's key from it.

@@ -45,6 +45,9 @@ public final class CaptureEngine {
     private Thread thread;
     private volatile AudioIo.Input input;
     private Opus.Encoder encoder;
+    /** The app's own echo canceller, or null for the platform's processing. */
+    private volatile Apm apm;
+    private volatile int echoDelayMs = Apm.DEFAULT_DELAY_MS;
 
     public CaptureEngine(Settings settings, Sink sink) {
         this.settings = settings;
@@ -137,10 +140,24 @@ public final class CaptureEngine {
         return in == null ? -1 : in.latencyMs();
     }
 
+    /**
+     * Cancel echo with the app's own {@link Apm} instead of the platform's
+     * voice processing, which the microphone then opens without. Before
+     * {@link #start}.
+     */
+    public void setEchoCanceller(Apm apm) {
+        this.apm = apm;
+    }
+
+    /** Play-to-capture delay, as the devices report it: a hint for the echo canceller. */
+    public void setEchoDelayMs(int ms) {
+        if (ms > 0) echoDelayMs = ms;
+    }
+
     /** Needs RECORD_AUDIO, which the caller has checked. */
     public synchronized void start() {
         if (running) return;
-        input = AudioIo.openInput(settings.backend(), QUANTUM_SAMPLES);
+        input = AudioIo.openInput(settings.backend(), QUANTUM_SAMPLES, apm == null);
         encoder = new Opus.Encoder(settings.bitrate(), settings.dtx(), settings.expectedLossPercent());
         running = true;
         thread = new Thread(this::loop, "voice-capture");
@@ -192,6 +209,8 @@ public final class CaptureEngine {
             fifo.pop(pcm, frameSamples);
             int drop = mic.observe(fifo.size(), android.os.SystemClock.elapsedRealtime());
             if (drop > 0) fifo.drop(drop); // the dropped audio is simply never sent; seq and timestamp run on
+            Apm echo = apm;
+            if (echo != null) echo.capture(pcm, frameSamples, echoDelayMs); // every frame, muted or not: it keeps learning
 
             if (muted) Arrays.fill(pcm, (short) 0);
             int lvl = SpikeFrame.level(pcm, frameSamples);

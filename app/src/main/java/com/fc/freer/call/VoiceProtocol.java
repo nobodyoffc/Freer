@@ -93,6 +93,8 @@ final class VoiceProtocol {
     static final String VIEW = "view";
     static final String SIGNAL = "signal";
     static final String WHY = "why";
+    /** Cancel echo with the app's own canceller rather than the phone's (§11.1). */
+    static final String OWN_AEC = "ownAec";
 
     /** The key a secret is cached under: one key set of a meeting. */
     static String keySet(long symkeyVersion, String nonceHex, String authPubHex) {

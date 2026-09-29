@@ -81,6 +81,23 @@
                 android:textSize="13sp" />
 
             <CheckBox
+                android:id="@+id/cbOwnEchoCanceller"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/call_setting_own_aec"
+                android:textColor="@color/text"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="32dp"
+                android:layout_marginBottom="16dp"
+                android:text="@string/call_setting_own_aec_hint"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <CheckBox
                 android:id="@+id/cbAlwaysRelay"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

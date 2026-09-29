@@ -573,6 +573,7 @@ public final class MeetingManager {
         b.putByteArray(VoiceProtocol.T_PRIV, tPriv);
         b.putString(VoiceProtocol.MY_DELEGATION, delegation.toJson());
         b.putBoolean(VoiceProtocol.CREATING, creating);
+        b.putBoolean(VoiceProtocol.OWN_AEC, CallManager.getInstance(context).ownEchoCanceller());
         b.putBoolean(VoiceProtocol.ON, speaker);
         b.putParcelableArrayList(VoiceProtocol.SECRETS, given);
         sessionMeetingId = m.meetingId;

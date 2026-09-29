@@ -64,6 +64,8 @@ public final class PlayoutEngine {
     private volatile AudioIo.Output output;
     private volatile int outputLatencyMs = -1;
     private volatile long wrongFrameSize;
+    /** The app's own echo canceller, told what is played; null for the platform's. */
+    private volatile Apm apm;
 
     public PlayoutEngine(AudioIo.Backend backend) {
         this.backend = backend;
@@ -128,6 +130,11 @@ public final class PlayoutEngine {
         return wrongFrameSize;
     }
 
+    /** Tell {@code apm} every tick that is played: the echo it is to take out of the microphone. */
+    public void setEchoCanceller(Apm apm) {
+        this.apm = apm;
+    }
+
     public synchronized void start() {
         if (running) return;
         output = AudioIo.openOutput(backend, TICK_SAMPLES);
@@ -174,6 +181,8 @@ public final class PlayoutEngine {
                 s.pcmPlayed += TICK_SAMPLES;
             }
             for (int i = 0; i < TICK_SAMPLES; i++) out[i] = softClip(mix[i]);
+            Apm echo = apm;
+            if (echo != null) echo.render(out, TICK_SAMPLES);
             try {
                 // Blocks until there is room: this is what paces the loop.
                 output.write(out, 0, TICK_SAMPLES);
