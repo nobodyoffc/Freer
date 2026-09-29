@@ -151,7 +151,7 @@ public class MeetingActivity extends AppCompatActivity implements MeetingManager
         shownRinging = false;
         leave.setVisibility(View.VISIBLE);
         MeetingManager.Phase phase = meetings.phase();
-        MeetingSession s = meetings.session();
+        MeetingView s = meetings.session();
         String t = meetings.title();
         title.setText(t == null ? "" : t);
 
@@ -195,7 +195,7 @@ public class MeetingActivity extends AppCompatActivity implements MeetingManager
 
     /** The host's controls for one participant (§7.2). */
     private void showControls(MeetingSession.Participant p) {
-        MeetingSession s = meetings.session();
+        MeetingView s = meetings.session();
         if (s == null || !s.isHost() || p.me()) return;
         List<String> labels = new ArrayList<>();
         List<Runnable> actions = new ArrayList<>();
@@ -243,7 +243,7 @@ public class MeetingActivity extends AppCompatActivity implements MeetingManager
         private List<MeetingSession.Participant> rows = List.of();
         private Set<Integer> speaking = Set.of(), paused = Set.of();
 
-        void show(MeetingSession s, List<MeetingSession.Participant> people) {
+        void show(MeetingView s, List<MeetingSession.Participant> people) {
             rows = people;
             speaking = s == null ? Set.of() : s.speaking();
             paused = s == null ? Set.of() : s.pausedSsrcs();

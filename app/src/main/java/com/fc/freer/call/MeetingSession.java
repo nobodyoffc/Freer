@@ -7,7 +7,6 @@ import com.fc.fc_ajdk.call.CallKeys;
 import com.fc.fc_ajdk.call.CallSignal;
 import com.fc.fc_ajdk.call.Delegation;
 import com.fc.fc_ajdk.call.MeetingSignal;
-import com.fc.fc_ajdk.core.crypto.KeyTools;
 import com.fc.fc_ajdk.utils.Hex;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.call.engine.AudioIo;
@@ -16,7 +15,6 @@ import com.fc.freer.call.engine.PlayoutEngine;
 
 import java.io.File;
 import java.io.IOException;
-import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -37,10 +35,15 @@ import java.util.concurrent.TimeUnit;
  * the capture and playout engines. Network steps run on the session's own
  * thread; the listener hears from it and must not block.
  * <p>
- * A rekey (§4.5) comes as a relay notice: the session derives the new secret
- * from the named symkey version, asking the members for it if it lacks it,
- * and proves it within the relay's deadline. As host it also follows the
- * owner's rotations, rekeying when a newer symkey version arrives.
+ * A rekey (§4.5) comes as a relay notice: the session asks its
+ * {@link Secrets} for the new call secret, which ask the members for a
+ * symkey version this device lacks, and proves it within the relay's
+ * deadline. As host it also follows the owner's rotations, rekeying when a
+ * newer symkey version arrives.
+ * <p>
+ * It never sees a symkey or the identity's key (§11.3): only the join's
+ * transport key, its delegation, and call secrets. So it can run in the
+ * {@code :voice} process.
  */
 public final class MeetingSession {
 
@@ -51,8 +54,6 @@ public final class MeetingSession {
     private static final long REKEY_RETRY_MS = 2_000;
     /** A host retries a rekey the relay refused only after this long. */
     private static final long REKEY_BACKOFF_MS = 30_000;
-    /** Delegations outlast any meeting, well inside the 24 h cap (§4.1). */
-    private static final long DELEGATION_SEC = 12 * 3600;
     /** A stream counts as speaking while frames this loud arrived this recently. */
     private static final long SPEAKING_WITHIN_MS = 400;
     private static final int SPEAKING_LEVEL = 55;
@@ -60,15 +61,29 @@ public final class MeetingSession {
     /** Why a session is over. */
     public enum End { LEFT, ENDED_BY_HOST, KICKED, NO_KEY, BALANCE, GONE, FAILED }
 
-    /** Where the entity's symkeys come from: the identity's SymkeyStore, and the FIMP key request. */
-    public interface Keys {
-        List<byte[]> symkeys(String entityId, long version);
+    /**
+     * Call secrets for this meeting's key sets, from wherever its symkeys are
+     * kept. The session erases what it is given.
+     */
+    public interface Secrets {
+        /**
+         * The call secret of one key set (§4.2), or null if it is not at hand:
+         * this device lacks that symkey version, in which case the provider asks
+         * the members for it (§8), or the answer has not come back yet. The
+         * session asks again on its retries.
+         */
+        byte[] secret(long symkeyVersion, String nonceHex, String authPubHex);
 
-        long currentVersion(String entityId);
-
-        /** Ask the members for a version this device lacks (§8, SYMKEY_IDENTITY_SPEC §3). */
-        void request(String entityId, long version);
+        /**
+         * As host: the key set to rekey onto if the entity's symkey has moved
+         * past {@code symkeyVersion} (§4.5), or null. Never for a chosen-people
+         * meeting, which has no rotation to follow.
+         */
+        Rekey nextRekey(long symkeyVersion);
     }
+
+    /** A new key set for {@code call.rekey}: a fresh nonce and the admission key it gives. */
+    public record Rekey(long symkeyVersion, byte[] nonce, byte[] authPub) {}
 
     public interface Listener {
         /** Joined, audio flowing. */
@@ -93,7 +108,7 @@ public final class MeetingSession {
     private final Context context;
     private final MeetingBoard.Meeting meeting;
     private final String myFid;
-    private final Keys keys;
+    private final Secrets secrets;
     private final Listener listener;
     private final boolean creating;
     private final byte[] tPriv = new byte[32];
@@ -137,19 +152,24 @@ public final class MeetingSession {
      * @param creating this device starts the meeting: {@code call.create} before
      *                 joining, with the newest key set of {@code meeting}
      */
-    public MeetingSession(Context context, MeetingBoard.Meeting meeting, String myFid, byte[] fidPriv,
-                          AudioIo.Backend backend, boolean creating, Keys keys, Listener listener) {
+    /**
+     * @param tPriv      this join's transport key, made fresh for it; the session erases it
+     * @param delegation the identity's delegation of {@code tPriv}'s key for this meeting (§4.1)
+     */
+    public MeetingSession(Context context, MeetingBoard.Meeting meeting, String myFid, byte[] tPriv,
+                          Delegation delegation, AudioIo.Backend backend, boolean creating, Secrets secrets,
+                          Listener listener) {
         this.context = context.getApplicationContext();
         this.meeting = meeting;
         this.myFid = myFid;
-        this.keys = keys;
+        this.secrets = secrets;
         this.listener = listener;
         this.creating = creating;
         // Until a roster says otherwise: the relay names the host in each (§7.2).
         this.hostFid = creating ? myFid : meeting.hostFid;
-        new SecureRandom().nextBytes(tPriv);
-        this.myDelegation = Delegation.sign(fidPriv, meeting.meetingId, KeyTools.prikeyToPubkey(tPriv),
-                System.currentTimeMillis() / 1000 + DELEGATION_SEC);
+        System.arraycopy(tPriv, 0, this.tPriv, 0, this.tPriv.length);
+        Arrays.fill(tPriv, (byte) 0);
+        this.myDelegation = delegation;
         // Relayed audio, and so every meeting, uses 40 ms frames (§9.1).
         this.capture = new CaptureEngine(new CaptureEngine.Settings(FrameLength.LONG_MS, CallSession.BITRATE, true,
                 CallSession.EXPECTED_LOSS, backend), f -> {
@@ -375,8 +395,7 @@ public final class MeetingSession {
         Exception last = null;
         boolean anyKey = false;
         for (MeetingBoard.Keys k : sets) {
-            byte[] secret = MeetingKeys.secret(keys.symkeys(meeting.keyEntity(), k.symkeyVersion()),
-                    Hex.fromHex(k.nonce()), meeting.keyEntity(), k.symkeyVersion(), meeting.meetingId, k.authPub());
+            byte[] secret = secrets.secret(k.symkeyVersion(), k.nonce(), k.authPub());
             if (secret == null) continue;
             anyKey = true;
             byte[] authPriv = CallKeys.authPriv(secret);
@@ -401,9 +420,8 @@ public final class MeetingSession {
             }
         }
         if (!anyKey) {
+            // The secrets have asked for what this device lacks, if it can be asked for.
             MeetingBoard.Keys newest = meeting.newestKeys();
-            // A chat's key can be asked for; a chosen-people meeting's key only comes with its invitation.
-            if (newest != null && !meeting.invited) keys.request(meeting.entityId, newest.symkeyVersion());
             throw new Ended(End.NO_KEY, "no key for symkey version " + (newest == null ? "?" : newest.symkeyVersion()));
         }
         throw last != null ? last : new IOException("could not join");
@@ -590,13 +608,9 @@ public final class MeetingSession {
         if (version < 0 || epoch < 0 || nonce == null || authPub == null) return;
         CallMedia m = media;
         if (m != null && (m.keyEpoch() == (epoch & 0xFF) || m.pendingEpoch() == (epoch & 0xFF))) return; // already there
-        byte[] secret = MeetingKeys.secret(keys.symkeys(meeting.keyEntity(), version), Hex.fromHex(nonce),
-                meeting.keyEntity(), version, meeting.meetingId, authPub);
+        byte[] secret = secrets.secret(version, nonce, authPub);
         if (secret == null) {
-            if (!asked) {
-                step("rekeyed to symkey version " + version + ", which this device lacks: asking for it");
-                if (!meeting.invited) keys.request(meeting.entityId, version);
-            }
+            if (!asked) step("rekeyed to symkey version " + version + ", which is not at hand yet: waiting for it");
             if (System.currentTimeMillis() - since < within) {
                 timer.schedule(() -> rekeyAttempt(notice, since, true), REKEY_RETRY_MS, TimeUnit.MILLISECONDS);
             }
@@ -636,18 +650,13 @@ public final class MeetingSession {
      */
     private void followSymkey(long now) {
         if (meeting.invited) return; // keyed by its own key, not the chat's: no rotation to follow
-        long current = keys.currentVersion(meeting.entityId);
-        if (current <= symkeyVersion) return;
+        Rekey r = secrets.nextRekey(symkeyVersion);
+        if (r == null || r.symkeyVersion() <= symkeyVersion) return;
+        long current = r.symkeyVersion();
         if (current == rekeyTriedVersion && now - rekeyTriedAtMs < REKEY_BACKOFF_MS) return;
-        List<byte[]> held = keys.symkeys(meeting.entityId, current);
-        if (held == null || held.isEmpty()) return;
         rekeyTriedVersion = current;
         rekeyTriedAtMs = now;
-        byte[] nonce = new byte[32];
-        new SecureRandom().nextBytes(nonce);
-        byte[] secret = CallKeys.meetingSecret(held.get(0), nonce, meeting.entityId, current, meeting.meetingId);
-        byte[] authPub = CallKeys.authPub(CallKeys.authPriv(secret));
-        Arrays.fill(secret, (byte) 0);
+        byte[] nonce = r.nonce(), authPub = r.authPub();
         submit(() -> {
             try {
                 int epoch = link.rekey(current, nonce, authPub);

@@ -25,9 +25,11 @@ import java.util.concurrent.Executors;
 
 /**
  * The device's one call at a time (VOICE_SPEC §10, §11.1): places and answers
- * calls, rings for incoming ones, runs the {@link CallSession}, the foreground
- * {@link CallService} and the audio routing, and gives {@link CallActivity}
- * one state to show. Everything it tells the UI happens on the main thread.
+ * calls, rings for incoming ones, and gives {@link CallActivity} one state to
+ * show. The {@link CallSession} itself, with the audio, runs in the
+ * {@code :voice} process (§11.3), driven through {@link VoiceClient}: this
+ * keeps the signalling and hands it only the call's keys. Everything it tells
+ * the UI happens on the main thread.
  */
 public final class CallManager implements CallSignaller.Listener {
 
@@ -55,14 +57,17 @@ public final class CallManager implements CallSignaller.Listener {
     private final Context context;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
-    private final CallAudio audio;
+    private final VoiceClient voice;
     private CallSignaller signaller;
     private String myFid;
 
     // State for the UI, touched on the main thread only.
     private Phase phase = Phase.IDLE;
     private CallSignaller.Call call;
-    private CallSession session;
+    /** The call running in the voice process, or null. */
+    private String sessionCallId;
+    private boolean muted, direct, paymentRequired, networkBlocked;
+    private long rttMs = -1;
     private long connectedAtMs = -1;
     private String endReason;
     private boolean failed;
@@ -79,7 +84,24 @@ public final class CallManager implements CallSignaller.Listener {
 
     private CallManager(Context context) {
         this.context = context;
-        this.audio = new CallAudio(context);
+        this.voice = VoiceClient.get(context);
+        voice.setCallEvents(new VoiceClient.Events() {
+            @Override
+            public void onEvent(int what, android.os.Bundle data) {
+                onVoiceEvent(what, data);
+            }
+
+            @Override
+            public void onVoiceDied() {
+                if (sessionCallId == null) return;
+                // A crash in the audio code ends the call, as a failed relay would; the app goes on.
+                android.os.Bundle e = new android.os.Bundle();
+                e.putString(VoiceProtocol.CALL_ID, sessionCallId);
+                e.putString(VoiceProtocol.STATE, CallSession.State.FAILED.name());
+                e.putString(VoiceProtocol.DETAIL, context.getString(R.string.call_voice_died));
+                onVoiceEvent(VoiceProtocol.EVT_CALL_STATE, e);
+            }
+        });
     }
 
     /** Called by ImManager when an identity's signaller starts. */
@@ -88,6 +110,7 @@ public final class CallManager implements CallSignaller.Listener {
             this.myFid = myFid;
             this.signaller = signaller;
             signaller.setListener(this);
+            voice.bind(); // the voice process is up before a call needs it
             // An identity has just loaded, so the app is in the foreground: the only time Android allows this.
             if (availableForCalls()) CallAvailabilityService.start(context);
         });
@@ -186,7 +209,7 @@ public final class CallManager implements CallSignaller.Listener {
     }
 
     public boolean isMuted() {
-        return session != null && session.isMuted();
+        return sessionCallId != null && muted;
     }
 
     public boolean isSpeaker() {
@@ -194,7 +217,7 @@ public final class CallManager implements CallSignaller.Listener {
     }
 
     public long rttMs() {
-        return session == null ? -1 : session.rttMs();
+        return sessionCallId == null ? -1 : rttMs;
     }
 
     /**
@@ -235,7 +258,7 @@ public final class CallManager implements CallSignaller.Listener {
 
     /** Audio is on a direct path rather than the relay. */
     public boolean isDirect() {
-        return session != null && session.isDirect();
+        return sessionCallId != null && direct;
     }
 
     // ===== Actions =====
@@ -270,9 +293,8 @@ public final class CallManager implements CallSignaller.Listener {
                     finish(context.getString(R.string.call_end_busy_here));
                     return;
                 }
-                session = newSession(call);
-                session.startOutgoing();
-                CallService.start(context);
+                startSession(call, true, null);
+                CallService.start(context, false);
             });
         });
     }
@@ -282,9 +304,8 @@ public final class CallManager implements CallSignaller.Listener {
         stopRinging();
         if (signaller.accept(call.callId, null) == null) return;
         phase = Phase.CONNECTING;
-        session = newSession(call);
-        session.startIncoming();
-        CallService.start(context);
+        startSession(call, false, secretOf(call));
+        CallService.start(context, false);
         notifyUi();
     }
 
@@ -308,14 +329,22 @@ public final class CallManager implements CallSignaller.Listener {
     }
 
     public void setMuted(boolean muted) {
-        if (session != null) session.setMuted(muted);
+        if (sessionCallId != null) {
+            this.muted = muted;
+            android.os.Bundle b = new android.os.Bundle();
+            b.putBoolean(VoiceProtocol.ON, muted);
+            voice.send(VoiceProtocol.SET_MUTED, b);
+        }
         notifyUi();
     }
 
     public void setSpeaker(boolean on) {
         speaker = on;
-        audio.setSpeaker(on);
-        TimberLogger.i(TAG, "audio: %s", audio.describe());
+        if (sessionCallId != null) {
+            android.os.Bundle b = new android.os.Bundle();
+            b.putBoolean(VoiceProtocol.ON, on);
+            voice.send(VoiceProtocol.SET_SPEAKER, b);
+        }
         notifyUi();
     }
 
@@ -338,9 +367,15 @@ public final class CallManager implements CallSignaller.Listener {
     @Override
     public void onAnswered(CallSignaller.Call answered) {
         main.post(() -> {
-            if (session != null && call == answered) {
+            if (sessionCallId != null && call == answered) {
                 phase = Phase.CONNECTING;
-                session.onAnswered();
+                android.os.Bundle b = new android.os.Bundle();
+                b.putString(VoiceProtocol.CALL_ID, answered.callId);
+                b.putByteArray(VoiceProtocol.SECRET, secretOf(answered));
+                if (answered.peerDelegation() != null) {
+                    b.putString(VoiceProtocol.PEER_DELEGATION, answered.peerDelegation().toJson());
+                }
+                voice.send(VoiceProtocol.CALL_ANSWERED, b);
                 notifyUi();
             }
         });
@@ -368,73 +403,115 @@ public final class CallManager implements CallSignaller.Listener {
         }
     }
 
-    private CallSession newSession(CallSignaller.Call c) {
-        return new CallSession(context, signaller, c, myFid, AudioIo.Backend.AAUDIO, allowDirect(c.peerFid),
-                new CallSession.Listener() {
-            @Override
-            public void onPathChanged() {
-                main.post(() -> notifyUi());
-            }
+    /** A copy of the call secret for the session, which erases it; null if the signaller has none. */
+    private byte[] secretOf(CallSignaller.Call c) {
+        byte[] s = signaller == null ? null : signaller.callSecret(c.callId);
+        return s == null ? null : s.clone();
+    }
 
-            @Override
-            public void onPeerSilent(boolean silent) {
-                main.post(() -> {
-                    if (call != c) return;
-                    peerSilent = silent;
-                    notifyUi();
-                });
-            }
+    /**
+     * Start the call's session in the voice process with what it needs and no
+     * more (§11.3): the call's ids and relay, its transport key, the
+     * delegations, and for the callee the call secret.
+     */
+    private void startSession(CallSignaller.Call c, boolean outgoing, byte[] secret) {
+        android.os.Bundle b = new android.os.Bundle();
+        b.putString(VoiceProtocol.CALL_ID, c.callId);
+        b.putString(VoiceProtocol.PEER_FID, c.peerFid);
+        b.putString(VoiceProtocol.MY_FID, myFid);
+        b.putString(VoiceProtocol.RELAY_URL, c.relayUrl);
+        b.putString(VoiceProtocol.RELAY_PUBKEY, c.relayPubkey);
+        b.putString(VoiceProtocol.RELAY_SID, c.relaySid);
+        byte[] tPriv = c.transportPriv();
+        b.putByteArray(VoiceProtocol.T_PRIV, tPriv);
+        b.putString(VoiceProtocol.MY_DELEGATION, c.myDelegation.toJson());
+        if (c.peerDelegation() != null) b.putString(VoiceProtocol.PEER_DELEGATION, c.peerDelegation().toJson());
+        if (secret != null) b.putByteArray(VoiceProtocol.SECRET, secret);
+        b.putBoolean(VoiceProtocol.OUTGOING, outgoing);
+        b.putBoolean(VoiceProtocol.ALLOW_DIRECT, allowDirect(c.peerFid));
+        b.putBoolean(VoiceProtocol.ON, speaker);
+        sessionCallId = c.callId;
+        voice.send(VoiceProtocol.CALL_START, b);
+        // The Bundle carries copies across; ours go now.
+        java.util.Arrays.fill(tPriv, (byte) 0);
+        if (secret != null) java.util.Arrays.fill(secret, (byte) 0);
+    }
 
-            @Override
-            public void onState(CallSession.State state, String detail) {
-                main.post(() -> {
-                    if (call != c) return;
-                    switch (state) {
-                        case CONNECTED -> {
-                            phase = Phase.CONNECTED;
-                            connectedAtMs = System.currentTimeMillis();
-                        }
-                        case FAILED -> {
-                            if (session != null && session.paymentRequired()) topUpRelay = c.relayUrl;
-                            // The media path failed: end the call for the peer too.
-                            hangup();
-                            failed = true; // before finish(), whose redraw decides whether the screen stays
-                            finish(session != null && session.networkBlocked()
-                                    ? context.getString(R.string.call_end_network_blocked, relayHost())
-                                    : context.getString(R.string.call_end_failed, detail));
-                        }
-                        default -> { }
+    /** An event of the call running in the voice process, on the main thread. */
+    private void onVoiceEvent(int what, android.os.Bundle e) {
+        CallSignaller.Call c = call;
+        String callId = e.getString(VoiceProtocol.CALL_ID);
+        if (c == null || sessionCallId == null || !c.callId.equals(callId)) return;
+        CallSignaller s = signaller;
+        switch (what) {
+            case VoiceProtocol.EVT_CALL_RING -> {
+                if (s != null) s.ring(c.callId, new com.fc.fc_ajdk.call.CallSignal.Relay(
+                        e.getString(VoiceProtocol.RELAY_URL), e.getString(VoiceProtocol.RELAY_PUBKEY),
+                        e.getString(VoiceProtocol.RELAY_SID)), null);
+            }
+            case VoiceProtocol.EVT_CALL_KNOCK -> {
+                String json = e.getString(VoiceProtocol.PEER_DELEGATION);
+                if (s != null && json != null) {
+                    // A knock is an answer (§6.2 step 3); checking it takes a signature verification.
+                    try {
+                        s.onKnock(c.callId, com.fc.fc_ajdk.call.Delegation.fromJson(json));
+                    } catch (RuntimeException ignored) {
+                        // not a delegation it can read: the ACCEPT may still come
                     }
-                    notifyUi();
-                });
+                }
             }
-
-            /**
-             * Call mode only once audio is about to flow: Android puts an app
-             * that sits in MODE_IN_COMMUNICATION without voice audio back to
-             * normal, and changing mode under open streams disconnects them.
-             */
-            @Override
-            public void beforeAudio() {
-                audio.enter(speaker);
-                TimberLogger.i(TAG, "audio: %s", audio.describe());
+            case VoiceProtocol.EVT_CALL_PEER_LEFT -> {
+                if (s != null) s.peerLeft(c.callId);
             }
-
-            @Override
-            public void onUnverified(String fid) {
-                main.post(() -> {
-                    unverifiedFid = fid;
-                    notifyUi();
-                });
+            case VoiceProtocol.EVT_CALL_UNVERIFIED -> {
+                unverifiedFid = e.getString(VoiceProtocol.FID);
+                notifyUi();
             }
-        });
+            case VoiceProtocol.EVT_CALL_STATUS -> {
+                boolean changed = direct != e.getBoolean(VoiceProtocol.DIRECT);
+                direct = e.getBoolean(VoiceProtocol.DIRECT);
+                rttMs = e.getLong(VoiceProtocol.RTT_MS, -1);
+                muted = e.getBoolean(VoiceProtocol.MUTED);
+                if (changed) notifyUi();
+            }
+            case VoiceProtocol.EVT_CALL_PEER_SILENT -> {
+                peerSilent = e.getBoolean(VoiceProtocol.ON);
+                notifyUi();
+            }
+            case VoiceProtocol.EVT_CALL_STATE -> {
+                CallSession.State state = CallSession.State.valueOf(e.getString(VoiceProtocol.STATE));
+                switch (state) {
+                    case CONNECTED -> {
+                        phase = Phase.CONNECTED;
+                        connectedAtMs = System.currentTimeMillis();
+                    }
+                    case FAILED -> {
+                        paymentRequired = e.getBoolean(VoiceProtocol.PAYMENT_REQUIRED);
+                        networkBlocked = e.getBoolean(VoiceProtocol.NETWORK_BLOCKED);
+                        if (paymentRequired) topUpRelay = c.relayUrl;
+                        String detail = e.getString(VoiceProtocol.DETAIL);
+                        // The media path failed: end the call for the peer too.
+                        hangup();
+                        failed = true; // before finish(), whose redraw decides whether the screen stays
+                        finish(networkBlocked ? context.getString(R.string.call_end_network_blocked, relayHost())
+                                : context.getString(R.string.call_end_failed, detail));
+                    }
+                    default -> { }
+                }
+                notifyUi();
+            }
+            default -> { }
+        }
     }
 
     private void finish(String reason) {
         stopRinging();
-        if (session != null) session.end();
-        session = null;
-        audio.leave();
+        if (sessionCallId != null) {
+            android.os.Bundle b = new android.os.Bundle();
+            b.putString(VoiceProtocol.CALL_ID, sessionCallId);
+            voice.send(VoiceProtocol.CALL_END, b);
+        }
+        sessionCallId = null;
         CallService.stop(context);
         phase = Phase.ENDED;
         endReason = reason;
@@ -443,7 +520,12 @@ public final class CallManager implements CallSignaller.Listener {
 
     private void reset() {
         call = null;
-        session = null;
+        sessionCallId = null;
+        muted = false;
+        direct = false;
+        rttMs = -1;
+        paymentRequired = false;
+        networkBlocked = false;
         connectedAtMs = -1;
         endReason = null;
         failed = false;

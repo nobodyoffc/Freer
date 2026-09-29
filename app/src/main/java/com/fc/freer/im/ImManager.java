@@ -2105,8 +2105,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         }
 
         @Override
-        public com.fc.freer.call.MeetingSession.Keys keys() {
-            return new com.fc.freer.call.MeetingSession.Keys() {
+        public com.fc.freer.call.MeetingManager.Keys keys() {
+            return new com.fc.freer.call.MeetingManager.Keys() {
                 @Override
                 public List<byte[]> symkeys(String entityId, long version) {
                     return symkeyStore == null ? List.of() : symkeyStore.getSymkeys(entityId, version);

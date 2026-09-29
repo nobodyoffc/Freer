@@ -27,9 +27,18 @@ public class CallService extends Service {
     static final int NOTIFY_ONGOING = 7102;
     static final String ACTION_HANGUP = "com.fc.freer.call.HANGUP";
 
-    public static void start(Context context) {
-        context.startForegroundService(new Intent(context, CallService.class));
+    static final String EXTRA_MEETING = "meeting";
+
+    /**
+     * Runs in the {@code :voice} process, where the microphone is used (§11.1, §11.3).
+     *
+     * @param meeting its notification opens the meeting screen rather than the call screen
+     */
+    public static void start(Context context, boolean meeting) {
+        context.startForegroundService(new Intent(context, CallService.class).putExtra(EXTRA_MEETING, meeting));
     }
+
+    private boolean meeting;
 
     public static void stop(Context context) {
         context.stopService(new Intent(context, CallService.class));
@@ -38,11 +47,10 @@ public class CallService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && ACTION_HANGUP.equals(intent.getAction())) {
-            MeetingManager meetings = MeetingManager.getInstance(this);
-            if (meetings.isActive()) meetings.leave();
-            else CallManager.getInstance(this).hangup();
+            VoiceService.requestHangup(); // the signalling, and so the hang-up, is the main process's
             return START_NOT_STICKY;
         }
+        if (intent != null) meeting = intent.getBooleanExtra(EXTRA_MEETING, false);
         Notification n = notification();
         holdLocks();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -61,7 +69,6 @@ public class CallService extends Service {
         NotificationManager nm = getSystemService(NotificationManager.class);
         nm.createNotificationChannel(new NotificationChannel(CHANNEL_ONGOING,
                 getString(R.string.call_channel_ongoing), NotificationManager.IMPORTANCE_LOW));
-        boolean meeting = MeetingManager.getInstance(this).isActive();
         PendingIntent open = PendingIntent.getActivity(this, 0,
                 new Intent(this, meeting ? MeetingActivity.class : CallActivity.class)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),

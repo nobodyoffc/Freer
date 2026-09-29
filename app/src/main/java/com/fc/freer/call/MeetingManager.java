@@ -18,7 +18,6 @@ import com.fc.fc_ajdk.call.MeetingSignal;
 import com.fc.fc_ajdk.utils.Hex;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
-import com.fc.freer.call.engine.AudioIo;
 
 import java.io.File;
 import java.security.SecureRandom;
@@ -33,9 +32,11 @@ import java.util.concurrent.TimeUnit;
 /**
  * The device's one meeting at a time (VOICE_SPEC §8, §10): starts and joins
  * meetings in Rooms and Teams, keeps the {@link MeetingBoard} the chat's
- * cards come from, runs the {@link MeetingSession}, the foreground
- * {@link CallService} and the audio routing, and gives
- * {@link MeetingActivity} one state to show. A meeting and a 1:1 call never
+ * cards come from, and gives {@link MeetingActivity} one state to show. The
+ * {@link MeetingSession}, with the audio, runs in the {@code :voice} process
+ * (§11.3), driven through {@link VoiceClient}: this keeps the symkeys and the
+ * identity's key, and hands it a join's transport key, its delegation and
+ * call secrets. A meeting and a 1:1 call never
  * run at once. Everything it tells the UI happens on the main thread.
  */
 public final class MeetingManager {
@@ -50,6 +51,19 @@ public final class MeetingManager {
     static final int NOTIFY_MEETING = 7104;
 
     public enum Phase { IDLE, CONNECTING, IN_MEETING, ENDED }
+
+    /** Delegations outlast any meeting, well inside the 24 h cap (§4.1). */
+    static final long DELEGATION_SEC = 12 * 3600;
+
+    /** Where the entity's symkeys come from: the identity's SymkeyStore, and the FIMP key request. */
+    public interface Keys {
+        List<byte[]> symkeys(String entityId, long version);
+
+        long currentVersion(String entityId);
+
+        /** Ask the members for a version this device lacks (§8, SYMKEY_IDENTITY_SPEC §3). */
+        void request(String entityId, long version);
+    }
 
     public interface Listener {
         void onMeetingChanged();
@@ -71,7 +85,7 @@ public final class MeetingManager {
         /** The Room's or Team's name. May touch the network: never on the main thread. */
         String entityName(String entityType, String entityId);
 
-        MeetingSession.Keys keys();
+        Keys keys();
 
         /** Keep this meeting's DOCKs fetched every few seconds while it runs; null, null when it ends. */
         void meetingDocks(String entityType, String entityId);
@@ -99,7 +113,6 @@ public final class MeetingManager {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
     private final List<CardListener> cardListeners = new CopyOnWriteArrayList<>();
-    private final CallAudio audio;
     private final ExecutorService background = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "meetings");
         t.setDaemon(true);
@@ -120,7 +133,15 @@ public final class MeetingManager {
     // State for the UI, touched on the main thread only.
     private volatile Phase phase = Phase.IDLE; // read by the signaller's thread for busy
     private MeetingBoard.Meeting meeting;
-    private MeetingSession session;
+    /** The meeting running in the voice process, or null. */
+    private String sessionMeetingId;
+    /** What it last said of itself. */
+    private MeetingView view;
+    /** Its call secrets, from this identity's symkeys: what the voice process asks for. */
+    private MeetingSession.Secrets sessionSecrets;
+    private final java.util.Map<Long, java.util.function.Consumer<String>> controls = new java.util.HashMap<>();
+    private long nextControl = 1;
+    private final VoiceClient voice;
     private boolean endForAllRequested;
     private String endReason;
     private volatile boolean speaker = true; // a meeting is usually on the speaker
@@ -133,13 +154,28 @@ public final class MeetingManager {
 
     private MeetingManager(Context context) {
         this.context = context;
-        this.audio = new CallAudio(context);
+        this.voice = VoiceClient.get(context);
+        voice.setMeetingEvents(new VoiceClient.Events() {
+            @Override
+            public void onEvent(int what, android.os.Bundle data) {
+                onVoiceEvent(what, data);
+            }
+
+            @Override
+            public void onVoiceDied() {
+                MeetingBoard.Meeting m = meeting;
+                // A crash in the audio code ends the meeting here; the app goes on.
+                if (sessionMeetingId != null && m != null) {
+                    ended(m, MeetingSession.End.FAILED, context.getString(R.string.call_voice_died));
+                }
+            }
+        });
     }
 
     /** Called by ImManager when an identity loads. */
     public void attach(String myFid, byte[] fidPriv, Hooks hooks) {
         main.post(() -> {
-            if (session != null && !myFid.equals(this.myFid)) leave();
+            if (sessionMeetingId != null && !myFid.equals(this.myFid)) leave();
             this.myFid = myFid;
             this.fidPriv = fidPriv.clone();
             this.hooks = hooks;
@@ -195,8 +231,9 @@ public final class MeetingManager {
         return meeting;
     }
 
-    public MeetingSession session() {
-        return session;
+    /** What the running meeting last said of itself; null before it has. */
+    public MeetingView session() {
+        return sessionMeetingId == null ? null : view;
     }
 
     public String myFid() {
@@ -263,11 +300,11 @@ public final class MeetingManager {
         Hooks h = hooks;
         background.execute(() -> {
             String relayUrl = h.relayFor(entityType, entityId);
-            MeetingSession.Keys keys = h.keys();
+            Keys keys = h.keys();
             long version = keys.currentVersion(entityId);
             List<byte[]> held = version < 0 ? null : keys.symkeys(entityId, version);
             main.post(() -> {
-                if (phase != Phase.CONNECTING || session != null) return;
+                if (phase != Phase.CONNECTING || sessionMeetingId != null) return;
                 if (relayUrl == null || relayUrl.isEmpty()) {
                     phase = Phase.IDLE;
                     notifyUi();
@@ -346,8 +383,8 @@ public final class MeetingManager {
     }
 
     public void leave() {
-        if (session != null) {
-            session.leave(false);
+        if (sessionMeetingId != null) {
+            sendLeave(false);
         } else if (phase == Phase.CONNECTING) {
             // Still looking for the relay: nothing to leave yet.
             phase = Phase.IDLE;
@@ -357,32 +394,63 @@ public final class MeetingManager {
 
     /** Host only: close the meeting for everyone, and say so in the chat (§8). */
     public void endForAll() {
-        if (session == null || !session.isHost()) return;
+        MeetingView v = session();
+        if (v == null || !v.isHost()) return;
         endForAllRequested = true;
-        session.leave(true);
+        sendLeave(true);
+    }
+
+    private void sendLeave(boolean endForAll) {
+        android.os.Bundle b = new android.os.Bundle();
+        b.putBoolean(VoiceProtocol.END_FOR_ALL, endForAll);
+        voice.send(VoiceProtocol.MEETING_LEAVE, b);
     }
 
     public void setMuted(boolean muted) {
-        if (session != null) session.setMuted(muted);
+        if (sessionMeetingId != null) {
+            android.os.Bundle b = new android.os.Bundle();
+            b.putBoolean(VoiceProtocol.ON, muted);
+            voice.send(VoiceProtocol.SET_MUTED, b);
+            if (view != null) view.selfMuted = muted; // until the next view says so
+        }
         notifyUi();
     }
 
     public void setHand(boolean raised) {
-        if (session != null) session.setHand(raised);
+        if (sessionMeetingId != null) {
+            android.os.Bundle b = new android.os.Bundle();
+            b.putBoolean(VoiceProtocol.ON, raised);
+            voice.send(VoiceProtocol.MEETING_HAND, b);
+            if (view != null) view.handRaised = raised;
+        }
         notifyUi();
     }
 
     public void setSpeaker(boolean on) {
         speaker = on;
-        audio.setSpeaker(on);
+        if (sessionMeetingId != null) {
+            android.os.Bundle b = new android.os.Bundle();
+            b.putBoolean(VoiceProtocol.ON, on);
+            voice.send(VoiceProtocol.SET_SPEAKER, b);
+        }
         notifyUi();
     }
 
-    /** A host control; {@code done} gets null or the relay's refusal, on the main thread. */
+    /**
+     * A host control; {@code done} gets null or the relay's refusal, on the main thread.
+     *
+     * @param target a FID or an ssrc (Integer)
+     */
     public void control(String action, Object target, java.util.function.Consumer<String> done) {
-        MeetingSession s = session;
-        if (s == null) return;
-        s.control(action, target, error -> main.post(() -> done.accept(error)));
+        if (sessionMeetingId == null) return;
+        long id = nextControl++;
+        controls.put(id, done);
+        android.os.Bundle b = new android.os.Bundle();
+        b.putLong(VoiceProtocol.REQUEST_ID, id);
+        b.putString(VoiceProtocol.ACTION, action);
+        if (target instanceof Integer ssrc) b.putLong(VoiceProtocol.TARGET_SSRC, Integer.toUnsignedLong(ssrc));
+        else if (target != null) b.putString(VoiceProtocol.TARGET_FID, String.valueOf(target));
+        voice.send(VoiceProtocol.MEETING_CONTROL, b);
     }
 
     // ===== From the chat (ImManager) =====
@@ -486,52 +554,140 @@ public final class MeetingManager {
         endReason = null;
         endForAllRequested = false;
         Hooks h = hooks;
-        MeetingSession s = new MeetingSession(context, m, myFid, fidPriv, AudioIo.Backend.AAUDIO, creating, h.keys(),
-                new MeetingSession.Listener() {
-                    @Override
-                    public void onJoined() {
-                        main.post(() -> {
-                            if (session == null || !session.meetingId().equals(m.meetingId)) return;
-                            phase = Phase.IN_MEETING;
-                            if (creating) announce(m);
-                            notifyUi();
-                        });
-                    }
-
-                    @Override
-                    public void onChanged() {
-                        main.post(MeetingManager.this::notifyUi);
-                    }
-
-                    @Override
-                    public void beforeAudio() {
-                        audio.enter(speaker);
-                    }
-
-                    @Override
-                    public void onRekeyed(MeetingSignal update) {
-                        // Late joiners need the new keys (§3.3); the board takes them as any member's post.
-                        MeetingBoard b = board;
-                        if (b != null) b.onStart(m.entityId, m.entityType, myFid, update);
-                        h.post(m.entityType, m.entityId, update);
-                    }
-
-                    @Override
-                    public void onEnded(MeetingSession.End why, String detail) {
-                        main.post(() -> ended(m, why, detail));
-                    }
-                });
-        session = s;
-        s.start();
+        // The join's transport key and its delegation are made here, where the identity's key is (§11.3).
+        byte[] tPriv = new byte[32];
+        new SecureRandom().nextBytes(tPriv);
+        com.fc.fc_ajdk.call.Delegation delegation = com.fc.fc_ajdk.call.Delegation.sign(fidPriv, m.meetingId,
+                com.fc.fc_ajdk.core.crypto.KeyTools.prikeyToPubkey(tPriv),
+                System.currentTimeMillis() / 1000 + DELEGATION_SEC);
+        // The secrets at hand now, so the join needs no round trip; the rest on request.
+        MeetingSession.Secrets secrets = secretsFor(m, h.keys());
+        java.util.ArrayList<android.os.Bundle> given = new java.util.ArrayList<>();
+        for (MeetingBoard.Keys k : m.keys) {
+            byte[] secret = secrets.secret(k.symkeyVersion(), k.nonce(), k.authPub());
+            if (secret != null) given.add(secretBundle(m.meetingId, k.symkeyVersion(), k.nonce(), k.authPub(), secret));
+        }
+        android.os.Bundle b = new android.os.Bundle();
+        b.putString(VoiceProtocol.MEETING, new com.google.gson.Gson().toJson(m));
+        b.putString(VoiceProtocol.MY_FID, myFid);
+        b.putByteArray(VoiceProtocol.T_PRIV, tPriv);
+        b.putString(VoiceProtocol.MY_DELEGATION, delegation.toJson());
+        b.putBoolean(VoiceProtocol.CREATING, creating);
+        b.putBoolean(VoiceProtocol.ON, speaker);
+        b.putParcelableArrayList(VoiceProtocol.SECRETS, given);
+        sessionMeetingId = m.meetingId;
+        sessionSecrets = secrets;
+        joinCreating = creating;
+        view = null;
+        voice.send(VoiceProtocol.MEETING_JOIN, b);
+        // The Bundle carries copies across; ours go now.
+        Arrays.fill(tPriv, (byte) 0);
+        for (android.os.Bundle g : given) {
+            byte[] secret = g.getByteArray(VoiceProtocol.SECRET);
+            if (secret != null) Arrays.fill(secret, (byte) 0);
+        }
         if (h != null) h.meetingDocks(m.entityType, m.entityId);
-        CallService.start(context);
+        CallService.start(context, true);
         notifyUi();
+    }
+
+    /** Whether the running join is the one that created its meeting. */
+    private boolean joinCreating;
+
+    private static android.os.Bundle secretBundle(String meetingId, long version, String nonce, String authPub,
+                                                  byte[] secret) {
+        android.os.Bundle g = new android.os.Bundle();
+        g.putString(VoiceProtocol.MEETING_ID, meetingId);
+        g.putLong(VoiceProtocol.SYMKEY_VERSION, version);
+        g.putString(VoiceProtocol.NONCE, nonce);
+        g.putString(VoiceProtocol.AUTH_PUB, authPub);
+        if (secret != null) g.putByteArray(VoiceProtocol.SECRET, secret);
+        return g;
+    }
+
+    /** An event of the meeting running in the voice process, on the main thread. */
+    private void onVoiceEvent(int what, android.os.Bundle e) {
+        MeetingBoard.Meeting m = meeting;
+        String id = e.getString(VoiceProtocol.MEETING_ID);
+        if (m == null || sessionMeetingId == null || !sessionMeetingId.equals(id)) return;
+        switch (what) {
+            case VoiceProtocol.EVT_MEETING_JOINED -> {
+                MeetingView v = MeetingView.fromJson(e.getString(VoiceProtocol.VIEW));
+                if (v != null) view = v;
+                phase = Phase.IN_MEETING;
+                if (joinCreating) announce(m);
+                notifyUi();
+            }
+            case VoiceProtocol.EVT_MEETING_VIEW -> {
+                MeetingView v = MeetingView.fromJson(e.getString(VoiceProtocol.VIEW));
+                if (v != null) {
+                    view = v;
+                    notifyUi();
+                }
+            }
+            case VoiceProtocol.EVT_MEETING_REKEYED -> {
+                MeetingSignal update = MeetingSignal.fromJson(e.getString(VoiceProtocol.SIGNAL));
+                Hooks h = hooks;
+                if (update == null || h == null) return;
+                // Late joiners need the new keys (§3.3); the board takes them as any member's post.
+                MeetingBoard b = board;
+                if (b != null) b.onStart(m.entityId, m.entityType, myFid, update);
+                background.execute(() -> h.post(m.entityType, m.entityId, update));
+            }
+            case VoiceProtocol.EVT_MEETING_ENDED -> {
+                MeetingSession.End why;
+                try {
+                    why = MeetingSession.End.valueOf(e.getString(VoiceProtocol.WHY));
+                } catch (RuntimeException ex) {
+                    why = MeetingSession.End.FAILED;
+                }
+                ended(m, why, e.getString(VoiceProtocol.DETAIL));
+            }
+            case VoiceProtocol.EVT_SECRET_REQUEST -> {
+                MeetingSession.Secrets secrets = sessionSecrets;
+                if (secrets == null) return;
+                long version = e.getLong(VoiceProtocol.SYMKEY_VERSION);
+                String nonce = e.getString(VoiceProtocol.NONCE), authPub = e.getString(VoiceProtocol.AUTH_PUB);
+                // The symkey store may touch disk: off the main thread.
+                background.execute(() -> {
+                    byte[] secret = secrets.secret(version, nonce, authPub);
+                    main.post(() -> {
+                        if (!m.meetingId.equals(sessionMeetingId)) return;
+                        voice.send(VoiceProtocol.MEETING_SECRET, secretBundle(m.meetingId, version, nonce, authPub, secret));
+                        if (secret != null) Arrays.fill(secret, (byte) 0);
+                    });
+                });
+            }
+            case VoiceProtocol.EVT_REKEY_CHECK -> {
+                MeetingSession.Secrets secrets = sessionSecrets;
+                if (secrets == null) return;
+                long version = e.getLong(VoiceProtocol.SYMKEY_VERSION);
+                background.execute(() -> {
+                    MeetingSession.Rekey r = secrets.nextRekey(version);
+                    if (r == null) return;
+                    main.post(() -> {
+                        if (!m.meetingId.equals(sessionMeetingId)) return;
+                        android.os.Bundle b = new android.os.Bundle();
+                        b.putString(VoiceProtocol.MEETING_ID, m.meetingId);
+                        b.putLong(VoiceProtocol.SYMKEY_VERSION, r.symkeyVersion());
+                        b.putByteArray(VoiceProtocol.NONCE, r.nonce());
+                        b.putByteArray(VoiceProtocol.AUTH_PUB, r.authPub());
+                        voice.send(VoiceProtocol.MEETING_REKEY, b);
+                    });
+                });
+            }
+            case VoiceProtocol.EVT_CONTROL_RESULT -> {
+                java.util.function.Consumer<String> done = controls.remove(e.getLong(VoiceProtocol.REQUEST_ID));
+                if (done != null) done.accept(e.getString(VoiceProtocol.ERROR));
+            }
+            default -> { }
+        }
     }
 
     /** The card, once the meeting is open on the relay: with its key and service id, to spare joiners discovery. */
     private void announce(MeetingBoard.Meeting m) {
         MeetingBoard.Keys k = m.newestKeys();
-        MeetingSession s = session;
+        MeetingView s = view;
         CallSignal.Relay relay = s != null && s.relayPubkey() != null
                 ? new CallSignal.Relay(m.relay.url(), s.relayPubkey(), s.relaySid()) : m.relay;
         m.relay = relay;
@@ -556,8 +712,8 @@ public final class MeetingManager {
     private void ended(MeetingBoard.Meeting m, MeetingSession.End why, String detail) {
         if (meeting != m) return;
         TimberLogger.i(TAG, "meeting %s over: %s %s", m.meetingId, why, detail == null ? "" : detail);
-        long duration = session != null && session.joinedAtMs() > 0
-                ? System.currentTimeMillis() - session.joinedAtMs() : 0;
+        MeetingView v = view;
+        long duration = v != null && v.joinedAtMs() > 0 ? System.currentTimeMillis() - v.joinedAtMs() : 0;
         MeetingBoard b = board;
         if (why == MeetingSession.End.ENDED_BY_HOST || why == MeetingSession.End.GONE) {
             if (b != null) b.markEnded(m.meetingId, duration);
@@ -575,9 +731,11 @@ public final class MeetingManager {
             if (m.invited && hooks != null) hooks.forgetKey(m.meetingId); // over: its key has no further use
             notifyCards();
         }
-        session = null;
+        sessionMeetingId = null;
+        sessionSecrets = null;
+        view = null;
+        controls.clear();
         if (hooks != null) hooks.meetingDocks(null, null);
-        audio.leave();
         CallService.stop(context);
         phase = Phase.ENDED;
         endReason = switch (why) {
@@ -592,10 +750,44 @@ public final class MeetingManager {
         notifyUi();
     }
 
+    /**
+     * A meeting's call secrets from the identity's symkeys (§4.2), and, as
+     * host, the key set of an owner's rotation (§4.5): what the session gets
+     * instead of the symkeys themselves.
+     */
+    static MeetingSession.Secrets secretsFor(MeetingBoard.Meeting m, Keys keys) {
+        java.util.Set<Long> asked = java.util.concurrent.ConcurrentHashMap.newKeySet();
+        return new MeetingSession.Secrets() {
+            @Override
+            public byte[] secret(long version, String nonceHex, String authPubHex) {
+                byte[] s = MeetingKeys.secret(keys.symkeys(m.keyEntity(), version), Hex.fromHex(nonceHex),
+                        m.keyEntity(), version, m.meetingId, authPubHex);
+                // A chat's key can be asked for; a chosen-people meeting's comes only with its invitation.
+                if (s == null && !m.invited && asked.add(version)) keys.request(m.entityId, version);
+                return s;
+            }
+
+            @Override
+            public MeetingSession.Rekey nextRekey(long symkeyVersion) {
+                if (m.invited) return null;
+                long current = keys.currentVersion(m.entityId);
+                if (current <= symkeyVersion) return null;
+                List<byte[]> held = keys.symkeys(m.entityId, current);
+                if (held == null || held.isEmpty()) return null;
+                byte[] nonce = new byte[32];
+                new SecureRandom().nextBytes(nonce);
+                byte[] secret = CallKeys.meetingSecret(held.get(0), nonce, m.entityId, current, m.meetingId);
+                byte[] authPub = CallKeys.authPub(CallKeys.authPriv(secret));
+                Arrays.fill(secret, (byte) 0);
+                return new MeetingSession.Rekey(current, nonce, authPub);
+            }
+        };
+    }
+
     /** Host of a chosen-people meeting: invite more members to it (Decision 20). */
     public void invite(List<String> fids) {
         MeetingBoard.Meeting m = meeting;
-        MeetingSession s = session;
+        MeetingView s = session();
         if (m == null || !m.invited || s == null || !s.isHost() || fids == null || fids.isEmpty()) return;
         List<String> fresh = new java.util.ArrayList<>();
         for (String f : fids) if (!m.invitees.contains(f)) fresh.add(f);
