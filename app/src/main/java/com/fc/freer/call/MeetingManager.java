@@ -51,6 +51,19 @@ public final class MeetingManager {
 
     public enum Phase { IDLE, CONNECTING, IN_MEETING, ENDED }
 
+    /** Delegations outlast any meeting, well inside the 24 h cap (§4.1). */
+    static final long DELEGATION_SEC = 12 * 3600;
+
+    /** Where the entity's symkeys come from: the identity's SymkeyStore, and the FIMP key request. */
+    public interface Keys {
+        List<byte[]> symkeys(String entityId, long version);
+
+        long currentVersion(String entityId);
+
+        /** Ask the members for a version this device lacks (§8, SYMKEY_IDENTITY_SPEC §3). */
+        void request(String entityId, long version);
+    }
+
     public interface Listener {
         void onMeetingChanged();
     }
@@ -71,7 +84,7 @@ public final class MeetingManager {
         /** The Room's or Team's name. May touch the network: never on the main thread. */
         String entityName(String entityType, String entityId);
 
-        MeetingSession.Keys keys();
+        Keys keys();
 
         /** Keep this meeting's DOCKs fetched every few seconds while it runs; null, null when it ends. */
         void meetingDocks(String entityType, String entityId);
@@ -263,7 +276,7 @@ public final class MeetingManager {
         Hooks h = hooks;
         background.execute(() -> {
             String relayUrl = h.relayFor(entityType, entityId);
-            MeetingSession.Keys keys = h.keys();
+            Keys keys = h.keys();
             long version = keys.currentVersion(entityId);
             List<byte[]> held = version < 0 ? null : keys.symkeys(entityId, version);
             main.post(() -> {
@@ -486,8 +499,14 @@ public final class MeetingManager {
         endReason = null;
         endForAllRequested = false;
         Hooks h = hooks;
-        MeetingSession s = new MeetingSession(context, m, myFid, fidPriv, AudioIo.Backend.AAUDIO, creating, h.keys(),
-                new MeetingSession.Listener() {
+        // The join's transport key and its delegation are made here, where the identity's key is (§11.3).
+        byte[] tPriv = new byte[32];
+        new SecureRandom().nextBytes(tPriv);
+        com.fc.fc_ajdk.call.Delegation delegation = com.fc.fc_ajdk.call.Delegation.sign(fidPriv, m.meetingId,
+                com.fc.fc_ajdk.core.crypto.KeyTools.prikeyToPubkey(tPriv),
+                System.currentTimeMillis() / 1000 + DELEGATION_SEC);
+        MeetingSession s = new MeetingSession(context, m, myFid, tPriv, delegation, AudioIo.Backend.AAUDIO, creating,
+                secretsFor(m, h.keys()), new MeetingSession.Listener() {
                     @Override
                     public void onJoined() {
                         main.post(() -> {
@@ -590,6 +609,40 @@ public final class MeetingManager {
             case FAILED -> context.getString(R.string.meeting_failed, detail == null ? "" : detail);
         };
         notifyUi();
+    }
+
+    /**
+     * A meeting's call secrets from the identity's symkeys (§4.2), and, as
+     * host, the key set of an owner's rotation (§4.5): what the session gets
+     * instead of the symkeys themselves.
+     */
+    static MeetingSession.Secrets secretsFor(MeetingBoard.Meeting m, Keys keys) {
+        java.util.Set<Long> asked = java.util.concurrent.ConcurrentHashMap.newKeySet();
+        return new MeetingSession.Secrets() {
+            @Override
+            public byte[] secret(long version, String nonceHex, String authPubHex) {
+                byte[] s = MeetingKeys.secret(keys.symkeys(m.keyEntity(), version), Hex.fromHex(nonceHex),
+                        m.keyEntity(), version, m.meetingId, authPubHex);
+                // A chat's key can be asked for; a chosen-people meeting's comes only with its invitation.
+                if (s == null && !m.invited && asked.add(version)) keys.request(m.entityId, version);
+                return s;
+            }
+
+            @Override
+            public MeetingSession.Rekey nextRekey(long symkeyVersion) {
+                if (m.invited) return null;
+                long current = keys.currentVersion(m.entityId);
+                if (current <= symkeyVersion) return null;
+                List<byte[]> held = keys.symkeys(m.entityId, current);
+                if (held == null || held.isEmpty()) return null;
+                byte[] nonce = new byte[32];
+                new SecureRandom().nextBytes(nonce);
+                byte[] secret = CallKeys.meetingSecret(held.get(0), nonce, m.entityId, current, m.meetingId);
+                byte[] authPub = CallKeys.authPub(CallKeys.authPriv(secret));
+                Arrays.fill(secret, (byte) 0);
+                return new MeetingSession.Rekey(current, nonce, authPub);
+            }
+        };
     }
 
     /** Host of a chosen-people meeting: invite more members to it (Decision 20). */

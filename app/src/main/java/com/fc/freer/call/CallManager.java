@@ -283,7 +283,7 @@ public final class CallManager implements CallSignaller.Listener {
         if (signaller.accept(call.callId, null) == null) return;
         phase = Phase.CONNECTING;
         session = newSession(call);
-        session.startIncoming();
+        session.startIncoming(secretOf(call));
         CallService.start(context);
         notifyUi();
     }
@@ -340,7 +340,7 @@ public final class CallManager implements CallSignaller.Listener {
         main.post(() -> {
             if (session != null && call == answered) {
                 phase = Phase.CONNECTING;
-                session.onAnswered();
+                session.onAnswered(secretOf(answered), answered.peerDelegation());
                 notifyUi();
             }
         });
@@ -368,8 +368,33 @@ public final class CallManager implements CallSignaller.Listener {
         }
     }
 
+    /** A copy of the call secret for the session, which erases it; null if the signaller has none. */
+    private byte[] secretOf(CallSignaller.Call c) {
+        byte[] s = signaller == null ? null : signaller.callSecret(c.callId);
+        return s == null ? null : s.clone();
+    }
+
     private CallSession newSession(CallSignaller.Call c) {
-        return new CallSession(context, signaller, c, myFid, AudioIo.Backend.AAUDIO, allowDirect(c.peerFid),
+        CallSignaller s = signaller;
+        CallSession.Params params = new CallSession.Params(c.callId, c.peerFid, c.relayUrl, c.relayPubkey, c.relaySid,
+                c.transportPriv(), c.myDelegation, c.peerDelegation());
+        CallSession.Host host = new CallSession.Host() {
+            @Override
+            public void ring(com.fc.fc_ajdk.call.CallSignal.Relay relay) {
+                s.ring(c.callId, relay, null);
+            }
+
+            @Override
+            public void knock(String delegationJson) {
+                s.onKnock(c.callId, com.fc.fc_ajdk.call.Delegation.fromJson(delegationJson));
+            }
+
+            @Override
+            public void peerLeft() {
+                s.peerLeft(c.callId);
+            }
+        };
+        return new CallSession(context, params, myFid, AudioIo.Backend.AAUDIO, allowDirect(c.peerFid), host,
                 new CallSession.Listener() {
             @Override
             public void onPathChanged() {

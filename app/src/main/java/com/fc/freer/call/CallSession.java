@@ -20,14 +20,18 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * One 1:1 call through the relay (VOICE_SPEC §6.2): the signaller's call,
- * its {@link CallRelayLink}, {@link CallMedia}, and the capture and playout
+ * One 1:1 call (VOICE_SPEC §6.2): its {@link CallRelayLink}, a direct path
+ * beside it with a contact, {@link CallMedia}, and the capture and playout
  * engines. Network steps run on the session's own thread.
  * <p>
  * Caller: connect, {@code call.create}, join, and wait; once the callee's
  * ACCEPT verifies, register {@code authPub} and start the media. Callee,
  * after accepting: connect, join with {@code admitSig} (retrying while the
  * caller has not registered), start the media.
+ * <p>
+ * It holds nothing of the identity's (§11.3): only the call's transport key,
+ * its delegation and, once there is one, the call secret. Signalling stays
+ * with the {@link Host}, so the session can run in the {@code :voice} process.
  */
 public final class CallSession {
 
@@ -42,6 +46,22 @@ public final class CallSession {
     public static final int EXPECTED_LOSS = 10;
 
     public enum State { CONNECTING, RINGING, CONNECTED, ENDED, FAILED }
+
+    /** What the session needs to know of the call; no signalling, no identity key. */
+    public record Params(String callId, String peerFid, String relayUrl, String relayPubkey, String relaySid,
+                         byte[] tPriv, Delegation myDelegation, Delegation peerDelegation) {}
+
+    /** The signalling side of the call (§3.2), which lives where the identity does. */
+    public interface Host {
+        /** Caller: the call is open on the relay; send the INVITE naming it. */
+        void ring(com.fc.fc_ajdk.call.CallSignal.Relay relay);
+
+        /** Caller: the relay says the callee is waiting to join, under this delegation (§6.2 step 3). */
+        void knock(String delegationJson);
+
+        /** The peer left the relay and did not come back: the call is over. */
+        void peerLeft();
+    }
 
     public interface Listener {
         void onState(State state, String detail);
@@ -60,8 +80,10 @@ public final class CallSession {
     }
 
     private final Context context;
-    private final CallSignaller signaller;
-    private final CallSignaller.Call call;
+    private final Params call;
+    private final Host host;
+    /** The peer's delegation, from its INVITE or, for the caller, its ACCEPT or knock. */
+    private volatile Delegation peerDelegation;
     private final String myFid;
     private final AudioIo.Backend backend;
     private final boolean allowDirect;
@@ -102,16 +124,17 @@ public final class CallSession {
      * @param allowDirect try a direct path (§6.2 step 6): only with a contact,
      *                    and never with Always relay on (Decision 8)
      */
-    public CallSession(Context context, CallSignaller signaller, CallSignaller.Call call, String myFid,
-                       AudioIo.Backend backend, boolean allowDirect, Listener listener) {
+    public CallSession(Context context, Params call, String myFid, AudioIo.Backend backend, boolean allowDirect,
+                       Host host, Listener listener) {
         this.context = context.getApplicationContext();
         this.allowDirect = allowDirect;
-        this.signaller = signaller;
+        this.host = host;
         this.call = call;
+        this.peerDelegation = call.peerDelegation();
         this.myFid = myFid;
         this.backend = backend;
         this.listener = listener;
-        this.tPriv = call.transportPriv();
+        this.tPriv = call.tPriv();
         this.capture = new CaptureEngine(new CaptureEngine.Settings(frameLength.current(), BITRATE, true, EXPECTED_LOSS, backend),
                 f -> {
                     CallMedia m = media;
@@ -124,8 +147,8 @@ public final class CallSession {
                 });
     }
 
-    public CallSignaller.Call call() {
-        return call;
+    public String callId() {
+        return call.callId();
     }
 
     public State state() {
@@ -145,8 +168,7 @@ public final class CallSession {
                 Map<String, Object> joined = link.join(capture.ssrc(), null, allowDirect);
                 routeId = (int) ((Number) joined.get("routeId")).longValue();
                 step("created and joined the call on the relay; ringing");
-                signaller.ring(call.callId, new com.fc.fc_ajdk.call.CallSignal.Relay(call.relayUrl,
-                        link.relayPubkey(), link.relaySid()), null);
+                host.ring(new com.fc.fc_ajdk.call.CallSignal.Relay(call.relayUrl(), link.relayPubkey(), link.relaySid()));
                 setState(State.RINGING, null);
             } catch (CallRelayLink.Refused e) {
                 // 402: the caller pays for the call (§7.5) and cannot afford a minute of it.
@@ -158,11 +180,16 @@ public final class CallSession {
         });
     }
 
-    /** Caller: the callee's ACCEPT verified. */
-    public void onAnswered() {
+    /**
+     * Caller: the callee's ACCEPT, or its knock, verified.
+     *
+     * @param secret the call secret; the session erases it
+     * @param peer   the delegation the callee answered under
+     */
+    public void onAnswered(byte[] secret, Delegation peer) {
+        peerDelegation = peer;
         worker.execute(() -> {
             try {
-                byte[] secret = signaller.callSecret(call.callId);
                 if (secret == null) throw new IllegalStateException("no call key");
                 step("answered; registering authPub");
                 register(CallKeys.authPub(CallKeys.authPriv(secret)));
@@ -173,11 +200,10 @@ public final class CallSession {
         });
     }
 
-    /** Callee: after the signaller sent ACCEPT. */
-    public void startIncoming() {
+    /** Callee: after ACCEPT was sent. The session erases {@code secret}. */
+    public void startIncoming(byte[] secret) {
         worker.execute(() -> {
             try {
-                byte[] secret = signaller.callSecret(call.callId);
                 if (secret == null) throw new IllegalStateException("no call key");
                 openLink();
                 Map<String, Object> joined = link.join(capture.ssrc(), CallKeys.authPriv(secret), allowDirect);
@@ -222,9 +248,9 @@ public final class CallSession {
     // ===== Internals =====
 
     private void openLink() throws Exception {
-        if (call.relayUrl == null) throw new IllegalStateException("no relay for this call");
-        File dir = new File(context.getCacheDir(), "call/" + call.callId);
-        link = new CallRelayLink(dir, tPriv, call.callId, call.myDelegation, new CallRelayLink.Events() {
+        if (call.relayUrl() == null) throw new IllegalStateException("no relay for this call");
+        File dir = new File(context.getCacheDir(), "call/" + call.callId());
+        link = new CallRelayLink(dir, tPriv, call.callId(), call.myDelegation(), new CallRelayLink.Events() {
             @Override
             public void onFrame(byte[] datagram, boolean direct) {
                 CallMedia m = media;
@@ -257,15 +283,15 @@ public final class CallSession {
                         addPeers(notice);
                     }
                     case "knock" -> {
-                        if (!call.callId.equals(notice.get("meetingId"))
+                        if (!call.callId().equals(notice.get("meetingId"))
                                 || !(notice.get("delegation") instanceof String json)) {
                             return;
                         }
                         step("the relay says " + notice.get("fid") + " is waiting to join");
                         try {
-                            signaller.onKnock(call.callId, Delegation.fromJson(json));
+                            host.knock(json);
                         } catch (RuntimeException ignored) {
-                            // not a delegation we can read: the ACCEPT may still come
+                            // the ACCEPT may still come
                         }
                     }
                     case "kicked" -> {
@@ -276,8 +302,8 @@ public final class CallSession {
                 }
             }
         });
-        step("connecting to " + call.relayUrl);
-        String how = link.connect(call.relayUrl, call.relayPubkey, call.relaySid, KnownRelays.of(context));
+        step("connecting to " + call.relayUrl());
+        String how = link.connect(call.relayUrl(), call.relayPubkey(), call.relaySid(), KnownRelays.of(context));
         step("connected to the relay " + how);
     }
 
@@ -288,7 +314,7 @@ public final class CallSession {
      * peer leaves the relay on purpose: this must then watch the direct path.)
      */
     private void watchPeer(Map<String, Object> roster) {
-        boolean present = CallRelayLink.roster(roster).stream().anyMatch(e -> call.peerFid.equals(e.get("fid")));
+        boolean present = CallRelayLink.roster(roster).stream().anyMatch(e -> call.peerFid().equals(e.get("fid")));
         if (present) {
             peerSeen = true;
             return;
@@ -298,10 +324,10 @@ public final class CallSession {
             timer.schedule(() -> {
                 Map<String, Object> r = lastRoster;
                 boolean back = r != null
-                        && CallRelayLink.roster(r).stream().anyMatch(e -> call.peerFid.equals(e.get("fid")));
+                        && CallRelayLink.roster(r).stream().anyMatch(e -> call.peerFid().equals(e.get("fid")));
                 if (!back && state == State.CONNECTED) {
                     step("the peer left the relay: the call is over");
-                    signaller.peerLeft(call.callId);
+                    host.peerLeft();
                 }
             }, PEER_GONE_MS, TimeUnit.MILLISECONDS);
         } catch (java.util.concurrent.RejectedExecutionException ignored) {
@@ -349,11 +375,11 @@ public final class CallSession {
 
     /** One line per step, timed from the session's start, so a failed call shows where it stopped. */
     private void step(String what) {
-        TimberLogger.i(TAG, "call %s +%dms: %s", call.callId, System.currentTimeMillis() - startedMs, what);
+        TimberLogger.i(TAG, "call %s +%dms: %s", call.callId(), System.currentTimeMillis() - startedMs, what);
     }
 
     private void startMedia(byte[] secret) {
-        CallMedia m = new CallMedia(call.callId, secret, myFid, capture.ssrc(), tPriv);
+        CallMedia m = new CallMedia(call.callId(), secret, myFid, capture.ssrc(), tPriv);
         m.setOneToOne(true); // late attestations here mean a slow path, not forgery (§5.1)
         Arrays.fill(secret, (byte) 0);
         m.setRouteId(routeId);
@@ -393,22 +419,22 @@ public final class CallSession {
      */
     private void addPeers(Map<String, Object> roster) {
         CallMedia m = media;
-        Delegation signalled = call.peerDelegation();
+        Delegation signalled = peerDelegation;
         if (m == null || signalled == null) return;
         for (Map<String, Object> e : CallRelayLink.roster(roster)) {
-            if (!call.peerFid.equals(e.get("fid")) || !(e.get("delegation") instanceof String json)) continue;
+            if (!call.peerFid().equals(e.get("fid")) || !(e.get("delegation") instanceof String json)) continue;
             Delegation d;
             try {
                 d = Delegation.fromJson(json);
             } catch (RuntimeException ex) {
                 continue;
             }
-            if (d == null || d.verify(call.callId, System.currentTimeMillis() / 1000) != Delegation.Check.OK
-                    || !call.peerFid.equals(d.fid) || !Arrays.equals(d.tPubBytes(), signalled.tPubBytes())) {
+            if (d == null || d.verify(call.callId(), System.currentTimeMillis() / 1000) != Delegation.Check.OK
+                    || !call.peerFid().equals(d.fid) || !Arrays.equals(d.tPubBytes(), signalled.tPubBytes())) {
                 step("roster entry for the peer rejected: its delegation does not match the signalled one");
                 continue;
             }
-            m.addPeer(call.peerFid, (int) ((Number) e.get("ssrc")).longValue(), d.tPubBytes());
+            m.addPeer(call.peerFid(), (int) ((Number) e.get("ssrc")).longValue(), d.tPubBytes());
             step("hearing the peer");
             tryDirect(e, d);
         }
@@ -479,7 +505,7 @@ public final class CallSession {
             if (c != null) candidates.add(c);
         }
         if (candidates.isEmpty()) return;
-        l.startDirect(peer.tPubBytes(), myFid.compareTo(call.peerFid) < 0, candidates, new CallDirectPath.Listener() {
+        l.startDirect(peer.tPubBytes(), myFid.compareTo(call.peerFid()) < 0, candidates, new CallDirectPath.Listener() {
             @Override
             public void onUp() {
                 CallMedia m = media;
@@ -508,7 +534,7 @@ public final class CallSession {
         try {
             doTeardown();
         } catch (RuntimeException e) {
-            TimberLogger.e(TAG, "teardown of %s: %s", call.callId, e);
+            TimberLogger.e(TAG, "teardown of %s: %s", call.callId(), e);
         } finally {
             Arrays.fill(tPriv, (byte) 0); // §4.1: the transport key does not outlive the call
         }
@@ -534,7 +560,7 @@ public final class CallSession {
     }
 
     private void fail(String why) {
-        TimberLogger.e(TAG, "call %s failed: %s", call.callId, why);
+        TimberLogger.e(TAG, "call %s failed: %s", call.callId(), why);
         // Nothing ever came back from the relay: the network, not the call, is at fault.
         CallRelayLink l = link;
         networkBlocked = l == null || !l.heardFromRelay();
