@@ -51,6 +51,15 @@ public class ServerSetupActivity extends BaseCryptoActivity {
     private TextInputEditText callInput;
     /** The home already has a CALL entry: unticking removes it, and so stops calls. */
     private boolean hadCall;
+    private ActivityResultLauncher<Intent> setRoadLauncher;
+    private android.widget.CheckBox roadCheckbox;
+    private TextInputEditText roadInput;
+    /** The home already has a ROAD entry: unticking removes it, with its MAP. */
+    private boolean hadRoad;
+    private android.widget.CheckBox fudpCheckbox;
+    private TextInputEditText fudpInput;
+    /** The home already has a FUDP entry: unticking removes it. */
+    private boolean hadFudp;
 
     @Override
     protected int getLayoutId() {
@@ -86,6 +95,13 @@ public class ServerSetupActivity extends BaseCryptoActivity {
                         ServicePickerUtils.applySelectedService(this, result.getData(), callInput);
                     }
                 });
+        setRoadLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        ServicePickerUtils.applySelectedService(this, result.getData(), roadInput);
+                    }
+                });
     }
 
     @Override
@@ -100,6 +116,14 @@ public class ServerSetupActivity extends BaseCryptoActivity {
         // Being callable is a choice: off unless the home already has a CALL service.
         callCheckbox.setOnCheckedChangeListener((b, on) ->
                 findViewById(R.id.call_row).setVisibility(on ? android.view.View.VISIBLE : android.view.View.GONE));
+        roadCheckbox = findViewById(R.id.road_checkbox);
+        roadInput = findViewById(R.id.road_input);
+        roadCheckbox.setOnCheckedChangeListener((b, on) ->
+                findViewById(R.id.road_row).setVisibility(on ? android.view.View.VISIBLE : android.view.View.GONE));
+        fudpCheckbox = findViewById(R.id.fudp_checkbox);
+        fudpInput = findViewById(R.id.fudp_input);
+        fudpCheckbox.setOnCheckedChangeListener((b, on) ->
+                findViewById(R.id.fudp_row).setVisibility(on ? android.view.View.VISIBLE : android.view.View.GONE));
         backButton = findViewById(R.id.back_button);
 
         // A multisig FID is a script address with no key pair: it cannot encrypt or decrypt
@@ -125,6 +149,29 @@ public class ServerSetupActivity extends BaseCryptoActivity {
         findViewById(R.id.choose_call_button).setOnClickListener(v -> setCallLauncher.launch(
                 ServicePickerUtils.pickerIntent(this, Constants.CALL_NO1_NRC7,
                         getString(R.string.server_setup_call_label))));
+        // ROAD delivers only to devices in its own MAP: offer only services running both.
+        findViewById(R.id.choose_road_button).setOnClickListener(v -> {
+            Intent picker = ServicePickerUtils.pickerIntent(this, Constants.ROAD_NO1_NRC7,
+                    getString(R.string.server_setup_road_label));
+            picker.putExtra(SetDiskActivity.EXTRA_ALSO_COMPONENT, Constants.MAP_NO1_NRC7);
+            setRoadLauncher.launch(picker);
+        });
+    }
+
+    /** The value of {@code home}'s entry for {@code kind}, under the bare kind or kind@anything. */
+    private static String homeValue(Map<String, String> home, String kind) {
+        if (home == null) return null;
+        String own = home.get(kind + "@No1_NrC7");
+        if (own != null && !own.trim().isEmpty()) return own.trim();
+        for (Map.Entry<String, String> entry : home.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            if (key == null || value == null || value.trim().isEmpty()) continue;
+            if (key.equalsIgnoreCase(kind) || key.toUpperCase(java.util.Locale.ROOT).startsWith(kind + "@")) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     @Override
@@ -147,6 +194,8 @@ public class ServerSetupActivity extends BaseCryptoActivity {
 
             String existingDock = home != null ? home.get(Constants.DOCK_NO1_NRC7) : null;
             String existingCall = home != null ? home.get(Constants.CALL_NO1_NRC7) : null;
+            String existingRoad = homeValue(home, "ROAD");
+            String existingFudp = homeValue(home, "FUDP");
 
             String existingDiskSid = null;
             if (liveKeyInfo != null && DiskHomeManager.isConfigured(liveKeyInfo)) {
@@ -166,6 +215,20 @@ public class ServerSetupActivity extends BaseCryptoActivity {
                     hadCall = true;
                     callInput.setText(existingCall);
                     callCheckbox.setChecked(true);
+                }
+                // Nor ROAD, which is paid for while it is kept; suggest one when there is none.
+                if (existingRoad != null) {
+                    hadRoad = true;
+                    roadInput.setText(existingRoad);
+                    roadCheckbox.setChecked(true);
+                } else {
+                    findViewById(R.id.road_suggest).setVisibility(android.view.View.VISIBLE);
+                }
+                // FUDP is never filled in by the app: only shown so a wrong one can be removed.
+                if (existingFudp != null) {
+                    hadFudp = true;
+                    fudpInput.setText(existingFudp);
+                    fudpCheckbox.setChecked(true);
                 }
             });
         }).start();
@@ -188,7 +251,26 @@ public class ServerSetupActivity extends BaseCryptoActivity {
             return;
         }
         boolean removeCall = hadCall && !takeCalls;
-        if (dockVal.isEmpty() && diskSid.isEmpty() && callVal.isEmpty() && !removeCall) {
+        boolean useRoad = roadCheckbox.isChecked();
+        String roadVal = useRoad && roadInput.getText() != null ? roadInput.getText().toString().trim() : "";
+        if (useRoad && roadVal.isEmpty()) {
+            ToastUtils.makeText(this, R.string.server_setup_road_empty);
+            return;
+        }
+        boolean useFudp = fudpCheckbox.isChecked();
+        String fudpVal = useFudp && fudpInput.getText() != null ? fudpInput.getText().toString().trim() : "";
+        if (useFudp && !fudpVal.matches("fudp://[^\\s/:]+:\\d{1,5}/?")) {
+            ToastUtils.makeText(this, R.string.server_setup_fudp_bad);
+            return;
+        }
+        ServerSetupManager.HomeEdits edits = new ServerSetupManager.HomeEdits();
+        edits.call = callVal;
+        edits.removeCall = removeCall;
+        edits.road = roadVal;
+        edits.removeRoad = hadRoad && !useRoad;
+        edits.fudp = fudpVal;
+        edits.removeFudp = hadFudp && !useFudp;
+        if (dockVal.isEmpty() && diskSid.isEmpty() && !edits.touchesAny()) {
             ToastUtils.makeText(this, R.string.server_setup_need_one);
             return;
         }
@@ -204,7 +286,7 @@ public class ServerSetupActivity extends BaseCryptoActivity {
         // The TX build, broadcast, and all post-broadcast bookkeeping (DISK/DOCK pending flags
         // and the persisted server-setup suppression flag) live in the shared helper, so this
         // manual path and the one-tap dialog path stay identical.
-        ServerSetupManager.register(this, liveKeyInfo, dockVal, diskSid, callVal, removeCall, prikey,
+        ServerSetupManager.register(this, liveKeyInfo, dockVal, diskSid, edits, prikey,
                 new TxSender.TxCallback() {
                     @Override
                     public void onSuccess(String txId) {

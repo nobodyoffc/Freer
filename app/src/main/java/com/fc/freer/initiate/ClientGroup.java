@@ -191,15 +191,9 @@ public class ClientGroup extends BaseClientGroup {
                 client.setAutoRechargeVia(FreerApplication.FREER_APP_DEALER);
             }
             
-            // Register with MAP so this FID is discoverable for ROAD relay.
-            // The keepalive registers immediately (delay=0) and re-registers every 25s.
-            try {
-                client.startMapKeepalive(25);
-                TimberLogger.d(TAG, "MAP keepalive started for FID: %s", mainFid);
-            } catch (Exception e) {
-                TimberLogger.w(TAG, "MAP keepalive start failed (non-fatal): %s", e.getMessage());
-            }
-            
+            // No MAP registration here: a device keeps its presence only in its own
+            // home.ROAD server's MAP, and only when it has one (ImManager's MapPresence).
+
             TimberLogger.d(TAG, "Created FapiClient for account: %s", apiAccount.getId());
             return client;
         } catch (Exception e) {

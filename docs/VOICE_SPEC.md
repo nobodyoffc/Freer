@@ -681,7 +681,7 @@ The caller sends each INVITE, CANCEL, REJECT and HANGUP on every channel it
 can, all at once:
 
 - **FUDP direct:** when the peer is reachable.
-- **ROAD:** to the peer's `home.ROAD`. It reaches a device registered in that server's MAP. The app already keeps MAP registered every 25 s (`ClientGroup.startMapKeepalive`).
+- **ROAD:** to the peer's `home.ROAD`, and only when the peer has one. It reaches a device registered in that server's MAP. A device registers only in the MAP of its own FID's `home.ROAD`, every 25 s, while the app is in front or behind with **Available for calls** on (`im/MapPresence`). With no `home.ROAD` it registers nowhere: `map.register` is billed, and presence in any other MAP reaches no one. The user sets `home.ROAD` on the server setup screen, from services that run both ROAD and MAP; the same carve writes `home.MAP`, and removing ROAD removes both. A refused relay is logged with the server's code and message.
 - **DOCK:** as the lasting record.
 
 Unlike chat, these signals ignore the opt-in *Use ROAD relay* and *Use
@@ -697,7 +697,7 @@ Only a device that is actually registered and running can ring. That depends on 
 
 - **Mac:** a running app can ring.
 - **Android, app open or recently used:** it rings.
-- **Android, in the background:** it rings only with **Available for calls** turned on (off by default). This keeps a small foreground service (type `specialUse`) running, and with it the app's FUDP node and MAP keepalive, and asks for an exemption from battery optimisation. Android lets it start only from the foreground: when the setting is turned on, and whenever an identity loads. Without it, Doze stops the keepalive and an incoming call shows as a missed call on the next DOCK fetch.
+- **Android, in the background:** it rings only with **Available for calls** turned on (off by default). This keeps a small foreground service (type `specialUse`) running, and with it the app's FUDP node and MAP presence (when the FID has a `home.ROAD`), and asks for an exemption from battery optimisation. Android lets it start only from the foreground: when the setting is turned on, and whenever an identity loads. Without it, Doze stops the keepalive and an incoming call shows as a missed call on the next DOCK fetch.
 - **Android, locked after a while in the background:** the call screen skips the password prompt, so a call can be answered at once. It shows only who is calling; the rest of the app stays locked.
 
 Freer uses no Google or Apple push service. Putting its call records on a

@@ -2739,6 +2739,16 @@
     <string name="server_setup_call_explain">Others can call you only through the CALL service you set here, and they pay for it. Leave unticked to stay uncallable; untick to stop taking calls.</string>
     <string name="server_setup_call_hint">CALL service SID</string>
     <string name="server_setup_call_empty">Choose a CALL service, or untick CALL.</string>
+    <string name="server_setup_road_label">ROAD (reach me fast)</string>
+    <string name="server_setup_road_explain">Contacts relay messages and call rings to you through this server the moment they are sent. The service must run both ROAD and MAP. While the app is open, or Available for calls is on, your device keeps its presence there, which the server charges for. Untick to remove it.</string>
+    <string name="server_setup_road_suggest">You have no ROAD server: messages and rings reach you only when your device next checks its DOCK. Setting one makes them arrive at once.</string>
+    <string name="server_setup_road_hint">ROAD service SID</string>
+    <string name="server_setup_road_empty">Choose a ROAD service, or untick ROAD.</string>
+    <string name="server_setup_road_no_map">That service does not run both ROAD and MAP.</string>
+    <string name="server_setup_fudp_label">FUDP (my own node)</string>
+    <string name="server_setup_fudp_explain">Only for a node with a fixed, reachable address, such as a server. A phone behind a home or mobile network cannot be reached this way: leave it unset. Untick to remove it.</string>
+    <string name="server_setup_fudp_hint">fudp://host:port</string>
+    <string name="server_setup_fudp_bad">Enter a FUDP address like fudp://host:port, or untick FUDP.</string>
     <string name="call_setting_available">Available for calls</string>
     <string name="call_setting_available_hint">Ring when Freer is in the background. Keeps a small service running, and asks to be exempt from battery optimisation. Without it, a call that comes while Freer is closed shows as missed.</string>
     <string name="call_setting_always_relay">Always relay</string>
