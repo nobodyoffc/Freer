@@ -1410,6 +1410,21 @@ synthetic participants on the relay. A 10-device check waits for the devices.
 - Move the media code into the `:voice` process (§11.3).
 - Publish the protocol docs in §13.
 
+**Done, 2026-09-30.** Each item was tested on real devices by the user:
+
+- The `:voice` process (§11.3).
+- The protocol docs (§13): FAPI16, FIMP5 and FUDP8.
+- FUDP over TCP when UDP gets no answer (FUDP8), with the HK relay listening on TCP.
+- The app's own echo canceller, AEC3 (§11.1). It is off by default, and passed on the A05s.
+- MAP presence only at the FID's own `home.ROAD` (§6.2), with ROAD and FUDP on the server setup screen.
+
+Still open, and not blocking:
+
+- A 10-phone meeting on real devices. The Phase 4 load test stands in for it.
+- A direct path across two different networks.
+- TCP 443 on the HK relay, which needs a port redirect on the server.
+- Whether to turn the own echo canceller on by default for phones known to go half-duplex.
+
 Phases 3 and 4 can overlap once Phase 2 passes. Phase 6 can start as soon
 as Phase 3's vectors are frozen.
 
