@@ -30,7 +30,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Builds and broadcasts the live FID's combined DOCK/DISK server-registration TX, and performs
+ * Builds and broadcasts the live FID's combined DOCK/DISK (and CALL/ROAD/FUDP) server-registration TX, and performs
  * the post-broadcast bookkeeping that keeps the app consistent while the TX confirms.
  * <p>
  * This logic is shared by both entry points — the one-tap "use current server" path in
@@ -58,23 +58,88 @@ public final class ServerSetupManager {
     private ServerSetupManager() {}
 
     /**
-     * Register DOCK and/or DISK for the live FID. Runs entirely off the caller's thread; the
-     * {@code uiCallback} fires on a background thread, so callers must marshal any UI work.
+     * The entries beside DOCK and DISK a carve may set or remove. A blank value leaves that
+     * entry as it is; removing wins over setting.
+     */
+    public static final class HomeEdits {
+        /** The CALL service; removing it stops taking calls (VOICE_SPEC §6.2). */
+        public String call;
+        public boolean removeCall;
+        /**
+         * The ROAD service, which must also run MAP: peers relay through it, and this device
+         * keeps its presence in that MAP. Setting it writes home.MAP to the same service;
+         * removing it drops both.
+         */
+        public String road;
+        public boolean removeRoad;
+        /** A fixed, reachable FUDP node address: only for a node that has one. */
+        public String fudp;
+        public boolean removeFudp;
+
+        public static HomeEdits none() {
+            return new HomeEdits();
+        }
+
+        boolean touchesCall() {
+            return removeCall || !blank(call);
+        }
+
+        boolean touchesRoad() {
+            return removeRoad || !blank(road);
+        }
+
+        public boolean touchesAny() {
+            return touchesCall() || touchesRoad() || removeFudp || !blank(fudp);
+        }
+    }
+
+    private static boolean blank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
+    /** The keys of {@code home} naming {@code kind}: the bare kind or kind@anything, any case. */
+    private static java.util.Set<String> keysOf(Map<String, String> home, String kind) {
+        java.util.Set<String> keys = new java.util.HashSet<>();
+        if (home == null) return keys;
+        String k = kind.toUpperCase(java.util.Locale.ROOT);
+        for (String key : home.keySet()) {
+            if (key == null) continue;
+            String u = key.toUpperCase(java.util.Locale.ROOT);
+            if (u.equals(k) || u.startsWith(k + "@")) keys.add(key);
+        }
+        return keys;
+    }
+
+    /** Whether the service {@code value} names runs both ROAD and MAP; a URL cannot be checked, so passes. */
+    private static boolean runsRoadAndMap(FapiClient fapiClient, String value) {
+        String sid = com.fc.fc_ajdk.fapi.client.HomeServiceResolver.extractSid(value);
+        if (sid == null || fapiClient == null) return true;
+        Service service = fapiClient.serviceById(sid);
+        java.util.List<String> components = service != null ? service.getComponents() : null;
+        if (components == null) return false;
+        return components.stream().anyMatch(Constants.ROAD_NO1_NRC7::equalsIgnoreCase)
+                && components.stream().anyMatch(Constants.MAP_NO1_NRC7::equalsIgnoreCase);
+    }
+
+    /**
+     * Register DOCK and/or DISK for the live FID, with any other {@code edits}. Runs entirely
+     * off the caller's thread; the {@code uiCallback} fires on a background thread, so callers
+     * must marshal any UI work.
      *
      * @param activity    calling activity (for TX UI fallbacks and app context)
      * @param liveKeyInfo the live FID's KeyInfo
      * @param dockVal     the DOCK SID to register (empty/null to skip DOCK)
      * @param diskSid     the DISK SID to register (empty/null to skip DISK)
-     * @param callVal     the CALL service to register (empty/null to leave CALL as it is)
-     * @param removeCall  remove the home's CALL entry: stop taking calls (VOICE_SPEC §6.2)
+     * @param edits       CALL, ROAD and FUDP to set or remove; null for none
      * @param prikey      the live FID's private key (for signing and DISK encryption)
      * @param uiCallback  result callback (onSuccess fires only after bookkeeping completes)
      */
     public static void register(Activity activity, KeyInfo liveKeyInfo,
-                                String dockVal, String diskSid, String callVal, boolean removeCall,
+                                String dockVal, String diskSid, HomeEdits edits,
                                 byte[] prikey, TxSender.TxCallback uiCallback) {
-        final String call = callVal != null ? callVal.trim() : "";
-        final boolean callChanged = !call.isEmpty() || removeCall;
+        final HomeEdits ed = edits != null ? edits : HomeEdits.none();
+        final boolean homeEdited = ed.touchesAny();
+        final boolean roadChanged = ed.touchesRoad();
         final String dock = dockVal != null ? dockVal.trim() : "";
         final String disk = diskSid != null ? diskSid.trim() : "";
         final boolean settingDock = !dock.isEmpty();
@@ -113,9 +178,30 @@ public final class ServerSetupManager {
                 liveKeyInfo.setPubkey(pubkey);
             }
 
+            // A typed SID skipped the picker's check: ROAD delivers only to its own MAP.
+            if (!ed.removeRoad && !blank(ed.road)
+                    && (onChain.home == null || !ed.road.trim().equals(onChain.home.get(Constants.ROAD_NO1_NRC7)))
+                    && !runsRoadAndMap(fapiClient, ed.road.trim())) {
+                if (uiCallback != null) uiCallback.onError(appContext.getString(R.string.server_setup_road_no_map));
+                return;
+            }
+
             Map<String, String> changes = new HashMap<>();
             if (settingDock) changes.put(Constants.DOCK_NO1_NRC7, dock);
-            if (!call.isEmpty()) changes.put(Constants.CALL_NO1_NRC7, call);
+            java.util.Set<String> removals = new java.util.HashSet<>();
+            if (ed.removeCall) removals.addAll(keysOf(onChain.home, "CALL"));
+            else if (!blank(ed.call)) changes.put(Constants.CALL_NO1_NRC7, ed.call.trim());
+            // Setting an entry also drops any other spelling of its key, so peers find one value.
+            if (ed.touchesRoad()) {
+                removals.addAll(keysOf(onChain.home, "ROAD"));
+                removals.addAll(keysOf(onChain.home, "MAP"));
+            }
+            if (!ed.removeRoad && !blank(ed.road)) {
+                changes.put(Constants.ROAD_NO1_NRC7, ed.road.trim());
+                changes.put(Constants.MAP_NO1_NRC7, ed.road.trim());
+            }
+            if (ed.removeFudp || !blank(ed.fudp)) removals.addAll(keysOf(onChain.home, "FUDP"));
+            if (!ed.removeFudp && !blank(ed.fudp)) changes.put(Constants.FUDP_NO1_NRC7, ed.fudp.trim());
             boolean settingDisk = false;
             // The DISK value is encrypted afresh each time, so compare the SID it holds, not the
             // bytes: re-encrypting the same SID would be a paid carve that changes nothing.
@@ -129,8 +215,7 @@ public final class ServerSetupManager {
                 settingDisk = true;
             }
 
-            final Map<String, String> homeMap = HomeFeip.merged(onChain.home, changes,
-                    removeCall ? java.util.Set.of(Constants.CALL_NO1_NRC7) : java.util.Set.of());
+            final Map<String, String> homeMap = HomeFeip.merged(onChain.home, changes, removals);
             if (homeMap == null) {
                 if (uiCallback != null) uiCallback.onError(appContext.getString(R.string.server_setup_home_unchanged));
                 return;
@@ -155,13 +240,19 @@ public final class ServerSetupManager {
                             // Bookkeeping (resolveAndCacheDiskClient does a blocking UDP request)
                             // runs off the callback thread.
                             new Thread(() -> {
-                                if (callChanged && !diskChanged) {
-                                    // The callee answers only on its own home.CALL: use the new one now.
+                                if (homeEdited && !diskChanged) {
+                                    // The callee answers only on its own home.CALL, and keeps its
+                                    // presence at its own home.ROAD: use the new home now.
                                     liveKeyInfo.setHome(new HashMap<>(homeMap));
                                 }
                                 if (diskChanged) {
                                     liveKeyInfo.setHome(new HashMap<>(homeMap));
                                     DiskHomeManager.resolveAndCacheDiskClient(liveKeyInfo, prikey);
+                                }
+                                if (roadChanged) {
+                                    Setting s = SettingManager.getInstance().getCurrentSetting();
+                                    ImManager im = s != null ? s.getImManager() : null;
+                                    if (im != null) im.refreshMapPresence();
                                 }
                                 if (settingDock) {
                                     Setting setting = SettingManager.getInstance().getCurrentSetting();

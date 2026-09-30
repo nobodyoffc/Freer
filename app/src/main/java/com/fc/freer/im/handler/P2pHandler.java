@@ -175,6 +175,8 @@ public class P2pHandler extends BaseHandler {
                         notifySent(message);
                         return SendResult.SUCCESS;
                     }
+                    TimberLogger.w(TAG, "ROAD at %s refused %s to %s: %s", targetRoadUrl, message.getId(), targetFid,
+                            roadRefusal(result, roadClient));
                 } catch (Exception e) {
                     TimberLogger.w(TAG, "ROAD relay failed: %s", e.getMessage());
                 }
@@ -460,7 +462,7 @@ public class P2pHandler extends BaseHandler {
                     FapiClient.RoadRelayResult result = roadClient.roadRelay(targetFid, sealed, routes.roadUrl());
                     boolean ok = result != null && result.success();
                     if (ok) any = true;
-                    roadWay = ok ? "ok" : "refused";
+                    roadWay = ok ? "ok" : "refused (" + roadRefusal(result, roadClient) + ")";
                 } catch (Exception e) {
                     roadWay = "failed (" + e.getMessage() + ")";
                 }
@@ -907,4 +909,12 @@ public class P2pHandler extends BaseHandler {
         public DeliveryMethod getLastDeliveryMethod() { return lastDeliveryMethod; }
         public void setLastDeliveryMethod(DeliveryMethod method) { this.lastDeliveryMethod = method; }
     }
+
+    /** Why a ROAD relay did not deliver: the server's code and message, or the client's error. */
+    private static String roadRefusal(FapiClient.RoadRelayResult result, FapiClient roadClient) {
+        if (result == null) return "no answer: " + roadClient.getLastError();
+        return "code " + result.code() + ", " + result.message()
+                + " (" + result.successCount() + "/" + result.totalTargets() + " delivered)";
+    }
+
 }

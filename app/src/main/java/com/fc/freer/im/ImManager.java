@@ -273,6 +273,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
     // Voice calls (VOICE_SPEC §3): signalling, and its once-a-second expiry check.
     private CallSignaller callSignaller;
     private java.util.concurrent.ScheduledExecutorService callTicker;
+    /** Presence in the live FID's home.ROAD MAP; null until started. */
+    private MapPresence mapPresence;
 
     public ImManager(Context context, String liveFid) {
         this.context = context.getApplicationContext();
@@ -457,7 +459,11 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
      */
     public void start(FudpNode fudpNode, FapiClient fapiClient) {
         this.fudpNode = fudpNode;
+        if (mapPresence == null && fudpNode != null) {
+            mapPresence = new MapPresence(fudpNode, () -> this.fapiClient);
+        }
         this.fapiClient = fapiClient;
+        applyMapPresence();
 
         // Give the registry a long-lived FUDP node so it can always re-bootstrap a
         // dock connection that died (e.g. during a long sleep), even after every
@@ -805,6 +811,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
 
         // Populate the DOCK registry now that resolution is possible (no-op if empty).
         refreshDockRegistry();
+        refreshMapPresence();
 
         return true;
     }
@@ -818,6 +825,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         }
         if (messageQueue != null) messageQueue.stop();
         if (callTicker != null) callTicker.shutdownNow();
+        if (mapPresence != null) mapPresence.stop();
+        mapPresence = null;
         if (symkeyStore != null) symkeyStore.clearCache();
         if (p2pHandler != null) p2pHandler.setMessageListener(null);
         if (squareHandler != null) squareHandler.setMessageListener(null);
@@ -3173,6 +3182,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
      * alive to, which <i>Available for calls</i> does.
      */
     public void applyDockIntervals() {
+        applyMapPresence();
         DockFetchScheduler s = dockScheduler;
         if (s == null) return;
         com.fc.freer.im.dock.DockCheckLevel level = com.fc.freer.im.dock.DockCheckLevel.get(context);
@@ -3184,6 +3194,25 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             long every = com.fc.freer.im.dock.DockCheckLevel.UNKEPT_BACKGROUND_MS;
             s.setIntervals(every, every);
         }
+    }
+
+    /**
+     * Keep this device in its home.ROAD MAP on the same terms as the DOCK pace:
+     * in front, or behind while <i>Available for calls</i> keeps the process
+     * alive. {@link MapPresence} does nothing without a home.ROAD.
+     */
+    private void applyMapPresence() {
+        MapPresence p = mapPresence;
+        if (p == null) return;
+        p.setWanted(appInFront || com.fc.freer.call.CallManager.getInstance(context).availableForCalls());
+    }
+
+    /** The live FID's home.ROAD may have changed. */
+    public void refreshMapPresence() {
+        MapPresence p = mapPresence;
+        if (p == null) return;
+        p.refresh();
+        applyMapPresence();
     }
 
     /**

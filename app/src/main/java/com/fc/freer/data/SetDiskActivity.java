@@ -57,11 +57,21 @@ public class SetDiskActivity extends BaseCryptoActivity {
     public static final String EXTRA_COMPONENT = "component";
     /** Optional: toolbar title to show (e.g. "Select data server"). Defaults to "Set DISK". */
     public static final String EXTRA_TITLE = "title";
+    /** Optional: a second component the service must also run (ROAD needs its MAP). */
+    public static final String EXTRA_ALSO_COMPONENT = "alsoComponent";
 
     /** The service component this picker filters by; DISK unless overridden via {@link #EXTRA_COMPONENT}. */
     private String component() {
         String c = getIntent() != null ? getIntent().getStringExtra(EXTRA_COMPONENT) : null;
         return (c != null && !c.isEmpty()) ? c : Constants.DISK_NO1_NRC7;
+    }
+
+    /** Whether the service runs the component, and the second one if one is asked for. */
+    private boolean runsComponents(java.util.List<String> components) {
+        if (components == null) return false;
+        String also = getIntent() != null ? getIntent().getStringExtra(EXTRA_ALSO_COMPONENT) : null;
+        return components.stream().anyMatch(c -> component().equalsIgnoreCase(c))
+                && (also == null || components.stream().anyMatch(also::equalsIgnoreCase));
     }
 
     private boolean isDiskComponent() {
@@ -319,8 +329,7 @@ public class SetDiskActivity extends BaseCryptoActivity {
         ApiProvider apiProvider = FapiClient.getApiProviderFromUrl(fudpNode, url, Service.ServiceType.FAPI_No1_NrC7);
         if (apiProvider != null) {
             // Verify it has the requested component
-            if (apiProvider.getComponents() != null && apiProvider.getComponents().stream()
-                    .anyMatch(c -> component().equalsIgnoreCase(c))) {
+            if (runsComponents(apiProvider.getComponents())) {
                 apiProvider.setApiUrl(url);
                 results.add(apiProvider);
             } else {
@@ -348,8 +357,7 @@ public class SetDiskActivity extends BaseCryptoActivity {
         for (Service service : serviceList) {
             if (service == null) continue;
             // Filter: must have the requested component
-            if (service.getComponents() == null || service.getComponents().stream()
-                    .noneMatch(c -> component().equalsIgnoreCase(c))) {
+            if (!runsComponents(service.getComponents())) {
                 continue;
             }
             ApiProvider apiProvider = ApiProvider.fromService(service, Service.ServiceType.FAPI_No1_NrC7);

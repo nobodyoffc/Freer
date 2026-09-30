@@ -2661,6 +2661,16 @@
     <string name="server_setup_call_explain">别人只能通过你在此设置的 CALL 服务呼叫你，并由对方付费。不勾选则不可被呼叫；取消勾选即停止接听来电。</string>
     <string name="server_setup_call_hint">CALL 服务 SID</string>
     <string name="server_setup_call_empty">请选择 CALL 服务，或取消勾选 CALL。</string>
+    <string name="server_setup_road_label">ROAD（即时送达）</string>
+    <string name="server_setup_road_explain">联系人发出的消息和来电铃声会经此服务器即时转给你。该服务须同时运行 ROAD 和 MAP。应用打开时，或开启“随时可接听”时，设备会在此保持在线，服务器会为此收费。取消勾选即删除。</string>
+    <string name="server_setup_road_suggest">你尚未设置 ROAD 服务器：消息和来电只能等设备下次检查 DOCK 时才收到。设置后可即时送达。</string>
+    <string name="server_setup_road_hint">ROAD 服务 SID</string>
+    <string name="server_setup_road_empty">请选择 ROAD 服务，或取消勾选 ROAD。</string>
+    <string name="server_setup_road_no_map">该服务没有同时运行 ROAD 和 MAP。</string>
+    <string name="server_setup_fudp_label">FUDP（我自己的节点）</string>
+    <string name="server_setup_fudp_explain">仅适用于有固定、可访问地址的节点，例如服务器。处在家庭或移动网络后的手机无法以此被访问，请不要设置。取消勾选即删除。</string>
+    <string name="server_setup_fudp_hint">fudp://主机:端口</string>
+    <string name="server_setup_fudp_bad">请输入 fudp://主机:端口 形式的 FUDP 地址，或取消勾选 FUDP。</string>
     <string name="call_setting_available">随时可接听</string>
     <string name="call_setting_available_hint">Freer 在后台时也能响铃。会保持一个小型服务运行，并请求免除电池优化。关闭时，Freer 未运行期间打来的电话会显示为未接。</string>
     <string name="call_setting_always_relay">始终中继</string>
