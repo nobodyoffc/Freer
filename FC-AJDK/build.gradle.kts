@@ -22,6 +22,15 @@ android {
         buildConfig = true
     }
 
+    // Argon2id in C for Kdf (see src/main/cpp/CMakeLists.txt).
+    ndkVersion = "27.1.12297006"
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
     // JUnit 5 tests (the FUDP tests shared with FC-JDK) run on the JUnit
     // Platform; the vintage engine keeps the JUnit 4 tests running too.
     testOptions {
