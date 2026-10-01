@@ -73,16 +73,19 @@ public class UpdateTeamActivity extends BaseCryptoActivity {
     private TextInputEditText descInput;
     private TextInputEditText dockInput;
     private TextInputEditText diskInput;
+    private TextInputEditText callInput;
 
     private ImageButton clearButton;
     private ImageButton publishButton;
     private ImageButton backButton;
     private ImageButton chooseDockButton;
     private ImageButton chooseDiskButton;
+    private ImageButton chooseCallButton;
     private ImageButton viewConsensusButton;
 
     private ActivityResultLauncher<Intent> chooseDockLauncher;
     private ActivityResultLauncher<Intent> chooseDiskLauncher;
+    private ActivityResultLauncher<Intent> chooseCallLauncher;
     private ActivityResultLauncher<Intent> pickDocLauncher;
     private EntityFieldPickers pickers;
 
@@ -94,6 +97,7 @@ public class UpdateTeamActivity extends BaseCryptoActivity {
     private static final int QR_SCAN_DESC = 1003;
     private static final int QR_SCAN_DOCK = 1004;
     private static final int QR_SCAN_DISK = 1005;
+    private static final int QR_SCAN_CALL = 1006;
 
     @Override
     protected int getLayoutId() {
@@ -132,6 +136,7 @@ public class UpdateTeamActivity extends BaseCryptoActivity {
         TextIconsUtils.setupTextIcons(this, R.id.descView, R.id.scanIcon, QR_SCAN_DESC);
         TextIconsUtils.setupTextIcons(this, R.id.dockView, R.id.scanIcon, QR_SCAN_DOCK);
         TextIconsUtils.setupTextIcons(this, R.id.diskView, R.id.scanIcon, QR_SCAN_DISK);
+        TextIconsUtils.setupTextIcons(this, R.id.callView, R.id.scanIcon, QR_SCAN_CALL);
         // The consensus field carries a data DID: offer the same local-data chooser create does.
         pickers.bindDidField(R.id.consensusView, R.id.scanIcon, QR_SCAN_CONSENSUS, consensusInput);
 
@@ -161,11 +166,15 @@ public class UpdateTeamActivity extends BaseCryptoActivity {
         diskInput = diskView.findViewById(R.id.textInput);
         diskInput.setHint(R.string.server_setup_disk_hint);
 
+        callInput = findViewById(R.id.callView).findViewById(R.id.textInput);
+        callInput.setHint(R.string.home_call_hint);
+
         clearButton = findViewById(R.id.clearButton);
         publishButton = findViewById(R.id.publishButton);
         backButton = findViewById(R.id.back_button);
         chooseDockButton = findViewById(R.id.choose_dock_button);
         chooseDiskButton = findViewById(R.id.choose_disk_button);
+        chooseCallButton = findViewById(R.id.choose_call_button);
         viewConsensusButton = findViewById(R.id.view_consensus_button);
 
         pickers = new EntityFieldPickers(this);
@@ -183,6 +192,14 @@ public class UpdateTeamActivity extends BaseCryptoActivity {
                 result -> {
                     if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                         ServicePickerUtils.applySelectedService(this, result.getData(), diskInput);
+                    }
+                });
+
+        chooseCallLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        ServicePickerUtils.applySelectedService(this, result.getData(), callInput);
                     }
                 });
 
@@ -211,6 +228,7 @@ public class UpdateTeamActivity extends BaseCryptoActivity {
             descInput.setText("");
             dockInput.setText("");
             diskInput.setText("");
+            callInput.setText("");
         });
 
         publishButton.setOnClickListener(v -> {
@@ -233,6 +251,12 @@ public class UpdateTeamActivity extends BaseCryptoActivity {
             hideKeyboard();
             chooseDiskLauncher.launch(ServicePickerUtils.pickerIntent(this,
                     Constants.DISK_NO1_NRC7, getString(R.string.server_setup_disk_label)));
+        });
+
+        chooseCallButton.setOnClickListener(v -> {
+            hideKeyboard();
+            chooseCallLauncher.launch(ServicePickerUtils.pickerIntent(this,
+                    Constants.CALL_NO1_NRC7, getString(R.string.server_setup_call_label)));
         });
 
         viewConsensusButton.setOnClickListener(v -> {
@@ -259,6 +283,9 @@ public class UpdateTeamActivity extends BaseCryptoActivity {
             case QR_SCAN_DISK:
                 diskInput.setText(qrContent);
                 break;
+            case QR_SCAN_CALL:
+                callInput.setText(qrContent);
+                break;
         }
     }
 
@@ -281,6 +308,7 @@ public class UpdateTeamActivity extends BaseCryptoActivity {
             if (dockValue != null) dockInput.setText(sidOrRaw(dockValue));
             String diskValue = home.get(Constants.DISK_NO1_NRC7);
             if (diskValue != null) diskInput.setText(sidOrRaw(diskValue));
+            callInput.setText(com.fc.freer.call.CallHome.display(home));
         }
     }
 
@@ -411,7 +439,7 @@ public class UpdateTeamActivity extends BaseCryptoActivity {
         final boolean consensusChanged = !consensusId.equals(oldConsensusId);
         final boolean diskChanged = !diskSid.equals(oldDiskSid);
 
-        final Map<String, String> homeMap = buildHomeMap(dockVal, diskSid);
+        final Map<String, String> homeMap = buildHomeMap(dockVal, diskSid, getText(callInput));
 
         publishButton.setEnabled(false);
         final WaitingDialog waitingDialog = new WaitingDialog(this, getString(R.string.publishing));
@@ -611,13 +639,14 @@ public class UpdateTeamActivity extends BaseCryptoActivity {
     }
 
     /**
-     * Merge the edited DOCK/DISK over the team's stored home. The parser replaces {@code home}
+     * Merge the edited DOCK/DISK/CALL over the team's stored home. The parser replaces {@code home}
      * wholesale, so anything omitted here would be erased on chain — including keys this screen
-     * does not edit.
+     * does not edit. That also lets an emptied CALL box remove the CALL: meetings then run on
+     * each host's own (VOICE_SPEC §8).
      */
-    private Map<String, String> buildHomeMap(String dockVal, String diskSid) {
-        Map<String, String> homeMap = new HashMap<>();
-        if (team != null && team.getHome() != null) homeMap.putAll(team.getHome());
+    private Map<String, String> buildHomeMap(String dockVal, String diskSid, String callVal) {
+        Map<String, String> homeMap = new HashMap<>(
+                com.fc.freer.call.CallHome.withCall(team != null ? team.getHome() : null, callVal));
 
         if (!dockVal.isEmpty()) {
             homeMap.put(Constants.DOCK_NO1_NRC7, toSidHomeValue(dockVal));

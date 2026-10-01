@@ -1843,6 +1843,9 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
     
     // ========== Voice calls (VOICE_SPEC §3) ==========
 
+    /** When an INVITE last made me read my own home.CALL again. */
+    private volatile long ownCallRecheckedMs;
+
     private void startCallSignaller(byte[] userPrikey) {
         callSignaller = new CallSignaller(liveFid, userPrikey, this::sendCallSignal, this::recordCall,
                 System::currentTimeMillis);
@@ -1915,6 +1918,21 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             accepted = true;
         }
         if (accepted) {
+            long now = System.currentTimeMillis();
+            if (signal.op == CallSignal.Op.INVITE && !acceptsCallRelay(signal.relay)
+                    && p2pHandler != null && now - ownCallRecheckedMs > 10_000) {
+                // My home.CALL may have changed on another device since this one read it:
+                // read it again before answering REJECT relay. At most every 10 s, so INVITEs
+                // naming other relays cannot make me ask the chain on every one.
+                ownCallRecheckedMs = now;
+                CallSignaller signaller = callSignaller;
+                P2pHandler handler = p2pHandler;
+                new Thread(() -> {
+                    handler.refreshMyHome();
+                    signaller.onSignal(sender, message.getId(), signal);
+                }, "call-own-home").start();
+                return;
+            }
             callSignaller.onSignal(sender, message.getId(), signal);
             return;
         }

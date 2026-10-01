@@ -396,6 +396,22 @@ public class P2pHandler extends BaseHandler {
         return sid != null && sid.equals(relay.sid());
     }
 
+    /**
+     * Read my own home from chain again, so {@link #isMyCallRelay} sees a
+     * home.CALL set or removed on another device since this one last read it.
+     * Blocking. Keeps the known home if the chain cannot be asked.
+     */
+    public void refreshMyHome() {
+        com.fc.fc_ajdk.data.fcData.KeyInfo mine = FidManager.getInstance().getLiveKeyInfo();
+        if (fapiClient == null || mine == null) return;
+        try {
+            com.fc.fc_ajdk.data.fchData.Freer freer = fapiClient.getFreer(mine.getId());
+            if (freer != null) mine.setHome(freer.getHome());
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "Could not read my home again for a call: %s", e.getMessage());
+        }
+    }
+
     private static boolean sameUrl(String a, String b) {
         return a.trim().replaceAll("/+$", "").equalsIgnoreCase(b.trim().replaceAll("/+$", ""));
     }

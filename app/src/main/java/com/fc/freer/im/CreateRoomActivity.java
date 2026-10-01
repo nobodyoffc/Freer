@@ -40,6 +40,7 @@ public class CreateRoomActivity extends BaseCryptoActivity {
     private TextInputEditText nameInput;
     private TextInputEditText descInput;
     private TextInputEditText dockInput;
+    private TextInputEditText callInput;
 
     private LinearLayout membersContainer;
     private ImageButton addMemberButton;
@@ -49,10 +50,12 @@ public class CreateRoomActivity extends BaseCryptoActivity {
     private ImageButton createButton;
     private ImageButton backButton;
     private ImageButton chooseDockButton;
+    private ImageButton chooseCallButton;
 
     private ImManager imManager;
     private ActivityResultLauncher<Intent> addMemberLauncher;
     private ActivityResultLauncher<Intent> chooseDockLauncher;
+    private ActivityResultLauncher<Intent> chooseCallLauncher;
     private WaitingDialog waitingDialog;
 
     @Override
@@ -94,6 +97,7 @@ public class CreateRoomActivity extends BaseCryptoActivity {
         nameInput = findViewById(R.id.room_name_input);
         descInput = findViewById(R.id.room_desc_input);
         dockInput = findViewById(R.id.room_dock_input);
+        callInput = findViewById(R.id.room_call_input);
 
         membersContainer = findViewById(R.id.members_container);
         addMemberButton = findViewById(R.id.add_member_button);
@@ -108,6 +112,14 @@ public class CreateRoomActivity extends BaseCryptoActivity {
         createButton = findViewById(R.id.createButton);
         backButton = findViewById(R.id.back_button);
         chooseDockButton = findViewById(R.id.choose_dock_button);
+        chooseCallButton = findViewById(R.id.choose_call_button);
+        chooseCallLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        ServicePickerUtils.applySelectedService(this, result.getData(), callInput);
+                    }
+                });
 
         chooseDockLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
@@ -141,6 +153,12 @@ public class CreateRoomActivity extends BaseCryptoActivity {
         backButton.setOnClickListener(v -> {
             hideKeyboard();
             finish();
+        });
+
+        chooseCallButton.setOnClickListener(v -> {
+            hideKeyboard();
+            chooseCallLauncher.launch(ServicePickerUtils.pickerIntent(this,
+                    Constants.CALL_NO1_NRC7, getString(R.string.server_setup_call_label)));
         });
 
         chooseDockButton.setOnClickListener(v -> {
@@ -212,6 +230,7 @@ public class CreateRoomActivity extends BaseCryptoActivity {
         nameInput.setText("");
         descInput.setText("");
         dockInput.setText("");
+        callInput.setText("");
         keyCardContainer.clearAll();
     }
 
@@ -230,9 +249,11 @@ public class CreateRoomActivity extends BaseCryptoActivity {
             return;
         }
 
-        Map<String, String> home = null;
+        // CALL: the relay this room's meetings run on; none means each host's own.
+        Map<String, String> home = com.fc.freer.call.CallHome.withCall(null, getText(callInput));
+        if (home.isEmpty()) home = null;
         if (!dock.isEmpty()) {
-            home = new HashMap<>();
+            if (home == null) home = new HashMap<>();
             home.put("DOCK@No1_NrC7", dock);
         }
 

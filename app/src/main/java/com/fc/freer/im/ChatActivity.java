@@ -183,6 +183,9 @@ public class ChatActivity extends BaseCryptoActivity
     private ActivityResultLauncher<Intent> chooseRoomDockLauncher;
     /** Dock input of the currently open update-room dialog; target of {@link #chooseRoomDockLauncher}. */
     private EditText updateRoomDockInput;
+    private ActivityResultLauncher<Intent> chooseRoomCallLauncher;
+    /** CALL input of the currently open update-room dialog; target of {@link #chooseRoomCallLauncher}. */
+    private EditText updateRoomCallInput;
 
     // Voice message
     private ImageButton micButton;
@@ -2447,6 +2450,8 @@ public class ChatActivity extends BaseCryptoActivity
         EditText nameInput = dialogView.findViewById(R.id.room_name_input);
         EditText descInput = dialogView.findViewById(R.id.room_desc_input);
         EditText dockInput = dialogView.findViewById(R.id.room_dock_input);
+        EditText callInput = dialogView.findViewById(R.id.room_call_input);
+        callInput.setText(com.fc.freer.call.CallHome.display(room.getHome()));
         nameInput.setText(room.getName());
         descInput.setText(room.getDesc());
         if (room.getHome() != null) {
@@ -2460,6 +2465,12 @@ public class ChatActivity extends BaseCryptoActivity
             chooseRoomDockLauncher.launch(ServicePickerUtils.pickerIntent(this,
                     Constants.DOCK_NO1_NRC7, getString(R.string.server_setup_dock_label)));
         });
+        updateRoomCallInput = callInput;
+        dialogView.findViewById(R.id.choose_call_button).setOnClickListener(v -> {
+            hideKeyboard();
+            chooseRoomCallLauncher.launch(ServicePickerUtils.pickerIntent(this,
+                    Constants.CALL_NO1_NRC7, getString(R.string.server_setup_call_label)));
+        });
 
         DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.update_room)
@@ -2469,12 +2480,15 @@ public class ChatActivity extends BaseCryptoActivity
                     String name = nameInput.getText().toString().trim();
                     String desc = descInput.getText().toString().trim();
                     String dock = dockInput.getText().toString().trim();
+                    String call = callInput.getText().toString().trim();
                     if (!name.isEmpty() && imManager != null) {
-                        java.util.Map<String, String> home = null;
-                        if (!dock.isEmpty()) {
-                            home = new java.util.HashMap<>();
-                            home.put("DOCK@No1_NrC7", dock);
-                        }
+                        // Laid over the stored home, never rebuilt: the room's record
+                        // travels whole, so a map of only these boxes would erase the
+                        // rest. An empty DOCK box leaves the DOCK alone; an empty CALL
+                        // box removes the CALL, and meetings use each host's own.
+                        java.util.Map<String, String> home =
+                                com.fc.freer.call.CallHome.withCall(room.getHome(), call);
+                        if (!dock.isEmpty()) home.put(Constants.DOCK_NO1_NRC7, dock);
                         java.util.Map<String, String> finalHome = home;
                         new Thread(() -> {
                             boolean success = imManager.updateRoom(targetId, name, desc, finalHome);
@@ -2876,6 +2890,16 @@ public class ChatActivity extends BaseCryptoActivity
                             && updateRoomDockInput != null) {
                         ServicePickerUtils.applySelectedService(this, result.getData(),
                                 updateRoomDockInput);
+                    }
+                });
+
+        chooseRoomCallLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null
+                            && updateRoomCallInput != null) {
+                        ServicePickerUtils.applySelectedService(this, result.getData(),
+                                updateRoomCallInput);
                     }
                 });
 
@@ -3303,7 +3327,14 @@ public class ChatActivity extends BaseCryptoActivity
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT, true);
         popup.setElevation(8f);
 
-        menuView.findViewById(R.id.menu_voice_call).setOnClickListener(v -> {
+        TextView callItem = menuView.findViewById(R.id.menu_voice_call);
+        if (knownToHaveNoCallService(targetId)) {
+            // Dimmed, not disabled: the known home may be stale, and placing the call reads
+            // it fresh from chain (and stores it), so a CALL set since is still found.
+            callItem.setText(R.string.menu_voice_call_no_service);
+            callItem.setAlpha(0.5f);
+        }
+        callItem.setOnClickListener(v -> {
             popup.dismiss();
             startVoiceCall();
         });
@@ -3325,6 +3356,15 @@ public class ChatActivity extends BaseCryptoActivity
                 if (Boolean.TRUE.equals(granted.get(Manifest.permission.RECORD_AUDIO))) placeVoiceCall();
                 else ToastUtils.makeText(this, getString(R.string.call_need_mic));
             });
+
+    /** Whether the peer's known home says it has no CALL service (§6.2); false if its home is unknown. */
+    private boolean knownToHaveNoCallService(String fid) {
+        com.fc.fc_ajdk.data.fcData.TalkPartner partner = imManager != null && fid != null ? imManager.getTalkPartner(fid) : null;
+        java.util.Map<String, String> home = partner != null ? partner.getHome() : null;
+        if (home == null) return false;
+        String value = home.get(Constants.CALL_NO1_NRC7);
+        return value == null || value.trim().isEmpty();
+    }
 
     /** A nobody's key is public, so calling one asks first (NOBODY_SPEC §3). */
     private void startVoiceCall() {

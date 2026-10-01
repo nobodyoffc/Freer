@@ -2772,4 +2772,9 @@
     <string name="meeting_invite_people">邀请参会者</string>
     <string name="meeting_nobody_chosen">请至少选择一人。</string>
     <string name="meeting_no_one_else">该聊天中没有其他人可邀请。</string>
+    <string name="home_call_hint">CALL 服务地址或SID</string>
+    <string name="home_call_room_helper">本房间会议所用的中继。留空则用发起人自己的 CALL 服务。</string>
+    <string name="home_call_team_helper">本团队会议所用的中继。留空则用发起人自己的 CALL 服务；清空已设置的值即将其移除。</string>
+    <string name="home_call_room_helper_team">本团队会议所用的中继。留空则用发起人自己的 CALL 服务。</string>
+    <string name="menu_voice_call_no_service">语音通话（对方未设置 CALL 服务）</string>
 </resources>

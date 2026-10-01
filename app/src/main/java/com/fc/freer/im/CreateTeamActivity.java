@@ -60,9 +60,11 @@ public class CreateTeamActivity extends BaseCryptoActivity {
     private TextInputEditText consensusInput;
     private TextInputEditText dockInput;
     private TextInputEditText diskInput;
+    private TextInputEditText callInput;
 
     private ImageButton chooseDockButton;
     private ImageButton chooseDiskButton;
+    private ImageButton chooseCallButton;
 
     private ImageButton clearButton;
     private ImageButton publishButton;
@@ -74,6 +76,7 @@ public class CreateTeamActivity extends BaseCryptoActivity {
 
     private ActivityResultLauncher<Intent> chooseDockLauncher;
     private ActivityResultLauncher<Intent> chooseDiskLauncher;
+    private ActivityResultLauncher<Intent> chooseCallLauncher;
     private ActivityResultLauncher<Intent> pickDocLauncher;
     private ActivityResultLauncher<Intent> editDocLauncher;
 
@@ -141,9 +144,11 @@ public class CreateTeamActivity extends BaseCryptoActivity {
 
         dockInput = findViewById(R.id.dock_input);
         diskInput = findViewById(R.id.disk_input);
+        callInput = findViewById(R.id.call_input);
 
         chooseDockButton = findViewById(R.id.choose_dock_button);
         chooseDiskButton = findViewById(R.id.choose_disk_button);
+        chooseCallButton = findViewById(R.id.choose_call_button);
         viewConsensusButton = findViewById(R.id.view_consensus_button);
         editConsensusButton = findViewById(R.id.edit_consensus_button);
 
@@ -156,6 +161,14 @@ public class CreateTeamActivity extends BaseCryptoActivity {
                 result -> {
                     if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                         ServicePickerUtils.applySelectedService(this, result.getData(), dockInput);
+                    }
+                });
+
+        chooseCallLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        ServicePickerUtils.applySelectedService(this, result.getData(), callInput);
                     }
                 });
 
@@ -224,6 +237,12 @@ public class CreateTeamActivity extends BaseCryptoActivity {
             chooseDiskLauncher.launch(ServicePickerUtils.pickerIntent(this,
                     Constants.DISK_NO1_NRC7, getString(R.string.server_setup_disk_label)));
         });
+
+        chooseCallButton.setOnClickListener(v -> {
+            hideKeyboard();
+            chooseCallLauncher.launch(ServicePickerUtils.pickerIntent(this,
+                    Constants.CALL_NO1_NRC7, getString(R.string.server_setup_call_label)));
+        });
     }
 
     /**
@@ -291,6 +310,7 @@ public class CreateTeamActivity extends BaseCryptoActivity {
         final String consensusId = getText(consensusInput);
         String dockVal = getText(dockInput);
         String diskVal = getText(diskInput);
+        final String callVal = getText(callInput);
 
         if (name.isEmpty()) {
             ToastUtils.makeText(this, R.string.team_name_required);
@@ -374,7 +394,8 @@ public class CreateTeamActivity extends BaseCryptoActivity {
             runOnUiThread(() -> waitingDialog.setHint(getString(R.string.publishing)));
 
             // Step 3: build the team with the verified consensusId and plaintext home.
-            Map<String, String> homeMap = new HashMap<>();
+            // CALL is optional: without it, meetings run on each host's own.
+            Map<String, String> homeMap = new HashMap<>(com.fc.freer.call.CallHome.withCall(null, callVal));
             homeMap.put(Constants.DOCK_NO1_NRC7, dockHomeValue);
             homeMap.put(Constants.DISK_NO1_NRC7, diskHomeValue);
 

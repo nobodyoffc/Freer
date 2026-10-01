@@ -2850,4 +2850,9 @@
     <string name="meeting_invite_people">Invite people</string>
     <string name="meeting_nobody_chosen">Choose at least one person.</string>
     <string name="meeting_no_one_else">There is no one else in this chat to invite.</string>
+    <string name="home_call_hint">CALL service URL or SID</string>
+    <string name="home_call_room_helper">The relay this room\'s meetings run on. Empty: each host\'s own CALL service.</string>
+    <string name="home_call_team_helper">The relay this team\'s meetings run on. Empty: each host\'s own CALL service; emptying a set one removes it.</string>
+    <string name="home_call_room_helper_team">The relay this team\'s meetings run on. Empty: each host\'s own CALL service.</string>
+    <string name="menu_voice_call_no_service">Voice call (they have no CALL service)</string>
 </resources>
