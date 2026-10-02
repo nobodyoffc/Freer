@@ -9,6 +9,8 @@ public class BackgroundTimeoutManager {
     private static final long BACKGROUND_TIMEOUT = 15000; // 15 seconds in milliseconds
     public static final String FROM_BACKGROUND_TIMEOUT = "from_background_timeout";
     public static final String ALLOW_BACK_NAVIGATION = "allow_back_navigation";
+    /** The screen under the password check is the identity chooser itself. */
+    public static final String RESUMES_CHOOSER = "resumes_chooser";
 
     private static long lastBackgroundTime = 0;
     private static boolean isInBackground = false;
@@ -82,6 +84,14 @@ public class BackgroundTimeoutManager {
             return;
         }
 
+        // Nothing is unlocked yet - the app is still on its way through the password
+        // screen, or the process was restarted and SessionGuard sends it there. A
+        // second password screen would only ask twice.
+        if (activity instanceof com.fc.freer.MainActivity
+                || com.fc.freer.initiate.ConfigureManager.getInstance().getConfigure() == null) {
+            return;
+        }
+
         // An incoming call, or a meeting ringing, must be answerable at once. Those
         // screens show only who is calling and who is in the meeting; the rest of
         // the app stays locked until the next screen.
@@ -103,6 +113,9 @@ public class BackgroundTimeoutManager {
         intent.putExtra(FROM_BACKGROUND_TIMEOUT, true);
         // Don't allow back navigation - user must re-authenticate after timeout
         intent.putExtra(ALLOW_BACK_NAVIGATION, false);
+        // Locked at the chooser: after the password it is the chooser again, not a
+        // second one stacked on top of it.
+        intent.putExtra(RESUMES_CHOOSER, activity instanceof com.fc.freer.initiate.ChooseCidActivity);
         // No special flags needed - just launch normally on top of current activity
         activity.startActivity(intent);
     }

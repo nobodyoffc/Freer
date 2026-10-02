@@ -29,6 +29,13 @@ import java.util.Objects;
 public class MainActivity extends AppCompatActivity {
     public static final String TAG = "MainActivity";
     private static final String KEY_HAS_LAUNCHED_PASSWORD = "has_launched_password";
+    /**
+     * Set when leaving one main FID for another inside the vault that is already
+     * open: the chooser comes up without asking for the password again. Only an
+     * explicit switch sets it - a launch that merely finds the vault still in
+     * memory (the task was swiped away while the process lived on) asks as usual.
+     */
+    public static final String EXTRA_SWITCH_MAIN = "switch_main";
     private ActivityResultLauncher<Intent> cidLauncher;
     private ActivityResultLauncher<Intent> passwordLauncher;
     private boolean hasLaunchedPasswordActivity;
@@ -36,6 +43,19 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Tapping the launcher icon while the app's task is alive. HomeActivity
+        // replaced this activity as the task's root (CLEAR_TASK), so the launcher
+        // intent no longer matches the root and Android starts a new MainActivity on
+        // top of the existing session instead of just bringing it to front. That
+        // MainActivity would ask for the password itself, on top of the one the
+        // background timeout asks for - two password screens after a long sleep.
+        // Step aside: the task underneath resumes, and the timeout decides alone.
+        if (!isTaskRoot() && getIntent().hasCategory(Intent.CATEGORY_LAUNCHER)
+                && Intent.ACTION_MAIN.equals(getIntent().getAction())) {
+            finish();
+            return;
+        }
 
         setContentView(R.layout.activity_main);
 
@@ -84,6 +104,13 @@ public class MainActivity extends AppCompatActivity {
     private void initiate() {
         if (!hasLaunchedPasswordActivity) {
             hasLaunchedPasswordActivity = true;
+            // Switching main FID: the vault is still open, so go straight to the
+            // chooser, as the Mac app returns to its chooser without a password.
+            if (getIntent().getBooleanExtra(EXTRA_SWITCH_MAIN, false)
+                    && ConfigureManager.getInstance().getConfigure() != null) {
+                cidLauncher.launch(new Intent(this, ChooseCidActivity.class));
+                return;
+            }
             Intent checkPasswordIntent = new Intent(this, CheckPasswordActivity.class);
             checkPasswordIntent.putExtra("allow_back_navigation", false);
 

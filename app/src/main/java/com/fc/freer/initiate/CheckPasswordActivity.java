@@ -288,7 +288,12 @@ public class CheckPasswordActivity extends AppCompatActivity {
                             // "Loading...", so re-select the identity to fully restore
                             // the session before continuing (the symkey is already valid,
                             // so no extra password prompt is needed).
-                            if (com.fc.freer.initiate.SettingManager.getInstance().getCurrentSetting() == null) {
+                            // Locked while choosing an identity: that chooser is still
+                            // underneath and has no setting yet by design.
+                            boolean resumesChooser = getIntent().getBooleanExtra(
+                                    com.fc.freer.utils.BackgroundTimeoutManager.RESUMES_CHOOSER, false);
+                            if (!resumesChooser
+                                    && com.fc.freer.initiate.SettingManager.getInstance().getCurrentSetting() == null) {
                                 TimberLogger.d(TAG, "Session restored after process death; selecting CID to rebuild setting");
                                 Intent intent = new Intent(this, ChooseCidActivity.class);
                                 startActivityForResult(intent, REQUEST_CODE_CHOOSE_CID);

@@ -557,8 +557,9 @@ public class PersonPopupMenuHelper {
             // Reset SettingManager
             SettingManager.getInstance().clearCurrentSetting();
 
-            // Return to MainActivity
+            // Return to the identity chooser. The vault stays open, so no password.
             Intent intent = new Intent(activity, MainActivity.class);
+            intent.putExtra(MainActivity.EXTRA_SWITCH_MAIN, true);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             activity.startActivity(intent);
             activity.finish();
