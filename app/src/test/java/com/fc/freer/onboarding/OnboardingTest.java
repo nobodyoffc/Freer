@@ -292,6 +292,18 @@ public class OnboardingTest {
         assertFalse(ob.shouldShow(true));
     }
 
+    @Test
+    public void aFinishedIdentityLooksUnfinishedUntilTheChainAnswers() {
+        // Why the completion is persisted: at launch every chain-backed step is unknown, so a
+        // started identity would get the card back.
+        OnboardingFacts facts = new OnboardingFacts(true, null);
+        facts.skipped.add(OnboardingStep.ADD_GUIDE);
+        facts.skipped.add(OnboardingStep.JOIN_SQUARE);
+        Onboarding ob = new Onboarding(facts);
+        assertFalse("unknown is not settled, so this cannot mark it complete", ob.isComplete());
+        assertTrue(ob.shouldShow(true));
+    }
+
     // ---- persistence ----
 
     @Test

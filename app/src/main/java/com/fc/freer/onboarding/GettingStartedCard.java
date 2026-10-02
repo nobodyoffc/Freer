@@ -139,7 +139,8 @@ public final class GettingStartedCard {
                 && !fidManager.isLiveFidMultisig()
                 && liveKeyInfo != null && liveKeyInfo.getPrikeyCipher() != null
                 && !liveKeyInfo.getPrikeyCipher().isEmpty();
-        if (!canSign) return snapshot;
+        // Finished stays finished, and none of the lookups below are worth making for it.
+        if (!canSign || setting.isOnboardingCompleted()) return snapshot;
 
         snapshot.canShow = true;
         snapshot.liveFid = liveFid;
@@ -208,10 +209,14 @@ public final class GettingStartedCard {
 
     private void render(Snapshot snapshot) {
         if (!snapshot.canShow) {
+            handler.removeCallbacks(tick);
             card.setVisibility(View.GONE);
             return;
         }
         Onboarding ob = new Onboarding(snapshot.facts);
+        // Every step settled, which needs the chain to have answered: launch's unknowns never get
+        // here. The next refresh stops at gather().
+        if (ob.isComplete()) markCompleted();
         boolean started = snapshot.started;
         if (ob.hasRequiredStepOpen() && !started) {
             markStarted();
@@ -538,6 +543,13 @@ public final class GettingStartedCard {
         SettingManager.getInstance().saveSettings(activity, setting);
         if (expanded == step) expanded = null;
         refresh();
+    }
+
+    private void markCompleted() {
+        Setting setting = SettingManager.getInstance().getCurrentSetting();
+        if (setting == null || setting.isOnboardingCompleted()) return;
+        setting.setOnboardingCompleted(true);
+        SettingManager.getInstance().saveSettings(activity, setting);
     }
 
     private void markStarted() {

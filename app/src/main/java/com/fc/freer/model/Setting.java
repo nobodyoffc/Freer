@@ -38,9 +38,11 @@ public class Setting extends BaseSetting implements ClientConfig {
 
     // Freer-specific constants
     // Getting-started checklist: the steps skipped (comma-joined OnboardingStep keys) and
-    // whether the checklist was ever shown here with a required step still open.
+    // whether the checklist was ever shown here with a required step still open, and whether
+    // every step has been seen settled.
     public static final String KEY_ONBOARDING_SKIPPED = "onboardingSkipped";
     public static final String KEY_ONBOARDING_STARTED = "onboardingStarted";
+    public static final String KEY_ONBOARDING_COMPLETED = "onboardingCompleted";
     public static final String KEY_API_PAID_TIME_PREFIX = "apiPaidTime_";
     public static final String KEY_LAST_TEAM_UPDATE_HEIGHT = "lastTeamUpdateHeight";
     public static final String KEY_LAST_GROUP_UPDATE_HEIGHT = "lastGroupUpdateHeight";
@@ -454,6 +456,21 @@ public class Setting extends BaseSetting implements ClientConfig {
 
     public void setOnboardingStarted(boolean started) {
         getStateMap().put(KEY_ONBOARDING_STARTED, started);
+    }
+
+    /**
+     * Whether every step has been seen settled — done or skipped — on a record the chain answered
+     * for. Once set the checklist is gone for good: at launch the chain has not answered yet, every
+     * chain-backed step reads as unknown, and without this a finished identity would see the card
+     * come back full of unknowns until it does (or for as long as it is offline). A step that later
+     * goes backwards is Settings' to show.
+     */
+    public boolean isOnboardingCompleted() {
+        return readStateBoolean(KEY_ONBOARDING_COMPLETED);
+    }
+
+    public void setOnboardingCompleted(boolean completed) {
+        getStateMap().put(KEY_ONBOARDING_COMPLETED, completed);
     }
 
     private boolean readStateBoolean(String key) {
