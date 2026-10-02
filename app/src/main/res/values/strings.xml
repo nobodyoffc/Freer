@@ -2820,6 +2820,7 @@
     <string name="meeting_audio_paused">audio on hold: not yet verified</string>
     <string name="meeting_unverified">audio could not be verified</string>
     <string name="meeting_not_verified">not verified</string>
+    <string name="meeting_hand_raised">hand raised</string>
     <string name="meeting_speaking">speaking</string>
     <string name="meeting_not_member">not a member</string>
     <string name="meeting_not_ready">Meetings are not ready yet. Try again once the chat has loaded.</string>

@@ -1,5 +1,10 @@
 package com.fc.freer.call;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.res.ColorStateList;
+import android.graphics.Bitmap;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -8,6 +13,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -20,12 +27,15 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.fc.fc_ajdk.utils.StringUtils;
 import com.fc.freer.R;
 import com.fc.freer.im.ImManager;
+import com.fc.freer.manager.AvatarManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.nobody.NobodyUi;
 import com.fc.freer.utils.ToolbarUtils;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -38,6 +48,7 @@ import java.util.Set;
 public class MeetingActivity extends AppCompatActivity implements MeetingManager.Listener {
 
     private static final long CLOSE_AFTER_END_MS = 2_000;
+    private static final int MUTED_TINT = 0xFFC62828;
 
     private MeetingManager meetings;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -233,15 +244,34 @@ public class MeetingActivity extends AppCompatActivity implements MeetingManager
     }
 
     private String displayName(String fid) {
+        String cid = cid(fid);
+        return cid != null ? cid : StringUtils.omitMiddle(fid, 20);
+    }
+
+    private void copy(String text) {
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (clipboard == null) return;
+        clipboard.setPrimaryClip(ClipData.newPlainText("", text));
+        Toast.makeText(this, R.string.copied_to_clipboard, Toast.LENGTH_SHORT).show();
+    }
+
+    /** The CID known for {@code fid}, or null. */
+    private static String cid(String fid) {
         ImManager im = FidManager.getInstance().getImManager();
         var p = im == null ? null : im.getTalkPartner(fid);
         String cid = p == null ? null : p.getCid();
-        return cid != null && !cid.isEmpty() ? cid : StringUtils.omitMiddle(fid, 20);
+        return cid != null && !cid.isEmpty() ? cid : null;
     }
 
     private final class ParticipantAdapter extends RecyclerView.Adapter<ParticipantAdapter.Row> {
         private List<MeetingSession.Participant> rows = List.of();
         private Set<Integer> speaking = Set.of(), paused = Set.of();
+        /**
+         * Decoded avatars: the screen redraws every second, so each is decoded
+         * once. Keyed with whether the FID is a nobody, so one learned to be a
+         * nobody is marked on its next bind.
+         */
+        private final Map<String, Bitmap> avatars = new HashMap<>();
 
         void show(MeetingView s, List<MeetingSession.Participant> people) {
             rows = people;
@@ -262,23 +292,54 @@ public class MeetingActivity extends AppCompatActivity implements MeetingManager
         @Override
         public void onBindViewHolder(@NonNull Row h, int position) {
             MeetingSession.Participant p = rows.get(position);
-            String name = displayName(p.fid()) + (p.me() ? " " + getString(R.string.meeting_you) : "");
-            NobodyUi.setName(h.name, p.fid(), name);
             boolean talking = speaking.contains(p.ssrc());
-            h.name.setTypeface(null, talking ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
-            List<String> state = new ArrayList<>();
-            if (p.hand()) state.add("✋");
-            if (p.host()) state.add(getString(R.string.meeting_host));
-            if (talking) state.add(getString(R.string.meeting_speaking));
-            if ("locked".equals(p.mutedByHost())) state.add(getString(R.string.meeting_mute_locked));
-            else if (p.mutedByHost() != null) state.add(getString(R.string.meeting_muted_by_host));
-            if (!p.verified()) state.add(getString(R.string.meeting_not_verified));
-            else if (paused.contains(p.ssrc())) state.add(getString(R.string.meeting_audio_paused));
-            h.state.setText(String.join(" · ", state));
-            h.itemView.setOnLongClickListener(v -> {
+
+            // Who: the avatar, ringed while their voice is heard; the CID where
+            // one is known, and the FID under it, so two alike are told apart.
+            Bitmap avatar = avatar(p.fid());
+            if (avatar != null) h.avatar.setImageBitmap(avatar);
+            else h.avatar.setImageResource(R.drawable.ic_person);
+            h.ring.setBackgroundResource(talking ? R.drawable.meeting_speaking_ring : 0);
+            h.ring.setContentDescription(talking ? getString(R.string.meeting_speaking) : null);
+            String cid = cid(p.fid());
+            String you = p.me() ? " " + getString(R.string.meeting_you) : "";
+            NobodyUi.setName(h.name, p.fid(), (cid != null ? cid : p.fid()) + you);
+            h.name.setTypeface(null, talking ? Typeface.BOLD : Typeface.NORMAL);
+            h.fid.setText(p.fid());
+            h.fid.setVisibility(cid != null ? View.VISIBLE : View.GONE);
+
+            // Status, as badges; each says what it means to a screen reader.
+            h.badges.removeAllViews();
+            if (p.hand()) h.badge("✋", getString(R.string.meeting_hand_raised));
+            if (p.host()) h.badge(R.drawable.ic_star, 0, getString(R.string.meeting_host));
+            if ("locked".equals(p.mutedByHost())) {
+                h.badge(R.drawable.ic_mic_off, MUTED_TINT, getString(R.string.meeting_mute_locked));
+                h.badge(R.drawable.ic_lock, MUTED_TINT, null);
+            } else if (p.mutedByHost() != null) {
+                h.badge(R.drawable.ic_mic_off, MUTED_TINT, getString(R.string.meeting_muted_by_host));
+            }
+            if (!p.verified()) h.badge(R.drawable.ic_error, 0, getString(R.string.meeting_not_verified));
+            else if (paused.contains(p.ssrc())) h.badge(R.drawable.ic_paused, 0, getString(R.string.meeting_audio_paused));
+
+            // A tap on the CID or FID copies it.
+            h.name.setOnClickListener(v -> copy(cid != null ? cid : p.fid()));
+            h.fid.setOnClickListener(v -> copy(p.fid()));
+            View.OnLongClickListener controls = v -> {
                 showControls(p);
                 return true;
-            });
+            };
+            // The texts take taps now, so they pass on the row's long press.
+            h.itemView.setOnLongClickListener(controls);
+            h.name.setOnLongClickListener(controls);
+            h.fid.setOnLongClickListener(controls);
+        }
+
+        private Bitmap avatar(String fid) {
+            String key = (NobodyUi.isNobody(fid) ? "!" : "") + fid;
+            if (!avatars.containsKey(key)) {
+                avatars.put(key, AvatarManager.getInstance(MeetingActivity.this).getAvatarBitmap(fid));
+            }
+            return avatars.get(key);
         }
 
         @Override
@@ -287,12 +348,46 @@ public class MeetingActivity extends AppCompatActivity implements MeetingManager
         }
 
         final class Row extends RecyclerView.ViewHolder {
-            final TextView name, state;
+            final View ring;
+            final ImageView avatar;
+            final TextView name, fid;
+            final LinearLayout badges;
 
             Row(View v) {
                 super(v);
+                ring = v.findViewById(R.id.participantRing);
+                avatar = v.findViewById(R.id.participantAvatar);
+                avatar.setClipToOutline(true);
                 name = v.findViewById(R.id.participantName);
-                state = v.findViewById(R.id.participantState);
+                fid = v.findViewById(R.id.participantFid);
+                badges = v.findViewById(R.id.participantBadges);
+            }
+
+            /** An icon badge; {@code tint} 0 keeps the icon's own colours. */
+            void badge(int icon, int tint, String description) {
+                ImageView b = new ImageView(itemView.getContext());
+                b.setImageResource(icon);
+                if (tint != 0) b.setImageTintList(ColorStateList.valueOf(tint));
+                b.setContentDescription(description);
+                if (description == null) b.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                int size = dp(18);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+                lp.setMarginStart(dp(4));
+                badges.addView(b, lp);
+            }
+
+            void badge(String text, String description) {
+                TextView b = new TextView(itemView.getContext());
+                b.setText(text);
+                b.setContentDescription(description);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                lp.setMarginStart(dp(4));
+                badges.addView(b, lp);
+            }
+
+            private int dp(int v) {
+                return Math.round(v * itemView.getResources().getDisplayMetrics().density);
             }
         }
     }

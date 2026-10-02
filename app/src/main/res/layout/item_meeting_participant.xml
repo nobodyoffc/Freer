@@ -6,24 +6,58 @@
     android:gravity="center_vertical"
     android:orientation="horizontal"
     android:paddingHorizontal="16dp"
-    android:paddingVertical="10dp">
+    android:paddingVertical="8dp">
 
-    <TextView
-        android:id="@+id/participantName"
+    <!-- The ring is this frame's background, drawn only while speaking. -->
+    <FrameLayout
+        android:id="@+id/participantRing"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:padding="4dp">
+
+        <ImageView
+            android:id="@+id/participantAvatar"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/avatar_background"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop" />
+    </FrameLayout>
+
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
         android:layout_weight="1"
-        android:ellipsize="middle"
-        android:singleLine="true"
-        android:textColor="@color/text"
-        android:textSize="16sp" />
+        android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/participantState"
+        <TextView
+            android:id="@+id/participantName"
+            android:background="?android:attr/selectableItemBackground"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="middle"
+            android:singleLine="true"
+            android:textColor="@color/text"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/participantFid"
+            android:background="?android:attr/selectableItemBackground"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="middle"
+            android:singleLine="true"
+            android:textColor="@color/field_name"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Status badges, filled on bind. -->
+    <LinearLayout
+        android:id="@+id/participantBadges"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
-        android:gravity="end"
-        android:textColor="@color/field_name"
-        android:textSize="12sp" />
+        android:gravity="center_vertical|end"
+        android:orientation="horizontal" />
 </LinearLayout>
