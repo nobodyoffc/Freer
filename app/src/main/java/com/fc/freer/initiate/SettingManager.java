@@ -102,6 +102,22 @@ public class SettingManager {
         Setting setting = loadSetting(context, fid);
         if (setting != null) {
             TimberLogger.d("SettingManager", "Loaded existing setting for FID: " + fid);
+            // A key list imported before the importer sealed plain prikeys left this identity's
+            // own copy with the prikey in the clear and no cipher, so it could not sign or
+            // connect. Take the cipher the vault now holds for it.
+            KeyInfo saved = setting.getMainKeyInfo();
+            if (saved != null && saved.getPrikeyCipher() == null && keyInfo.getPrikeyCipher() != null) {
+                saved.setPrikeyCipher(keyInfo.getPrikeyCipher());
+                saved.setPrikey(null);
+                saved.setWatchOnly(keyInfo.getWatchOnly());
+                saveSettings(context, setting);
+            }
+            // Safe's password-encrypted export carries no pubkey; the vault's copy has it now.
+            if (saved != null && saved.getPubkey() == null && keyInfo.getPubkey() != null) {
+                saved.setPubkey(keyInfo.getPubkey());
+                saved.makeAddresses();
+                saveSettings(context, setting);
+            }
             return setting;
         }
 

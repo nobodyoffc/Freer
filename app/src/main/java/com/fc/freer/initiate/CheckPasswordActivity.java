@@ -234,6 +234,7 @@ public class CheckPasswordActivity extends AppCompatActivity {
                 }
                 VaultUnlocker.Result unlocked = VaultUnlocker.unlock(this, passwordBytes, true);
                 Configure configure = unlocked.configure;
+                ConfigureManager.getInstance().sealPlainPrikeys(this, configure);
                 String passwordName = configure != null ? configure.getPasswordName() : null;
 
                 // Switch back to UI thread for UI operations

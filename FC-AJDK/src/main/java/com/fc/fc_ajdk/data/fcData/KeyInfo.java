@@ -294,6 +294,39 @@ public class KeyInfo extends Freer {
         this.prikeyCipher = Encryptor.encryptBySymkeyToJson(prikeyBytes, symkey);
         return this.prikeyCipher;
     }
+
+    /**
+     * Moves a plain {@code prikey} (hex or WIF, as a key list exported elsewhere carries it)
+     * into {@code prikeyCipher} under the symkey and clears it, so the key is never stored in
+     * the clear and the identity can sign. Fills the pubkey and addresses when the list left
+     * them out. Does nothing when there is no plain prikey or a cipher is already there.
+     * @return false if the plain prikey is not a valid key or belongs to another FID
+     */
+    public boolean sealPlainPrikey(byte[] symkey) {
+        String plain = getPrikey();
+        if (plain == null || plain.isEmpty() || prikeyCipher != null || symkey == null) return true;
+        byte[] prikey32 = null;
+        try {
+            prikey32 = KeyTools.getPrikey32(plain.trim());
+            if (prikey32 == null || prikey32.length != 32) return false;
+            String fid = KeyTools.prikeyToFid(prikey32);
+            if (id != null && !id.equals(fid)) return false;
+            this.prikeyCipher = Encryptor.encryptBySymkeyToJson(prikey32, symkey);
+            if (this.prikeyCipher == null) return false;
+            this.id = fid;
+            if (pubkey == null) {
+                this.pubkey = Hex.toHex(KeyTools.prikeyToPubkey(prikey32));
+                makeAddresses();
+            }
+            this.watchOnly = null;
+            setPrikey(null);
+            return true;
+        } catch (Exception e) {
+            return false;
+        } finally {
+            if (prikey32 != null) java.util.Arrays.fill(prikey32, (byte) 0);
+        }
+    }
     @NonNull
     public static KeyInfo updateFromCid(Freer freerInfo, KeyInfo currentKeyInfo) {
         KeyInfo updatedKeyInfo = KeyInfo.fromCid(freerInfo);

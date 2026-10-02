@@ -253,6 +253,8 @@ import com.fc.fc_ajdk.data.fcData.AlgorithmId;
 import com.fc.fc_ajdk.data.fcData.FcEntity;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.data.feipData.Secret;
+import com.fc.fc_ajdk.core.crypto.KeyTools;
+import com.fc.fc_ajdk.utils.BytesUtils;
 import com.fc.fc_ajdk.utils.Hex;
 import com.fc.freer.R;
 import com.fc.freer.initiate.ConfigureManager;
@@ -393,8 +395,9 @@ public class FcEntityImporter<T extends FcEntity> {
                         return new ArrayList<>();
                     }
 
-                    if(password!=null){
-                        makeKeyInfo(keyInfo, cryptoDataByte, symkey);
+                    if(password!=null && !makeKeyInfo(keyInfo, cryptoDataByte, symkey)){
+                        reportBadKeyCipher(keyInfo);
+                        return null;
                     }
                 }
             }else if(t instanceof Secret secret){
@@ -403,6 +406,7 @@ public class FcEntityImporter<T extends FcEntity> {
                 }
             }
         }
+        if (!sealPlainPrikeys(symkey)) return null;
         listener.onImportSuccess(finalTList);
         return finalTList;
     }
@@ -416,13 +420,57 @@ public class FcEntityImporter<T extends FcEntity> {
         listener.onPasswordRequired(intent);
     }
 
-    private void makeKeyInfo(KeyInfo keyInfo, CryptoDataByte cryptoDataByte, byte[] symkey) {
+    /**
+     * Opens a key's password cipher and seals the key for this device. A key left with the
+     * password cipher could never be decrypted here, so its identity could not sign or connect.
+     * Safe's export drops the pubkey and keeps only the FID, so the key is checked against the
+     * FID and the pubkey and addresses are made again.
+     * @return false if the password does not open the cipher or the key is not the FID's
+     */
+    private boolean makeKeyInfo(KeyInfo keyInfo, CryptoDataByte cryptoDataByte, byte[] symkey) {
         Decryptor.decryptByPassword(cryptoDataByte,password.toCharArray());
-        if(cryptoDataByte.getCode()==0) {
-            byte[] prikey = cryptoDataByte.getData();
+        if (cryptoDataByte.getCode() == null || cryptoDataByte.getCode() != 0) return false;
+        byte[] prikey = cryptoDataByte.getData();
+        try {
+            if (prikey == null || prikey.length != 32) return false;
+            String fid = KeyTools.prikeyToFid(prikey);
+            if (keyInfo.getId() != null && !keyInfo.getId().equals(fid)) return false;
             String prikeyCipher = Encryptor.encryptBySymkeyToJson(prikey, symkey);
+            if (prikeyCipher == null) return false;
             keyInfo.setPrikeyCipher(prikeyCipher);
+            keyInfo.setId(fid);
+            if (keyInfo.getPubkey() == null) {
+                keyInfo.setPubkey(Hex.toHex(KeyTools.prikeyToPubkey(prikey)));
+                keyInfo.makeAddresses();
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        } finally {
+            BytesUtils.clearByteArray(prikey);
         }
+    }
+
+    private void reportBadKeyCipher(KeyInfo keyInfo) {
+        listener.onImportError(getString(R.string.incorrect_password)
+                + (keyInfo.getId() != null ? ": " + keyInfo.getId() : ""));
+    }
+
+    /**
+     * A key list exported elsewhere may carry each key as a plain {@code prikey}. Kept as it is,
+     * the key would be stored in the clear and, with no prikeyCipher, its identity could not
+     * sign or connect. Encrypt every such key with this device's symkey instead.
+     * @return false, after reporting it, if a plain prikey is not a valid key for its FID
+     */
+    private boolean sealPlainPrikeys(byte[] symkey) {
+        for (T t : finalTList) {
+            if (t instanceof KeyInfo keyInfo && !keyInfo.sealPlainPrikey(symkey)) {
+                listener.onImportError(context.getString(R.string.toast_invalid_private_key)
+                        + (keyInfo.getId() != null ? ": " + keyInfo.getId() : ""));
+                return false;
+            }
+        }
+        return true;
     }
 
     private static void makeSecret(Secret secret, byte[] contentBytes, byte[] pubkey) {
@@ -483,6 +531,12 @@ public class FcEntityImporter<T extends FcEntity> {
                     Decryptor.decryptByPassword(pendingCryptoDataByte, password.toCharArray());
                 }
 
+                // A wrong password opens none of the list: say so instead of saving nothing.
+                if (pendingCryptoDataByte.getCode() == null || pendingCryptoDataByte.getCode() != 0) {
+                    listener.onImportError(getString(R.string.incorrect_password));
+                    return;
+                }
+
                 if (pendingCryptoDataByte.getCode() == 0) {
                     try {
                         String json = new String(pendingCryptoDataByte.getData());
@@ -519,8 +573,9 @@ public class FcEntityImporter<T extends FcEntity> {
                         if(keyInfo.getPrikeyCipher()!=null){
                             CryptoDataByte cryptoDataByte = CryptoDataByte.fromBase64(keyInfo.getPrikeyCipher());
 
-                            if(password!=null){
-                                makeKeyInfo(keyInfo, cryptoDataByte, symkey);
+                            if(password!=null && !makeKeyInfo(keyInfo, cryptoDataByte, symkey)){
+                                reportBadKeyCipher(keyInfo);
+                                return;
                             }
                         }
                     }else if(t instanceof Secret secret){
@@ -529,6 +584,7 @@ public class FcEntityImporter<T extends FcEntity> {
                         }
                     }
                 }
+                if (!sealPlainPrikeys(symkey)) return;
                 listener.onImportSuccess(finalTList);
             } catch (Exception e) {
                 listener.onImportError("Invalid password or key");

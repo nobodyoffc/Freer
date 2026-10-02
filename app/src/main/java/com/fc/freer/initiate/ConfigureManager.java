@@ -130,6 +130,41 @@ public class ConfigureManager {
     }
 
     /**
+     * Encrypts any saved key that is still held as a plain prikey, as a key list imported
+     * before the importer sealed them left it, makes the pubkey of a saved key that lacks one,
+     * and saves the vault if one changed. Such a key
+     * sat in the clear in the configuration and its identity could not sign or connect.
+     * Watch-only entries are left alone: the prikey a nobody's chain record carries does not
+     * make it this vault's key.
+     */
+    public void sealPlainPrikeys(Context context, Configure configure) {
+        if (configure == null || configure.getSymkey() == null || configure.getMainCidInfoMap() == null) return;
+        boolean changed = false;
+        for (com.fc.fc_ajdk.data.fcData.KeyInfo keyInfo : configure.getMainCidInfoMap().values()) {
+            if (keyInfo != null && keyInfo.getPubkey() == null && keyInfo.getPrikeyCipher() != null) {
+                // Safe's password-encrypted export carries no pubkey, and the importer kept none.
+                byte[] prikey = keyInfo.decryptPrikey(configure.getSymkey());
+                if (prikey != null && prikey.length == 32
+                        && com.fc.fc_ajdk.core.crypto.KeyTools.prikeyToFid(prikey).equals(keyInfo.getId())) {
+                    keyInfo.setPubkey(com.fc.fc_ajdk.utils.Hex.toHex(com.fc.fc_ajdk.core.crypto.KeyTools.prikeyToPubkey(prikey)));
+                    keyInfo.makeAddresses();
+                    changed = true;
+                }
+                if (prikey != null) java.util.Arrays.fill(prikey, (byte) 0);
+            }
+            if (keyInfo == null || keyInfo.getPrikey() == null || keyInfo.getPrikeyCipher() != null
+                    || Boolean.TRUE.equals(keyInfo.getWatchOnly())) continue;
+            if (keyInfo.sealPlainPrikey(configure.getSymkey())) {
+                changed = true;
+                TimberLogger.i("ConfigureManager", "Encrypted the plain prikey saved for %s", keyInfo.getId());
+            } else {
+                TimberLogger.w("ConfigureManager", "Saved plain prikey of %s is not a valid key for it", keyInfo.getId());
+            }
+        }
+        if (changed) storeConfigure(context, configure);
+    }
+
+    /**
      * Retrieves a Configure object from SharedPreferences using its password name.
      * @param context The application context
      * @param passwordName The password name to look up
