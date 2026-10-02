@@ -428,6 +428,11 @@ public class FcEntityImporter<T extends FcEntity> {
      * @return false if the password does not open the cipher or the key is not the FID's
      */
     private boolean makeKeyInfo(KeyInfo keyInfo, CryptoDataByte cryptoDataByte, byte[] symkey) {
+        return openPasswordPrikey(keyInfo, cryptoDataByte, password, symkey);
+    }
+
+    /** {@link #makeKeyInfo} without the importer's state, for FTSP31 vector tests. */
+    static boolean openPasswordPrikey(KeyInfo keyInfo, CryptoDataByte cryptoDataByte, String password, byte[] symkey) {
         Decryptor.decryptByPassword(cryptoDataByte,password.toCharArray());
         if (cryptoDataByte.getCode() == null || cryptoDataByte.getCode() != 0) return false;
         byte[] prikey = cryptoDataByte.getData();

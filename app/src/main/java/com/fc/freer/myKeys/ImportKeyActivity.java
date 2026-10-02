@@ -33,6 +33,7 @@ import com.fc.freer.utils.ToastUtils;
 import com.google.android.material.textfield.TextInputEditText;
 
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -235,9 +236,19 @@ public class ImportKeyActivity extends BaseCryptoActivity {
 
     private void save() {
         hideKeyboard();
+        // Every key saved here becomes a main FID, which has to sign: a pubkey or FID
+        // alone would be an identity that never connects. Those are watched FIDs.
+        if (kind == KeyInputDetector.Kind.PUBKEY || kind == KeyInputDetector.Kind.FID) {
+            ToastUtils.makeText(this, getString(R.string.key_watch_only_not_main));
+            return;
+        }
         if (detailFragment != null) {
             KeyInfo keyInfo = (KeyInfo) detailFragment.getCurrentEntity();
             if (keyInfo != null) {
+                if (keyInfo.getPrikeyCipher() == null) {
+                    ToastUtils.makeText(this, getString(R.string.key_watch_only_not_main));
+                    return;
+                }
                 saveAndFinishWithKeyInfo(keyInfo);
                 return;
             }
@@ -353,7 +364,21 @@ public class ImportKeyActivity extends BaseCryptoActivity {
                     ToastUtils.makeText(ImportKeyActivity.this, getString(R.string.no_key_info_found));
                     return;
                 }
-                saveToConfigureAndFinish(result);
+                // A list entry with only a pubkey or FID can't sign, so it can't be a main
+                // FID; saved here it would be an identity that never connects (FTSP31).
+                List<KeyInfo> signable = new ArrayList<>();
+                for (KeyInfo keyInfo : result) {
+                    if (keyInfo.getPrikeyCipher() != null) signable.add(keyInfo);
+                }
+                if (signable.isEmpty()) {
+                    ToastUtils.makeText(ImportKeyActivity.this, getString(R.string.key_backup_no_signable));
+                    return;
+                }
+                int skipped = result.size() - signable.size();
+                if (skipped > 0) {
+                    ToastUtils.makeText(ImportKeyActivity.this, getString(R.string.key_backup_watch_only_skipped, skipped));
+                }
+                saveToConfigureAndFinish(signable);
             }
 
             @Override

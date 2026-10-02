@@ -309,6 +309,9 @@
     <string name="key_detected_prikey">Private key → %1$s</string>
     <string name="key_detected_pubkey">Public key → %1$s. Watch-only: it can\'t sign.</string>
     <string name="key_detected_fid">FID. Watch-only: it can\'t sign.</string>
+    <string name="key_watch_only_not_main">A main FID has to be able to sign, and this has no prikey. Log in, then add it under Watched FIDs.</string>
+    <string name="key_backup_no_signable">None of these keys has a prikey. A main FID has to be able to sign; add them under Watched FIDs after logging in.</string>
+    <string name="key_backup_watch_only_skipped">%1$d watch-only key(s) with no prikey were not added.</string>
     <string name="key_detected_cipher">Encrypted. Input its password.</string>
     <string name="key_detected_backup">Key backup. Tap save to import.</string>
     <string name="key_non_password_cipher">Encrypted, but not with a password. It can\'t be imported here.</string>
