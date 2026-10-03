@@ -79,7 +79,7 @@ public final class MeetingManager {
         /** Post a CALL message into the Room or Team chat (§3.3). */
         void post(String entityType, String entityId, MeetingSignal signal);
 
-        /** The relay a new meeting runs on: the entity's home.CALL, else my own (§8). Blocking. */
+        /** The relay a new meeting runs on: the entity's own home.CALL, or null for none (§8). Blocking. */
         String relayFor(String entityType, String entityId);
 
         /** The Room's or Team's name. May touch the network: never on the main thread. */

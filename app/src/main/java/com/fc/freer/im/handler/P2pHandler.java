@@ -351,7 +351,8 @@ public class P2pHandler extends BaseHandler {
      * and nothing else, because the call runs on the callee's terms. The home
      * is read fresh from chain, since it can change; the known copy is used
      * only if the chain cannot be asked. Null if the callee has none: it has
-     * chosen not to be called.
+     * chosen not to be called. Null too if it names a service that is closed
+     * or no longer active.
      */
     public CallRelay resolveCallRelay(String targetFid) {
         if (fapiClient == null) return null;
@@ -377,7 +378,12 @@ public class P2pHandler extends BaseHandler {
         String url = resolver.resolveFromHome(home, CALL_NO1_NRC7, fapiClient);
         if (url == null) return null;
         String sid = HomeServiceResolver.isUrl(value) ? null : HomeServiceResolver.extractSid(value);
-        return new CallRelay(url, sid, sid == null ? null : resolver.getCachedService(sid));
+        com.fc.fc_ajdk.data.feipData.Service service = sid == null ? null : resolver.getCachedService(sid);
+        // A service closed or deactivated on chain no longer takes calls.
+        if (service != null && (Boolean.TRUE.equals(service.getClosed()) || Boolean.FALSE.equals(service.getActive()))) {
+            return null;
+        }
+        return new CallRelay(url, sid, service);
     }
 
     /**

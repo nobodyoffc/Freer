@@ -3327,16 +3327,11 @@ public class ChatActivity extends BaseCryptoActivity
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT, true);
         popup.setElevation(8f);
 
-        TextView callItem = menuView.findViewById(R.id.menu_voice_call);
-        if (knownToHaveNoCallService(targetId)) {
-            // Dimmed, not disabled: the known home may be stale, and placing the call reads
-            // it fresh from chain (and stores it), so a CALL set since is still found.
-            callItem.setText(R.string.menu_voice_call_no_service);
-            callItem.setAlpha(0.5f);
-        }
-        callItem.setOnClickListener(v -> {
+        // The known home may be stale, so whether the peer can be called is checked
+        // against the chain on click, not shown here.
+        menuView.findViewById(R.id.menu_voice_call).setOnClickListener(v -> {
             popup.dismiss();
-            startVoiceCall();
+            checkCallServiceThenCall();
         });
 
         menuView.findViewById(R.id.menu_request_history).setOnClickListener(v -> {
@@ -3356,6 +3351,42 @@ public class ChatActivity extends BaseCryptoActivity
                 if (Boolean.TRUE.equals(granted.get(Manifest.permission.RECORD_AUDIO))) placeVoiceCall();
                 else ToastUtils.makeText(this, getString(R.string.call_need_mic));
             });
+
+    /** The peer's CALL service, checked on chain when the call was asked for; held across the mic prompt. */
+    private com.fc.freer.im.handler.P2pHandler.CallRelay checkedCallRelay;
+
+    /**
+     * Read the peer's home.CALL fresh from chain (§6.2) before anything else, and
+     * say so if it has none, or names a service that is closed or unreachable.
+     */
+    private void checkCallServiceThenCall() {
+        if (targetId == null) return;
+        String peer = targetId;
+        if (!com.fc.freer.call.CallManager.getInstance(this).relayOverride().isEmpty()) {
+            checkedCallRelay = null; // a debug build's relay override: nothing to check
+            startVoiceCall();
+            return;
+        }
+        WaitingDialog waiting = new WaitingDialog(this, getString(R.string.call_checking_service));
+        waiting.show();
+        new Thread(() -> {
+            com.fc.freer.im.handler.P2pHandler.CallRelay relay = imManager == null ? null : imManager.resolveCallRelay(peer);
+            runOnUiThread(() -> {
+                waiting.dismiss();
+                if (isFinishing() || isDestroyed() || !peer.equals(targetId)) return;
+                if (relay == null) {
+                    // resolveCallRelay stored the home it read, so the known one is fresh now.
+                    DialogUtils.show(new AlertDialog.Builder(this)
+                            .setMessage(knownToHaveNoCallService(peer)
+                                    ? R.string.call_end_no_relay : R.string.call_service_unusable)
+                            .setPositiveButton(R.string.ok, null));
+                    return;
+                }
+                checkedCallRelay = relay;
+                startVoiceCall();
+            });
+        }).start();
+    }
 
     /** Whether the peer's known home says it has no CALL service (§6.2); false if its home is unknown. */
     private boolean knownToHaveNoCallService(String fid) {
@@ -3387,7 +3418,9 @@ public class ChatActivity extends BaseCryptoActivity
     }
 
     private void placeVoiceCall() {
-        com.fc.freer.call.CallManager.getInstance(this).placeCall(targetId);
+        com.fc.freer.im.handler.P2pHandler.CallRelay relay = checkedCallRelay;
+        checkedCallRelay = null;
+        com.fc.freer.call.CallManager.getInstance(this).placeCall(targetId, relay);
         startActivity(new android.content.Intent(this, com.fc.freer.call.CallActivity.class));
     }
 

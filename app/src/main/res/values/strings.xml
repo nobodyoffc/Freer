@@ -2842,7 +2842,7 @@
     <string name="meeting_speaking">speaking</string>
     <string name="meeting_not_member">not a member</string>
     <string name="meeting_not_ready">Meetings are not ready yet. Try again once the chat has loaded.</string>
-    <string name="meeting_no_relay">Neither this chat nor you has a CALL service in its home, so there is nowhere to hold a meeting.</string>
+    <string name="meeting_no_relay">This group has no CALL service in its home, so it cannot hold meetings. An admin can set one.</string>
     <string name="meeting_no_key">This device has no key for this chat yet.</string>
     <string name="meeting_unknown">This meeting is not known on this device yet.</string>
     <string name="meeting_is_over">The meeting is over.</string>
@@ -2870,8 +2870,9 @@
     <string name="meeting_nobody_chosen">Choose at least one person.</string>
     <string name="meeting_no_one_else">There is no one else in this chat to invite.</string>
     <string name="home_call_hint">CALL service URL or SID</string>
-    <string name="home_call_room_helper">The relay this room\'s meetings run on. Empty: each host\'s own CALL service.</string>
-    <string name="home_call_team_helper">The relay this team\'s meetings run on. Empty: each host\'s own CALL service; emptying a set one removes it.</string>
-    <string name="home_call_room_helper_team">The relay this team\'s meetings run on. Empty: each host\'s own CALL service.</string>
-    <string name="menu_voice_call_no_service">Voice call (they have no CALL service)</string>
+    <string name="home_call_room_helper">The relay this room\'s meetings run on. Empty: the room holds no meetings.</string>
+    <string name="home_call_team_helper">The relay this team\'s meetings run on. Empty: the team holds no meetings; emptying a set one removes it.</string>
+    <string name="home_call_room_helper_team">The relay this team\'s meetings run on. Empty: the team holds no meetings.</string>
+    <string name="call_checking_service">Checking their CALL service…</string>
+    <string name="call_service_unusable">Their CALL service is closed or cannot be reached, so they cannot be called now.</string>
 </resources>

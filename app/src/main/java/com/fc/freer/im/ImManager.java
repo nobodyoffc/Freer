@@ -2066,8 +2066,10 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         }
 
         /**
-         * The entity's home.CALL, else my own (§8). A debug build's relay
-         * override wins, as for 1:1 calls, for testing before one is on chain.
+         * The entity's own home.CALL, and nothing else (§8): a meeting's members
+         * reveal their IPs to its relay, so only the group chooses it, never the
+         * starter's service or a default. None means no meetings. A debug build's
+         * relay override wins, as for 1:1 calls, for testing before one is on chain.
          */
         @Override
         public String relayFor(String entityType, String entityId) {
@@ -2081,10 +2083,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 Room room = roomHandler.getRoom(entityId);
                 home = room != null ? room.getHome() : null;
             }
-            String url = callServiceUrl(home);
-            if (url != null) return url;
-            com.fc.fc_ajdk.data.fcData.KeyInfo mine = com.fc.freer.manager.FidManager.getInstance().getLiveKeyInfo();
-            return callServiceUrl(mine != null ? mine.getHome() : null);
+            return callServiceUrl(home);
         }
 
         @Override

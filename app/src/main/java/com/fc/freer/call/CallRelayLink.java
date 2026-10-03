@@ -243,7 +243,10 @@ public final class CallRelayLink implements AutoCloseable {
      * Reach the relay and see it answer, on whatever carries packets to it now:
      * with the INVITE's key, a remembered one, or by discovery. A key only
      * counts once a PING over FUDP's own handshake, which resends lost packets,
-     * comes back within {@code waitMs}. @return how, or null if nothing answered
+     * comes back within {@code waitMs}. When the service id is known, from the
+     * INVITE or the callee's home, a remembered or discovered relay must be that
+     * service: whatever answers at the address, say through a port redirect to
+     * another relay, is not taken for it. @return how, or null if nothing answered
      */
     private String reach(String relayUrl, String relayPubkeyHex, String relaySid, KnownRelays known, long waitMs,
                          int discoveryAttempts) {
@@ -252,9 +255,21 @@ public final class CallRelayLink implements AutoCloseable {
             return "with the key from the INVITE";
         }
         forgetRelay();
+        if (relayPubkeyHex != null && relaySid == null) {
+            // A card with the relay's key but not its service id: ask the relay itself,
+            // under that key, so only the holder of the key can answer.
+            String sid = sidUnderKey(relayUrl, relayPubkeyHex, waitMs);
+            if (sid != null && withKey(relayUrl, relayPubkeyHex, sid)) return "with the key from the card";
+            forgetRelay();
+        }
         String[] remembered = known == null ? null : known.get(relayUrl);
-        if (remembered != null && withKey(relayUrl, remembered[0], remembered[1]) && answersPing(waitMs)) {
-            return "with its remembered key";
+        if (remembered != null && (relaySid == null || relaySid.equals(remembered[1]))
+                && (relayPubkeyHex == null || relayPubkeyHex.equalsIgnoreCase(remembered[0]))) {
+            if (withKey(relayUrl, remembered[0], remembered[1]) && answersPing(waitMs)) {
+                return "with its remembered key";
+            }
+            // A key that no longer answers here, perhaps another relay's: discovery replaces it.
+            known.forget(relayUrl);
         }
         // Stale, or this path does not reach it: discovery finds the key again, and a new one replaces it.
         forgetRelay();
@@ -263,10 +278,20 @@ public final class CallRelayLink implements AutoCloseable {
             found = FapiClient.bootstrapFromUrl(node, relayUrl, null, waitMs, waitMs);
         }
         if (found == null) return null;
+        if (relaySid != null && !relaySid.equals(found.getServiceSid())) {
+            com.fc.fc_ajdk.utils.TimberLogger.w("CallRelayLink", "%s answered as service %s, not %s: not taken", relayUrl, found.getServiceSid(), relaySid);
+            forgetRelay(found.getServicePeerId());
+            return null;
+        }
         fapi = new FapiClient(node, found.getServicePeerId(), found.getServiceSid(), REQUEST_TIMEOUT_S);
         fapi.setServerUrl(relayUrl);
         if (known != null) known.put(relayUrl, relayPubkey(), relaySid());
         return "by discovery";
+    }
+
+    private void forgetRelay(String peerFid) {
+        if (peerFid != null && !peerFid.isEmpty()) node.removePeer(peerFid);
+        fapi = null;
     }
 
     /** Drop a relay that did not answer, so the next attempt starts clean. */
@@ -291,6 +316,31 @@ public final class CallRelayLink implements AutoCloseable {
         fapi = new FapiClient(node, relayFid, sid, REQUEST_TIMEOUT_S);
         fapi.setServerUrl(relayUrl);
         return true;
+    }
+
+    /**
+     * The service id the relay holding {@code pubkeyHex} announces, asked with a
+     * PING under that key; null if it does not answer within {@code waitMs}.
+     */
+    private String sidUnderKey(String relayUrl, String pubkeyHex, long waitMs) {
+        FapiClient.Endpoint ep = FapiClient.parseFudpUrl(relayUrl);
+        byte[] pub;
+        try {
+            pub = Hex.fromHex(pubkeyHex);
+        } catch (RuntimeException e) {
+            return null;
+        }
+        if (ep == null || pub == null || pub.length != 33) return null;
+        String fid = com.fc.fc_ajdk.core.crypto.KeyTools.pubkeyToFchAddr(pub);
+        node.addPeer(fid, pub, ep.host(), ep.port());
+        try {
+            com.fc.fc_ajdk.fudp.message.PongMessage pong = node.pingAwaitPong(fid, true, waitMs)
+                    .get(waitMs + 1_000, java.util.concurrent.TimeUnit.MILLISECONDS);
+            java.util.List<com.fc.fc_ajdk.data.feipData.Service> services = FapiClient.parseFapiServicesFromPong(pong);
+            return services.isEmpty() ? null : services.get(0).getId();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** A PING over FUDP's own handshake, which resends lost packets, unlike discovery's. */

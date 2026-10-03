@@ -279,15 +279,23 @@ public final class CallManager implements CallSignaller.Listener {
 
     /** Ring {@code peerFid}. Resolving the relay touches the network, so it runs off the main thread. */
     public void placeCall(String peerFid) {
+        placeCall(peerFid, null);
+    }
+
+    /**
+     * Ring {@code peerFid} through {@code checked}, its CALL service as just resolved
+     * by the caller; null to resolve it here.
+     */
+    public void placeCall(String peerFid, com.fc.freer.im.handler.P2pHandler.CallRelay checked) {
         if (signaller == null || phase != Phase.IDLE && phase != Phase.ENDED) return;
         reset();
         phase = Phase.CALLING;
         notifyUi();
         Executors.newSingleThreadExecutor().execute(() -> {
             // The callee's CALL service, and no other (§6.2): no home.CALL means not callable.
-            com.fc.freer.im.handler.P2pHandler.CallRelay via = null;
+            com.fc.freer.im.handler.P2pHandler.CallRelay via = checked;
             String override = relayOverride();
-            if (override.isEmpty()) {
+            if (override.isEmpty() && via == null) {
                 ImManager im = FidManager.getInstance().getImManager();
                 via = im == null ? null : im.resolveCallRelay(peerFid);
             }
@@ -303,6 +311,12 @@ public final class CallManager implements CallSignaller.Listener {
                 try {
                     // Nothing is sent yet: the session reaches the relay, then rings.
                     call = signaller.prepare(peerFid, relayUrl);
+                    if (resolved != null && override.isEmpty()) {
+                        // The service the callee named on chain: the link accepts no other
+                        // relay at that address, such as one reached through a redirect.
+                        call.relaySid = resolved.sid();
+                        if (resolved.service() != null) call.relayPubkey = resolved.service().getDealerPubkey();
+                    }
                 } catch (IllegalStateException e) {
                     finish(context.getString(R.string.call_end_busy_here));
                     return;
