@@ -378,8 +378,9 @@ public class SetDiskActivity extends BaseCryptoActivity {
         Fcdsl fcdsl = new Fcdsl();
         fcdsl.setEntity(IndicesNames.SERVICE);
         fcdsl.addNewQuery();
-        fcdsl.getQuery().addNewMatch().addNewFields(FieldNames.TYPE)
-                .addNewValue(Service.ServiceType.FAPI_No1_NrC7.toString());
+        // No `type` clause: it is free text the publisher types, stored as a
+        // keyword, so requiring FAPI@No1_NrC7 hid servers typed any other way.
+        // The component filter below already means an FC service.
         fcdsl.getQuery().addNewEquals().addNewFields(FieldNames.ACTIVE).addNewValues(TRUE);
 
         // Filter for services with the requested component
