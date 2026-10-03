@@ -2175,7 +2175,7 @@
 
     <!-- Combined DOCK + DISK server setup -->
     <string name="server_setup_title">Set up servers</string>
-    <string name="server_setup_message">Messaging (DOCK) and data (DISK) need a server. Use your current server for both, or set each separately.</string>
+    <string name="server_setup_message">Your chain server (BASE), messaging (DOCK) and data (DISK). Use your current server for all of them, or set each separately.</string>
     <string name="server_setup_action">Set up</string>
     <string name="server_setup_dock_label">Messaging server (DOCK)</string>
     <string name="server_setup_disk_label">Data server (DISK)</string>
@@ -2640,7 +2640,7 @@
     <!-- Identity carves -->
     <string name="carve_already_pending">Already carved and waiting for the chain (tx %s). If it isn\'t there after a day, try again.</string>
     <string name="server_setup_home_unreadable">Couldn\'t read your home from the chain, so nothing was carved: %s</string>
-    <string name="server_setup_home_unchanged">The chain already has this DOCK and DISK, so there is nothing to carve.</string>
+    <string name="server_setup_home_unchanged">The chain already has these servers, so there is nothing to carve.</string>
     <string name="master_already_set_on_chain">This FID\'s master is already %s on the chain. FEIP6 makes a master permanent, so another master carve would be paid for and ignored.</string>
     <string name="master_check_failed">Couldn\'t check the chain for an existing master, so nothing was carved: %s</string>
     <string name="cid_name_rule">A CID name must not be empty or contain spaces, @, # or /.</string>
@@ -2752,6 +2752,21 @@
     <string name="server_setup_fudp_explain">Only for a node with a fixed, reachable address, such as a server. A phone behind a home or mobile network cannot be reached this way: leave it unset. Untick to remove it.</string>
     <string name="server_setup_fudp_hint">fudp://host:port</string>
     <string name="server_setup_fudp_bad">Enter a FUDP address like fudp://host:port, or untick FUDP.</string>
+    <string name="server_setup_base_label">Chain server (BASE)</string>
+    <string name="server_setup_base_hint">Service ID of your BASE</string>
+    <string name="server_setup_base_explain">The server you read the chain through. Once it is carved, every device of yours connects to it, and falls back to a built-in server if it is down.</string>
+    <string name="server_setup_private">Private: only you can read it</string>
+    <string name="server_setup_private_needs_sid">Only a service ID can be kept private. Choose the service, or untick Private.</string>
+    <string name="server_setup_follow_base">Follow my home BASE on this device</string>
+    <string name="server_setup_connected_home">Connected to %s, your home BASE</string>
+    <string name="server_setup_connected_other">Connected to %s</string>
+    <string name="server_setup_connected_none">Not connected to a chain server</string>
+    <string name="home_base_problem_address">Your home BASE is an address (%s), not a service ID, so there is no record to check its key against. This device stays where it is.</string>
+    <string name="home_base_problem_unreadable">Your home BASE is private, and this FID\'s prikey does not open it.</string>
+    <string name="home_base_problem_no_record">Your home BASE %s has no service record with an address on the chain.</string>
+    <string name="home_base_problem_down">Your home BASE %s is not answering, so this device stays on its current server.</string>
+    <string name="home_base_problem_key_mismatch">The server at %s answered with a key its service record does not name. This device did not switch to it.</string>
+    <string name="home_base_problem_unverifiable">Your home BASE\'s service record names no dealer, so the key of %s cannot be checked. This device did not switch to it.</string>
     <string name="call_setting_available">Available for calls</string>
     <string name="call_setting_available_hint">Ring when Freer is in the background. Keeps a small service running, and asks to be exempt from battery optimisation. Without it, a call that comes while Freer is closed shows as missed.</string>
     <string name="call_setting_always_relay">Always relay</string>

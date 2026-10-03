@@ -50,7 +50,8 @@ import java.util.Map;
  *   <li>enters {@link ImManager}'s DOCK pending state ({@link ImManager#onRegistrationTxSent}).</li>
  * </ul>
  * A single HOME register TX writes {@code home.DOCK} as a plaintext SID (peers must read it to
- * reach the relay) and {@code home.DISK} as the SID encrypted with the FID public key.
+ * reach the relay), and {@code home.BASE} and {@code home.DISK} each public or sealed to the FID
+ * public key, as the user chose (see {@link HomePrivacy}).
  */
 public final class ServerSetupManager {
     private static final String TAG = "ServerSetupManager";
@@ -75,6 +76,14 @@ public final class ServerSetupManager {
         /** A fixed, reachable FUDP node address: only for a node that has one. */
         public String fudp;
         public boolean removeFudp;
+        /** The chain server every device of this FID follows; first of the home. Blank leaves it. */
+        public String base;
+        /**
+         * Keep BASE / DISK sealed to the FID's own pubkey (see {@link HomePrivacy}). Private by
+         * default, as DISK always was here; a choice now, because some people want theirs known.
+         */
+        public boolean basePrivate = true;
+        public boolean diskPrivate = true;
 
         public static HomeEdits none() {
             return new HomeEdits();
@@ -89,7 +98,7 @@ public final class ServerSetupManager {
         }
 
         public boolean touchesAny() {
-            return touchesCall() || touchesRoad() || removeFudp || !blank(fudp);
+            return touchesCall() || touchesRoad() || removeFudp || !blank(fudp) || !blank(base);
         }
     }
 
@@ -202,17 +211,30 @@ public final class ServerSetupManager {
             }
             if (ed.removeFudp || !blank(ed.fudp)) removals.addAll(keysOf(onChain.home, "FUDP"));
             if (!ed.removeFudp && !blank(ed.fudp)) changes.put(Constants.FUDP_NO1_NRC7, ed.fudp.trim());
-            boolean settingDisk = false;
-            // The DISK value is encrypted afresh each time, so compare the SID it holds, not the
-            // bytes: re-encrypting the same SID would be a paid carve that changes nothing.
-            if (!disk.isEmpty() && !disk.equals(DiskHomeManager.resolveSid(onChain.home, prikey))) {
-                String diskEnc = DiskHomeManager.encryptSid(disk, pubkey);
-                if (diskEnc == null) {
-                    if (uiCallback != null) uiCallback.onError("Failed to encrypt DISK sid");
-                    return;
-                }
-                changes.put(DiskHomeManager.DISK_KEY, diskEnc);
-                settingDisk = true;
+            // BASE and DISK are compared opened, never as bytes: a sealed value is different
+            // every time, so re-sealing the same SID would be a paid carve that changes nothing.
+            String diskWrite;
+            String baseWrite;
+            try {
+                diskWrite = HomePrivacy.pending(disk, ed.diskPrivate,
+                        HomePrivacy.valueOf(onChain.home, "DISK"), prikey, pubkey);
+                baseWrite = HomePrivacy.pending(ed.base, ed.basePrivate,
+                        HomePrivacy.valueOf(onChain.home, "BASE"), prikey, pubkey);
+            } catch (IllegalArgumentException e) {
+                if (uiCallback != null) uiCallback.onError(appContext.getString(R.string.server_setup_private_needs_sid));
+                return;
+            } catch (IllegalStateException e) {
+                if (uiCallback != null) uiCallback.onError("Failed to encrypt a home entry");
+                return;
+            }
+            boolean settingDisk = diskWrite != null;
+            if (settingDisk) {
+                removals.addAll(keysOf(onChain.home, "DISK"));
+                changes.put(DiskHomeManager.DISK_KEY, diskWrite);
+            }
+            if (baseWrite != null) {
+                removals.addAll(keysOf(onChain.home, "BASE"));
+                changes.put(Constants.BASE_NO1_NRC7, baseWrite);
             }
 
             final Map<String, String> homeMap = HomeFeip.merged(onChain.home, changes, removals);

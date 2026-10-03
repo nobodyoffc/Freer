@@ -2390,7 +2390,7 @@
 
     <!-- Combined DOCK + DISK server setup -->
     <string name="server_setup_title">设置服务器</string>
-    <string name="server_setup_message">消息（DOCK）和数据（DISK）需要服务器。可对两者使用当前服务器，或分别设置。</string>
+    <string name="server_setup_message">链服务器（BASE）、消息（DOCK）和数据（DISK）。可全部使用当前服务器，或分别设置。</string>
     <string name="server_setup_action">设置</string>
     <string name="server_setup_dock_label">消息服务器（DOCK）</string>
     <string name="server_setup_disk_label">数据服务器（DISK）</string>
@@ -2599,7 +2599,7 @@
     <!-- Identity carves -->
     <string name="carve_already_pending">已经上链广播，正在等待确认（交易 %s）。如果一天后仍未上链，请重试。</string>
     <string name="server_setup_home_unreadable">无法从链上读取你的服务登记，未上链：%s</string>
-    <string name="server_setup_home_unchanged">链上已经是这个DOCK和DISK，无需上链。</string>
+    <string name="server_setup_home_unchanged">链上已经是这些服务器，无需上链。</string>
     <string name="master_already_set_on_chain">链上记录显示这个FID的主人已经是 %s。按FEIP6，主人一经设置便不可更改，再次上链只会白付手续费并被忽略。</string>
     <string name="master_check_failed">无法在链上查询现有主人，未上链：%s</string>
     <string name="cid_name_rule">CID名字不能为空，也不能包含空格、@、# 或 /。</string>
@@ -2674,6 +2674,21 @@
     <string name="server_setup_fudp_explain">仅适用于有固定、可访问地址的节点，例如服务器。处在家庭或移动网络后的手机无法以此被访问，请不要设置。取消勾选即删除。</string>
     <string name="server_setup_fudp_hint">fudp://主机:端口</string>
     <string name="server_setup_fudp_bad">请输入 fudp://主机:端口 形式的 FUDP 地址，或取消勾选 FUDP。</string>
+    <string name="server_setup_base_label">链服务器（BASE）</string>
+    <string name="server_setup_base_hint">BASE 的服务 ID</string>
+    <string name="server_setup_base_explain">读取链上数据所用的服务器。上链后，你的每台设备都会连接它；它不可用时退回内置服务器。</string>
+    <string name="server_setup_private">私密：仅你自己可读</string>
+    <string name="server_setup_private_needs_sid">只有服务 ID 可以设为私密。请选择服务，或取消勾选私密。</string>
+    <string name="server_setup_follow_base">本设备跟随我的 home BASE</string>
+    <string name="server_setup_connected_home">已连接 %s，即你的 home BASE</string>
+    <string name="server_setup_connected_other">已连接 %s</string>
+    <string name="server_setup_connected_none">未连接链服务器</string>
+    <string name="home_base_problem_address">你的 home BASE 是地址（%s）而不是服务 ID，没有链上记录可用来核对其公钥。本设备保持当前连接。</string>
+    <string name="home_base_problem_unreadable">你的 home BASE 是私密的，此 FID 的私钥无法打开。</string>
+    <string name="home_base_problem_no_record">你的 home BASE %s 在链上没有带地址的服务记录。</string>
+    <string name="home_base_problem_down">你的 home BASE %s 没有响应，本设备保持当前服务器。</string>
+    <string name="home_base_problem_key_mismatch">%s 的服务器应答的公钥与其服务记录不符，本设备未切换过去。</string>
+    <string name="home_base_problem_unverifiable">你的 home BASE 的服务记录未写明经营者，无法核对 %s 的公钥，本设备未切换过去。</string>
     <string name="call_setting_available">随时可接听</string>
     <string name="call_setting_available_hint">Freer 在后台时也能响铃。会保持一个小型服务运行，并请求免除电池优化。关闭时，Freer 未运行期间打来的电话会显示为未接。</string>
     <string name="call_setting_always_relay">始终中继</string>

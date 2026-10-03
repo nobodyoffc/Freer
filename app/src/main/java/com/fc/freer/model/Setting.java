@@ -50,6 +50,8 @@ public class Setting extends BaseSetting implements ClientConfig {
     // P2P channel toggles. DOCK is always available; FUDP and ROAD are opt-in.
     public static final String KEY_USE_FUDP_DIRECT = "imUseFudpDirect";
     public static final String KEY_USE_ROAD_RELAY = "imUseRoadRelay";
+    public static final String KEY_FOLLOW_HOME_BASE = "followHomeBase";
+    public static final String KEY_HOME_BASE_URL = "homeBaseUrl";
 
     public Setting(Map<String,Object> settingMap, KeyInfo keyInfo, byte[] symkey) {
         super(keyInfo, symkey);
@@ -400,6 +402,32 @@ public class Setting extends BaseSetting implements ClientConfig {
 
     public void setUseFudpDirect(boolean value) {
         putSetting(KEY_USE_FUDP_DIRECT, value);
+    }
+
+    /**
+     * Connect to the BASE the main FID's home names, once it is known and checks out. On by
+     * default. Off keeps this device on the built-in servers — the way past a home BASE that
+     * misbehaves, without carving anything.
+     */
+    public boolean isFollowHomeBase() {
+        return getSettingBool(KEY_FOLLOW_HOME_BASE, true);
+    }
+
+    public void setFollowHomeBase(boolean value) {
+        putSetting(KEY_FOLLOW_HOME_BASE, value);
+    }
+
+    /**
+     * The home BASE last found, checked and reached ({@code host:port}), or null. Remembered so
+     * that turning following off can tell that saved provider apart from one the app chose.
+     */
+    public String getHomeBaseUrl() {
+        String url = getSettingString(KEY_HOME_BASE_URL, null);
+        return url != null && !url.isEmpty() ? url : null;
+    }
+
+    public void setHomeBaseUrl(String url) {
+        putSetting(KEY_HOME_BASE_URL, url != null ? url : "");
     }
 
     public boolean isUseRoadRelay() {

@@ -28,6 +28,91 @@
                 android:textSize="14sp"
                 android:layout_marginBottom="16dp" />
 
+            <!-- BASE (chain server): first of the home; followed by every device of this FID -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/server_setup_base_label"
+                android:textColor="@color/field_name"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="4dp"
+                android:text="@string/server_setup_base_explain"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    app:boxBackgroundColor="@color/input_field_background"
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/base_input"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="@string/server_setup_base_hint"
+                        android:inputType="text"
+                        android:maxLines="3" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <ImageButton
+                    android:id="@+id/choose_base_button"
+                    style="@style/ImageButtonStyle"
+                    android:layout_marginStart="8dp"
+                    android:src="@drawable/ic_search"
+                    android:contentDescription="@string/choose_another" />
+            </LinearLayout>
+
+            <!-- Sealed to the FID's own pubkey; only a service id can be (HomePrivacy) -->
+            <CheckBox
+                android:id="@+id/base_private_checkbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="@string/server_setup_private"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <!-- Which server this device reads through, and why the home BASE is not it -->
+            <TextView
+                android:id="@+id/base_connection_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp"
+                android:textIsSelectable="true" />
+
+            <TextView
+                android:id="@+id/base_problem_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/field_name"
+                android:textSize="13sp"
+                android:textIsSelectable="true"
+                android:visibility="gone" />
+
+            <CheckBox
+                android:id="@+id/follow_base_checkbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="@string/server_setup_follow_base"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
             <!-- DOCK (messaging) -->
             <TextView
                 android:layout_width="match_parent"
@@ -36,6 +121,7 @@
                 android:textColor="@color/field_name"
                 android:textSize="16sp"
                 android:textStyle="bold"
+                android:layout_marginTop="16dp"
                 android:layout_marginBottom="4dp" />
 
             <LinearLayout
@@ -108,6 +194,16 @@
                     android:src="@drawable/ic_search"
                     android:contentDescription="@string/choose_another" />
             </LinearLayout>
+
+            <!-- Sealed to the FID's own pubkey; only a service id can be (HomePrivacy) -->
+            <CheckBox
+                android:id="@+id/disk_private_checkbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="@string/server_setup_private"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
 
             <!-- CALL (voice calls): opt-in, VOICE_SPEC §6.2 -->
             <CheckBox

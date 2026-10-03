@@ -17,6 +17,7 @@ import com.fc.fc_ajdk.fudp.node.FudpNode;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.FreerApplication;
 import com.fc.freer.R;
+import com.fc.freer.data.HomeBaseManager;
 import com.fc.freer.initiate.ClientGroup;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.initiate.ConfigureManager;
@@ -108,6 +109,10 @@ public class ApiCenter {
             TimberLogger.d(TAG, "Using initialization strategy: CREATE_NEW");
             createAll(context);
         }
+
+        // Before anything takes the default client: a component handed the old one would keep
+        // talking to it, so the move to the home BASE happens here or not this launch.
+        followHomeBase(context);
         
         TimberLogger.d(TAG, "API service initialization completed");
 
@@ -512,6 +517,13 @@ public class ApiCenter {
             // Bootstrap fresh — use saved preferred URL if available, fall back to DEFAULT_BOOTSTRAP_APIS
             ClientGroup clientGroup = new ClientGroup(serviceType);
             String savedUrl = (savedApiProvider != null) ? savedApiProvider.getApiUrl() : null;
+            // Following turned off: a saved provider that is the home BASE is not this device's
+            // choice, so start from the built-in servers instead.
+            if (serviceType == Service.ServiceType.FAPI_No1_NrC7 && savedUrl != null
+                    && !currentSetting.isFollowHomeBase()
+                    && sameEndpoint(savedUrl, currentSetting.getHomeBaseUrl())) {
+                savedUrl = null;
+            }
             Object client = createClientForServiceType(context, serviceType, savedUrl);
             if (client instanceof FapiClient fapiClient) {
                 // Attach saved account metadata to the fresh client
@@ -851,6 +863,128 @@ public class ApiCenter {
         TimberLogger.d(TAG, "DISK client set explicitly: %s", client.getServerUrl());
     }
 
+    // ---- home BASE ----
+
+    /** Why the main FID's home BASE is not the server in use, for the server setup screen. */
+    private volatile int homeBaseProblemRes;
+    private volatile String homeBaseProblemArg;
+
+    /** The string resource saying why the home BASE was not followed, or 0. */
+    public int getHomeBaseProblemRes() {
+        return homeBaseProblemRes;
+    }
+
+    public String getHomeBaseProblemArg() {
+        return homeBaseProblemArg;
+    }
+
+    private void noteHomeBaseProblem(int res, String arg) {
+        homeBaseProblemRes = res;
+        homeBaseProblemArg = arg;
+        if (res != 0) TimberLogger.w(TAG, "Not following home BASE (%s): %s", res, arg);
+    }
+
+    /** The {@code host:port} the default client reads the chain through, or null. */
+    public String getBaseConnectionUrl() {
+        FapiClient client = getDefaultFapiClient();
+        if (client == null) return null;
+        if (client.getApiAccount() != null && client.getApiAccount().getApiUrl() != null) {
+            return client.getApiAccount().getApiUrl();
+        }
+        return client.getServerUrl();
+    }
+
+    /** Whether the default client is the main FID's home BASE. */
+    public boolean isOnHomeBase() {
+        return currentSetting != null && currentSetting.isFollowHomeBase()
+                && sameEndpoint(getBaseConnectionUrl(), currentSetting.getHomeBaseUrl());
+    }
+
+    private static boolean sameEndpoint(String a, String b) {
+        if (a == null || b == null) return false;
+        String na = FapiClient.normalizeUrl(a);
+        String nb = FapiClient.normalizeUrl(b);
+        return na != null && na.equals(nb);
+    }
+
+    /**
+     * Move the default client to the BASE the main FID's home names — if it names one, the
+     * server's key matches its service record, and this device follows it.
+     * <p>
+     * Runs inside {@link #initiate}, once per launch, before any manager takes the default
+     * client. Every refusal leaves the client where it is and records why: a working
+     * connection is never given up for one that has not proved itself. On a move, the new
+     * provider is persisted, so {@link #connectAll} starts there next launch — and falls back to
+     * the built-in servers on its own if it is down.
+     */
+    private void followHomeBase(Context context) {
+        noteHomeBaseProblem(0, null);
+        if (currentSetting == null || !currentSetting.isFollowHomeBase()) return;
+        FapiClient current = getDefaultFapiClient();
+        if (current == null || !current.isConfigured()) return;
+
+        Map<String, String> home = getMainFidHome(current);
+        HomeBaseManager.Entry entry = HomeBaseManager.entry(home, currentSetting.decryptPrikey());
+        switch (entry.kind) {
+            case NONE:
+                // The home no longer names a BASE: forget the old one, so turning following off
+                // later does not mistake a provider the app chose for it.
+                if (currentSetting.getHomeBaseUrl() != null) currentSetting.setHomeBaseUrl(null);
+                return;
+            case ADDRESS:
+                noteHomeBaseProblem(R.string.home_base_problem_address, entry.value);
+                return;
+            case UNREADABLE:
+                noteHomeBaseProblem(R.string.home_base_problem_unreadable, null);
+                return;
+            default:
+                break;
+        }
+
+        String sid = entry.value;
+        com.fc.fc_ajdk.fapi.client.HomeServiceResolver resolver = current.getHomeServiceResolver();
+        String url = resolver.resolve("(sid)" + sid, current);
+        Service record = resolver.getCachedService(sid);
+        if (url == null || record == null) {
+            noteHomeBaseProblem(R.string.home_base_problem_no_record, sid);
+            return;
+        }
+        if (sameEndpoint(url, getBaseConnectionUrl())) {
+            // Already there, and reached through this provider before: remember it as home.
+            currentSetting.setHomeBaseUrl(FapiClient.normalizeUrl(url));
+            return;
+        }
+
+        FudpNode fudpNode = initFudpNode(context);
+        if (fudpNode == null) return;
+        FapiClient.BootstrapResult result = FapiClient.bootstrapFromUrlWithResult(
+                fudpNode, Service.ServiceType.FAPI_No1_NrC7, url, currentSetting.getSettingMap());
+        if (result == null || result.getClient() == null || result.getDiscoveryResult() == null) {
+            noteHomeBaseProblem(R.string.home_base_problem_down, url);
+            return;
+        }
+        HomeBaseManager.Verdict verdict = HomeBaseManager.verify(
+                result.getDiscoveryResult().getPublicKey(), record);
+        if (verdict != HomeBaseManager.Verdict.MATCHES) {
+            noteHomeBaseProblem(verdict == HomeBaseManager.Verdict.MISMATCH
+                    ? R.string.home_base_problem_key_mismatch
+                    : R.string.home_base_problem_unverifiable, url);
+            return;
+        }
+
+        FapiClient adopted = adoptBootstrap(result, Service.ServiceType.FAPI_No1_NrC7);
+        ClientGroup group = new ClientGroup(Service.ServiceType.FAPI_No1_NrC7);
+        if (adopted == null || !AddFapiClientToGroup(adopted, group)) {
+            noteHomeBaseProblem(R.string.home_base_problem_down, url);
+            return;
+        }
+        clientGroupMap.put(Service.ServiceType.FAPI_No1_NrC7, group);
+        // DISK and the rest fell back to the old default; let them resolve again from here.
+        homeClientMap.clear();
+        currentSetting.setHomeBaseUrl(FapiClient.normalizeUrl(url));
+        TimberLogger.i(TAG, "Switched to home BASE %s (sid=%s)", url, sid);
+    }
+
     /**
      * Get the default BASE FapiClient from clientGroupMap.
      */
@@ -1113,7 +1247,20 @@ public class ApiCenter {
                 TimberLogger.w(TAG, "FapiClient bootstrap failed for type: %s", serviceType);
                 return null;
             }
-            
+            return adoptBootstrap(bootstrapResult, serviceType);
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error creating FapiClient: %s", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Turn a bootstrapped server into this identity's client: the full service record, an
+     * ApiAccount for the main FID, auto-recharge, and the provider and account persisted — which
+     * is what makes {@link #connectAll} start here next launch.
+     */
+    private FapiClient adoptBootstrap(FapiClient.BootstrapResult bootstrapResult, Service.ServiceType serviceType) {
+        try {
             FapiClient client = bootstrapResult.getClient();
             if(client==null)return null;
             Service service = bootstrapResult.getService();
