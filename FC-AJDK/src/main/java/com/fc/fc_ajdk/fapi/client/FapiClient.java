@@ -3182,7 +3182,19 @@ public class FapiClient implements ApiClient {
                 return null;
             }
 
-            return ObjectUtils.objectToClass(unified.response().getData(), DockItem.class);
+            // The reply carries only id, sizes, heights and fees (FAPI13V1 §4.1);
+            // the sender and recipients are what this request sent. A forwarded
+            // item's sender on the remote DOCK is the forwarding server, so it
+            // is left unset. totalFee and the forwarding fields stay in getLastResponse().
+            Object reply = unified.response().getData();
+            DockItem item = ObjectUtils.objectToClass(reply, DockItem.class);
+            if (item != null) {
+                boolean forwarded = reply instanceof Map<?, ?> m && Boolean.TRUE.equals(m.get(FieldNames.FORWARDED));
+                if (!forwarded) item.setSender(fudpNode.getLocalFid());
+                item.setRecipients(new ArrayList<>(recipients));
+                if (item.getDataType() == null) item.setDataType(dataType);
+            }
+            return item;
 
         } catch (Exception e) {
             lastError = e;
