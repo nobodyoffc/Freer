@@ -208,7 +208,7 @@ public final class NobodyUi {
         if (!isNobody(fid)) return name;
         String chip = context.getString(R.string.nobody);
         SpannableStringBuilder builder = new SpannableStringBuilder(chip);
-        builder.setSpan(new ChipSpan(
+        builder.setSpan(new ChipSpan(chip,
                         ContextCompat.getColor(context, R.color.nobody_mark),
                         ContextCompat.getColor(context, R.color.nobody_on_mark),
                         context.getResources().getDisplayMetrics().density),
@@ -249,15 +249,21 @@ public final class NobodyUi {
         });
     }
 
-    /** A rounded label drawn in place of its text, with a gap after it. */
+    /**
+     * A rounded label drawn in place of its text, with a gap after it. It draws
+     * its own copy of the label: an ellipsizing layout may hand the span its
+     * characters as object-replacement placeholders, shown as "[obj]".
+     */
     static final class ChipSpan extends ReplacementSpan {
+        private final String label;
         private final int background;
         private final int foreground;
         private final float padding;
         private final float gap;
         private final float radius;
 
-        ChipSpan(int background, int foreground, float density) {
+        ChipSpan(String label, int background, int foreground, float density) {
+            this.label = label;
             this.background = background;
             this.foreground = foreground;
             this.padding = 5 * density;
@@ -274,7 +280,7 @@ public final class NobodyUi {
                            @Nullable Paint.FontMetricsInt fm) {
             float original = paint.getTextSize();
             paint.setTextSize(textSize(paint));
-            float width = paint.measureText(text, start, end);
+            float width = paint.measureText(label);
             paint.setTextSize(original);
             return Math.round(width + padding * 2 + gap);
         }
@@ -288,7 +294,7 @@ public final class NobodyUi {
 
             Paint.FontMetrics outer = paint.getFontMetrics();
             paint.setTextSize(textSize(paint));
-            float width = paint.measureText(text, start, end);
+            float width = paint.measureText(label);
             Paint.FontMetrics inner = paint.getFontMetrics();
 
             float chipTop = y + outer.ascent;
@@ -300,7 +306,7 @@ public final class NobodyUi {
             float baseline = rect.centerY() - (inner.ascent + inner.descent) / 2f;
             paint.setColor(foreground);
             paint.setFakeBoldText(true);
-            canvas.drawText(text, start, end, x + padding, baseline, paint);
+            canvas.drawText(label, x + padding, baseline, paint);
 
             paint.setColor(originalColor);
             paint.setTextSize(originalSize);
