@@ -349,7 +349,8 @@ public class Setting extends BaseSetting implements ClientConfig {
             NodeConfig config = new NodeConfig();
             config.setPort(port);
             config.setDataDir(dataDir);
-            config.setMaxPacketSize(8000);
+            // NodeConfig's default packet size stays under one MTU; bigger datagrams
+            // are IP-fragmented and lost on paths (and mobile networks) that drop fragments.
             config.setSocketBufferSize(4 * 1024 * 1024);
             
             try {
