@@ -209,11 +209,16 @@
         android:id="@+id/recording_overlay"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:padding="8dp"
         android:background="@color/background_light"
-        android:gravity="center_vertical"
         android:visibility="gone">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
         <ImageView
             android:id="@+id/recording_indicator"
@@ -238,6 +243,17 @@
             android:text="@string/slide_to_cancel"
             android:textColor="@color/hint"
             android:layout_marginEnd="16dp" />
+
+    </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="center"
+            android:text="@string/voice_note_real_voice"
+            android:textColor="@color/hint"
+            android:textSize="12sp" />
 
     </LinearLayout>
 

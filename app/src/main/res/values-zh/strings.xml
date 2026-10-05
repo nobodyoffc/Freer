@@ -2657,6 +2657,8 @@
     <string name="call_status_incoming">来电</string>
     <string name="call_status_connecting">正在连接…</string>
     <string name="call_e2ee">🔒 端到端加密</string>
+    <string name="call_real_voice">对方听到的是你的真实声音，可能据此识别出你。</string>
+    <string name="voice_note_real_voice">语音消息包含你的真实声音，可能据此识别出你。</string>
     <string name="call_relayed_via">经 %1$s 中继</string>
     <string name="call_direct">直连</string>
     <string name="call_settings">通话设置</string>

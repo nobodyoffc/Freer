@@ -40,6 +40,16 @@
             android:textColor="@color/field_name" />
 
         <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:paddingHorizontal="24dp"
+            android:gravity="center"
+            android:text="@string/call_real_voice"
+            android:textColor="@color/hint"
+            android:textSize="12sp" />
+
+        <TextView
             android:id="@+id/callPath"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
