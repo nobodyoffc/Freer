@@ -14,6 +14,9 @@ android {
             keyPassword = "android"
         }
         create("release") {
+            // NOT the shipping signature: ./sign-release.sh re-signs Gradle's
+            // output with the v3 rotation proof from the 3.3.0-and-earlier signer,
+            // which Gradle cannot attach. Ship only what that script writes.
             // Credentials live outside the repo, in ~/.gradle/gradle.properties.
             // Nothing here falls back to the debug key: a release that cannot be
             // signed privately fails in packageRelease instead of shipping.

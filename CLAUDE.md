@@ -13,7 +13,7 @@ This is a multi-module Android project using Gradle:
 ### Key Commands
 - **Build project**: `./gradlew build`
 - **Build debug APK**: `./gradlew assembleDebug`
-- **Build release APK**: `./gradlew assembleRelease`
+- **Build release APK**: `./sign-release.sh` → `build/release/Freer-<version>.apk`. Never ship Gradle's own `app-release.apk`: it lacks the v3 rotation proof (lineage) from the signer of 3.3.0 and earlier, so every existing install would refuse it as an update. See the header of `sign-release.sh`.
 - **Run tests**: `./gradlew test`
 - **Run instrumented tests**: `./gradlew connectedAndroidTest`
 - **Clean project**: `./gradlew clean`
