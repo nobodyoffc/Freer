@@ -15,6 +15,7 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 
 import com.fc.fc_ajdk.data.fcData.FcEntity;
+import com.fc.freer.utils.CarvePlan;
 import com.fc.fc_ajdk.data.fchData.Block;
 import com.fc.fc_ajdk.fapi.message.FapiResponse;
 import com.fc.fc_ajdk.utils.ObjectUtils;
@@ -32,8 +33,10 @@ import com.fc.fc_ajdk.data.feipData.Service;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Arrays;
 
 import android.app.Activity;
@@ -279,6 +282,7 @@ public abstract class FcManager<T extends FcEntity> {
      * @param context Activity context for dialog operations
      */
     public void refreshEntitiesFromAPI(Context context) {
+        resolveExpiredPendingCarves(context);
         List<String> lastUpdated = getStateLastUpdated();
         totalOnChain = getStateTotal();
         int added = 0;
@@ -684,11 +688,11 @@ public abstract class FcManager<T extends FcEntity> {
         TimberLogger.i(TAG, "Starting rollback to height: %d for liveFid: %s", rollbackHeight, liveFid);
 
         try {
-            int removedCount = removeItemsAfterHeight(rollbackHeight);
-            TimberLogger.i(TAG, "Removed %d items with height > %d", removedCount, rollbackHeight);
-
-            if (removedCount<=0)
-                return removedCount;
+            // Fetch everything first and remove only once both fetches succeeded, so a network
+            // failure leaves the local database as it was.
+            List<T> removed = findItemsAfterHeight(rollbackHeight);
+            if (removed.isEmpty())
+                return 0;
 
             List<?> updatedApiObjects = fetchEntitiesFromHeight(context, rollbackHeight);
             if (updatedApiObjects == null) {
@@ -696,13 +700,37 @@ public abstract class FcManager<T extends FcEntity> {
                 return -1;
             }
 
-            List<T> updatedEntities = makeEntityDetails(updatedApiObjects, false,context );
+            // A rolled-back update, delete or recover puts an item back to its state at an
+            // earlier height, which can be at or below rollbackHeight. The height query above
+            // misses such items, so fetch every removed item it did not return by id.
+            Set<String> returnedIds = new HashSet<>();
+            for (Object apiObject : updatedApiObjects) {
+                if (apiObject instanceof FcEntity) returnedIds.add(((FcEntity) apiObject).getId());
+            }
+            List<String> missingIds = new ArrayList<>();
+            for (T entity : removed) {
+                if (!returnedIds.contains(entity.getId())) missingIds.add(entity.getId());
+            }
+            List<Object> apiObjectsToApply = new ArrayList<>(updatedApiObjects);
+            if (!missingIds.isEmpty()) {
+                List<?> byIds = fetchEntitiesByIds(missingIds);
+                if (byIds == null) {
+                    TimberLogger.w(TAG, "Failed to re-fetch removed " + entityClass.getSimpleName() + " by id for rollback");
+                    return -1;
+                }
+                apiObjectsToApply.addAll(byIds);
+            }
+
+            removeEntities(removed);
+            TimberLogger.i(TAG, "Removed %d " + entityClass.getSimpleName() + " with height > %d", removed.size(), rollbackHeight);
+
+            List<T> updatedEntities = makeEntityDetails(apiObjectsToApply, false,context );
             int processedCount = updateDatabaseAfterRollback(updatedEntities);
             updateOnChainTotal(context);
             updateStatesAfterRollback(updatedApiObjects);
 
             commit();
-            TimberLogger.i(TAG, "Rollback completed: removed %d, processed %d items", removedCount, processedCount);
+            TimberLogger.i(TAG, "Rollback completed: removed %d, processed %d items", removed.size(), processedCount);
 
             if(processedCount>0){
                 ToastUtils.makeText(context, context.getString(R.string.rollback_success,processedCount));
@@ -715,36 +743,58 @@ public abstract class FcManager<T extends FcEntity> {
         }
     }
 
-    private int removeItemsAfterHeight(Long rollbackHeight) {
-        if (entityDB == null) return 0;
-
+    /**
+     * Every on-chain item last changed above rollbackHeight. Walks the whole local database: it
+     * is kept in arrival order, not height order, so stopping at the first older item could miss
+     * some.
+     */
+    private List<T> findItemsAfterHeight(Long rollbackHeight) {
         List<T> toRemove = new ArrayList<>();
-        List<T> pageEntities;
-        boolean end = false;
-        String fromId = null;
+        if (entityDB == null) return toRemove;
 
-        while(!end) {
-            pageEntities = entityDB.getList(FreerApplication.MAX_CONTAINER_SIZE,fromId,null,false,null,null,true,true);
+        String fromId = null;
+        while (true) {
+            List<T> pageEntities = entityDB.getList(FreerApplication.MAX_CONTAINER_SIZE,fromId,null,false,null,null,true,true);
+            if (pageEntities == null || pageEntities.isEmpty()) break;
 
             for (T entity : pageEntities) {
                 Long updateHeight = getEntityUpdateHeight(entity);
-                if (updateHeight != null && updateHeight > rollbackHeight) {
-                    if(Boolean.TRUE.equals(isEntityOnChain(entity)))
-                        toRemove.add(entity);
-                }else {
-                    if (!toRemove.isEmpty()) {
-                        removeEntities(toRemove);
-                        TimberLogger.i(TAG, "Removed %d " + entityClass.getSimpleName() + " with height > %d", toRemove.size(), rollbackHeight);
-                    }
-                    end = true;
-                    break;
+                if (updateHeight != null && updateHeight > rollbackHeight
+                        && Boolean.TRUE.equals(isEntityOnChain(entity))) {
+                    toRemove.add(entity);
                 }
             }
 
-            if(!toRemove.isEmpty())
-                fromId = toRemove.get(toRemove.size()-1).getId();
+            if (pageEntities.size() < FreerApplication.MAX_CONTAINER_SIZE) break;
+            String lastId = pageEntities.get(pageEntities.size() - 1).getId();
+            if (lastId == null || lastId.equals(fromId)) break;
+            fromId = lastId;
         }
-        return toRemove.size();
+
+        return toRemove;
+    }
+
+    /**
+     * Fetch items by id, in batches the server accepts.
+     *
+     * @return the items found (ids no longer on chain are simply absent), or null on failure
+     */
+    private List<?> fetchEntitiesByIds(List<String> ids) {
+        FapiClient fapiClient = loadFapiClient();
+        if (fapiClient == null) return null;
+
+        final int batchSize = 100;
+        List<Object> found = new ArrayList<>();
+        for (int i = 0; i < ids.size(); i += batchSize) {
+            List<String> batch = ids.subList(i, Math.min(ids.size(), i + batchSize));
+            Map<String, ?> result = fapiClient.entityByIds(getEntityIndexName(), getApiObjectClass(), new ArrayList<>(batch));
+            if (result == null) {
+                if (fapiClient.isDataNoFound()) continue;
+                return null;
+            }
+            found.addAll(result.values());
+        }
+        return found;
     }
 
     private List<?> fetchEntitiesFromHeight(Context context, Long rollbackHeight) {
@@ -761,7 +811,7 @@ public abstract class FcManager<T extends FcEntity> {
 
             Fcdsl fcdsl = new Fcdsl();
             fcdsl.setEntity(getEntityIndexName());
-            fcdsl.addNewQuery().addNewTerms().addNewFields(OWNER).addNewValues(liveFid);
+            fcdsl.addNewQuery().addNewTerms().addNewFields(getOwnerFields()).addNewValues(liveFid);
             fcdsl.getQuery().addNewRange().addNewFields(LAST_HEIGHT).addGt(String.valueOf(rollbackHeight));
             fcdsl.addSort(LAST_HEIGHT, ASC).addSort(ID, ASC);
             fcdsl.addSize(pageSize);
@@ -814,6 +864,8 @@ public abstract class FcManager<T extends FcEntity> {
 
         for (T entity : entityList) {
             try {
+                // Every item applied here was read from the chain.
+                markConfirmed(entity);
                 if (isEntityDeleted(entity)) {
                     if (checkIfExisted(entity.getId())) {
                         removeEntity(entity);
@@ -907,6 +959,74 @@ public abstract class FcManager<T extends FcEntity> {
 
     // Abstract methods that subclasses must implement
     protected abstract String getEntityIndexName();
+
+    /**
+     * Whether this manager's items carry a carve time, so that a pending carve
+     * (onChain == null) can expire. Off by default.
+     */
+    protected boolean expiresPendingCarves() {
+        return false;
+    }
+
+    /** When the item's pending carve was broadcast, or null. */
+    protected Long getCarveTime(T entity) {
+        return null;
+    }
+
+    /** Make the item local-only again: its carve was dropped. */
+    protected void markLocalOnly(T entity) {
+    }
+
+    /** The item was just read from the chain: mark it confirmed there. */
+    protected void markConfirmed(T entity) {
+    }
+
+    /**
+     * Settle pending carves older than {@link CarvePlan#PENDING_EXPIRY_MS}. Each is re-read from
+     * the chain by id. If the chain has the item, the row takes its state: the carve, or for a
+     * dropped update the version before it. If not, the add was dropped and the row becomes
+     * local-only, so it can be saved or carved again. Without this a carve that never confirms
+     * leaves its row pending, uneditable and uncarvable, forever. Rows from before carves were
+     * timed count as expired.
+     */
+    private void resolveExpiredPendingCarves(Context context) {
+        if (!expiresPendingCarves() || entityDB == null) return;
+
+        List<T> expired = new ArrayList<>();
+        for (T entity : entityDB.getAll().values()) {
+            if (isEntityOnChain(entity) == null && CarvePlan.isExpired(getCarveTime(entity))) {
+                expired.add(entity);
+            }
+        }
+        if (expired.isEmpty()) return;
+
+        List<String> ids = new ArrayList<>();
+        for (T entity : expired) ids.add(entity.getId());
+        List<?> found = fetchEntitiesByIds(ids);
+        if (found == null) return; // try again at the next refresh
+
+        Set<String> foundIds = new HashSet<>();
+        for (Object apiObject : found) {
+            if (apiObject instanceof FcEntity) foundIds.add(((FcEntity) apiObject).getId());
+        }
+        for (T entity : expired) {
+            if (!foundIds.contains(entity.getId())) {
+                markLocalOnly(entity);
+                updateEntity(entity);
+            }
+        }
+        if (!found.isEmpty()) {
+            updateDatabaseAfterRollback(makeEntityDetails(found, false, context));
+        }
+        commit();
+        TimberLogger.i(TAG, "Settled %d expired pending " + entityClass.getSimpleName() + " carves: %d on chain, %d dropped",
+                expired.size(), foundIds.size(), expired.size() - foundIds.size());
+    }
+
+    /** The fields that name the live FID as a party to an item. */
+    protected String[] getOwnerFields() {
+        return new String[]{OWNER};
+    }
     protected abstract Class<?> getApiObjectClass();
     protected abstract List<T> makeEntityDetails(List<?> apiObjects, boolean decryptDeleted, Context context);
     protected abstract List<String> makeSortList(Object apiObject);

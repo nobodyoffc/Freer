@@ -2877,4 +2877,7 @@
     <string name="home_call_room_helper_team">The relay this team\'s meetings run on. Empty: the team holds no meetings.</string>
     <string name="call_checking_service">Checking their CALL service…</string>
     <string name="call_service_unusable">Their CALL service is closed or cannot be reached, so they cannot be called now.</string>
+    <string name="toast_failed_check_on_chain">Could not reach the chain to check this item. Try again later.</string>
+    <string name="toast_deleted_on_chain_recover_first">This item is deleted on chain. Recover it before updating it.</string>
+    <string name="toast_carve_not_confirmed_wait">This item\'s carve has not confirmed yet. Wait for a block to confirm it, then try again.</string>
 </resources>

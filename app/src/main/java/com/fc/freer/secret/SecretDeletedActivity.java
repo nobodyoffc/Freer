@@ -889,7 +889,7 @@ public class SecretDeletedActivity extends BaseCryptoActivity {
                             // Add recovered secrets to database
                             for (Secret secret : secretsToRecover) {
                                 secret.setActive(false);
-                                secret.setOnChain(null);
+                                secret.markCarvePending();
                                 secretManager.addSecretDetail(secret);
                             }
                             secretManager.commit();

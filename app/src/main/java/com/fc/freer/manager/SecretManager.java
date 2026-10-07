@@ -498,6 +498,28 @@ public class SecretManager extends FcManager<Secret>{
     }
 
     @Override
+    protected boolean expiresPendingCarves() {
+        return true;
+    }
+
+    @Override
+    protected Long getCarveTime(Secret entity) {
+        return entity.getCarveTime();
+    }
+
+    @Override
+    protected void markLocalOnly(Secret entity) {
+        entity.setOnChain(false);
+        entity.setCarveTime(null);
+    }
+
+    @Override
+    protected void markConfirmed(Secret entity) {
+        entity.setOnChain(true);
+        entity.setCarveTime(null);
+    }
+
+    @Override
     protected List<Secret> searchFromList(String query, List<Secret> results) {
         List<Secret> matchingSecrets = new ArrayList<>();
 

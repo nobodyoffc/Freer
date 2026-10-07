@@ -702,7 +702,7 @@ public class CreateContactActivity extends BaseCryptoActivity {
                     public void onSuccess(String txId) {
                         runOnUiThread(() -> {
                             contact.setId(txId);
-                            contact.setOnChain(null);
+                            contact.markCarvePending();
                             encryptContactContent(contact, pubkey);
                             contact.setLastHeight(Constants.MaX_HEIGHT);
                             ContactManager.getInstance().saveAndFinish(CreateContactActivity.this, contact,true);
@@ -744,14 +744,14 @@ public class CreateContactActivity extends BaseCryptoActivity {
                         .setMessage(R.string.contact_already_exists_message)
                         .setPositiveButton(R.string.replace, (dialog, which) -> {
                             encryptContactContent(contact, pubkey);
-                            contact.setOnChain(null);
+                            contact.markCarvePending();
                             contactManager.saveAndFinish(this, contact,true);
                         })
                         .setNegativeButton(R.string.cancel, null)
                         );
             } else {
                 encryptContactContent(contact, pubkey);
-                contact.setOnChain(null);
+                contact.markCarvePending();
                 contactManager.saveAndFinish(this, contact,true);
             }
         }

@@ -858,7 +858,7 @@ public class ContactDeletedActivity extends BaseCryptoActivity {
                             // Add recovered contacts to database
                             for (Contact contact : contactsToRecover) {
                                 contact.setActive(false);
-                                contact.setOnChain(null);
+                                contact.markCarvePending();
                                 contactManager.addContact(contact);
                             }
                             contactManager.commit();

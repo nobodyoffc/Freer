@@ -561,6 +561,11 @@ public class MailManager extends FcManager<Mail> {
     }
 
     @Override
+    protected String[] getOwnerFields() {
+        return new String[]{FROM, TO};
+    }
+
+    @Override
     protected List<String> makeSortList(Object apiObject) {
         Mail mail = (Mail) apiObject;
         return Arrays.asList(String.valueOf(mail.getLastHeight()), mail.getId());

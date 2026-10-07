@@ -47,6 +47,7 @@ import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
+import com.fc.freer.utils.CarvePlan;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.fc_ajdk.core.crypto.Encryptor;
 
@@ -1497,24 +1498,39 @@ public class ContactActivity extends BaseCryptoActivity {
         contactForChain.setSeeStatement(contact.getSeeStatement());
         contactForChain.setSeeWritings(contact.getSeeWritings());
 
-        String feipJson = makeAddContactFeip(contactForChain, pubkey);
-
         // Get private key for transaction signing
         byte[] prikey = SecurePrikeyManager.fetchPrikeySilent(liveKeyInfo.getPrikeyCipher());
         if (prikey != null) {
 
             new Thread(() -> {
+                // A row that looks local-only may still have a carve (older versions cleared the
+                // flag on a local save of an on-chain contact): the chain decides add or update.
+                FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
+                CarvePlan plan = CarvePlan.decide(fapiClient, CONTACT, Contact.class, contact.getId(),
+                        contact.getOnChain(), contact.getCarveTime(), liveKeyInfo.getId(), Contact::getOwner, Contact::getActive);
+                if (plan.op == null) {
+                    runOnUiThread(() -> ToastUtils.makeText(ContactActivity.this, getString(plan.blockedMessage)));
+                    return;
+                }
+                String feipJson = plan.isUpdate()
+                        ? makeUpdateContactFeip(contact.getId(), contactForChain, pubkey)
+                        : makeAddContactFeip(contactForChain, pubkey);
+
                 CashManager cashManager = CashManager.getInstance();
                 TxSender txSender = new TxSender();
-                txSender.carveSimpleFeip(this, liveKeyInfo.getId(), feipJson, prikey, cashManager, new TxHandler(), (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7), new TxSender.TxCallback() {
+                txSender.carveSimpleFeip(this, liveKeyInfo.getId(), feipJson, prikey, cashManager, new TxHandler(), fapiClient, new TxSender.TxCallback() {
                     @Override
                     public void onSuccess(String txId) {
                         runOnUiThread(() -> {
-                            // Remove the original off-chain contact from database
-                            ContactManager.getInstance().removeContact(contact);
-
-                            // Create a new contact with the transaction ID as the contact ID
-                            makePendingContact(txId, contact);
+                            if (plan.isUpdate()) {
+                                // Same contact, new detail: it keeps its id until the update confirms.
+                                contact.markCarvePending();
+                                contact.setLastHeight(Constants.MaX_HEIGHT);
+                            } else {
+                                // A new carve: the contact is now known by its add txid.
+                                ContactManager.getInstance().removeContact(contact);
+                                makePendingContact(txId, contact);
+                            }
 
                             // Save the new on-chain contact to database
                             ContactManager.getInstance().addContact(contact);
@@ -1559,7 +1575,7 @@ public class ContactActivity extends BaseCryptoActivity {
 
     private void makePendingContact(String txId, Contact contact) {
         contact.setId(txId); // Use transaction ID as contact ID
-        contact.setOnChain(null); // null indicates pending/unknown status
+        contact.markCarvePending(); // null indicates pending/unknown status
         contact.setLastHeight(Constants.MaX_HEIGHT);
     }
 
@@ -1657,6 +1673,16 @@ public class ContactActivity extends BaseCryptoActivity {
         }
         contactListForDialog = null;
         currentFidIndex = 0;
+    }
+
+    /**
+     * Creates a FEIP replacing the detail of the carved contact contactId.
+     */
+    private static String makeUpdateContactFeip(String contactId, Contact contact, String pubkey) {
+        String contactDetailCipher = new Encryptor(AlgorithmId.FC_EccK1AesGcm256_No1_NrC7).encryptStrByAsyOneWay(contact.toJson(), pubkey).toJson();
+        Feip feip = Feip.fromName(CONTACT);
+        feip.setData(ContactOpData.makeUpdate(contactId, null, contactDetailCipher));
+        return feip.toJson();
     }
 
     /**

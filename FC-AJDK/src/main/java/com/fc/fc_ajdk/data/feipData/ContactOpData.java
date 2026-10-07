@@ -48,7 +48,7 @@ public class ContactOpData {
 	
 	static {
 		OP_FIELDS.put(Op.ADD.toLowerCase(), new String[]{FieldNames.ALG, FieldNames.CIPHER});
-		OP_FIELDS.put(Op.ADD.toLowerCase(), new String[]{FieldNames.CONTACT_ID,FieldNames.ALG, FieldNames.CIPHER});
+		OP_FIELDS.put(Op.UPDATE.toLowerCase(), new String[]{FieldNames.CONTACT_ID,FieldNames.ALG, FieldNames.CIPHER});
 		OP_FIELDS.put(Op.DELETE.toLowerCase(), new String[]{FieldNames.CONTACT_IDS});
 		OP_FIELDS.put(Op.RECOVER.toLowerCase(), new String[]{FieldNames.CONTACT_IDS});
 	}

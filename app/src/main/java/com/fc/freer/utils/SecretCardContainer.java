@@ -459,7 +459,8 @@ public class SecretCardContainer {
         Boolean onChain = secret.getOnChain();
         if (onChain != null && onChain) {
             onChainIcon.setImageResource(R.drawable.ic_on_chain);
-        } else if (onChain != null) {
+        } else if (CarvePlan.isLocalOnly(onChain, secret.getCarveTime())) {
+            // Local only, or a carve that expired unconfirmed: it can be carved again.
             onChainIcon.setImageResource(R.drawable.ic_off_chain);
             onChainIcon.setOnClickListener(v -> {
                 if (onOffChainIconClickListener != null) {

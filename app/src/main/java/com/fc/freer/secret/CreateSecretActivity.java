@@ -287,7 +287,7 @@ public class CreateSecretActivity extends BaseCryptoActivity {
                     public void onSuccess(String txId) {
                         runOnUiThread(() -> {
                             secret.setId(txId);
-                            secret.setOnChain(null);
+                            secret.markCarvePending();
                             encryptContent(content, pubkey, secret);
                             secret.setContent(null);
                             secret.setLastHeight(Constants.MaX_HEIGHT);
@@ -341,7 +341,7 @@ public class CreateSecretActivity extends BaseCryptoActivity {
                 encryptContent(content, pubkey, secret);
                 // Set content to null before saving to db
                 secret.setContent(null);
-                secret.setOnChain(null);
+                secret.markCarvePending();
                 secretManager.saveAndFinish(this, secret,true);
             }
         }

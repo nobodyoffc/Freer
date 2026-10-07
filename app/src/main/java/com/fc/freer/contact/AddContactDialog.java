@@ -210,7 +210,7 @@ public class AddContactDialog {
                         if (context instanceof ContactActivity) {
                             ((ContactActivity) context).runOnUiThread(() -> {
                                 currentContact.setId(txId);
-                                currentContact.setOnChain(null);
+                                currentContact.markCarvePending();
                                 currentContact.setLastHeight(Constants.MaX_HEIGHT);
                                 ContactManager contactManager = ContactManager.getInstance();
                                 contactManager.addContact(currentContact);

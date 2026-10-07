@@ -45,6 +45,8 @@ public class Contact extends FreerInfo {
     private Boolean seeWritings;
 
     private Boolean onChain;
+    /** When the carve that has not confirmed yet was broadcast (ms); null once confirmed. Local only. */
+    private Long carveTime;
     private Boolean decrypted;
 
 
@@ -270,6 +272,20 @@ public class Contact extends FreerInfo {
 
     public void setOnChain(Boolean onChain) {
         this.onChain = onChain;
+    }
+
+    public Long getCarveTime() {
+        return carveTime;
+    }
+
+    public void setCarveTime(Long carveTime) {
+        this.carveTime = carveTime;
+    }
+
+    /** A carve was just broadcast: pending (onChain null) until a sync confirms it. */
+    public void markCarvePending() {
+        this.onChain = null;
+        this.carveTime = System.currentTimeMillis();
     }
 
     public Boolean getDecrypted() {

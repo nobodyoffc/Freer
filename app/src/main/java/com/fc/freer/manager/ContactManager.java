@@ -732,6 +732,28 @@ public class ContactManager extends FcManager<Contact> {
     }
 
     @Override
+    protected boolean expiresPendingCarves() {
+        return true;
+    }
+
+    @Override
+    protected Long getCarveTime(Contact entity) {
+        return entity.getCarveTime();
+    }
+
+    @Override
+    protected void markLocalOnly(Contact entity) {
+        entity.setOnChain(false);
+        entity.setCarveTime(null);
+    }
+
+    @Override
+    protected void markConfirmed(Contact entity) {
+        entity.setOnChain(true);
+        entity.setCarveTime(null);
+    }
+
+    @Override
     protected List<Contact> searchFromList(String query, List<Contact> results) {
         List<Contact> matchingContacts = new ArrayList<>();
 

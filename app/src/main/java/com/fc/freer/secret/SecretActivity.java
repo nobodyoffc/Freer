@@ -44,6 +44,7 @@ import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
+import com.fc.freer.utils.CarvePlan;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.fc_ajdk.core.crypto.Encryptor;
 import static com.fc.fc_ajdk.constants.IndicesNames.SECRET;
@@ -1464,8 +1465,8 @@ public class SecretActivity extends BaseCryptoActivity {
             return;
         }
 
-        // Only allow carving if secret is explicitly marked as off-chain (false)
-        if (onChain == null || onChain) {
+        // Only a local-only secret, or one whose carve expired unconfirmed, is carved from here
+        if (!CarvePlan.isLocalOnly(onChain, secret.getCarveTime())) {
             ToastUtils.makeText(this, getString(R.string.toast_not_offchain_secret));
             return;
         }
@@ -1517,8 +1518,6 @@ public class SecretActivity extends BaseCryptoActivity {
         secretForChain.setContent(content);
 
         // Create FEIP for on-chain carving
-        String feipJson = makeAddSecretFeip(secretForChain, pubkey);
-
         // Show waiting dialog before fetching private key
         showWaitingDialog(getString(R.string.carving_secret_on_chain));
 
@@ -1534,20 +1533,36 @@ public class SecretActivity extends BaseCryptoActivity {
         // Private key obtained, proceed with transaction
         new Thread(() -> {
             try {
+                // A row that looks local-only may still have a carve (older versions cleared the
+                // flag on a local save of an on-chain secret): the chain decides add or update.
+                FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
+                CarvePlan plan = CarvePlan.decide(fapiClient, SECRET, Secret.class, secret.getId(),
+                        secret.getOnChain(), secret.getCarveTime(), liveKeyInfo.getId(), Secret::getOwner, Secret::getActive);
+                if (plan.op == null) {
+                    runOnUiThread(() -> {
+                        dismissWaitingDialog();
+                        ToastUtils.makeText(SecretActivity.this, getString(plan.blockedMessage));
+                    });
+                    return;
+                }
+                String feipJson = plan.isUpdate()
+                        ? makeUpdateSecretFeip(secret.getId(), secretForChain, pubkey)
+                        : makeAddSecretFeip(secretForChain, pubkey);
+
                 CashManager cashManager = CashManager.getInstance();
                 TxSender txSender = new TxSender();
-                txSender.carveSimpleFeip(this, liveKeyInfo.getId(), feipJson, prikey, cashManager, new TxHandler(), (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7), new TxSender.TxCallback() {
+                txSender.carveSimpleFeip(this, liveKeyInfo.getId(), feipJson, prikey, cashManager, new TxHandler(), fapiClient, new TxSender.TxCallback() {
                     @Override
                     public void onSuccess(String txId) {
                         runOnUiThread(() -> {
                             dismissWaitingDialog();
 
-                            // Remove the original off-chain secret from database
-                            SecretManager.getInstance().removeSecretDetail(secret);
-
-                            // Update the secret with transaction details (same as CreateSecretActivity)
-                            secret.setId(txId);
-                            secret.setOnChain(null); // null indicates pending/unknown status
+                            if (!plan.isUpdate()) {
+                                // A new carve: the secret is now known by its add txid.
+                                SecretManager.getInstance().removeSecretDetail(secret);
+                                secret.setId(txId);
+                            }
+                            secret.markCarvePending(); // null indicates pending/unknown status
                             secret.setLastHeight(Constants.MaX_HEIGHT);
 
                             // Save the updated secret to database
@@ -1600,6 +1615,16 @@ public class SecretActivity extends BaseCryptoActivity {
                 com.fc.fc_ajdk.utils.BytesUtils.clearByteArray(prikey);
             }
         }).start();
+    }
+
+    /**
+     * Creates a FEIP replacing the detail of the carved secret secretId.
+     */
+    private static String makeUpdateSecretFeip(String secretId, Secret secret, String pubkey) {
+        String secretDetailCipher = new Encryptor(AlgorithmId.FC_EccK1AesGcm256_No1_NrC7).encryptStrByAsyOneWay(secret.toJson(), pubkey).toJson();
+        Feip feip = Feip.fromName(SECRET);
+        feip.setData(SecretOpData.makeUpdate(secretId, null, secretDetailCipher));
+        return feip.toJson();
     }
 
     /**

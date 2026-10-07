@@ -36,6 +36,7 @@ import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
+import com.fc.freer.utils.CarvePlan;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.TextIconsUtils;
 import com.fc.freer.utils.ToastUtils;
@@ -159,7 +160,13 @@ public class UpdateContactActivity extends BaseCryptoActivity {
     @Override
     protected void setupButtons() {
         clearButton.setOnClickListener(v -> clearAllInputs());
+        // Save keeps the change on this device; carve puts it on chain. A contact that is on
+        // chain, or whose carve is pending, can only be carved: a local edit of it would be
+        // replaced by the chain copy, and would make it look local-only.
         updateButton.setOnClickListener(v -> updateContactToDatabase());
+        if (originalContact != null && !CarvePlan.isLocalOnly(originalContact.getOnChain(), originalContact.getCarveTime())) {
+            updateButton.setVisibility(View.GONE);
+        }
         carveButton.setOnClickListener(v -> carveContact());
     }
 
@@ -332,69 +339,88 @@ public class UpdateContactActivity extends BaseCryptoActivity {
             updatedContact.setNoticeFee(originalContact.getNoticeFee());
         }
 
-        String feipJson = makeUpdateContactFeip(updatedContact, pubkey);
-
         byte[] prikey = SecurePrikeyManager.fetchPrikeySilent(liveKeyInfo.getPrikeyCipher());
-        if (prikey != null) {
-            new Thread(() -> {
-                CashManager cashManager = CashManager.getInstance();
-                TxSender txSender = new TxSender();
-                txSender.carveSimpleFeip(this, liveKeyInfo.getId(), feipJson, prikey, cashManager, new TxHandler(), (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7), new TxSender.TxCallback() {
-                    @Override
-                    public void onSuccess(String txId) {
-                        runOnUiThread(() -> {
-                            // Keep original ID but mark as updated on-chain
-                            updatedContact.setOnChain(null); // null indicates pending/unknown status
-                            encryptContactContent(updatedContact, pubkey);
-                            updatedContact.setLastHeight(Constants.MaX_HEIGHT);
-
-                            // Update the contact in database
-                            ContactManager contactManager = ContactManager.getInstance();
-                            contactManager.updateContact(updatedContact);
-                            contactManager.commit();
-
-                            setResult(Activity.RESULT_OK);
-                            finish();
-                        });
-                    }
-
-                    @Override
-                    public void onError(String errorMessage) {
-                        runOnUiThread(() -> {
-                            ToastUtils.makeText(UpdateContactActivity.this, getString(R.string.toast_failed_carve_feip, errorMessage));
-                        });
-                    }
-
-                    @Override
-                    public void onUnsignedTx(RawTxInfo rawTxInfo) {
-                        runOnUiThread(() -> {
-                            ToastUtils.makeText(UpdateContactActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
-                            txSender.showUnsignedTxAsQR(UpdateContactActivity.this, rawTxInfo);
-                        });
-                    }
-
-                    @Override
-                    public void onUnbroadcasted(String signedTxHex) {
-                        runOnUiThread(() -> {
-                            // Show signed transaction as QR code for manual broadcasting
-                            txSender.showSignedTxAsQR(UpdateContactActivity.this, signedTxHex);
-                        });
-                    }
-                });
-            }).start();
-        } else {
-            // Update locally without blockchain transaction
-            encryptContactContent(updatedContact, pubkey);
-            updatedContact.setOnChain(null); // null indicates pending/unknown status
-
-            ContactManager contactManager = ContactManager.getInstance();
-            contactManager.updateContact(updatedContact);
-            contactManager.commit();
-
-            ToastUtils.makeText(this, getString(R.string.toast_contact_updated_local));
-            setResult(Activity.RESULT_OK);
-            finish();
+        if (prikey == null) {
+            ToastUtils.makeText(this, getString(R.string.toast_failed_get_private_key));
+            return;
         }
+        FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
+        if (fapiClient == null) {
+            ToastUtils.makeText(this, getString(R.string.toast_failed_check_on_chain));
+            return;
+        }
+
+        // An 'update' or an 'add' as CarvePlan decides; after an add the row is re-keyed.
+        new Thread(() -> {
+            CarvePlan plan = CarvePlan.decide(fapiClient, CONTACT, Contact.class, originalContact.getId(),
+                    originalContact.getOnChain(), originalContact.getCarveTime(), liveKeyInfo.getId(), Contact::getOwner, Contact::getActive);
+            if (plan.op == null) {
+                runOnUiThread(() -> ToastUtils.makeText(this, getString(plan.blockedMessage)));
+                return;
+            }
+            boolean isUpdate = plan.isUpdate();
+            String feipJson = isUpdate ? makeUpdateContactFeip(updatedContact, pubkey) : makeAddContactFeip(updatedContact, pubkey);
+
+            CashManager cashManager = CashManager.getInstance();
+            TxSender txSender = new TxSender();
+            txSender.carveSimpleFeip(this, liveKeyInfo.getId(), feipJson, prikey, cashManager, new TxHandler(), fapiClient, new TxSender.TxCallback() {
+                @Override
+                public void onSuccess(String txId) {
+                    runOnUiThread(() -> {
+                        ContactManager contactManager = ContactManager.getInstance();
+                        if (!isUpdate) {
+                            // A new carve: the contact is now known by its add txid.
+                            contactManager.removeContact(originalContact);
+                            updatedContact.setId(txId);
+                        }
+                        updatedContact.markCarvePending(); // pending until a block confirms it
+                        encryptContactContent(updatedContact, pubkey);
+                        updatedContact.setLastHeight(Constants.MaX_HEIGHT);
+
+                        contactManager.updateContact(updatedContact);
+                        contactManager.commit();
+
+                        setResult(Activity.RESULT_OK);
+                        finish();
+                    });
+                }
+
+                @Override
+                public void onError(String errorMessage) {
+                    runOnUiThread(() -> {
+                        ToastUtils.makeText(UpdateContactActivity.this, getString(R.string.toast_failed_carve_feip, errorMessage));
+                    });
+                }
+
+                @Override
+                public void onUnsignedTx(RawTxInfo rawTxInfo) {
+                    runOnUiThread(() -> {
+                        ToastUtils.makeText(UpdateContactActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
+                        txSender.showUnsignedTxAsQR(UpdateContactActivity.this, rawTxInfo);
+                    });
+                }
+
+                @Override
+                public void onUnbroadcasted(String signedTxHex) {
+                    runOnUiThread(() -> {
+                        // Show signed transaction as QR code for manual broadcasting
+                        txSender.showSignedTxAsQR(UpdateContactActivity.this, signedTxHex);
+                    });
+                }
+            });
+        }).start();
+    }
+
+    private static String makeAddContactFeip(Contact contact, String pubkey) {
+        // The detail carries no id: the add's txid becomes the id.
+        String id = contact.getId();
+        contact.setId(null);
+        String detail = contact.toJson();
+        contact.setId(id);
+        String contactDetailCipher = new Encryptor(AlgorithmId.FC_EccK1AesGcm256_No1_NrC7).encryptStrByAsyOneWay(detail, pubkey).toJson();
+        Feip feip = Feip.fromName(CONTACT);
+        feip.setData(ContactOpData.makeAdd(null, contactDetailCipher));
+        return feip.toJson();
     }
 
     private static String makeUpdateContactFeip(Contact contact, String pubkey) {

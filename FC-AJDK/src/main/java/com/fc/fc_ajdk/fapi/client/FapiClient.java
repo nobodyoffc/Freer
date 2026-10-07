@@ -10,6 +10,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.fc.fc_ajdk.client.ApiClient;
+import com.fc.fc_ajdk.fapi.FapiCode;
 import com.fc.fc_ajdk.constants.IndicesNames;
 import com.fc.fc_ajdk.core.crypto.Hash;
 import com.fc.fc_ajdk.data.apipData.Fcdsl;
@@ -1996,7 +1997,9 @@ public class FapiClient implements ApiClient {
      */
     public boolean isDataNoFound() {
         if (lastResponse == null) return false;
-        return lastResponse.getCode() == 1011; // Data not found code
+        // FAPI answers 404; 1011 is the old APIP code.
+        Integer code = lastResponse.getCode();
+        return code != null && (code == FapiCode.NOT_FOUND || code == 1011);
     }
     
     /**

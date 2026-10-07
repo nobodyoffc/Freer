@@ -398,7 +398,8 @@ public class ContactCardContainer {
         Boolean onChain = contact.getOnChain();
         if (onChain != null && onChain) {
             onChainIcon.setImageResource(R.drawable.ic_on_chain);
-        } else if (onChain != null) {
+        } else if (CarvePlan.isLocalOnly(onChain, contact.getCarveTime())) {
+            // Local only, or a carve that expired unconfirmed: it can be carved again.
             onChainIcon.setImageResource(R.drawable.ic_off_chain);
             onChainIcon.setOnClickListener(v -> {
                 if (onOffChainIconClickListener != null) {

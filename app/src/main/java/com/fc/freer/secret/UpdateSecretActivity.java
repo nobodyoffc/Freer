@@ -24,6 +24,7 @@ import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.TxSender;
 import com.fc.freer.utils.ApiCenter;
+import com.fc.freer.utils.CarvePlan;
 import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.freer.utils.ToastUtils;
 import android.widget.ArrayAdapter;
@@ -55,6 +56,7 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
     private AutoCompleteTextView typeInput;
     private ImageButton clearButton;
     private ImageButton updateButton;
+    private ImageButton carveButton;
     private Button newRandomButton;
 
     // Define request codes for QR scan if not already defined
@@ -152,18 +154,20 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
 
         clearButton = findViewById(R.id.clearButton);
         updateButton = findViewById(R.id.updateButton);
+        carveButton = findViewById(R.id.carveButton);
         newRandomButton = findViewById(R.id.newRandomButton);
     }
 
     protected void setupButtons() {
         clearButton.setOnClickListener(v -> clearInputs());
-        updateButton.setOnClickListener(v -> {
-            if (originalSecret != null && Boolean.FALSE.equals(originalSecret.getOnChain())) {
-                saveSecretToDatabase();
-            } else {
-                updateSecret();
-            }
-        });
+        // Save keeps the change on this device; carve puts it on chain. An item that is on
+        // chain, or whose carve is pending, can only be carved: a local edit of it would be
+        // replaced by the chain copy, and would make it look local-only.
+        updateButton.setOnClickListener(v -> saveSecretToDatabase());
+        if (originalSecret != null && !CarvePlan.isLocalOnly(originalSecret.getOnChain(), originalSecret.getCarveTime())) {
+            updateButton.setVisibility(View.GONE);
+        }
+        carveButton.setOnClickListener(v -> carveSecret());
         newRandomButton.setOnClickListener(v -> generateRandomContent());
     }
 
@@ -196,13 +200,6 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
         // Set type
         if (originalSecret.getType() != null) {
             typeInput.setText(originalSecret.getType());
-        }
-
-        // Update button text based on onChain status
-        if (Boolean.FALSE.equals(originalSecret.getOnChain())) {
-            updateButton.setImageResource(R.drawable.ic_save);
-        } else {
-            updateButton.setImageResource(R.drawable.ic_send);
         }
 
         // Decrypt and set content
@@ -272,7 +269,11 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
         typeInput.setText("");
     }
 
-    private void saveSecretToDatabase() {
+    /**
+     * The secret as edited, with plain content, or null after telling the user what is wrong.
+     * The id is the original one.
+     */
+    private Secret readEditedSecret() {
         String title = titleInput.getText() != null ? titleInput.getText().toString() : "";
         String content = contentInput.getText() != null ? contentInput.getText().toString() : "";
         String memo = memoInput.getText() != null ? memoInput.getText().toString() : "";
@@ -281,13 +282,13 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
         if(typeDisplay.equals("TOTP" )) {
             if(!Base32.isBase32(content)) {
                 ToastUtils.makeText(this, getString(R.string.toast_totp_update_base32));
-                return;
+                return null;
             }
         }
 
         if ( content.isEmpty() ) {
             ToastUtils.makeText(this, R.string.please_fill_required_fields);
-            return;
+            return null;
         }
 
         // Map display name back to enum name
@@ -300,23 +301,26 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
         }
         if (selectedType == null) {
             ToastUtils.makeText(this, R.string.invalid_type_selected);
-            return;
+            return null;
         }
         String type = selectedType.getDisplayName(selectedType);
 
-        KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
-        String pubkey = liveKeyInfo.getPubkey();
-
-        // Create updated secret detail
         Secret updatedSecret = new Secret();
         updatedSecret.setId(originalSecret.getId()); // Keep original ID
         if(!title.isEmpty()) updatedSecret.setTitle(title);
         if(!memo.isEmpty()) updatedSecret.setMemo(memo);
         if(!type.isEmpty()) updatedSecret.setType(type);
-        updatedSecret.setContent(content); // Optionally store plain content
+        updatedSecret.setContent(content);
+        return updatedSecret;
+    }
+
+    private void saveSecretToDatabase() {
+        Secret updatedSecret = readEditedSecret();
+        if (updatedSecret == null) return;
+        String pubkey = FidManager.getInstance().getLiveKeyInfo().getPubkey();
 
         // Encrypt content and save to database only (no blockchain operation)
-        encryptContent(content, pubkey, updatedSecret);
+        encryptContent(updatedSecret.getContent(), pubkey, updatedSecret);
         updatedSecret.setContent(null); // Clear content after encryption
         updatedSecret.setOnChain(false); // Mark as off-chain
         updatedSecret.setLastHeight(Constants.MaX_HEIGHT); // Set update height to a high value
@@ -331,117 +335,101 @@ public class UpdateSecretActivity extends BaseCryptoActivity {
         finish();
     }
 
-    private void updateSecret() {
-        String title = titleInput.getText() != null ? titleInput.getText().toString() : "";
-        String content = contentInput.getText() != null ? contentInput.getText().toString() : "";
-        String memo = memoInput.getText() != null ? memoInput.getText().toString() : "";
-        String typeDisplay = typeInput.getText() != null ? typeInput.getText().toString() : "";
-
-        if(typeDisplay.equals("TOTP" )) {
-            if(!Base32.isBase32(content)) {
-                ToastUtils.makeText(this, getString(R.string.toast_totp_update_base32));
-                return;
-            }
-        }
-
-        if ( content.isEmpty() ) {
-            ToastUtils.makeText(this, R.string.please_fill_required_fields);
-            return;
-        }
-
-        // Map display name back to enum name
-        Secret.Type selectedType = null;
-        for (Secret.Type t : Secret.Type.values()) {
-            if (t.displayName.equals(typeDisplay)) {
-                selectedType = t;
-                break;
-            }
-        }
-        if (selectedType == null) {
-            ToastUtils.makeText(this, R.string.invalid_type_selected);
-            return;
-        }
-        String type = selectedType.getDisplayName(selectedType);
+    /**
+     * Carve the edited secret, as an 'update' or an 'add' as {@link CarvePlan} decides. After an
+     * add the local row is re-keyed to the txid.
+     */
+    private void carveSecret() {
+        Secret updatedSecret = readEditedSecret();
+        if (updatedSecret == null) return;
+        String content = updatedSecret.getContent();
 
         KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
         String pubkey = liveKeyInfo.getPubkey();
 
-        // Create updated secret detail
-        Secret updatedSecret = new Secret();
-        updatedSecret.setId(originalSecret.getId()); // Keep original ID
-        if(!title.isEmpty()) updatedSecret.setTitle(title);
-        if(!memo.isEmpty()) updatedSecret.setMemo(memo);
-        if(!type.isEmpty()) updatedSecret.setType(type);
-        updatedSecret.setContent(content); // Optionally store plain content
-
-        String feipJson = makeUpdateSecretFeip(updatedSecret, pubkey);
-
         byte[] prikey = SecurePrikeyManager.fetchPrikeySilent(liveKeyInfo.getPrikeyCipher());
-        if(prikey!=null) {
-
-            new Thread(() -> {
-                CashManager cashManager = CashManager.getInstance();
-                TxSender txSender = new TxSender();
-                txSender.carveSimpleFeip(this, liveKeyInfo.getId(), feipJson, prikey, cashManager, new TxHandler(), (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7), new TxSender.TxCallback() {
-                    @Override
-                    public void onSuccess(String txId) {
-                        runOnUiThread(() -> {
-                            // Keep original ID but mark as updated
-                            updatedSecret.setOnChain(null);
-                            encryptContent(content, pubkey, updatedSecret);
-                            updatedSecret.setContent(null);
-                            updatedSecret.setLastHeight(Constants.MaX_HEIGHT);
-                            updatedSecret.setSaveTime(DateUtils.longToTime(System.currentTimeMillis(),DateUtils.TO_MINUTE));
-
-                            // Update the secret in database
-                            SecretManager secretManager = SecretManager.getInstance();
-                            secretManager.updateSecret(updatedSecret);
-                            secretManager.commit();
-
-                            setResult(Activity.RESULT_OK);
-                            finish();
-                        });
-                    }
-
-                    @Override
-                    public void onError(String errorMessage) {
-                        runOnUiThread(() -> {
-                            ToastUtils.makeText(UpdateSecretActivity.this, getString(R.string.toast_failed_carve_feip, errorMessage));
-                        });
-                    }
-
-                    @Override
-                    public void onUnsignedTx(RawTxInfo rawTxInfo) {
-                        runOnUiThread(() -> {
-                            ToastUtils.makeText(UpdateSecretActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
-                            txSender.showUnsignedTxAsQR(UpdateSecretActivity.this, rawTxInfo);
-                        });
-                    }
-
-                    @Override
-                    public void onUnbroadcasted(String signedTxHex) {
-                        runOnUiThread(() -> {
-                            // Show signed transaction as QR code for manual broadcasting
-                            txSender.showSignedTxAsQR(UpdateSecretActivity.this, signedTxHex);
-                        });
-                    }
-                });
-            }).start();
-
-        } else {
-            // Update locally without blockchain transaction
-            encryptContent(content, pubkey, updatedSecret);
-            updatedSecret.setContent(null);
-            updatedSecret.setOnChain(false);
-
-            SecretManager secretManager = SecretManager.getInstance();
-            secretManager.updateSecret(updatedSecret);
-            secretManager.commit();
-
-            ToastUtils.makeText(this, getString(R.string.toast_secret_updated_local));
-            setResult(Activity.RESULT_OK);
-            finish();
+        if (prikey == null) {
+            ToastUtils.makeText(this, getString(R.string.toast_failed_get_private_key));
+            return;
         }
+        FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
+        if (fapiClient == null) {
+            ToastUtils.makeText(this, getString(R.string.toast_failed_check_on_chain));
+            return;
+        }
+
+        new Thread(() -> {
+            CarvePlan plan = CarvePlan.decide(fapiClient, SECRET, Secret.class, originalSecret.getId(),
+                    originalSecret.getOnChain(), originalSecret.getCarveTime(), liveKeyInfo.getId(), Secret::getOwner, Secret::getActive);
+            if (plan.op == null) {
+                runOnUiThread(() -> ToastUtils.makeText(this, getString(plan.blockedMessage)));
+                return;
+            }
+            boolean isUpdate = plan.isUpdate();
+            String feipJson = isUpdate ? makeUpdateSecretFeip(updatedSecret, pubkey) : makeAddSecretFeip(updatedSecret, pubkey);
+
+            CashManager cashManager = CashManager.getInstance();
+            TxSender txSender = new TxSender();
+            txSender.carveSimpleFeip(this, liveKeyInfo.getId(), feipJson, prikey, cashManager, new TxHandler(), fapiClient, new TxSender.TxCallback() {
+                @Override
+                public void onSuccess(String txId) {
+                    runOnUiThread(() -> {
+                        SecretManager secretManager = SecretManager.getInstance();
+                        if (!isUpdate) {
+                            // A new carve: the secret is now known by its add txid.
+                            secretManager.removeEntity(originalSecret);
+                            updatedSecret.setId(txId);
+                        }
+                        updatedSecret.markCarvePending(); // pending until a block confirms it
+                        encryptContent(content, pubkey, updatedSecret);
+                        updatedSecret.setContent(null);
+                        updatedSecret.setLastHeight(Constants.MaX_HEIGHT);
+                        updatedSecret.setSaveTime(DateUtils.longToTime(System.currentTimeMillis(),DateUtils.TO_MINUTE));
+
+                        secretManager.updateSecret(updatedSecret);
+                        secretManager.commit();
+
+                        setResult(Activity.RESULT_OK);
+                        finish();
+                    });
+                }
+
+                @Override
+                public void onError(String errorMessage) {
+                    runOnUiThread(() -> {
+                        ToastUtils.makeText(UpdateSecretActivity.this, getString(R.string.toast_failed_carve_feip, errorMessage));
+                    });
+                }
+
+                @Override
+                public void onUnsignedTx(RawTxInfo rawTxInfo) {
+                    runOnUiThread(() -> {
+                        ToastUtils.makeText(UpdateSecretActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
+                        txSender.showUnsignedTxAsQR(UpdateSecretActivity.this, rawTxInfo);
+                    });
+                }
+
+                @Override
+                public void onUnbroadcasted(String signedTxHex) {
+                    runOnUiThread(() -> {
+                        // Show signed transaction as QR code for manual broadcasting
+                        txSender.showSignedTxAsQR(UpdateSecretActivity.this, signedTxHex);
+                    });
+                }
+            });
+        }).start();
+    }
+
+    private static String makeAddSecretFeip(Secret secret, String pubkey) {
+        // The detail carries no id: the add's txid becomes the id.
+        String id = secret.getId();
+        secret.setId(null);
+        String detail = secret.toJson();
+        secret.setId(id);
+        String secretDetailCipher = new Encryptor(AlgorithmId.FC_EccK1AesGcm256_No1_NrC7).encryptStrByAsyOneWay(detail, pubkey).toJson();
+        Feip feip = Feip.fromName(SECRET);
+        feip.setData(SecretOpData.makeAdd(null, secretDetailCipher));
+        return feip.toJson();
     }
 
     private static String makeUpdateSecretFeip(Secret secret, String pubkey) {

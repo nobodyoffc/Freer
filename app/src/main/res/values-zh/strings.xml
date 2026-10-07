@@ -2799,4 +2799,7 @@
     <string name="home_call_room_helper_team">本团队会议所用的中继。留空则本团队不能开会。</string>
     <string name="call_checking_service">正在检查对方的 CALL 服务…</string>
     <string name="call_service_unusable">对方的 CALL 服务已关闭或无法访问，暂时无法呼叫。</string>
+    <string name="toast_failed_check_on_chain">无法连接链上服务查询该条目，请稍后重试。</string>
+    <string name="toast_deleted_on_chain_recover_first">该条目已在链上删除，请先恢复再更新。</string>
+    <string name="toast_carve_not_confirmed_wait">该条目的上链尚未确认，请等待区块确认后再试。</string>
 </resources>

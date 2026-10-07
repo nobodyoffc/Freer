@@ -137,8 +137,8 @@
                 <ImageButton
                     android:id="@+id/updateButton"
                     style="@style/ImageButtonStyle"
-                    android:src="@drawable/ic_tick"
-                    android:contentDescription="@string/confirm" />
+                    android:src="@drawable/ic_save"
+                    android:contentDescription="@string/save" />
 
                 <ImageButton
                     android:id="@+id/back_button"
