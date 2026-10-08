@@ -1,0 +1,13 @@
+{
+  "github": "nobodyoffc/Freer",
+  "codes": [
+    { "name": "Freer", "path": ".", "langs": ["Java", "Kotlin"],
+      "desc": "Freer for Android: wallet, identity, chat, calls and publishing on Freecash.",
+      "protocols": ["FEIP0", "FIMP0", "FUDP0", "FAPI0", "FTSP0", "FVEP0"] }
+  ],
+  "apps": [
+    { "stdName": "Freer", "asset": "Freer-*.apk", "os": "android", "types": ["wallet", "messenger"],
+      "desc": "Freer for Android: wallet, identity, chat, calls and publishing on Freecash.",
+      "codes": ["Freer"], "protocols": ["FEIP0", "FIMP0", "FUDP0", "FAPI0"] }
+  ]
+}
