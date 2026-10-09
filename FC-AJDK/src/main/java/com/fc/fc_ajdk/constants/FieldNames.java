@@ -86,6 +86,7 @@ public class FieldNames {
     public static final String SAVE_TIME = "saveTime";
     public static final String LAST = "last";
     public static final String DID = "did";
+    public static final String LOCAS = "locas";
     public static final String RESULT = "result";
     public static final String HAT = "hat";
     public static final String INDEX = "index";
