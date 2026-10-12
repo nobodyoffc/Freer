@@ -1027,13 +1027,13 @@
     <string name="failed_to_recover_mails">Failed to recover mails: %s</string>
 
     <!-- ApiServicesActivity -->
-    <string name="api_services">API Services</string>
+    <string name="api_services">This Device\'s Servers</string>
     <string name="change_api">Change API</string>
     <string name="dealer">Dealer</string>
     <string name="dealer_avatar">Dealer Avatar</string>
     <string name="api_url">API URL</string>
-    <string name="set_apis">Set Base</string>
-    <string name="set_dock_disk">Set my DOCK/DISK</string>
+    <string name="set_apis">This Device\'s Servers</string>
+    <string name="set_dock_disk">My Home</string>
     <string name="set_my_dock">Set my DOCK</string>
     <string name="backup_prikey">Backup prikey</string>
     <string name="id" translatable="false">ID</string>
@@ -2174,7 +2174,7 @@
     <string name="failed_to_register_dock">Failed to register DOCK</string>
 
     <!-- Combined DOCK + DISK server setup -->
-    <string name="server_setup_title">Set up servers</string>
+    <string name="server_setup_title">My Home</string>
     <string name="server_setup_message">Your chain server (BASE), messaging (DOCK) and data (DISK). Use your current server for all of them, or set each separately.</string>
     <string name="server_setup_action">Set up</string>
     <string name="server_setup_dock_label">Messaging server (DOCK)</string>

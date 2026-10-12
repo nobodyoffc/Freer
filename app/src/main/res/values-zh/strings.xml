@@ -1009,14 +1009,14 @@
     <string name="failed_to_recover_mails">恢复邮件失败：%s</string>
 
     <!-- ApiServicesActivity -->
-    <string name="api_services">API服务</string>
+    <string name="api_services">本机服务器</string>
     <string name="change_api">更换API</string>
     <string name="dealer">掌柜</string>
     <string name="dealer_avatar">掌柜头像</string>
     <string name="owner_avatar">所有者头像</string>
     <string name="api_url">API地址</string>
-    <string name="set_apis">设置基础API</string>
-    <string name="set_dock_disk">设置我的DOCK/DISK</string>
+    <string name="set_apis">本机服务器</string>
+    <string name="set_dock_disk">我的主页</string>
     <string name="set_my_dock">设置我的DOCK</string>
     <string name="backup_prikey">备份私钥</string>
 
@@ -2389,7 +2389,7 @@
     <string name="toast_secret_updated_local">私密已在本地更新</string>
 
     <!-- Combined DOCK + DISK server setup -->
-    <string name="server_setup_title">设置服务器</string>
+    <string name="server_setup_title">我的主页</string>
     <string name="server_setup_message">链服务器（BASE）、消息（DOCK）和数据（DISK）。可全部使用当前服务器，或分别设置。</string>
     <string name="server_setup_action">设置</string>
     <string name="server_setup_dock_label">消息服务器（DOCK）</string>
