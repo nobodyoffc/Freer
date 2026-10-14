@@ -72,16 +72,6 @@
             android:visibility="gone"
             />
 
-        <!-- Ask on the first-FCH request board -->
-        <Button
-            android:id="@+id/topupAskBoardButton"
-            style="@style/ButtonStyle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/ask_first_fch"
-            android:layout_marginEnd="8dp" />
-
         <!-- Copy Button -->
         <Button
             android:id="@+id/topupCopyButton"
@@ -89,7 +79,17 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/copy_fid" />
+            android:text="@string/copy_fid"
+            android:layout_marginEnd="8dp" />
+
+        <!-- Ask on the first-FCH request board: the recommended action, so it sits at the end -->
+        <Button
+            android:id="@+id/topupAskBoardButton"
+            style="@style/ButtonStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/ask_first_fch" />
 
     </LinearLayout>
 
