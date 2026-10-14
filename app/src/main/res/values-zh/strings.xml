@@ -1009,14 +1009,14 @@
     <string name="failed_to_recover_mails">恢复邮件失败：%s</string>
 
     <!-- ApiServicesActivity -->
-    <string name="api_services">本机服务器</string>
+    <string name="api_services">设置BASE服务器</string>
     <string name="change_api">更换API</string>
     <string name="dealer">掌柜</string>
     <string name="dealer_avatar">掌柜头像</string>
     <string name="owner_avatar">所有者头像</string>
     <string name="api_url">API地址</string>
-    <string name="set_apis">本机服务器</string>
-    <string name="set_dock_disk">我的主页</string>
+    <string name="set_apis">设置BASE服务器</string>
+    <string name="set_dock_disk">设置链上服务器</string>
     <string name="set_my_dock">设置我的DOCK</string>
     <string name="backup_prikey">备份私钥</string>
 
@@ -2389,7 +2389,7 @@
     <string name="toast_secret_updated_local">私密已在本地更新</string>
 
     <!-- Combined DOCK + DISK server setup -->
-    <string name="server_setup_title">我的主页</string>
+    <string name="server_setup_title">设置链上服务器</string>
     <string name="server_setup_message">链服务器（BASE）、消息（DOCK）和数据（DISK）。可全部使用当前服务器，或分别设置。</string>
     <string name="server_setup_action">设置</string>
     <string name="server_setup_dock_label">消息服务器（DOCK）</string>
@@ -2555,13 +2555,13 @@
     <string name="gs_step_backup_prikey">备份私钥</string>
     <string name="gs_step_first_fch">获得第一笔FCH</string>
     <string name="gs_step_register_cid">注册CID</string>
-    <string name="gs_step_set_home">设置DOCK和DISK</string>
+    <string name="gs_step_set_home">设置链上服务器</string>
     <string name="gs_step_add_guide">把引路人加为联系人</string>
     <string name="gs_step_join_square">加入一个群组</string>
     <string name="gs_explain_backup_prikey">私钥是这个身份属于你的唯一证明，而它只存在于这部手机上。手机丢了，身份也就没了，没有人能补发。请抄一份在纸上，或存成可以放在任何地方的加密文件。</string>
     <string name="gs_explain_first_fch">上链、名字和消息都要付手续费，所以空的FID暂时做不了什么。可以在公开的“第一笔FCH”求助板上求助，或请别人直接转币到你的地址。给你转来第一笔币的人就是你的引路人。</string>
     <string name="gs_explain_register_cid">CID是别人找到你的名字，比如 Alice_VkUV。末尾的几个字符取自你的FID，保证不重复。注册CID也会把你的公钥放上链，公钥上链之前，没有人能给你写信。</string>
-    <string name="gs_explain_set_home">DOCK在你离线时替你保存消息，DISK保存你的文件。两者都在链上登记之前，别人无处联系你。</string>
+    <string name="gs_explain_set_home">链上服务器告诉别人去哪里找你。DOCK在你离线时替你保存消息，DISK保存你的文件。它们在链上登记之前，别人无处联系你。</string>
     <string name="gs_explain_add_guide">引路人给你转来了第一笔币。他是你在这里唯一已经认识的人，把他加为联系人吧。</string>
     <string name="gs_explain_join_square">群组是任何人都能加入的公开群聊。找一个你感兴趣的，打个招呼。</string>
     <string name="gs_status_skipped">已跳过</string>
@@ -2681,7 +2681,7 @@
     <string name="server_setup_base_explain">读取链上数据所用的服务器。上链后，你的每台设备都会连接它；它不可用时退回内置服务器。</string>
     <string name="server_setup_private">私密：仅你自己可读</string>
     <string name="server_setup_private_needs_sid">只有服务 ID 可以设为私密。请选择服务，或取消勾选私密。</string>
-    <string name="server_setup_follow_base">本设备跟随我的 home BASE</string>
+    <string name="server_setup_follow_base">本设备使用我的链上BASE服务器</string>
     <string name="server_setup_connected_home">已连接 %s，即你的 home BASE</string>
     <string name="server_setup_connected_other">已连接 %s</string>
     <string name="server_setup_connected_none">未连接链服务器</string>

@@ -1027,13 +1027,13 @@
     <string name="failed_to_recover_mails">Failed to recover mails: %s</string>
 
     <!-- ApiServicesActivity -->
-    <string name="api_services">This Device\'s Servers</string>
+    <string name="api_services">Set BASE Server</string>
     <string name="change_api">Change API</string>
     <string name="dealer">Dealer</string>
     <string name="dealer_avatar">Dealer Avatar</string>
     <string name="api_url">API URL</string>
-    <string name="set_apis">This Device\'s Servers</string>
-    <string name="set_dock_disk">My Home</string>
+    <string name="set_apis">Set BASE server</string>
+    <string name="set_dock_disk">Set servers onchain</string>
     <string name="set_my_dock">Set my DOCK</string>
     <string name="backup_prikey">Backup prikey</string>
     <string name="id" translatable="false">ID</string>
@@ -2174,7 +2174,7 @@
     <string name="failed_to_register_dock">Failed to register DOCK</string>
 
     <!-- Combined DOCK + DISK server setup -->
-    <string name="server_setup_title">My Home</string>
+    <string name="server_setup_title">Set Servers Onchain</string>
     <string name="server_setup_message">Your chain server (BASE), messaging (DOCK) and data (DISK). Use your current server for all of them, or set each separately.</string>
     <string name="server_setup_action">Set up</string>
     <string name="server_setup_dock_label">Messaging server (DOCK)</string>
@@ -2596,13 +2596,13 @@
     <string name="gs_step_backup_prikey">Back up your prikey</string>
     <string name="gs_step_first_fch">Get your first FCH</string>
     <string name="gs_step_register_cid">Register a CID</string>
-    <string name="gs_step_set_home">Set your DOCK and DISK</string>
+    <string name="gs_step_set_home">Set your servers onchain</string>
     <string name="gs_step_add_guide">Add your guide to contacts</string>
     <string name="gs_step_join_square">Join a square</string>
     <string name="gs_explain_backup_prikey">Your prikey is the only proof this identity is yours, and it exists on this phone alone. If the phone is lost, so is the identity. Nobody can reissue it. Keep a copy on paper, or as an encrypted file you can store anywhere.</string>
     <string name="gs_explain_first_fch">Every carve, name and message costs a fee, so an empty FID can\'t do much yet. Ask on the public First FCH board, or have somebody send coins straight to your address. Whoever sends your first coins becomes your guide.</string>
     <string name="gs_explain_register_cid">A CID is a name people can find you by, like Alice_VkUV. The last characters of your FID keep it unique. Registering one also puts your pubkey on the chain, and nobody can write to you until it\'s there.</string>
-    <string name="gs_explain_set_home">A DOCK holds messages for you while you\'re offline, and a DISK keeps your files. Until both are registered on the chain, other freers have nowhere to reach you.</string>
+    <string name="gs_explain_set_home">Your servers onchain tell other freers where to reach you. A DOCK holds messages for you while you\'re offline, and a DISK keeps your files. Until they\'re registered on the chain, nobody has anywhere to reach you.</string>
     <string name="gs_explain_add_guide">Your guide sent you your first coins. They\'re the one person here you already know, so keep them in your contacts.</string>
     <string name="gs_explain_join_square">Squares are open group chats that anyone can join. Find one about something you care about and say hello.</string>
     <string name="gs_status_skipped">Skipped</string>
@@ -2759,7 +2759,7 @@
     <string name="server_setup_base_explain">The server you read the chain through. Once it is carved, every device of yours connects to it, and falls back to a built-in server if it is down.</string>
     <string name="server_setup_private">Private: only you can read it</string>
     <string name="server_setup_private_needs_sid">Only a service ID can be kept private. Choose the service, or untick Private.</string>
-    <string name="server_setup_follow_base">Follow my home BASE on this device</string>
+    <string name="server_setup_follow_base">Use my onchain BASE server on this device</string>
     <string name="server_setup_connected_home">Connected to %s, your home BASE</string>
     <string name="server_setup_connected_other">Connected to %s</string>
     <string name="server_setup_connected_none">Not connected to a chain server</string>
