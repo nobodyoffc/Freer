@@ -5,6 +5,19 @@
     android:orientation="vertical"
     android:padding="16dp">
 
+    <!-- Everything above the buttons scrolls. With the QR shown the content can outgrow the
+         screen; the weight lets this view absorb the shortfall instead of the button row,
+         which otherwise got squeezed until its labels were cut off. -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="1">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
     <TextView
         android:id="@+id/titleTextView"
         android:layout_width="match_parent"
@@ -142,6 +155,9 @@
             android:text="@string/set_master"
             android:visibility="gone" />
     </LinearLayout>
+
+    </LinearLayout>
+    </ScrollView>
 
     <!-- Buttons Container -->
     <LinearLayout
