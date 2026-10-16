@@ -33,7 +33,7 @@ import com.fc.freer.nobody.NobodyGuard;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.FreerApplication;
 import com.fc.freer.R;
-import com.fc.freer.im.SearchFidsOnChainActivity;
+import com.fc.freer.contact.ChooseContactActivity;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.model.Setting;
 import com.fc.freer.ui.WaitingDialog;
@@ -164,19 +164,22 @@ public class NewTalkActivity extends BaseCryptoActivity {
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                        java.util.List<String> fids = result.getData()
-                                .getStringArrayListExtra(SearchFidsOnChainActivity.EXTRA_SELECTED_FIDS);
-                        if (fids != null && !fids.isEmpty()) {
-                            openChatWithFid(fids.get(0));
+                        String contactJson = result.getData()
+                                .getStringExtra(ChooseContactActivity.EXTRA_SELECTED_CONTACT);
+                        if (contactJson == null) return;
+                        Contact contact = Contact.fromJson(contactJson, Contact.class);
+                        if (contact != null) {
+                            openChatWithContact(contact);
                         }
                     }
                 }
         );
     }
 
-    private void openChatWithFid(String fid) {
+    private void openChatWithContact(Contact contact) {
+        String fid = contact.getFid();
         if (fid == null || fid.isEmpty()) return;
-        confirmChatPartner(fid, () -> openChatWithFidConfirmed(fid));
+        confirmChatPartner(fid, () -> openChatWithContactConfirmed(contact));
     }
 
     /** A nobody partner's side of the chat can be read and written by anyone. */
@@ -189,9 +192,10 @@ public class NewTalkActivity extends BaseCryptoActivity {
                 R.string.nobody_consequence_chat, proceed);
     }
 
-    private void openChatWithFidConfirmed(String fid) {
+    private void openChatWithContactConfirmed(Contact contact) {
         try {
-            ensureTalkPartner(fid, null, null, null, TalkPartner.SOURCE_CONTACT);
+            String fid = contact.getFid();
+            ensureTalkPartner(fid, contact.getPubkey(), contact.getCid(), null, TalkPartner.SOURCE_CONTACT);
 
             Intent intent = new Intent(this, ChatActivity.class);
             intent.putExtra(ChatActivity.EXTRA_TYPE, ImType.P2P.name());
@@ -246,8 +250,8 @@ public class NewTalkActivity extends BaseCryptoActivity {
     }
 
     private void openContactPicker() {
-        Intent intent = new Intent(this, SearchFidsOnChainActivity.class);
-        intent.putExtra(SearchFidsOnChainActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_ONE_RETURN.name());
+        Intent intent = new Intent(this, ChooseContactActivity.class);
+        intent.putExtra(ChooseContactActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_ONE_RETURN.name());
         chooseContactLauncher.launch(intent);
     }
 
