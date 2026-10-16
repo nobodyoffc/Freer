@@ -14,6 +14,7 @@ import com.google.gson.reflect.TypeToken;
 import com.tencent.mmkv.MMKV;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -81,12 +82,15 @@ public class DockFetchScheduler {
 
     private static final String MMKV_PREFIX = "dock_cursors_";
     private static final String CURSORS_KEY = "cursors";
+    private static final String RECIPIENTS_KEY = "recipients";
 
     /**
      * Cursors per dock URL: [createTime, id] of the last fetched item.
      * Persisted to MMKV so they survive app restarts.
      */
     private final Map<String, List<String>> dockCursors = new ConcurrentHashMap<>();
+    /** Recipient IDs each DOCK's cursor already covers; any other is caught up first. */
+    private final Map<String, Set<String>> dockRecipients = new ConcurrentHashMap<>();
     private final MMKV cursorStore;
     private final Gson gson = new Gson();
 
@@ -276,6 +280,29 @@ public class DockFetchScheduler {
             boolean hasMore = true;
             boolean reached = true;
 
+            // The cursor is one per DOCK, shared by every recipient ID fetched from it,
+            // so a recipient added after the cursor moved (a square just joined on the
+            // DOCK that also holds my P2P items) would never see what was put before.
+            // Catch such recipients up from the start, up to the shared cursor.
+            if (cursor != null) {
+                List<String> newIds = new ArrayList<>(recipientIds);
+                Set<String> known = dockRecipients.get(dockUrl);
+                if (known != null) newIds.removeAll(known);
+                else newIds.remove(liveFid); // first run with this tracking: my own FID owned the cursor
+                if (!newIds.isEmpty()) {
+                    List<DockItem> caughtUp = catchUp(client, newIds, cursor);
+                    if (caughtUp == null) {
+                        registry.invalidateClient(dockUrl);
+                        registry.markFailed(dockUrl);
+                        if (callback != null) callback.onFetchError(dockUrl, "catch-up failed");
+                        return;
+                    }
+                    TimberLogger.i(TAG, "Caught up %d items for %d new recipients on DOCK %s",
+                            caughtUp.size(), newIds.size(), dockUrl);
+                    allItems.addAll(caughtUp);
+                }
+            }
+
             while (hasMore && running) {
                 Fcdsl fcdsl = new Fcdsl();
                 fcdsl.addSort(FieldNames.CREATE_TIME, Values.ASC);
@@ -322,6 +349,11 @@ public class DockFetchScheduler {
             if (!allItems.isEmpty() && callback != null) {
                 callback.onItemsFetched(allItems, dockUrl);
             }
+            if (reached) {
+                // Recipients dropped here (a square left) get caught up again if they return.
+                dockRecipients.put(dockUrl, new HashSet<>(recipientIds));
+                saveRecipients();
+            }
             if (reached && running && callback != null) {
                 callback.onFetchSucceeded(dockUrl);
             }
@@ -339,6 +371,54 @@ public class DockFetchScheduler {
             if (callback != null) {
                 callback.onFetchError(dockUrl, e.getMessage());
             }
+        }
+    }
+
+    /**
+     * Fetch, from the start, the items for recipients new to a DOCK, up to and
+     * including {@code until}, the DOCK's shared cursor; the regular pass gets
+     * the rest.
+     *
+     * @return the items, or null if the DOCK failed
+     */
+    private List<DockItem> catchUp(FapiClient client, List<String> recipientIds, List<String> until) {
+        List<DockItem> items = new ArrayList<>();
+        List<String> after = null;
+        while (running) {
+            Fcdsl fcdsl = new Fcdsl();
+            fcdsl.addSort(FieldNames.CREATE_TIME, Values.ASC);
+            fcdsl.addSort(FieldNames.ID, Values.ASC);
+            fcdsl.setSize(String.valueOf(FETCH_PAGE_SIZE));
+            if (after != null) fcdsl.setAfter(after);
+
+            FapiResponse response = client.dockFetch(recipientIds, fcdsl);
+            if (response == null || !response.isSuccess()) {
+                TimberLogger.w(TAG, "catch-up dockFetch failed: %s",
+                        response != null ? response.getMessage() : "null response");
+                return null;
+            }
+            List<DockItem> page = ObjectUtils.objectToList(response.getData(), DockItem.class);
+            if (page == null || page.isEmpty()) break;
+            for (DockItem item : page) {
+                if (isAfter(item, until)) return items;
+                items.add(item);
+            }
+            after = response.getLast();
+            if (page.size() < FETCH_PAGE_SIZE || after == null || after.isEmpty()) break;
+        }
+        return items;
+    }
+
+    /** Whether an item sorts after a [createTime, id] cursor. An unreadable cursor counts as never. */
+    private static boolean isAfter(DockItem item, List<String> cursor) {
+        if (cursor == null || cursor.size() < 2 || item.getCreateTime() == null) return false;
+        try {
+            long time = Long.parseLong(cursor.get(0));
+            int c = Long.compare(item.getCreateTime(), time);
+            if (c != 0) return c > 0;
+            return item.getId() != null && item.getId().compareTo(cursor.get(1)) > 0;
+        } catch (NumberFormatException e) {
+            return false;
         }
     }
 
@@ -371,6 +451,24 @@ public class DockFetchScheduler {
             }
         } catch (Exception e) {
             TimberLogger.w(TAG, "Failed to load dock cursors: %s", e.getMessage());
+        }
+        try {
+            String json = cursorStore.decodeString(RECIPIENTS_KEY);
+            if (json != null) {
+                Map<String, Set<String>> saved = gson.fromJson(json,
+                        new TypeToken<Map<String, Set<String>>>(){}.getType());
+                if (saved != null) dockRecipients.putAll(saved);
+            }
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "Failed to load dock recipients: %s", e.getMessage());
+        }
+    }
+
+    private void saveRecipients() {
+        try {
+            cursorStore.encode(RECIPIENTS_KEY, gson.toJson(dockRecipients));
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "Failed to save dock recipients: %s", e.getMessage());
         }
     }
 
