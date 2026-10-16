@@ -2468,7 +2468,6 @@
     <string name="toast_secret_updated_local">Secret updated locally</string>
 
     <!-- First-FCH request board (default nobody freer) -->
-    <string name="first_fch_board_name">First FCH Board</string>
     <string name="nobody_board_education">This is a public request board on a nobody identity: its prikey is public, so everything here can be read — and written — by anyone. Only use it to ask for your first FCH. You never need to pay, click a link, or share anything to receive FCH; your only proof is your own balance increasing.</string>
     <string name="nobody_partner_warning">This identity is a nobody: its prikey is public, so messages from it can be written by anyone and cannot be trusted.</string>
     <string name="im_imported_unverified">%1$s · Imported, unverified</string>

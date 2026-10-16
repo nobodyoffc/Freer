@@ -83,6 +83,7 @@ public class NewcomerRequestsActivity extends BaseCryptoActivity {
     private TextView balanceText;
     private TextView newcomerCountText;
     private TextView totalText;
+    private CheckBox checkAtLoginBox;
 
     private final List<NobodyBoard.Request> requests = new ArrayList<>();
     private final Set<String> selectedFids = new HashSet<>();
@@ -126,6 +127,11 @@ public class NewcomerRequestsActivity extends BaseCryptoActivity {
         Setting setting = SettingManager.getInstance().getCurrentSetting();
         liveFid = setting != null ? setting.getMainFid() : null;
         boardCursor = loadCursor();
+
+        checkAtLoginBox = findViewById(R.id.cb_check_board_at_login);
+        checkAtLoginBox.setChecked(NewcomerBoard.isAutoCheckAtLogin(this, liveFid));
+        checkAtLoginBox.setOnClickListener(v ->
+                NewcomerBoard.setAutoCheckAtLogin(this, liveFid, checkAtLoginBox.isChecked()));
 
         // Total consumed = count x amount x selected newcomers; recompute on any
         // input edit (selection changes call refreshTotals directly).

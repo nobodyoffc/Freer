@@ -2425,7 +2425,6 @@
     <string name="room_info_received_symkey">已收到房间信息（对称密钥 v%d）</string>
 
     <!-- First-FCH request board (default nobody freer) -->
-    <string name="first_fch_board_name">首币求助板</string>
     <string name="nobody_board_education">这是一个建立在明人身份上的公开求助板：它的私钥是公开的，这里的内容任何人都能看到、也能冒名发布。它只用于求取你的第一笔 FCH。领取 FCH 永远不需要付款、点击链接或提供任何信息；唯一的凭证是你自己的余额增加。</string>
     <string name="nobody_partner_warning">该身份是明人：私钥公开，任何人都可以用它发消息，其内容不可信。</string>
     <string name="im_imported_unverified">%1$s · 导入，未验证</string>

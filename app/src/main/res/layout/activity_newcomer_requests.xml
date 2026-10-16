@@ -41,6 +41,27 @@
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     </LinearLayout>
+
+    <!-- Opt-in: look for waiting newcomers once per login. Saved on tap. -->
+    <CheckBox
+        android:id="@+id/cb_check_board_at_login"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:text="@string/check_board_at_login"
+        android:textColor="@color/text"
+        android:textSize="14sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="40dp"
+        android:layout_marginEnd="16dp"
+        android:text="@string/check_board_at_login_hint"
+        android:textColor="@color/hint"
+        android:textSize="12sp" />
+
     <!-- Summary: liveFid balance, selected newcomer count, and the grand total
          consumed (count x amount x selected newcomers). All read-only. -->
     <LinearLayout
