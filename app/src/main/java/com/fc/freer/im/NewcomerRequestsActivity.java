@@ -35,10 +35,8 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -85,16 +83,24 @@ public class NewcomerRequestsActivity extends BaseCryptoActivity {
     private TextView totalText;
     private CheckBox checkAtLoginBox;
 
+    private TextView hiddenSummaryText;
+    private TextView hiddenToggleText;
+
     private final List<NobodyBoard.Request> requests = new ArrayList<>();
     private final Set<String> selectedFids = new HashSet<>();
-    /** Session cache: latest request per FID, keyed by requester FID. */
-    private final Map<String, NobodyBoard.Request> cacheByFid = new LinkedHashMap<>();
-    /** Session-only dismissals, so an ignored FID never re-enters the cache. */
-    private final Set<String> ignoredFids = new HashSet<>();
+    /** Open requests this identity already funded or skipped; listed below the open ones on demand. */
+    private final List<NewcomerBoard.Hidden> hidden = new ArrayList<>();
+    private boolean showHidden = false;
+    /** Receivers of the gift TX handed to SendTxActivity, dismissed as funded once it is sent. */
+    private final List<String> pendingPayees = new ArrayList<>();
     private RequestAdapter adapter;
     private volatile boolean loading = false;
 
-    /** Persisted watermark (server createTime): only newer asks are fetched. */
+    /**
+     * Persisted watermark (server createTime). The viewer reads the whole board
+     * regardless; the cursor only tells the login check whether anything new has
+     * appeared since this identity last looked.
+     */
     private long boardCursor;
     private String liveFid;
 
@@ -123,6 +129,13 @@ public class NewcomerRequestsActivity extends BaseCryptoActivity {
         balanceText = findViewById(R.id.balance_text);
         newcomerCountText = findViewById(R.id.newcomer_count_text);
         totalText = findViewById(R.id.total_text);
+        hiddenSummaryText = findViewById(R.id.hidden_summary_text);
+        hiddenToggleText = findViewById(R.id.hidden_toggle_text);
+        hiddenToggleText.setOnClickListener(v -> {
+            showHidden = !showHidden;
+            refreshHiddenSummary();
+            adapter.notifyDataSetChanged();
+        });
 
         Setting setting = SettingManager.getInstance().getCurrentSetting();
         liveFid = setting != null ? setting.getMainFid() : null;
@@ -331,6 +344,9 @@ public class NewcomerRequestsActivity extends BaseCryptoActivity {
                 }
                 txInfo.setOutputs(outputs);
 
+                pendingPayees.clear();
+                pendingPayees.addAll(receivers);
+
                 Intent intent = new Intent(this, SendTxActivity.class);
                 intent.putExtra(SendTxActivity.EXTRA_TX_INFO_JSON, txInfo.toJson());
                 // Launch for result so a successful send closes this board and
@@ -347,6 +363,11 @@ public class NewcomerRequestsActivity extends BaseCryptoActivity {
         // propagate success to the caller and close.
         if (requestCode == SendTxActivity.RESULT_SIGNED
                 && resultCode == SendTxActivity.RESULT_SIGNED) {
+            // Record the payees as funded. The chain check would hide them too,
+            // but only once the TX confirms; until then they would come straight
+            // back and a helper could pay them twice.
+            NewcomerBoard.dismiss(this, liveFid, pendingPayees, NewcomerBoard.Dismissal.FUNDED);
+            pendingPayees.clear();
             setResult(RESULT_OK);
             finish();
         }
@@ -354,6 +375,12 @@ public class NewcomerRequestsActivity extends BaseCryptoActivity {
 
     // ── Loading ────────────────────────────────────────────────────────
 
+    /**
+     * One pass over the whole board, not just the tail past the cursor: opening
+     * the page again re-reads every open request and re-checks each requester,
+     * so anyone who has had their first FCH since drops off. Requests this
+     * identity funded or skipped come back in {@link NewcomerBoard.FetchResult#dismissed}.
+     */
     private void loadRequests() {
         if (loading) return;
         loading = true;
@@ -363,96 +390,128 @@ public class NewcomerRequestsActivity extends BaseCryptoActivity {
             NewcomerBoard.FetchResult fetched =
                     new NewcomerBoard.FetchResult(new ArrayList<>(), boardCursor, null);
             try {
-                // No cap: everything open goes into the session cache, and the
-                // cursor below is only allowed to move past what we now hold.
-                fetched = NewcomerBoard.fetch(this, boardCursor, Integer.MAX_VALUE);
+                fetched = NewcomerBoard.fetch(this, liveFid, 0, Integer.MAX_VALUE);
             } catch (Exception e) {
                 TimberLogger.e(TAG, "Failed to load board requests: %s", e.getMessage());
                 error = e.getMessage();
             }
 
-            final String finalError = error;
+            final String failure = error != null ? error : fetched.error;
             final NewcomerBoard.FetchResult finalFetched = fetched;
             runOnUiThread(() -> {
                 loading = false;
                 if (isFinishing() || isDestroyed()) return;
                 swipeRefreshLayout.setRefreshing(false);
 
-                // Merge the newly fetched asks into the session cache (latest
-                // per FID, never re-adding something dismissed this session).
-                for (NobodyBoard.Request request : finalFetched.requests) {
-                    if (ignoredFids.contains(request.requesterFid)) continue;
-                    NobodyBoard.Request existing = cacheByFid.get(request.requesterFid);
-                    if (existing == null || request.timestamp > existing.timestamp) {
-                        cacheByFid.put(request.requesterFid, request);
+                // A failed read leaves what is on screen alone: an error is not
+                // evidence that the people who were waiting have been helped.
+                if (failure == null) {
+                    List<NobodyBoard.Request> shown = finalFetched.requests;
+                    if (shown.size() > MAX_SHOWN_REQUESTS) {
+                        shown = shown.subList(0, MAX_SHOWN_REQUESTS);
                     }
+                    requests.clear();
+                    requests.addAll(shown);
+                    hidden.clear();
+                    hidden.addAll(finalFetched.dismissed);
+                    onListChanged();
                 }
 
-                // Advance the watermark past everything just retrieved so the
-                // next fetch only pulls genuinely newer asks, then persist it.
+                // Advance the watermark past everything retrieved, so the login
+                // check only speaks up about genuinely newer asks.
                 if (finalFetched.maxCreateTime > boardCursor) {
                     boardCursor = finalFetched.maxCreateTime;
                     saveCursor();
                 }
 
-                rebuildRequestList();
-
-                String failure = finalError != null ? finalError : finalFetched.error;
                 if (failure != null && requests.isEmpty()) {
                     emptyText.setText(failure);
                     emptyText.setVisibility(View.VISIBLE);
-                } else if (requests.isEmpty()) {
-                    emptyText.setText(R.string.newcomer_requests_empty);
-                    emptyText.setVisibility(View.VISIBLE);
                 } else {
-                    emptyText.setVisibility(View.GONE);
+                    showEmptyState();
                 }
             });
         }).start();
     }
 
-    /**
-     * Rebuild the visible list from the session cache, newest first, capped at
-     * {@link #MAX_SHOWN_REQUESTS}. Drops selections whose request is gone.
-     */
-    private void rebuildRequestList() {
-        List<NobodyBoard.Request> sorted = new ArrayList<>(cacheByFid.values());
-        sorted.sort((a, b) -> Long.compare(b.timestamp, a.timestamp));
-        if (sorted.size() > MAX_SHOWN_REQUESTS) {
-            sorted = new ArrayList<>(sorted.subList(0, MAX_SHOWN_REQUESTS));
-        }
-        requests.clear();
-        requests.addAll(sorted);
-
+    /** Drop selections whose request is gone, then redraw the list and its summaries. */
+    private void onListChanged() {
         Set<String> shownFids = new HashSet<>();
         for (NobodyBoard.Request request : requests) {
             shownFids.add(request.requesterFid);
         }
         selectedFids.retainAll(shownFids);
+        if (hidden.isEmpty()) showHidden = false;
         updateCheckAllState();
+        refreshHiddenSummary();
         adapter.notifyDataSetChanged();
     }
 
+    private void showEmptyState() {
+        if (requests.isEmpty()) {
+            emptyText.setText(R.string.newcomer_requests_empty);
+            emptyText.setVisibility(View.VISIBLE);
+        } else {
+            emptyText.setVisibility(View.GONE);
+        }
+    }
+
+    /** "2 funded, 1 skipped — hidden for up to 7 days" plus a Show/Hide toggle; gone when nothing is hidden. */
+    private void refreshHiddenSummary() {
+        if (hidden.isEmpty()) {
+            hiddenSummaryText.setVisibility(View.GONE);
+            hiddenToggleText.setVisibility(View.GONE);
+            return;
+        }
+        int funded = 0;
+        for (NewcomerBoard.Hidden entry : hidden) {
+            if (entry.dismissal.isFunded()) funded++;
+        }
+        int skipped = hidden.size() - funded;
+        List<String> parts = new ArrayList<>();
+        if (funded > 0) parts.add(getString(R.string.newcomer_requests_hidden_funded, funded));
+        if (skipped > 0) parts.add(getString(R.string.newcomer_requests_hidden_skipped, skipped));
+        long days = NewcomerBoard.DISMISSAL_WINDOW_MS / (24L * 60 * 60 * 1000);
+        hiddenSummaryText.setText(getString(R.string.newcomer_requests_hidden_summary,
+                android.text.TextUtils.join(", ", parts), days));
+        hiddenToggleText.setText(showHidden ? R.string.hide : R.string.newcomer_requests_show_hidden);
+        hiddenSummaryText.setVisibility(View.VISIBLE);
+        hiddenToggleText.setVisibility(View.VISIBLE);
+    }
+
     /**
-     * Ignore is a session-view declutter, not a persisted block: checked FIDs
-     * are dropped from the cache and won't re-enter it this session. Across
-     * sessions the cursor already hides them, so nothing else needs persisting.
+     * Ignore isn't a block, but it outlives the page: checked FIDs are hidden
+     * for {@link NewcomerBoard#DISMISSAL_WINDOW_MS} and can be restored from the
+     * hidden list.
      */
     private void ignoreChecked() {
         if (selectedFids.isEmpty()) {
             ToastUtils.makeText(this, getString(R.string.newcomer_requests_none_selected));
             return;
         }
-        ignoredFids.addAll(selectedFids);
-        for (String fid : selectedFids) {
-            cacheByFid.remove(fid);
+        NewcomerBoard.Dismissal dismissal = NewcomerBoard.dismiss(
+                this, liveFid, selectedFids, NewcomerBoard.Dismissal.SKIPPED);
+        for (NobodyBoard.Request request : new ArrayList<>(requests)) {
+            if (selectedFids.contains(request.requesterFid)) {
+                hidden.add(new NewcomerBoard.Hidden(request, dismissal));
+                requests.remove(request);
+            }
         }
+        hidden.sort((a, b) -> Long.compare(b.request.timestamp, a.request.timestamp));
         selectedFids.clear();
-        rebuildRequestList();
-        if (requests.isEmpty()) {
-            emptyText.setText(R.string.newcomer_requests_empty);
-            emptyText.setVisibility(View.VISIBLE);
-        }
+        onListChanged();
+        showEmptyState();
+    }
+
+    /** Put one asker back on the list. */
+    private void restore(NewcomerBoard.Hidden entry) {
+        NewcomerBoard.restore(this, liveFid, entry.request.requesterFid);
+        hidden.remove(entry);
+        requests.add(entry.request);
+        requests.sort((a, b) -> Long.compare(b.timestamp, a.timestamp));
+        while (requests.size() > MAX_SHOWN_REQUESTS) requests.remove(requests.size() - 1);
+        onListChanged();
+        showEmptyState();
     }
 
     private long loadCursor() {
@@ -465,24 +524,63 @@ public class NewcomerRequestsActivity extends BaseCryptoActivity {
 
     // ── List ───────────────────────────────────────────────────────────
 
-    private class RequestAdapter extends RecyclerView.Adapter<RequestAdapter.Holder> {
+    private class RequestAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+        private static final int TYPE_REQUEST = 0;
+        private static final int TYPE_HIDDEN = 1;
+
+        @Override
+        public int getItemViewType(int position) {
+            return position < requests.size() ? TYPE_REQUEST : TYPE_HIDDEN;
+        }
 
         @NonNull
         @Override
-        public Holder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            View view = LayoutInflater.from(parent.getContext())
-                    .inflate(R.layout.item_newcomer_request, parent, false);
-            return new Holder(view);
+        public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            LayoutInflater inflater = LayoutInflater.from(parent.getContext());
+            if (viewType == TYPE_HIDDEN) {
+                return new HiddenHolder(inflater.inflate(
+                        R.layout.item_newcomer_hidden, parent, false));
+            }
+            return new Holder(inflater.inflate(R.layout.item_newcomer_request, parent, false));
         }
 
         @Override
-        public void onBindViewHolder(@NonNull Holder holder, int position) {
-            holder.bind(requests.get(position));
+        public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+            if (holder instanceof HiddenHolder) {
+                ((HiddenHolder) holder).bind(hidden.get(position - requests.size()));
+            } else {
+                ((Holder) holder).bind(requests.get(position));
+            }
         }
 
         @Override
         public int getItemCount() {
-            return requests.size();
+            return requests.size() + (showHidden ? hidden.size() : 0);
+        }
+
+        class HiddenHolder extends RecyclerView.ViewHolder {
+            private final TextView fidText;
+            private final TextView reasonText;
+            private final TextView restoreText;
+            private final SimpleDateFormat untilFormat =
+                    new SimpleDateFormat("MM/dd", Locale.getDefault());
+
+            HiddenHolder(@NonNull View itemView) {
+                super(itemView);
+                fidText = itemView.findViewById(R.id.hidden_fid);
+                reasonText = itemView.findViewById(R.id.hidden_reason);
+                restoreText = itemView.findViewById(R.id.hidden_restore);
+            }
+
+            void bind(NewcomerBoard.Hidden entry) {
+                fidText.setText(entry.request.requesterFid);
+                reasonText.setText(getString(R.string.newcomer_requests_hidden_reason,
+                        getString(entry.dismissal.isFunded()
+                                ? R.string.newcomer_requests_funded
+                                : R.string.newcomer_requests_skipped),
+                        untilFormat.format(new Date(entry.dismissal.until))));
+                restoreText.setOnClickListener(v -> restore(entry));
+            }
         }
 
         class Holder extends RecyclerView.ViewHolder {

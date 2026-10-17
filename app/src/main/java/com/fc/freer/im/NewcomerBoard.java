@@ -23,9 +23,13 @@ import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.model.Setting;
 import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.utils.ApiCenter;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,6 +53,15 @@ public final class NewcomerBoard {
     private static final String PREFS = "newcomer_board";
     private static final String KEY_CURSOR = "cursor_";
     private static final String KEY_AUTO_CHECK = "auto_check_";
+    private static final String KEY_DISMISSED = "dismissed_";
+
+    /** How long a funded-or-skipped asker stays hidden. Same as the Mac app. */
+    public static final long DISMISSAL_WINDOW_MS = 7L * 24 * 60 * 60 * 1000;
+    /**
+     * Ceiling on remembered dismissals per identity: a public board is an
+     * unbounded source of FIDs. Over the cap the soonest to expire go first.
+     */
+    private static final int MAX_DISMISSALS = 500;
 
     private static final int FETCH_PAGE_SIZE = 100;
 
@@ -96,6 +109,94 @@ public final class NewcomerBoard {
                 .edit().putLong(KEY_CURSOR + fid, cursor).apply();
     }
 
+    // ── Dismissals ─────────────────────────────────────────────────────
+
+    /**
+     * A decision already taken about one asker: this identity funded them, or
+     * chose not to. Persisted so the same face doesn't come back on every open
+     * of the board, and it expires — skipping somebody today is not a promise
+     * never to help them.
+     */
+    public static final class Dismissal {
+        public static final String FUNDED = "funded";
+        public static final String SKIPPED = "skipped";
+
+        public final String reason;
+        /** Epoch millis after which this stops hiding anything. */
+        public final long until;
+
+        public Dismissal(String reason, long until) {
+            this.reason = reason;
+            this.until = until;
+        }
+
+        public boolean isFunded() {
+            return FUNDED.equals(reason);
+        }
+
+        boolean isActive(long now) {
+            return now < until;
+        }
+    }
+
+    /** The dismissals of this identity still in force, keyed by asker FID. */
+    public static Map<String, Dismissal> getActiveDismissals(Context context, String fid) {
+        Map<String, Dismissal> active = new HashMap<>();
+        long now = System.currentTimeMillis();
+        for (Map.Entry<String, Dismissal> entry : loadDismissals(context, fid).entrySet()) {
+            if (entry.getValue().isActive(now)) active.put(entry.getKey(), entry.getValue());
+        }
+        return active;
+    }
+
+    /** Hide these askers for {@link #DISMISSAL_WINDOW_MS}. A later decision replaces an earlier one. */
+    public static Dismissal dismiss(Context context, String fid, Collection<String> askers, String reason) {
+        Dismissal dismissal = new Dismissal(reason, System.currentTimeMillis() + DISMISSAL_WINDOW_MS);
+        if (context == null || fid == null || askers == null) return dismissal;
+        Map<String, Dismissal> all = loadDismissals(context, fid);
+        for (String asker : askers) all.put(asker, dismissal);
+        saveDismissals(context, fid, all);
+        return dismissal;
+    }
+
+    /** Un-hide one asker: the undo for a mis-tapped Ignore, which would otherwise cost a week. */
+    public static void restore(Context context, String fid, String asker) {
+        if (context == null || fid == null || asker == null) return;
+        Map<String, Dismissal> all = loadDismissals(context, fid);
+        if (all.remove(asker) != null) saveDismissals(context, fid, all);
+    }
+
+    private static Map<String, Dismissal> loadDismissals(Context context, String fid) {
+        if (context == null || fid == null) return new HashMap<>();
+        String json = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getString(KEY_DISMISSED + fid, null);
+        if (json == null) return new HashMap<>();
+        try {
+            Map<String, Dismissal> map = new Gson().fromJson(json,
+                    new TypeToken<HashMap<String, Dismissal>>() {}.getType());
+            return map != null ? map : new HashMap<>();
+        } catch (Exception e) {
+            return new HashMap<>();
+        }
+    }
+
+    /** Every write prunes: drop what has lapsed, then the soonest to expire until the row fits. */
+    private static void saveDismissals(Context context, String fid, Map<String, Dismissal> all) {
+        long now = System.currentTimeMillis();
+        List<Map.Entry<String, Dismissal>> live = new ArrayList<>();
+        for (Map.Entry<String, Dismissal> entry : all.entrySet()) {
+            if (entry.getValue() != null && entry.getValue().isActive(now)) live.add(entry);
+        }
+        if (live.size() > MAX_DISMISSALS) {
+            live.sort((a, b) -> Long.compare(b.getValue().until, a.getValue().until));
+            live = live.subList(0, MAX_DISMISSALS);
+        }
+        Map<String, Dismissal> kept = new HashMap<>();
+        for (Map.Entry<String, Dismissal> entry : live) kept.put(entry.getKey(), entry.getValue());
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().putString(KEY_DISMISSED + fid, new Gson().toJson(kept)).apply();
+    }
+
     // ── Reading the board ──────────────────────────────────────────────
 
     /**
@@ -108,12 +209,24 @@ public final class NewcomerBoard {
      * public-board semantics rejects.
      */
     public static final class FetchResult {
+        /** Open requests, newest first, minus the ones this identity already dealt with. */
         public final List<NobodyBoard.Request> requests;
+        /**
+         * Open requests held back by a live {@link Dismissal}, kept rather than
+         * dropped so the viewer can say how many are hidden and offer them back.
+         */
+        public final List<Hidden> dismissed;
         public final long maxCreateTime;
         public final String error;
 
         FetchResult(List<NobodyBoard.Request> requests, long maxCreateTime, String error) {
+            this(requests, new ArrayList<>(), maxCreateTime, error);
+        }
+
+        FetchResult(List<NobodyBoard.Request> requests, List<Hidden> dismissed,
+                    long maxCreateTime, String error) {
             this.requests = requests;
+            this.dismissed = dismissed;
             this.maxCreateTime = maxCreateTime;
             this.error = error;
         }
@@ -123,21 +236,33 @@ public final class NewcomerBoard {
         }
     }
 
+    /** An open request and the decision that hides it. */
+    public static final class Hidden {
+        public final NobodyBoard.Request request;
+        public final Dismissal dismissal;
+
+        public Hidden(NobodyBoard.Request request, Dismissal dismissal) {
+            this.request = request;
+            this.dismissal = dismissal;
+        }
+    }
+
     /**
      * Fetch board requests newer than {@code sinceCreateTime}, keeping only
-     * template-matching posts (latest per requester) whose author still has no
-     * on-chain balance — a requester with a balance was already funded, or is
-     * farming, and either way no longer needs answering.
+     * template-matching posts (latest per requester) whose author has never
+     * received FCH — a requester with a guide was already funded, or is
+     * farming, and either way no longer needs answering. See {@link #fundedAmong}.
+     * Last, requests that {@code liveFid} already funded or skipped are moved to
+     * {@link FetchResult#dismissed}, so the viewer and the login check count the
+     * same rows.
      *
-     * @param limitOpen stop once this many open requests are confirmed. The
-     *                  freshness check is one API call per requester, so the
-     *                  login check asks for 1 rather than paying for a page of
-     *                  lookups it won't show. {@code maxCreateTime} still covers
+     * @param limitOpen stop once this many open requests are collected (the
+     *                  login check only needs 1). {@code maxCreateTime} still covers
      *                  the whole page either way — but a caller that stopped
      *                  early has not seen every open request behind that
      *                  watermark, so it must not save it as the cursor.
      */
-    public static FetchResult fetch(Context context, long sinceCreateTime, int limitOpen) {
+    public static FetchResult fetch(Context context, String liveFid, long sinceCreateTime, int limitOpen) {
         List<NobodyBoard.Request> none = new ArrayList<>();
         FapiClient fapiClient = (FapiClient) ApiCenter.getInstance()
                 .getClient(Service.ServiceType.FAPI_No1_NrC7);
@@ -190,24 +315,56 @@ public final class NewcomerBoard {
             }
         }
 
+        List<NobodyBoard.Request> latest = new ArrayList<>(byFid.values());
+        latest.sort((a, b) -> Long.compare(b.timestamp, a.timestamp));
+        Set<String> funded = fundedAmong(fapiClient, byFid.keySet());
+        Map<String, Dismissal> dismissals = getActiveDismissals(context, liveFid);
         List<NobodyBoard.Request> open = new ArrayList<>();
-        for (NobodyBoard.Request request : byFid.values()) {
-            if (open.size() >= limitOpen) break;
-            if (isAlreadyFunded(fapiClient, request.requesterFid)) continue;
-            open.add(request);
+        List<Hidden> hidden = new ArrayList<>();
+        for (NobodyBoard.Request request : latest) {
+            if (funded.contains(request.requesterFid)) continue;
+            Dismissal dismissal = dismissals.get(request.requesterFid);
+            if (dismissal != null) {
+                hidden.add(new Hidden(request, dismissal));
+            } else if (open.size() < limitOpen) {
+                open.add(request);
+            }
         }
-        return new FetchResult(open, maxCreateTime, null);
+        return new FetchResult(open, hidden, maxCreateTime, null);
     }
 
-    /** True when the requester holds on-chain balance; unknown counts as not funded. */
-    private static boolean isAlreadyFunded(FapiClient fapiClient, String requesterFid) {
+    /**
+     * Which of {@code fids} have already had their first FCH, in one
+     * {@code base.freerByIds} call. A {@code guide} (the FID that sent the first
+     * FCH) is set once and never cleared, so it still counts a requester who has
+     * since spent down to zero — a balance check alone would put them back on
+     * the board. A failed lookup answers "none": unknown counts as not funded.
+     */
+    public static Set<String> fundedAmong(Collection<String> fids) {
+        FapiClient fapiClient = (FapiClient) ApiCenter.getInstance()
+                .getClient(Service.ServiceType.FAPI_No1_NrC7);
+        return fundedAmong(fapiClient, fids);
+    }
+
+    private static Set<String> fundedAmong(FapiClient fapiClient, Collection<String> fids) {
+        Set<String> funded = new HashSet<>();
+        if (fapiClient == null || fids == null || fids.isEmpty()) return funded;
         try {
-            Freer requester = fapiClient.getFreer(requesterFid);
-            return requester != null && requester.getBalance() != null && requester.getBalance() > 0;
+            Map<String, Freer> freers = fapiClient.freerByIds(new ArrayList<>(fids));
+            if (freers == null) return funded;
+            for (Map.Entry<String, Freer> entry : freers.entrySet()) {
+                if (hasHadFirstFch(entry.getValue())) funded.add(entry.getKey());
+            }
         } catch (Exception e) {
-            TimberLogger.w(TAG, "Freshness check failed for %s: %s", requesterFid, e.getMessage());
-            return false;
+            TimberLogger.w(TAG, "Freshness check failed: %s", e.getMessage());
         }
+        return funded;
+    }
+
+    private static boolean hasHadFirstFch(Freer freer) {
+        if (freer == null) return false;
+        if (freer.getGuide() != null && !freer.getGuide().isEmpty()) return true;
+        return freer.getBalance() != null && freer.getBalance() > 0;
     }
 
     private static NobodyBoard.Request decodeRequest(DockItem item) {
@@ -282,9 +439,8 @@ public final class NewcomerBoard {
                     TimberLogger.d(TAG, "Skipping login board check: no connected FAPI client");
                     return;
                 }
-                // One open request is all the prompt says, so pay for one
-                // freshness lookup rather than a page of them.
-                FetchResult result = fetch(activity, getCursor(activity, fid), 1);
+                // One open request is all the prompt says.
+                FetchResult result = fetch(activity, fid, getCursor(activity, fid), 1);
                 if (result.error != null || !result.hasRequests()) return;
                 activity.runOnUiThread(() -> showPrompt(activity, fid));
             } catch (Exception e) {

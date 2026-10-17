@@ -2499,6 +2499,14 @@
     <string name="first_fch_posted_title">Request posted</string>
     <string name="first_fch_posted_message">Your request is now on the public board.\n\nWait for someone to see it and send FCH to your address:\n%1$s\n\nYou can also ask people you know to send FCH to this address.</string>
     <string name="newcomer_requests_ignore">Ignore</string>
+    <string name="newcomer_requests_hidden_funded">%1$d funded</string>
+    <string name="newcomer_requests_hidden_skipped">%1$d skipped</string>
+    <string name="newcomer_requests_hidden_summary">%1$s — hidden for up to %2$d days</string>
+    <string name="newcomer_requests_funded">Funded</string>
+    <string name="newcomer_requests_skipped">Skipped</string>
+    <string name="newcomer_requests_hidden_reason">%1$s · back on %2$s</string>
+    <string name="newcomer_requests_restore">Restore</string>
+    <string name="newcomer_requests_show_hidden">Show</string>
 
     <string name="server_setup_use_this">Use this server</string>
     <string name="server_setup_advanced">Advanced…</string>

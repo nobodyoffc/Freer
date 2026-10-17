@@ -40,6 +40,38 @@
 
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
+        <!-- Requests this identity funded or skipped: a count, and a toggle that
+             lists them below the open ones with a Restore link each. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp">
+
+            <TextView
+                android:id="@+id/hidden_summary_text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:textColor="@color/hint"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/hidden_toggle_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="6dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:textColor="@color/link"
+                android:textSize="12sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
     </LinearLayout>
 
     <!-- Opt-in: look for waiting newcomers once per login. Saved on tap. -->

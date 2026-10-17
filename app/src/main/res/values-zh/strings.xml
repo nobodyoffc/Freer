@@ -2456,6 +2456,14 @@
     <string name="first_fch_posted_title">请求已发出</string>
     <string name="first_fch_posted_message">你的请求已经发布到公开板块。\n\n等待好心人看到并给你的地址发送FCH：\n%1$s\n\n你也可以请认识的人给这个地址发送FCH。</string>
     <string name="newcomer_requests_ignore">忽略</string>
+    <string name="newcomer_requests_hidden_funded">已资助 %1$d</string>
+    <string name="newcomer_requests_hidden_skipped">已忽略 %1$d</string>
+    <string name="newcomer_requests_hidden_summary">%1$s — 最多隐藏 %2$d 天</string>
+    <string name="newcomer_requests_funded">已资助</string>
+    <string name="newcomer_requests_skipped">已忽略</string>
+    <string name="newcomer_requests_hidden_reason">%1$s · %2$s 恢复显示</string>
+    <string name="newcomer_requests_restore">恢复</string>
+    <string name="newcomer_requests_show_hidden">显示</string>
 
     <string name="server_setup_use_this">使用当前服务器</string>
     <string name="server_setup_advanced">高级设置…</string>
