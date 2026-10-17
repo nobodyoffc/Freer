@@ -105,15 +105,32 @@ public class MailActivity extends BaseCryptoActivity {
     private TextView recipientSortLabel;
 
     @NonNull
+    /**
+     * The quoted head of a reply: "Re: " + the first CONTENT_BRIEF_LENGTH
+     * chars of the original, its send time and its id, then a rule. Freer
+     * for Mac builds the same head. A line whose value is missing (an
+     * undecrypted body, no time) is left out.
+     */
     public static String makeReplyHead(Mail mail) {
-        String contentBrief = mail.getContent() != null && mail.getContent().length() > ReadMailActivity.CONTENT_BRIEF_LENGTH
-            ? mail.getContent().substring(0, ReadMailActivity.CONTENT_BRIEF_LENGTH) + "..."
-            : mail.getContent();
-        String replyContent = "Re: " +
-                contentBrief + "\n" +
-                "ID:" + mail.getId() +
-                "\n----\n";
-        return replyContent;
+        StringBuilder head = new StringBuilder();
+        String content = mail.getContent();
+        if (content != null && !content.isEmpty()) {
+            String contentBrief = content.length() > ReadMailActivity.CONTENT_BRIEF_LENGTH
+                ? content.substring(0, ReadMailActivity.CONTENT_BRIEF_LENGTH) + "..."
+                : content;
+            head.append("Re: ").append(contentBrief).append("\n");
+        }
+        if (mail.getBirthTime() != null) {
+            head.append("Time:")
+                .append(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US)
+                    .format(new java.util.Date(mail.getBirthTime() * 1000)))
+                .append("\n");
+        }
+        if (mail.getId() != null) {
+            head.append("ID:").append(mail.getId()).append("\n");
+        }
+        if (head.length() == 0) return "";
+        return head.append("----\n").toString();
     }
 
     // Enums
