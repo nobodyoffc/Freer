@@ -1029,8 +1029,8 @@ public class CreateTxActivity extends BaseCryptoActivity {
                 }
 
                 //Check if lock time is unlocked
-                FapiClient fapiClient = CashManager.getInstance().loadFapiClient();
-                Long bestHeight = fapiClient.getBestHeight();
+                FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
+                Long bestHeight = fapiClient != null ? fapiClient.getBestHeight() : null;
                 if(bestHeight != null){
                     if(!TxHandler.isLockTimeUnlocked(cash.getLockTime(), bestHeight)) {
                         ToastUtils.makeText(this, getString(R.string.there_is_unlocked_cash));

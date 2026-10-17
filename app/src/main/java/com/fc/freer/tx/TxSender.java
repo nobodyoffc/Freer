@@ -256,6 +256,15 @@ public class TxSender {
                 return;
             }
 
+            // Null while a just-chosen identity's managers are still loading.
+            if (cashManager == null) {
+                dismissWaitingDialog(context);
+                if (callback != null) {
+                    callback.onError(context.getString(R.string.cash_not_ready_try_later));
+                }
+                return;
+            }
+
             if(!sender.equals(cashManager.getLiveFid())){
                 dismissWaitingDialog(context);
                 if (callback != null) {
@@ -623,6 +632,15 @@ public class TxSender {
             dismissWaitingDialog(context);
             if (callback != null) {
                 callback.onError("No sender FID available");
+            }
+            return;
+        }
+
+        // Null while a just-chosen identity's managers are still loading.
+        if (cashManager == null) {
+            dismissWaitingDialog(context);
+            if (callback != null) {
+                callback.onError(context.getString(R.string.cash_not_ready_try_later));
             }
             return;
         }

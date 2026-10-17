@@ -119,7 +119,19 @@ public class CashManager {
         return instance;
     }
 
+    /**
+     * The CashManager of the live FID, or null when there is none yet. After another
+     * identity is chosen, the previous one's instance stays here until HomeActivity's
+     * background init replaces it; handing that out made screens list, select and book
+     * the other FID's cashes.
+     */
     public static synchronized CashManager getInstance() {
+        if (instance == null) return null;
+        String liveFid = FidManager.getInstance().getLiveFid();
+        if (liveFid == null || !liveFid.equals(instance.liveFid)) {
+            TimberLogger.w(TAG, "CashManager of %s is not the live FID's (%s)", instance.liveFid, liveFid);
+            return null;
+        }
         return instance;
     }
 

@@ -625,6 +625,10 @@ public class SignMultisigTxActivity extends BaseCryptoActivity {
 
             // Get CashManager instance
             CashManager cashManager = CashManager.getInstance();
+            if (cashManager == null) {
+                TimberLogger.w(TAG, "updateCashDB: no CashManager for the live FID, skipped");
+                return;
+            }
             KeyInfo currentKeyInfo = SettingManager.getInstance().getCurrentKeyInfo();
 
             // 2. Remove spent cash from CashManager's localDB

@@ -77,6 +77,15 @@ public class FidManager {
      * Initialize with mainFid after authentication
      */
     public void initialize(String mainFid, KeyInfo mainKeyInfo) {
+        // Leaving the app without quitting keeps this singleton, managers included. The
+        // next identity's managers are only set once HomeActivity's background init gets
+        // to them, so until then every screen was handed the previous identity's: its Cash
+        // page listed the other FID's cashes, which looked like the receiver holding the
+        // sender's spent input until the TX confirmed. Drop them so screens see "not ready".
+        if (liveFid != null && !liveFid.equals(mainFid)) {
+            dropManagerReferences();
+        }
+
         this.mainFid = mainFid;
         this.mainKeyInfo = mainKeyInfo;
         
@@ -283,6 +292,23 @@ public class FidManager {
     /**
      * Close existing managers to free resources
      */
+    /**
+     * Forget the managers of the previous identity without stopping anything: the ImManager
+     * belongs to that identity's Setting, which owns its lifecycle.
+     */
+    private void dropManagerReferences() {
+        appManager = null;
+        cashManager = null;
+        secretManager = null;
+        contactManager = null;
+        mailManager = null;
+        toastManager = null;
+        fcObjectManager = null;
+        proofManager = null;
+        imManager = null;
+        pendingIssueManager = null;
+    }
+
     private void closeExistingManagers() {
         // CashManager, SecretManager, ContactManager, MailManager, and ProofManager instances are managed by their singleton patterns
         // We don't need to explicitly close them as they handle their own lifecycle
