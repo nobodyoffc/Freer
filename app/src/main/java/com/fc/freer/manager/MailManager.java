@@ -55,6 +55,23 @@ public class MailManager extends FcManager<Mail> {
 
     private static MailManager instance;
 
+    public interface UnreadChangeListener {
+        void onUnreadChanged();
+    }
+
+    // Static, not per instance: a new MailManager is made for each FID and starts its
+    // first refresh inside initialize(), before anyone could attach to that instance.
+    private static volatile UnreadChangeListener unreadChangeListener;
+
+    public static void setUnreadChangeListener(UnreadChangeListener listener) {
+        unreadChangeListener = listener;
+    }
+
+    /** Clears the listener only if it is still {@code listener}, so a newer owner keeps its own. */
+    public static synchronized void removeUnreadChangeListener(UnreadChangeListener listener) {
+        if (unreadChangeListener == listener) unreadChangeListener = null;
+    }
+
     private MailManager() {
         super(Mail.class, MAIL);
     }
@@ -227,6 +244,12 @@ public class MailManager extends FcManager<Mail> {
         if (entityDB != null && entity.getId() != null) {
             entityDB.putInMap(UNREAD_MAP, entity.getId(), true);
         }
+    }
+
+    @Override
+    protected void onEntitiesAdded(int added) {
+        UnreadChangeListener listener = unreadChangeListener;
+        if (listener != null) listener.onUnreadChanged();
     }
 
     @Override

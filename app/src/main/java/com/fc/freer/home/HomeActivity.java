@@ -1216,6 +1216,9 @@ public class HomeActivity extends AppCompatActivity {
         // (which runs after this point) refresh the Todo badge without waiting for an onResume.
         earlyPim.setCountChangeListener(newCount -> runOnUiThread(this::updateBadges));
         FidManager.getInstance().setPendingIssueManager(earlyPim);
+        // The Cmail manager's first refresh runs on its own thread and finishes after
+        // the updateBadges() at the end of this method, so it has to call back.
+        MailManager.setUnreadChangeListener(mailUnreadListener);
         runOnUiThread(this::updateBadges);
 
         // Hand ApiCenter the new identity before anything else, network or not.
@@ -1795,9 +1798,13 @@ public class HomeActivity extends AppCompatActivity {
 
         // Unregister stranger peer callback
         unregisterStrangerPeerCallback();
+        MailManager.removeUnreadChangeListener(mailUnreadListener);
 
         TimberLogger.d(TAG, "HomeActivity onDestroy completed");
     }
+
+    private final MailManager.UnreadChangeListener mailUnreadListener =
+            () -> runOnUiThread(this::updateBadges);
 
     private final ImManager.ImListener teamNotificationListener = new ImManager.ImListener() {
         @Override

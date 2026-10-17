@@ -293,6 +293,7 @@ public abstract class FcManager<T extends FcEntity> {
         }
 
         if(added > 0) {
+            onEntitiesAdded(added);
             if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
                 ToastUtils.makeText(context, context.getString(R.string.added_new_entities, added, entityName));
             } else {
@@ -471,6 +472,12 @@ public abstract class FcManager<T extends FcEntity> {
     }
 
     protected abstract void markEntityAsNew(T entity);
+
+    /**
+     * Called after a background refresh from the API stored new entities, on that
+     * refresh's thread. Subclasses whose entities feed a badge override it.
+     */
+    protected void onEntitiesAdded(int added) {}
 
     /**
      * Gets the latest entity pagination info for continuing from where we left off
