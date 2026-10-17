@@ -64,7 +64,7 @@
     <string name="menu_convert">Convert</string>
     <string name="menu_tools">Tools</string>
     <string name="menu_contact">Contact</string>
-    <string name="menu_mail">Mail</string>
+    <string name="menu_mail">Cmail</string>
     <string name="menu_news">News</string>
     <string name="menu_data">Data</string>
     <string name="menu_square">Square</string>
@@ -842,7 +842,7 @@
     <string name="contact_fid">Contact FID</string>
     <string name="contact_avatar">Contact Avatar</string>
     <string name="contact_will_be_updated">This contact will be updated with the new information.</string>
-    <string name="read_mail">Read Mail</string>
+    <string name="read_mail">Read Cmail</string>
     <string name="reply">Reply</string>
     <string name="content_not_available">Content not available</string>
     <string name="input_titles_comma_separated">Enter titles separated by comma</string>
@@ -859,33 +859,33 @@
 
     <!-- Contact Activity strings -->
 
-    <string name="delete_mails">Delete Mails</string>
-    <string name="no_valid_mail_ids">No valid mail IDs found</string>
-    <string name="deleted_mails">Deleted mails</string>
-    <string name="mail_not_ready_try_later">The mail manager is not ready. Try later</string>
+    <string name="delete_mails">Delete Cmails</string>
+    <string name="no_valid_mail_ids">No valid Cmail IDs found</string>
+    <string name="deleted_mails">Deleted Cmails</string>
+    <string name="mail_not_ready_try_later">The Cmail manager is not ready. Try later</string>
     <string name="no_live_fid_available">No live FID available</string>
     <string name="password_or_symkey">Password or symkey</string>
     <string name="your_prikey_or_input_password_or_symkey">The default is your prikey. You can enter the password or symkey.</string>
     <string name="contact_has_no_fid">The contact has no FID</string>
     <string name="failed_error_msg">Failed %s</string>
-    <string name="mails_saved">%d mails saved</string>
+    <string name="mails_saved">%d Cmails saved</string>
 
     <!-- Mail Activity strings -->
-    <string name="my_mails">My Mails</string>
-    <string name="no_mails_found">No mails found</string>
-    <string name="search_mails">Search mails</string>
+    <string name="my_mails">My Cmails</string>
+    <string name="no_mails_found">No Cmails found</string>
+    <string name="search_mails">Search Cmails</string>
     <string name="to">To</string>
-    <string name="failed_to_update_mails_db">Failed to update mails DB.</string>
-    <string name="no_more_mails">No more mails</string>
+    <string name="failed_to_update_mails_db">Failed to update Cmails DB.</string>
+    <string name="no_more_mails">No more Cmails</string>
 
     <!-- Create Mail Activity strings -->
-    <string name="create_mail">Create Mail</string>
-    <string name="input_mail_content">Input mail content</string>
+    <string name="create_mail">Create Cmail</string>
+    <string name="input_mail_content">Input Cmail content</string>
     <string name="choose_from_contact_or_input_fid_or_pubkey">Choose from contacts or input FID or pubkey</string>
-    <string name="mail_content">Mail Content</string>
+    <string name="mail_content">Cmail Content</string>
     <string name="remove">Remove</string>
-    <string name="mail_existed_title">Mail Exists</string>
-    <string name="mail_already_exists_message">A mail with this ID already exists. Do you want to replace it?</string>
+    <string name="mail_existed_title">Cmail Exists</string>
+    <string name="mail_already_exists_message">A Cmail with this ID already exists. Do you want to replace it?</string>
     <string name="failed_to_encrypt">Failed to encrypt. %s</string>
     <string name="failed_to_get_pubkey">Failed to get pubkey. %s</string>
     <string name="invalid_input">Invalid input format</string>
@@ -919,17 +919,17 @@
     <string name="receive">Receive</string>
     <string name="no_new_contacts_found">No new contacts found</string>
     <string name="no_more_earlier_contacts_found">No more earlier contacts found</string>
-    <string name="no_new_mails_found">No new mails found</string>
-    <string name="no_more_earlier_mails_found">No more earlier mails found</string>
+    <string name="no_new_mails_found">No new Cmails found</string>
+    <string name="no_more_earlier_mails_found">No more earlier Cmails found</string>
     <string name="no_new_secrets_found">No new secrets found</string>
     <string name="no_more_earlier_secrets_found">No more earlier secrets found</string>
     <string name="loading_fid_info">Loading FID info...</string>
     <string name="failed_to_load_fid_info">Failed to load FID info</string>
     <string name="request_prikey">Request Prikey</string>
     <string name="preparing_prikey">Preparing prikey...</string>
-    <string name="loading_mails">Loading mails...</string>
-    <string name="loading_earlier_mails">Loading earlier mails...</string>
-    <string name="sending_mail_on_chain">Sending mail on-chain...</string>
+    <string name="loading_mails">Loading Cmails...</string>
+    <string name="loading_earlier_mails">Loading earlier Cmails...</string>
+    <string name="sending_mail_on_chain">Sending Cmail on-chain...</string>
     <string name="carving_secret_on_chain">Carving secret on-chain...</string>
     <string name="loading_contacts">Loading contacts...</string>
     <string name="loading_secrets">Loading secrets...</string>
@@ -982,49 +982,49 @@
     <!-- DeleteSecretActivity strings -->
 
     <!-- Mail-related strings -->
-    <string name="error_no_mail_data_provided">Error: No mail data provided</string>
-    <string name="error_invalid_mail_data">Error: Invalid mail data</string>
-    <string name="invalid_mail">Invalid mail</string>
+    <string name="error_no_mail_data_provided">Error: No Cmail data provided</string>
+    <string name="error_invalid_mail_data">Error: Invalid Cmail data</string>
+    <string name="invalid_mail">Invalid Cmail</string>
     <string name="cannot_determine_reply_recipient">Cannot determine reply recipient</string>
-    <string name="no_mails_provided_for_deletion">No mails provided for deletion</string>
-    <string name="no_valid_mails_found">No valid mails found</string>
-    <string name="no_deletable_mails_found">No deletable mails found</string>
-    <string name="error_loading_mail_data">Error loading mail data</string>
-    <string name="no_mails_to_delete">No mails to delete</string>
-    <string name="deleted_off_chain_mails_locally">Deleted %d off-chain mails locally</string>
-    <string name="deleted_on_chain_mails_locally">Deleted %d on-chain mails locally</string>
+    <string name="no_mails_provided_for_deletion">No Cmails provided for deletion</string>
+    <string name="no_valid_mails_found">No valid Cmails found</string>
+    <string name="no_deletable_mails_found">No deletable Cmails found</string>
+    <string name="error_loading_mail_data">Error loading Cmail data</string>
+    <string name="no_mails_to_delete">No Cmails to delete</string>
+    <string name="deleted_off_chain_mails_locally">Deleted %d off-chain Cmails locally</string>
+    <string name="deleted_on_chain_mails_locally">Deleted %d on-chain Cmails locally</string>
     <string name="no_valid_cash_available_for_transaction">No valid cash for transaction</string>
     <string name="failed_to_create_transaction">Failed to create transaction</string>
-    <string name="mails_deleted_successfully_on_chain">Mails deleted on-chain</string>
+    <string name="mails_deleted_successfully_on_chain">Cmails deleted on-chain</string>
 
-    <string name="error_preparing_mail_data_for_deletion">Error preparing mail data for deletion</string>
-    <string name="added_mail_participants_to_list">Added %d mail participants to list</string>
-    <string name="error_opening_mail_details">Error opening mail details</string>
-    <string name="mail_is_already_on_chain">Mail is already on-chain</string>
+    <string name="error_preparing_mail_data_for_deletion">Error preparing Cmail data for deletion</string>
+    <string name="added_mail_participants_to_list">Added %d Cmail participants to list</string>
+    <string name="error_opening_mail_details">Error opening Cmail details</string>
+    <string name="mail_is_already_on_chain">Cmail is already on-chain</string>
     <string name="recipient_contact_not_found">Recipient contact not found</string>
     <string name="error_selecting_contact">Error selecting contact</string>
     <string name="created_contact_with_pubkey_for_sending">Created contact with pubkey for sending</string>
     <string name="recipient_selected">Recipient selected</string>
     <string name="please_select_recipient_first">Please select a recipient first</string>
-    <string name="please_enter_mail_content">Please enter mail content</string>
-    <string name="mail_saved_successfully">Mail saved</string>
-    <string name="mail_sent_successfully">Mail sent</string>
-    <string name="failed_to_send_mail">Failed to send mail: %s</string>
-    <string name="failed_to_load_newer_deleted_mails">Failed to load newer deleted mails</string>
-    <string name="loaded_newer_deleted_mails">Loaded %d newer deleted mails</string>
-    <string name="no_newer_deleted_mails_found">No newer deleted mails found</string>
-    <string name="error_loading_newer_deleted_mails">Error loading newer deleted mails: %s</string>
-    <string name="failed_to_load_earlier_deleted_mails">Failed to load earlier deleted mails</string>
-    <string name="loaded_earlier_deleted_mails">Loaded %d earlier deleted mails</string>
-    <string name="no_more_earlier_deleted_mails_found">No more earlier deleted mails found</string>
-    <string name="error_loading_earlier_deleted_mails">Error loading earlier deleted mails: %s</string>
-    <string name="no_mails_selected_for_recovery">No mails selected for recovery</string>
-    <string name="no_valid_mail_ids_for_recovery">No valid mail IDs for recovery</string>
-    <string name="mails_recovered_successfully_on_chain">Mails recovered on-chain</string>
-    <string name="failed_to_recover_mails_on_chain">Failed to recover mails on-chain: %s</string>
-    <string name="mails_recovered_locally">Mails recovered locally</string>
-    <string name="mails_recovered_successfully_off_chain">Mails recovered(off-chain)</string>
-    <string name="failed_to_recover_mails">Failed to recover mails: %s</string>
+    <string name="please_enter_mail_content">Please enter Cmail content</string>
+    <string name="mail_saved_successfully">Cmail saved</string>
+    <string name="mail_sent_successfully">Cmail sent</string>
+    <string name="failed_to_send_mail">Failed to send Cmail: %s</string>
+    <string name="failed_to_load_newer_deleted_mails">Failed to load newer deleted Cmails</string>
+    <string name="loaded_newer_deleted_mails">Loaded %d newer deleted Cmails</string>
+    <string name="no_newer_deleted_mails_found">No newer deleted Cmails found</string>
+    <string name="error_loading_newer_deleted_mails">Error loading newer deleted Cmails: %s</string>
+    <string name="failed_to_load_earlier_deleted_mails">Failed to load earlier deleted Cmails</string>
+    <string name="loaded_earlier_deleted_mails">Loaded %d earlier deleted Cmails</string>
+    <string name="no_more_earlier_deleted_mails_found">No more earlier deleted Cmails found</string>
+    <string name="error_loading_earlier_deleted_mails">Error loading earlier deleted Cmails: %s</string>
+    <string name="no_mails_selected_for_recovery">No Cmails selected for recovery</string>
+    <string name="no_valid_mail_ids_for_recovery">No valid Cmail IDs for recovery</string>
+    <string name="mails_recovered_successfully_on_chain">Cmails recovered on-chain</string>
+    <string name="failed_to_recover_mails_on_chain">Failed to recover Cmails on-chain: %s</string>
+    <string name="mails_recovered_locally">Cmails recovered locally</string>
+    <string name="mails_recovered_successfully_off_chain">Cmails recovered(off-chain)</string>
+    <string name="failed_to_recover_mails">Failed to recover Cmails: %s</string>
 
     <!-- ApiServicesActivity -->
     <string name="api_services">Set BASE Server</string>
@@ -1055,9 +1055,9 @@
     <string name="topUp_prompt_message">Please find a freer to send some FCH to your FID:</string>
     <string name="ignore">Ignore</string>
 
-    <string name="loaded_mails">Loaded %d mails</string>
-    <string name="loaded_newer_mails">Loaded %d newer mails</string>
-    <string name="no_valid_participants_found_in_selected_mails">No valid participants found in selected mails</string>
+    <string name="loaded_mails">Loaded %d Cmails</string>
+    <string name="loaded_newer_mails">Loaded %d newer Cmails</string>
+    <string name="no_valid_participants_found_in_selected_mails">No valid participants found in selected Cmails</string>
     <string name="api_state">API state</string>
     <string name="got_api_services">Got %d API services</string>
     <string name="error_searching_api_services">Error when searching API services. %s</string>
@@ -1812,9 +1812,9 @@
     <string name="about_contact_title">What is a Contact?</string>
     <string name="about_contact_message">A Contact is an encrypted address-book entry stored on-chain (protocol FEIP-12).\n\n• Only you can read it. The chain holds only ciphertext; private fields like names, memos and preferences are encrypted, and only you hold the key.\n\n• It lives on the blockchain. Add, update, delete and recover are on-chain actions, so your contacts are backed up and follow you across devices.\n\nYour contacts stay private to you, even though they are stored on a public chain.</string>
 
-    <string name="about_mail">About Mail</string>
-    <string name="about_mail_title">What is Mail?</string>
-    <string name="about_mail_message">Mail is an encrypted message sent from one FID to another on-chain (protocol FEIP-7).\n\n• End-to-end encrypted. Messages use two-way encryption, so only the sender and recipient can read them.\n\n• Carried on the blockchain. There is no mail server; send, delete and recover are on-chain actions.\n\n• Addressed by FID. No email address or server — just the recipient\'s FID. You cannot mail yourself.\n\nUse Mail for private, durable messages that depend on no server.</string>
+    <string name="about_mail">About Cmail</string>
+    <string name="about_mail_title">What is Cmail?</string>
+    <string name="about_mail_message">Cmail (Crypto Mail) is an encrypted message sent from one FID to another on-chain (protocol FEIP-7).\n\n• End-to-end encrypted. Messages use two-way encryption, so only the sender and recipient can read them.\n\n• Carried on the blockchain. There is no mail server; send, delete and recover are on-chain actions.\n\n• Addressed by FID. No email address or server — just the recipient\'s FID. You cannot send a Cmail to yourself.\n\nUse Cmail for private, durable messages that depend on no server.</string>
 
     <string name="about_token">About Token</string>
     <string name="about_token_title">What is a Token?</string>
@@ -2218,9 +2218,9 @@
     <string name="loading_square_info">Loading square info…</string>
     <string name="selected_service_is_current">The selected service is already the current service</string>
     <string name="mark_all_read">Mark All Read</string>
-    <string name="confirm_mark_all_read">Mark all mails as read?</string>
-    <string name="marked_mails_read">Marked %d mails as read</string>
-    <string name="no_unread_mails">No unread mails</string>
+    <string name="confirm_mark_all_read">Mark all Cmails as read?</string>
+    <string name="marked_mails_read">Marked %d Cmails as read</string>
+    <string name="no_unread_mails">No unread Cmails</string>
     <string name="square_description">Square Description</string>
     <string name="square_name">Square Name</string>
 
@@ -2569,7 +2569,7 @@
     <string name="nobody_consequence_send">Anything sent to it can be taken by anyone.</string>
     <string name="nobody_consequence_send_from">The sender\'s prikey is public. Anyone can spend the same cash first, so this transaction may never confirm.</string>
     <string name="nobody_consequence_encrypt">Anyone can decrypt what you encrypt to it.</string>
-    <string name="nobody_consequence_mail">Anyone can read this mail and reply as the recipient.</string>
+    <string name="nobody_consequence_mail">Anyone can read this Cmail and reply as the recipient.</string>
     <string name="nobody_consequence_multisig">Anyone can sign as this member, so the multisig needs fewer real signatures than it appears.</string>
     <string name="nobody_consequence_master">Setting a master publishes your prikey encrypted to the master. Anyone can decrypt it and take this identity for good.</string>
     <string name="nobody_consequence_team">Anyone can read the team\'s messages and act as these members, including giving their consent.</string>

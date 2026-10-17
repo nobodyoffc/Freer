@@ -185,7 +185,7 @@ public class MailManager extends FcManager<Mail> {
             Mail mail = new Mail();
             mail.setFrom(liveKeyInfo.getId());
             mail.setTo(liveKeyInfo.getId());
-            mail.setContent("Welcome to Freer Mail System");
+            mail.setContent("Welcome to Freer Cmail");
             mail.checkIdWithCreate();
             mail.setOnChain(false);
             mail.setLastHeight(Constants.MaX_HEIGHT);
