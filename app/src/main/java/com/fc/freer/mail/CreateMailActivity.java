@@ -30,6 +30,7 @@ import com.fc.fc_ajdk.data.feipData.MailOpData;
 import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.data.feipData.Contact;
 import com.fc.fc_ajdk.data.fchData.Freer;
+import com.fc.fc_ajdk.utils.FchUtils;
 import com.fc.fc_ajdk.utils.Hex;
 import com.fc.fc_ajdk.utils.StringUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
@@ -88,7 +89,8 @@ public class CreateMailActivity extends BaseCryptoActivity {
     // Define request codes for QR scan and contact selection
     private static final int QR_SCAN_CONTENT_REQUEST_CODE = 3001;
     private static final int CHOOSE_CONTACT_REQUEST_CODE = 3002;
-    private Long gotNoticeFeeLong = null;
+    // What the mail being replied to paid us, in F (the chain records it in satoshis).
+    private Double gotNoticeFeeCoin = null;
 
     @Override
     protected int getLayoutId() {
@@ -227,7 +229,7 @@ public class CreateMailActivity extends BaseCryptoActivity {
             // Handle pre-filled reply content
             String gotNoticeFee = intent.getStringExtra("gotNoticeFee");
             if (gotNoticeFee != null && !gotNoticeFee.trim().isEmpty() && !gotNoticeFee.equals("null")) {
-                gotNoticeFeeLong = Long.valueOf(gotNoticeFee);
+                gotNoticeFeeCoin = FchUtils.satoshiToCoin(Long.parseLong(gotNoticeFee));
             }
         }
     }
@@ -622,9 +624,9 @@ public class CreateMailActivity extends BaseCryptoActivity {
 
                     if(mailManager.getSetting(PAY_BACK_NOTICE_FEE)!=null
                             && "true".equalsIgnoreCase((String)mailManager.getSetting(PAY_BACK_NOTICE_FEE))
-                            && gotNoticeFeeLong!=null
-                            && gotNoticeFeeLong > payNoticeFee)
-                        payNoticeFee = gotNoticeFeeLong;
+                            && gotNoticeFeeCoin!=null
+                            && gotNoticeFeeCoin > payNoticeFee)
+                        payNoticeFee = gotNoticeFeeCoin;
                 }
 
                 txSender.carveFeipWithRecipient(this, senderFid, selectedContact.getFid(), payNoticeFee, feipJson, prikey, cashManager, new TxHandler(), (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7), new TxSender.TxCallback() {
