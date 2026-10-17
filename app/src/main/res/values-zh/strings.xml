@@ -1093,6 +1093,7 @@
     <!-- SetNoticeFeeActivity -->
     <string name="set_notice_fee">设置通知费</string>
     <string name="my_notice_fee">我的通知费</string>
+    <string name="my_notice_fee_hint">别人每给你发一封密信付给你的费用。发件人会拒付超过其上限（默认 1 F）的通知费，所以设得越高，能收到的密信越少。</string>
     <string name="max_notice_fee_to_pay">付给他人的最大通知费</string>
     <string name="pay_back_notice_fee">返还通知费</string>
     <string name="enter_notice_fee">输入通知费</string>
@@ -1112,7 +1113,7 @@
     <string name="error_creating_setting">创建设置错误</string>
     <string name="error_parsing_key_info">解析密钥信息失败</string>
     <string name="please_select_a_cid">请选择一个CID</string>
-    <string name="the_notice_fee_of_s_is_more_than_your_limit_d">将要支付的通知费 %s 超过了你设置的最大值 %s.</string>
+    <string name="the_notice_fee_of_s_is_more_than_your_limit_d">%s 的通知费超过了你设置的最大值 %s F。</string>
     <string name="result">结果</string>
     <string name="app_password_can_not_be_shown_please_keep_it_carefully">APP密码不可显示，请妥善保存</string>
     <string name="opreturn_size_can_not_be_larger_than_4kb">刻字长度不能大于4KB</string>

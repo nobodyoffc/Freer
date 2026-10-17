@@ -45,7 +45,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:layout_marginBottom="24dp">
+                android:layout_marginBottom="4dp">
 
                 <EditText
                     android:id="@+id/my_notice_fee_edit_text"
@@ -60,6 +60,14 @@
                     android:background="@drawable/bg_result_item"
                     android:hint="@string/enter_notice_fee"/>
 
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/coin_unit_f"
+                    android:textColor="@color/text"
+                    android:textSize="16sp"
+                    android:layout_marginStart="8dp"/>
+
                 <Button
                     android:id="@+id/my_notice_fee_button"
                     android:layout_width="0dp"
@@ -69,6 +77,14 @@
                     style="@style/ButtonStyle"
                     android:layout_marginStart="8dp"/>
             </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/my_notice_fee_hint"
+                android:textSize="13sp"
+                android:textColor="@color/hint"
+                android:layout_marginBottom="24dp"/>
 
             <!-- Max Paying Notice Fee Section -->
             <TextView
@@ -99,6 +115,14 @@
                     android:padding="12dp"
                     android:background="@drawable/bg_result_item"
                     android:hint="@string/enter_max_notice_fee"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/coin_unit_f"
+                    android:textColor="@color/text"
+                    android:textSize="16sp"
+                    android:layout_marginStart="8dp"/>
 
                 <Button
                     android:id="@+id/max_paying_notice_fee_button"

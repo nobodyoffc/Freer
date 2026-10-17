@@ -44,7 +44,11 @@ public class MailManager extends FcManager<Mail> {
     public static final String UNREAD_MAP = "unreadMails";
     public static final String MAX_PAYING_NOTICE_FEE = "max_paying_notice_fee";
     public static final String PAY_BACK_NOTICE_FEE = "pay_back_notice_fee";
-    public static final String DEFAULT_MAX_PAYING_NOTICE_FEE = "100";
+    public static final String DEFAULT_MAX_PAYING_NOTICE_FEE = "1";
+    // The default before 3.3.2. A stored "100" is taken to be that default
+    // and lowered once; set again by hand afterwards, it stays.
+    private static final String OLD_DEFAULT_MAX_PAYING_NOTICE_FEE = "100";
+    private static final String MAX_PAYING_NOTICE_FEE_MIGRATED = "max_paying_notice_fee_migrated";
     public static final long DEFAULT_MAIL_FEE_SATOSHI = 10000L; // 0.0001 F
     private static final String TAG = "MailManager";
     public static final int MAX_PAGES = 200;
@@ -177,6 +181,7 @@ public class MailManager extends FcManager<Mail> {
 
     @Override
     protected void preprocessDB() {
+        migrateMaxPayingNoticeFee();
         if(checkIfSenderExisted(liveFid))return;
         try {
             KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
@@ -672,6 +677,19 @@ public class MailManager extends FcManager<Mail> {
      * @param fid The recipient
      * @return Fee amount in FCH
      */
+    private void migrateMaxPayingNoticeFee() {
+        try {
+            if (getSetting(MAX_PAYING_NOTICE_FEE_MIGRATED) != null) return;
+            if (OLD_DEFAULT_MAX_PAYING_NOTICE_FEE.equals(getSetting(MAX_PAYING_NOTICE_FEE))) {
+                setSetting(MAX_PAYING_NOTICE_FEE, DEFAULT_MAX_PAYING_NOTICE_FEE);
+            }
+            setSetting(MAX_PAYING_NOTICE_FEE_MIGRATED, TRUE);
+            commit();
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Failed to migrate max paying notice fee: %s", e.getMessage());
+        }
+    }
+
     public double calculateMailFee(String fid, Context context)  {
         double defaultFee =FchUtils.satoshiToCoin(DEFAULT_MAIL_FEE_SATOSHI);
         if(fid ==null)return defaultFee;

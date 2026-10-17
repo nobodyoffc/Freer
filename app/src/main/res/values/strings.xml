@@ -1108,6 +1108,8 @@
     <!-- SetNoticeFeeActivity -->
     <string name="set_notice_fee">Set Notice Fee</string>
     <string name="my_notice_fee">My Notice Fee</string>
+    <string name="coin_unit_f" translatable="false">F</string>
+    <string name="my_notice_fee_hint">What others pay you per Cmail. Senders refuse fees above their own limit (1 F by default), so a higher fee means fewer Cmails reach you.</string>
     <string name="max_notice_fee_to_pay">Max Notice Fee to pay</string>
     <string name="pay_back_notice_fee">Pay back the notice fee</string>
     <string name="enter_notice_fee">Enter notice fee</string>
@@ -1127,7 +1129,7 @@
     <string name="error_creating_setting">Error creating setting</string>
     <string name="error_parsing_key_info">Error parsing key info</string>
     <string name="please_select_a_cid">please select a CID</string>
-    <string name="the_notice_fee_of_s_is_more_than_your_limit_d">The notice fee of %s is more than your limit %s.</string>
+    <string name="the_notice_fee_of_s_is_more_than_your_limit_d">The notice fee of %s is more than your limit of %s F.</string>
     <string name="result">Result</string>
     <string name="app_password_can_not_be_shown_please_keep_it_carefully">App password can not be shown. Please keep it carefully.</string>
     <string name="opreturn_size_can_not_be_larger_than_4kb">OpReturn size can not be larger than 4KB</string>
