@@ -97,7 +97,7 @@
             android:id="@+id/expenseButton"
             style="@style/ImageButtonStyle"
             android:src="@drawable/ic_record"
-            android:contentDescription="@string/paid" />
+            android:contentDescription="@string/records" />
 
         <ImageButton
             android:id="@+id/scanQrButton"

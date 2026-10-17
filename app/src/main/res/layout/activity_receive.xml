@@ -126,7 +126,7 @@
             android:id="@+id/incomeButton"
             style="@style/ImageButtonStyle"
             android:src="@drawable/ic_record"
-            android:contentDescription="@string/income"
+            android:contentDescription="@string/records"
             />
 
         <ImageButton

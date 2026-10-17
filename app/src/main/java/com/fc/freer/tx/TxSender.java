@@ -1004,7 +1004,10 @@ public class TxSender {
             }
             
             if (!newCashList.isEmpty()) {
-                liveKeyInfo.setBalance(totalValue);
+                // Add the new cash to what is left after the spent cash was removed above;
+                // setting it alone made the balance show only the change.
+                Long balance = liveKeyInfo.getBalance();
+                liveKeyInfo.setBalance((balance != null ? balance : 0L) + totalValue);
                 liveKeyInfo.setCash(liveKeyInfo.getCash() + newCashList.size());
             }
             
