@@ -128,7 +128,7 @@ public class Freer extends FcSubject {
         addFieldToMap(fieldMap, "hot", "Hot", "热度");
         addFieldToMap(fieldMap, "weight", "Weight", "权重");
         addFieldToMap(fieldMap, "master", "Master", "主人");
-        addFieldToMap(fieldMap, "guide", "Guide", "向导");
+        addFieldToMap(fieldMap, "guide", "Guide", "引路人");
         addFieldToMap(fieldMap, "noticeFee", "Notice Fee", "通知费");
         addFieldToMap(fieldMap, "home", "Home", "主页");
         addFieldToMap(fieldMap, "btcAddr", "BTC Address", "BTC地址");

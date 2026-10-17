@@ -1792,8 +1792,8 @@
     <string name="about_service_title">什么是服务？</string>
     <string name="about_service_message">服务是去中心化服务的链上登记条目——API 端点、存储、中继或其他组件（协议 FEIP-5）。\n\n• 任何人都可以发布。服务无需中心化机构即可登记在链上。\n\n• 它记录元数据。端点、可选的定价，以及它所用到的协议和代码的链接。\n\n• 它的 ID（sid）就是发布它的那笔交易。\n\n服务让应用能够在网络中发现并连接到各个提供者。</string>
 
-    <string name="join_square">加入群组</string>
-    <string name="create_square">创建群组</string>
+    <string name="join_square">加入广场</string>
+    <string name="create_square">创建广场</string>
     <string name="quit_square">退出广场</string>
     <string name="quit_squares">退出广场</string>
     <string name="squares_quit_successfully">已退出广场</string>
@@ -2390,10 +2390,10 @@
 
     <!-- Combined DOCK + DISK server setup -->
     <string name="server_setup_title">设置链上服务器</string>
-    <string name="server_setup_message">链服务器（BASE）、消息（DOCK）和数据（DISK）。可全部使用当前服务器，或分别设置。</string>
+    <string name="server_setup_message">链服务器（BASE）、消息（DOCK）和文件（DISK）。可全部使用当前服务器，或分别设置。</string>
     <string name="server_setup_action">设置</string>
     <string name="server_setup_dock_label">消息服务器（DOCK）</string>
-    <string name="server_setup_disk_label">数据服务器（DISK）</string>
+    <string name="server_setup_disk_label">文件服务器（DISK）</string>
     <string name="server_setup_dock_hint">DOCK 中继的服务 ID 或 URL</string>
     <string name="server_setup_disk_hint">DISK 存储的服务 ID</string>
     <string name="server_setup_need_one">请至少输入一个要注册的服务器</string>
@@ -2458,7 +2458,7 @@
 
     <string name="server_setup_use_this">使用当前服务器</string>
     <string name="server_setup_advanced">高级设置…</string>
-    <string name="server_setup_suggest_both">将当前服务器同时用于消息（DOCK）和数据（DISK）吗？</string>
+    <string name="server_setup_suggest_both">将当前服务器同时用于消息（DOCK）和文件（DISK）吗？</string>
     <string name="server_setup_suggest_dock_only">将当前服务器用于消息（DOCK）吗？</string>
     <string name="server_setup_suggest_sid">服务器 SID：\n%1$s</string>
     <string name="refreshed">已刷新</string>
@@ -2532,7 +2532,7 @@
     <string name="nobody_consequence_multisig">任何人都能以该成员身份签名，这个多签实际需要的真实签名比看上去少。</string>
     <string name="nobody_consequence_master">设置主人会把你的私钥加密给主人后公开上链。任何人都能解密它，从而永久接管这个身份。</string>
     <string name="nobody_consequence_team">任何人都能读取团队消息，并以这些成员的身份行事，包括代其表示同意。</string>
-    <string name="nobody_consequence_room">任何人都能读取群组消息，并以这些成员的身份发言。</string>
+    <string name="nobody_consequence_room">任何人都能读取广场消息，并以这些成员的身份发言。</string>
     <string name="nobody_consequence_team_owner">任何人都可以作为团队所有者管理团队。</string>
     <string name="nobody_consequence_rate">任何人都能冒充它，它的声誉没有意义。为评价它而销毁的币天将被浪费。</string>
     <string name="nobody_consequence_contact">任何人都能冒充它发言、修改它的 CID，并读取你发给它的内容。</string>
@@ -2556,13 +2556,13 @@
     <string name="gs_step_register_cid">注册CID</string>
     <string name="gs_step_set_home">设置链上服务器</string>
     <string name="gs_step_add_guide">把引路人加为联系人</string>
-    <string name="gs_step_join_square">加入一个群组</string>
+    <string name="gs_step_join_square">加入一个广场</string>
     <string name="gs_explain_backup_prikey">私钥是这个身份属于你的唯一证明，而它只存在于这部手机上。手机丢了，身份也就没了，没有人能补发。请抄一份在纸上，或存成可以放在任何地方的加密文件。</string>
     <string name="gs_explain_first_fch">上链、名字和消息都要付手续费，所以空的FID暂时做不了什么。可以在公开的“第一笔FCH”求助板上求助，或请别人直接转币到你的地址。给你转来第一笔币的人就是你的引路人。</string>
     <string name="gs_explain_register_cid">CID是别人找到你的名字，比如 Alice_VkUV。末尾的几个字符取自你的FID，保证不重复。注册CID也会把你的公钥放上链，公钥上链之前，没有人能给你写信。</string>
     <string name="gs_explain_set_home">链上服务器告诉别人去哪里找你。DOCK在你离线时替你保存消息，DISK保存你的文件。它们在链上登记之前，别人无处联系你。</string>
     <string name="gs_explain_add_guide">引路人给你转来了第一笔币。他是你在这里唯一已经认识的人，把他加为联系人吧。</string>
-    <string name="gs_explain_join_square">群组是任何人都能加入的公开群聊。找一个你感兴趣的，打个招呼。</string>
+    <string name="gs_explain_join_square">广场是任何人都能加入的公开群聊。找一个你感兴趣的，打个招呼。</string>
     <string name="gs_status_skipped">已跳过</string>
     <string name="gs_status_checking">正在查询链上状态…</string>
     <string name="gs_status_pending">等待上链确认</string>
@@ -2583,7 +2583,7 @@
     <string name="gs_action_set_home">设置</string>
     <string name="gs_action_add_contact">加为联系人</string>
     <string name="gs_action_guide_details">详情</string>
-    <string name="gs_action_browse_squares">浏览群组</string>
+    <string name="gs_action_browse_squares">浏览广场</string>
     <string name="gs_action_skip">跳过</string>
     <string name="gs_your_fid">你的FID：%s</string>
     <string name="gs_guide_fid">引路人：%s</string>

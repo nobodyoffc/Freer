@@ -2175,10 +2175,10 @@
 
     <!-- Combined DOCK + DISK server setup -->
     <string name="server_setup_title">Set Servers Onchain</string>
-    <string name="server_setup_message">Your chain server (BASE), messaging (DOCK) and data (DISK). Use your current server for all of them, or set each separately.</string>
+    <string name="server_setup_message">Your chain server (BASE), messaging (DOCK) and files (DISK). Use your current server for all of them, or set each separately.</string>
     <string name="server_setup_action">Set up</string>
     <string name="server_setup_dock_label">Messaging server (DOCK)</string>
-    <string name="server_setup_disk_label">Data server (DISK)</string>
+    <string name="server_setup_disk_label">File server (DISK)</string>
     <string name="server_setup_dock_hint">Service ID or URL of your DOCK relay</string>
     <string name="server_setup_disk_hint">Service ID of your DISK storage</string>
     <string name="server_setup_need_one">Enter at least one server to register</string>
@@ -2500,7 +2500,7 @@
 
     <string name="server_setup_use_this">Use this server</string>
     <string name="server_setup_advanced">Advanced…</string>
-    <string name="server_setup_suggest_both">Use your current server for both messaging (DOCK) and data (DISK)?</string>
+    <string name="server_setup_suggest_both">Use your current server for both messaging (DOCK) and files (DISK)?</string>
     <string name="server_setup_suggest_dock_only">Use your current server for messaging (DOCK)?</string>
     <string name="server_setup_suggest_sid">Server SID:\n%1$s</string>
     <string name="refreshed">Refreshed</string>
