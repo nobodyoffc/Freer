@@ -1,5 +1,7 @@
 package com.fc.freer.account;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Bundle;
@@ -152,6 +154,37 @@ public class ReceiveActivity extends BaseCryptoActivity {
                 displayName = liveFid;
             }
             NobodyUi.setName(nameTextView, liveKeyInfo.getId(), displayName);
+            // Same as the home card: tapping the CID/FID copies the FID
+            nameTextView.setOnClickListener(v -> {
+                ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                clipboard.setPrimaryClip(ClipData.newPlainText("Live FID", liveFid));
+                ToastUtils.makeText(this, getString(R.string.copied));
+            });
+        }
+
+        // Same as the home card: the QR icon shows the bare FID's QR code
+        ImageView qrIconView = liveFidCard.findViewById(R.id.fidQrIcon);
+        if (qrIconView != null) {
+            qrIconView.setVisibility(View.VISIBLE);
+            qrIconView.setOnClickListener(v -> QRCodeGenerator.generateAndShowQRCode(this, liveFid, liveFid));
+        }
+
+        // Same as the home card: the refresh icon re-reads the live FID's info from the API
+        ImageView refreshIconView = liveFidCard.findViewById(R.id.fidRefreshIcon);
+        if (refreshIconView != null) {
+            refreshIconView.setOnClickListener(v -> FidManager.getInstance().refreshLiveFidCidInfoAsync(this, success -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (success) {
+                    KeyInfo refreshed = FidManager.getInstance().getLiveKeyInfo();
+                    if (refreshed != null) {
+                        liveKeyInfo = refreshed;
+                        setupLiveFidCard();
+                    }
+                    ToastUtils.showInfo(this, getString(R.string.refreshed));
+                } else {
+                    ToastUtils.showError(this, getString(R.string.failed_to_refresh));
+                }
+            }));
         }
 
         // Set label or edit icon visibility

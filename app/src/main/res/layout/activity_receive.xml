@@ -25,7 +25,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:paddingStart="8dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="8dp">
 
                 <!-- Live FID Card -->
                 <include
@@ -38,15 +40,17 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="16dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="8dp"
                 android:orientation="vertical">
 
                 <!-- QR Code Display Area -->
                 <androidx.cardview.widget.CardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:layout_marginBottom="16dp"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="8dp"
                     app:cardCornerRadius="8dp"
                     app:cardElevation="4dp">
 
@@ -55,14 +59,14 @@
                         android:layout_height="wrap_content"
                         android:gravity="center"
                         android:orientation="vertical"
-                        android:padding="16dp">
+                        android:padding="8dp">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:gravity="start"
                             android:orientation="horizontal"
-                            android:layout_marginBottom="8dp"
+                            android:layout_marginBottom="4dp"
                             android:text="@string/show_the_payer"
                             android:textColor="@color/field_name"
                             android:textSize="16sp"
@@ -71,9 +75,7 @@
                             android:id="@+id/qrCodeImageView"
                             android:layout_width="250dp"
                             android:layout_height="250dp"
-                            android:layout_margin="8dp"
-                            android:padding="8dp"
-
+                            android:padding="4dp"
                             android:contentDescription="@string/qr_code"
                             android:scaleType="fitCenter" />
                     </LinearLayout>
@@ -85,7 +87,7 @@
                     style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="4dp"
                     app:boxBackgroundColor="@color/input_field_background">
 
                     <com.google.android.material.textfield.TextInputEditText
@@ -111,7 +113,10 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="end"
-        android:padding="16dp">
+        android:paddingStart="16dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp">
 
 
         <ImageButton
