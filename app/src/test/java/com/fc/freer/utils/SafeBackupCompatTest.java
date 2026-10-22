@@ -66,10 +66,6 @@ public class SafeBackupCompatTest {
             else if (o instanceof BackupHeader h) header = h;
             else lines.add(o);
         }
-        // FcEntityImporter.importEntity refuses a list whose two key names disagree.
-        if (backupKey != null && header != null && header.getKeyName() != null
-                && !header.getKeyName().equals(backupKey.getKeyName()))
-            throw new IllegalStateException("key names differ");
         String password = backupKey != null && backupKey.getPassword() != null ? backupKey.getPassword() : typedPassword;
 
         JsonArray out = new JsonArray();

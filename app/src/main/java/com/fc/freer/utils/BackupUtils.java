@@ -57,9 +57,9 @@ public class BackupUtils {
             try {
 
                 BackupKey backupKey = BackupKey.fromJson (json, BackupKey.class);
-                // A backup encrypted with the app password carries only a hint, and is still the key line
+                // An encrypted backup whose password is not in it carries only a hint, and is still the key line
                 if (backupKey != null && (backupKey.getPassword()!=null || backupKey.getSymkey()!=null
-                        || (backupKey.getHint()!=null && backupKey.getKeyName()!=null))){
+                        || backupKey.getHint()!=null)){
                     objectList.add(backupKey);
                     continue;
                 }

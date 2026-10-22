@@ -7,7 +7,8 @@ public class BackupHeader extends FcObject {
     private String time;
     private Integer items;
     private Integer qrCodes;
-    private String keyName;
+    /** The identity whose private key opens the items' own ciphers, when they stay encrypted to it. */
+    private String fid;
     private String alg;
     private String tClass;
 
@@ -47,12 +48,12 @@ public class BackupHeader extends FcObject {
         this.qrCodes = qrCodes;
     }
 
-    public String getKeyName() {
-        return keyName;
+    public String getFid() {
+        return fid;
     }
 
-    public void setKeyName(String keyName) {
-        this.keyName = keyName;
+    public void setFid(String fid) {
+        this.fid = fid;
     }
 
     public String getAlg() {

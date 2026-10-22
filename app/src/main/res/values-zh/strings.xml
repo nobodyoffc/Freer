@@ -405,7 +405,10 @@
 
     <string name="failed_to_save_file">保存文件失败</string>
     <string name="failed_to_parse_json">解析JSON失败</string>
-    <string name="keyname_is_inconsistent">密钥名称不一致</string>
+    <string name="copy_password">复制密码</string>
+    <string name="i_have_saved_it">我已保存</string>
+    <string name="keep_random_password_apart">请将此密码与导出的数据分开保存。同时拥有两者的人就能读取数据。导出的数据不包含此密码，且不会再次显示。</string>
+    <string name="random_password_kept_apart">密码已在导出时单独显示，未与此数据保存在一起。</string>
     <string name="invalid_number_format">无效的数字格式</string>
     <string name="invalid_date_format">无效的日期格式</string>
     <string name="encrypt_by">加密自：</string>

@@ -205,7 +205,7 @@ public class BackupSecretsActivity extends BaseCryptoActivity {
 
     private String generateExportResult() {
         backupHeader = new BackupHeader();
-        backupHeader.setKeyName(FidManager.getInstance().getLiveFid());
+        backupHeader.setFid(FidManager.getInstance().getLiveFid());
         backupHeader.setTime(System.currentTimeMillis());
         backupHeader.setItems((int) totalSecrets);
         backupHeader.settClass(Secret.class.getSimpleName());
