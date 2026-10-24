@@ -394,53 +394,50 @@ public class SetCidActivity extends com.fc.freer.BaseCryptoActivity {
                 return;
             }
 
-            // Use the same logic as CreateContactActivity for on-chain operations
+            // A FID whose prikey is not on this device still gets the tx: SendTxActivity shows
+            // it unsigned, to be signed offline and broadcast.
             byte[] prikey = isMultisig ? null : SecurePrikeyManager.fetchPrikeySilent(liveKeyInfo.getPrikeyCipher());
-            if (isMultisig || prikey != null) {
-                new Thread(() -> {
-                    CashManager cashManager = CashManager.getInstance();
-                    TxSender txSender = new TxSender();
-                    txSender.carveSimpleFeip(this, liveKeyInfo.getId(), feipJson, prikey, cashManager, new TxHandler(), (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7), new TxSender.TxCallback() {
-                        @Override
-                        public void onSuccess(String txId) {
-                            // Not written into the KeyInfo: the parser picks the suffix, and the
-                            // carve counts only once the chain shows it. The next refresh of the
-                            // FID's record clears this and brings the CID in.
-                            PendingIdentityCarves.of(SetCidActivity.this).record(PendingIdentityCarve.cid(
-                                    liveFid, name, txId, System.currentTimeMillis()));
-                            runOnUiThread(() -> {
-                                setResult(RESULT_OK);
-                                finish();
-                            });
-                        }
+            new Thread(() -> {
+                CashManager cashManager = CashManager.getInstance();
+                TxSender txSender = new TxSender();
+                txSender.carveSimpleFeip(this, liveKeyInfo.getId(), feipJson, prikey, cashManager, new TxHandler(), (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7), new TxSender.TxCallback() {
+                    @Override
+                    public void onSuccess(String txId) {
+                        // Not written into the KeyInfo: the parser picks the suffix, and the
+                        // carve counts only once the chain shows it. The next refresh of the
+                        // FID's record clears this and brings the CID in.
+                        PendingIdentityCarves.of(SetCidActivity.this).record(PendingIdentityCarve.cid(
+                                liveFid, name, txId, System.currentTimeMillis()));
+                        runOnUiThread(() -> {
+                            setResult(RESULT_OK);
+                            finish();
+                        });
+                    }
 
-                        @Override
-                        public void onError(String errorMessage) {
-                            runOnUiThread(() -> {
-                                ToastUtils.makeText(SetCidActivity.this, getString(R.string.toast_failed_carve_cid_onchain, errorMessage));
-                            });
-                        }
+                    @Override
+                    public void onError(String errorMessage) {
+                        runOnUiThread(() -> {
+                            ToastUtils.makeText(SetCidActivity.this, getString(R.string.toast_failed_carve_cid_onchain, errorMessage));
+                        });
+                    }
 
-                        @Override
-                        public void onUnsignedTx(RawTxInfo rawTxInfo) {
-                            runOnUiThread(() -> {
-                                ToastUtils.makeText(SetCidActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
-                                txSender.showUnsignedTxAsQR(SetCidActivity.this, rawTxInfo);
-                            });
-                        }
+                    @Override
+                    public void onUnsignedTx(RawTxInfo rawTxInfo) {
+                        runOnUiThread(() -> {
+                            ToastUtils.makeText(SetCidActivity.this, getString(R.string.toast_sign_tx_failed_unsigned));
+                            txSender.showUnsignedTxAsQR(SetCidActivity.this, rawTxInfo);
+                        });
+                    }
 
-                        @Override
-                        public void onUnbroadcasted(String signedTxHex) {
-                            runOnUiThread(() -> {
-                                // Show signed transaction as QR code for manual broadcasting
-                                txSender.showSignedTxAsQR(SetCidActivity.this, signedTxHex);
-                            });
-                        }
-                    });
-                }).start();
-            } else {
-                ToastUtils.showError(this, getString(R.string.failed_to_get_prikey));
-            }
+                    @Override
+                    public void onUnbroadcasted(String signedTxHex) {
+                        runOnUiThread(() -> {
+                            // Show signed transaction as QR code for manual broadcasting
+                            txSender.showSignedTxAsQR(SetCidActivity.this, signedTxHex);
+                        });
+                    }
+                });
+            }).start();
 
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error creating CID registration transaction: " + e.getMessage(), e);

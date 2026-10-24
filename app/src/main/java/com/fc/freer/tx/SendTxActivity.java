@@ -30,6 +30,8 @@ import com.fc.freer.utils.ToastUtils;
 import com.fc.fc_ajdk.core.fch.RawTxInfo;
 import com.fc.fc_ajdk.data.fchData.CashMask;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
+import com.fc.fc_ajdk.utils.BytesUtils;
+import com.fc.freer.utils.SecurePrikeyManager;
 import com.fc.fc_ajdk.utils.FchUtils;
 import com.fc.fc_ajdk.utils.JsonUtils;
 import com.fc.fc_ajdk.utils.TimberLogger;
@@ -115,8 +117,9 @@ public class SendTxActivity extends BaseCryptoActivity {
             rawTxInfo.setSenderInfo(senderKeyInfo);
         }
 
-        // Check if prikeyCipher is null or empty to determine broadcast mode
-        if(senderKeyInfo != null && (senderKeyInfo.getPrikeyCipher() == null || senderKeyInfo.getPrikeyCipher().isEmpty())) {
+        // No prikey on this device (none stored, or it can't be decrypted): the tx is shown to be
+        // signed offline and broadcast, instead of failing at send time.
+        if(senderKeyInfo != null && !canFetchPrikey(senderKeyInfo)) {
             isBroadcastMode = true;
             ToastUtils.makeText(SendTxActivity.this,getString(R.string.no_prikey_copy_tx_sign_it_and_broadcast_it));
         }
@@ -253,6 +256,13 @@ public class SendTxActivity extends BaseCryptoActivity {
                                 R.string.nobody_consequence_send_from, this::performSend));
             });
         }
+    }
+
+    private static boolean canFetchPrikey(KeyInfo keyInfo) {
+        byte[] prikey = SecurePrikeyManager.fetchPrikeySilent(keyInfo.getPrikeyCipher());
+        if (prikey == null) return false;
+        BytesUtils.clearByteArray(prikey);
+        return true;
     }
 
     /** The output recipients, excluding change back to the sender. */

@@ -269,6 +269,16 @@ public class PopupMenuHelper {
             popupWindow.dismiss();
             showRemoveMeConfirmation();
         });
+
+        // Settings belong to the main FID. A sub-identity may only name its own CID.
+        FidManager fidManager = FidManager.getInstance();
+        if (fidManager != null && !fidManager.isLiveFidMain()) {
+            for (TextView item : new TextView[]{changePassword, setApis, setDockDisk, setMaster,
+                    backupPrikey, helpBeginners, security_guidelines, toastMessages, removeMe}) {
+                item.setEnabled(false);
+                item.setAlpha(0.4f);
+            }
+        }
     }
 
     private void setupInputOptionsMenuItems(View popupView, OnInputOptionSelectedListener listener) {
