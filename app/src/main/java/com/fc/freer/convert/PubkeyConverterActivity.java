@@ -55,7 +55,7 @@ public class PubkeyConverterActivity extends BaseCryptoActivity {
         buttonContainer = findViewById(R.id.buttonContainer);
         
         setupIoIconsView(R.id.keyView, R.id.peopleAndScanIcons, false, true, true, true,
-                false, null, v -> useCurrentKeyInfo(), () -> pasteFromClipboard(keyEditText), null, () -> startQrScan(0));
+                false, null, v -> useCurrentKeyInfo(), () -> pasteFromClipboard(keyEditText), () -> startQrScan(0), null);
             
         setupIoIconsView(R.id.resultView, R.id.makeQrIcon, true, false, false, false,
                 false, () -> {

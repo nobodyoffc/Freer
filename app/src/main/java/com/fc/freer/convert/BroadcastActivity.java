@@ -59,7 +59,7 @@ public class BroadcastActivity extends BaseCryptoActivity {
         buttonContainer = findViewById(R.id.buttonContainer);
 
         setupIoIconsView(R.id.keyView, R.id.scanIcon, false, false, true, true,
-                false, null, null, () -> pasteFromClipboard(rawTxEditText), null, () -> startQrScan(0));
+                false, null, null, () -> pasteFromClipboard(rawTxEditText), () -> startQrScan(0), null);
 
         setupIoIconsView(R.id.resultView, R.id.makeQrIcon, true, false, false, false,
                 false, () -> {

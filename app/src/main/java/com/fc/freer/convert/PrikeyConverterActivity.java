@@ -61,7 +61,7 @@ public class PrikeyConverterActivity extends BaseCryptoActivity {
         formatOptions.check(R.id.optionBase58Compressed);
     
         setupIoIconsView(R.id.keyView, R.id.peopleAndScanIcons, false, true, true, true,
-                false, null, v -> useCurrentKeyInfo(), () -> pasteFromClipboard(keyEditText), null, () -> startQrScan(QR_SCAN_REQUEST_CODE));
+                false, null, v -> useCurrentKeyInfo(), () -> pasteFromClipboard(keyEditText), () -> startQrScan(QR_SCAN_REQUEST_CODE), null);
             
         setupIoIconsView(R.id.resultView, R.id.makeQrIcon, true, false, false, false,
                 false, () -> {
