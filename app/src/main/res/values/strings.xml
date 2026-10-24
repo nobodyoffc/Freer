@@ -415,6 +415,8 @@
     <string name="please_verify_your_password">Please verify your password</string>
     <string name="failed_to_load_avatar">Failed to load avatar.</string>
     <string name="remove_me">Remove me</string>
+    <string name="confirm_again">Confirm Again</string>
+    <string name="remove_fid">Remove FID</string>
     <string name="all_data_cleared_successfully">All data cleared </string>
     <string name="no_more_secrets">No more secrets</string>
     <string name="check_password">Check Password</string>

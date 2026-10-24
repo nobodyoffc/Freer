@@ -299,7 +299,7 @@ public class PopupMenuHelper {
         // Check if liveFid is the mainFid
         if (liveFid != null && liveFid.equals(mainFid)) {
             // Remove main FID - show full confirmation with two dialogs
-            UserConfirmDialog firstDialog = new UserConfirmDialog(context, "Remove Me",
+            UserConfirmDialog firstDialog = new UserConfirmDialog(context, context.getString(R.string.remove_me),
                 context.getString(R.string.you_are_clear_all_the_data_of_safe_do_you_sure_to_do_it),
                 choice -> {
                     if (choice == UserConfirmDialog.Choice.YES) {
@@ -309,7 +309,7 @@ public class PopupMenuHelper {
             firstDialog.show();
         } else {
             // Remove non-main FID (master, watched, multisig, or servant) - single confirmation
-            UserConfirmDialog dialog = new UserConfirmDialog(context, "Remove FID",
+            UserConfirmDialog dialog = new UserConfirmDialog(context, context.getString(R.string.remove_fid),
                 context.getString(R.string.confirm_remove_non_main_fid),
                 choice -> {
                     if (choice == UserConfirmDialog.Choice.YES) {
@@ -321,7 +321,7 @@ public class PopupMenuHelper {
     }
 
     private void showSecondRemoveMeConfirmation() {
-        UserConfirmDialog secondDialog = new UserConfirmDialog(context,"Confirm Again",
+        UserConfirmDialog secondDialog = new UserConfirmDialog(context, context.getString(R.string.confirm_again),
                 context.getString(R.string.cleared_data_cannot_be_recovered_are_you_sure_to_clear_all_data),
             choice -> {
                 if (choice == UserConfirmDialog.Choice.YES) {

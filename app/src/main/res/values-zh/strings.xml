@@ -333,6 +333,8 @@
     <string name="failed_to_load_avatar">加载头像失败</string>
 
     <string name="remove_me">删除本号</string>
+    <string name="confirm_again">再次确认</string>
+    <string name="remove_fid">删除FID</string>
     <string name="all_data_cleared_successfully">所有数据已被清除</string>
     <string name="no_more_secrets">没有更多了</string>
     <string name="check_password">验证密码</string>
