@@ -124,6 +124,20 @@ public class PersonPopupMenuHelper {
     }
     
     /**
+     * The user-visible name of a type from determineFidType, which stays English for comparisons
+     */
+    private String fidTypeLabel(String fidType) {
+        switch (fidType) {
+            case MAIN_FID: return activity.getString(R.string.main_fid);
+            case "Master": return activity.getString(R.string.fid_type_master);
+            case "Watched": return activity.getString(R.string.fid_type_watched);
+            case "Multisig": return activity.getString(R.string.fid_type_multisig);
+            case "Servant": return activity.getString(R.string.fid_type_servant);
+            default: return activity.getString(R.string.unknown);
+        }
+    }
+
+    /**
      * Set up the popup content with current FID info and menu actions
      */
     private void setupPopupContent(View popupView) {
@@ -135,8 +149,7 @@ public class PersonPopupMenuHelper {
 
         if (liveFid != null) {
             String fidType = determineFidType(liveFid);
-            String displayText = "Living: " + fidType;
-            currentFidText.setText(displayText);
+            currentFidText.setText(activity.getString(R.string.living_fid_type, fidTypeLabel(fidType)));
 
             // Set the living FID avatar
             AvatarManager avatarManager = AvatarManager.getInstance(activity);
@@ -386,7 +399,7 @@ public class PersonPopupMenuHelper {
      */
     private void switchToMasterAsync(String masterFid, KeyInfo masterKeyInfo) {
         // Show waiting dialog
-        showWaitingDialog("Switching to master FID...");
+        showWaitingDialog(activity.getString(R.string.switching_to_master_fid));
         
         // Use FidManager's async method with callback
         fidManager.switchLiveFidAsync(activity, masterFid, masterKeyInfo, new FidManager.FidSwitchCallback() {
@@ -414,7 +427,7 @@ public class PersonPopupMenuHelper {
      */
     private void fetchMasterKeyInfoAsync(String masterFid, Setting currentSetting) {
         // Show waiting dialog
-        showWaitingDialog("Fetching master FID info...");
+        showWaitingDialog(activity.getString(R.string.fetching_master_fid_info));
         
         // Execute network operation on background thread
         new Thread(() -> {
@@ -425,7 +438,7 @@ public class PersonPopupMenuHelper {
                     // Successfully fetched, now switch using FidManager's async method
                     activity.runOnUiThread(() -> {
                         // Update waiting dialog message
-                        updateWaitingDialogMessage("Switching to master FID...");
+                        updateWaitingDialogMessage(activity.getString(R.string.switching_to_master_fid));
                     });
                     
                     // Use FidManager's async method with callback
@@ -472,8 +485,8 @@ public class PersonPopupMenuHelper {
     private void promptSetMaster() {
         UserConfirmDialog confirmDialog = new UserConfirmDialog(
             activity,
-            "Set Master",
-            "No master is set for this FID. Would you like to set a master?",
+            activity.getString(R.string.set_master),
+            activity.getString(R.string.no_master_set_prompt),
             choice -> {
                 if (choice == UserConfirmDialog.Choice.YES) {
                     // Launch SetMasterActivity
@@ -517,7 +530,7 @@ public class PersonPopupMenuHelper {
      */
     private void switchToFid(String fid, KeyInfo keyInfo) {
         // Show waiting dialog
-        showWaitingDialog("Switching FID...");
+        showWaitingDialog(activity.getString(R.string.switching_fid));
         
         // Use FidManager's async method with callback
         fidManager.switchLiveFidAsync(activity, fid, keyInfo, new FidManager.FidSwitchCallback() {

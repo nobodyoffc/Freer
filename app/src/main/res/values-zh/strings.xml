@@ -943,6 +943,14 @@
     <string name="failed_to_switch">切换失败</string>
     <string name="failed_to_fetch_master_fid_info">获取主人FID信息失败</string>
     <string name="error_fetching_master_fid_info_with_message">获取主人FID信息错误：%s</string>
+    <string name="switching_to_master_fid">正在切换到主人FID...</string>
+    <string name="fetching_master_fid_info">正在获取主人FID信息...</string>
+    <string name="no_master_set_prompt">此FID尚未设置主人。要设置一个吗？</string>
+    <string name="living_fid_type">当前：%s</string>
+    <string name="fid_type_master">主人</string>
+    <string name="fid_type_watched">观察</string>
+    <string name="fid_type_multisig">多签</string>
+    <string name="fid_type_servant">仆人</string>
     <string name="error_logging_out">退出登录错误</string>
 
     <!-- SecretDeletedActivity strings -->

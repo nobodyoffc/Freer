@@ -954,6 +954,14 @@
     <string name="failed_to_switch">Failed to switch</string>
     <string name="failed_to_fetch_master_fid_info">Failed to fetch master FID info</string>
     <string name="error_fetching_master_fid_info_with_message">Error fetching master FID info: %s</string>
+    <string name="switching_to_master_fid">Switching to master FID...</string>
+    <string name="fetching_master_fid_info">Fetching master FID info...</string>
+    <string name="no_master_set_prompt">No master is set for this FID. Would you like to set a master?</string>
+    <string name="living_fid_type">Living: %s</string>
+    <string name="fid_type_master">Master</string>
+    <string name="fid_type_watched">Watched</string>
+    <string name="fid_type_multisig">Multisig</string>
+    <string name="fid_type_servant">Servant</string>
     <string name="error_logging_out">Error logging out</string>
 
     <!-- SecretDeletedActivity strings -->
