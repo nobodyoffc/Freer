@@ -546,7 +546,7 @@
                             android:tag="icon"
                             android:src="@drawable/ic_group"
                             android:contentDescription="@string/menu_square"
-                            android:background="@color/accent"
+                            android:background="@drawable/icon_background"
                             android:padding="12dp"/>
 
                         <TextView
@@ -594,7 +594,7 @@
                             android:tag="icon"
                             android:src="@drawable/ic_team"
                             android:contentDescription="@string/menu_team"
-                            android:background="@color/accent"
+                            android:background="@drawable/icon_background"
                             android:padding="12dp"/>
 
                         <TextView
@@ -642,7 +642,7 @@
                             android:tag="icon"
                             android:src="@drawable/ic_room"
                             android:contentDescription="@string/menu_room"
-                            android:background="@color/accent"
+                            android:background="@drawable/icon_background"
                             android:padding="12dp"/>
 
                         <TextView
@@ -808,7 +808,7 @@
                             android:tag="icon"
                             android:src="@drawable/ic_talk"
                             android:contentDescription="@string/menu_talk"
-                            android:background="@color/accent"
+                            android:background="@drawable/icon_background"
                             android:padding="12dp"/>
 
                         <TextView
