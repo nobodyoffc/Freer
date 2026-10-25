@@ -21,6 +21,7 @@ import com.fc.freer.R;
 import com.fc.freer.initiate.SettingManager;
 import com.fc.freer.model.Setting;
 import com.fc.freer.ui.MenuItem;
+import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.ChooseMode;
 import com.fc.freer.utils.KeyCardContainer;
 import com.fc.freer.ui.WaitingDialog;
@@ -90,6 +91,7 @@ public class CreateRoomActivity extends BaseCryptoActivity {
         });
 
         setupButtons();
+        prefillDock();
     }
 
     @Override
@@ -176,6 +178,18 @@ public class CreateRoomActivity extends BaseCryptoActivity {
         if (setting != null) {
             imManager = setting.getImManager();
         }
+    }
+
+    /** Prefill DOCK with the BASE server's SID; resolving it may hit the network. */
+    private void prefillDock() {
+        new Thread(() -> {
+            String baseSid = ApiCenter.getInstance().getBaseServiceSid();
+            if (baseSid == null || baseSid.isEmpty()) return;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (getText(dockInput).isEmpty()) dockInput.setText(baseSid);
+            });
+        }).start();
     }
 
     private void initAddMemberLauncher() {
