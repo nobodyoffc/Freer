@@ -2,13 +2,16 @@ package com.fc.freer.secret;
 
 import android.Manifest;
 import android.content.ClipData;
+import android.content.ContentValues;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.MediaStore;
 import android.view.View;
 
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
@@ -35,6 +38,7 @@ import com.google.android.material.textfield.TextInputEditText;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -107,7 +111,7 @@ public class BackupSecretsActivity extends BaseCryptoActivity {
 
     @Override
     protected String getActivityTitle() {
-        return getString(R.string.export_secrets); // Using string resource
+        return getString(R.string.backup_off_chain_secrets);
     }
 
     @Override
@@ -117,6 +121,9 @@ public class BackupSecretsActivity extends BaseCryptoActivity {
         copyButton = findViewById(R.id.copy_button);
         resultView = findViewById(R.id.resultView);
         resultTextBox = resultView.findViewById(R.id.textBoxWithMakeQrLayout);
+        // The layout is shared with ExportSecretActivity; a backup keeps the ciphers as they are, so no encryption choice.
+        findViewById(R.id.encrypt_by_label).setVisibility(View.GONE);
+        findViewById(R.id.encrypt_by_group).setVisibility(View.GONE);
 
         setupIoIconsView(R.id.resultView, R.id.makeQrIcon, true, false, false, false,
                 false, this::makeQr, null, null, null, null);
@@ -179,10 +186,26 @@ public class BackupSecretsActivity extends BaseCryptoActivity {
     }
 
     private String saveResultToFile(String result) {
+        String fileName = "backup_secrets_" + System.currentTimeMillis() + ".txt";
         try {
+            // API 29+: a plain file write to Downloads is not always indexed by MediaStore,
+            // so file managers and the Downloads app don't list it. Insert through MediaStore instead.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.Downloads.DISPLAY_NAME, fileName);
+                values.put(MediaStore.Downloads.MIME_TYPE, "text/plain");
+                values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+                Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                if (uri == null) throw new IOException("MediaStore insert returned null");
+                try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+                    if (out == null) throw new IOException("openOutputStream returned null");
+                    out.write(result.getBytes());
+                    out.flush();
+                }
+                return new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName).getAbsolutePath();
+            }
             File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
             if (!downloadDir.exists()) downloadDir.mkdirs();
-            String fileName = "backup_secrets_" + System.currentTimeMillis() + ".txt";
             File file = new File(downloadDir, fileName);
             try (FileOutputStream fos = new FileOutputStream(file)) {
                 fos.write(result.getBytes());
