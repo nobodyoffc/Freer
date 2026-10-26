@@ -128,8 +128,6 @@ public class ExportSecretActivity extends BaseCryptoActivity {
         randomPasswordButton = findViewById(R.id.encrypt_random_password);
         noneButton = findViewById(R.id.encrypt_none);
 
-        // Set up radio button listeners to ensure only one is selected at a time
-        setupRadioButtonListeners();
         // The IoIconsView setup seems to be for a different make QR icon inside the resultView.
         // We will handle the new makeQrButton's click listener in setupButtons()
         setupIoIconsView(R.id.resultView, R.id.makeQrIcon, true, false, false, false,
@@ -160,25 +158,6 @@ public class ExportSecretActivity extends BaseCryptoActivity {
             QRCodeGenerator.showQRDialog(this, flattenedBitmaps);
         } else {
             ToastUtils.showWarning(this, getString(R.string.no_data_to_make_qr_code));
-        }
-    }
-
-    private void setupRadioButtonListeners() {
-
-        RadioButton[] allButtons = {currentPasswordButton, randomPasswordButton, noneButton};
-
-        // Set up listeners for all buttons
-        for (RadioButton button : allButtons) {
-            button.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                if (isChecked) {
-                    // Uncheck all other buttons
-                    for (RadioButton otherButton : allButtons) {
-                        if (otherButton != buttonView) {
-                            otherButton.setChecked(false);
-                        }
-                    }
-                }
-            });
         }
     }
 

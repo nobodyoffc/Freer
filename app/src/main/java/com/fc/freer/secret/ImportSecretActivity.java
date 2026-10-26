@@ -137,7 +137,7 @@ public class ImportSecretActivity extends BaseCryptoActivity {
                 });
 
         setupIoIconsView(R.id.secretJsonInput, R.id.scanIcon, false, false, true, true,
-                true, null, null, () -> pasteFromClipboard(secretJsonInput), this::openFilePicker, () -> startQrScan(QR_SCAN_JSON_REQUEST_CODE));
+                true, null, null, this::paste, () -> startQrScan(QR_SCAN_JSON_REQUEST_CODE), this::openFilePicker);
     }
 
     private void handleFileSelection(Uri uri) {
@@ -171,8 +171,7 @@ public class ImportSecretActivity extends BaseCryptoActivity {
         secretClearButton.setOnClickListener(v -> {
             FcEntityImporter.hideKeyboard(getCurrentFocus());
             secretJsonInput.setText("");
-            secretJsonInput.setEnabled(true);
-            isFileMode = false;
+            leaveFileMode();
         });
 
         secretImportButton.setOnClickListener(v -> {
@@ -205,10 +204,7 @@ public class ImportSecretActivity extends BaseCryptoActivity {
             CharSequence pasteData = item.getText();
             if (pasteData != null) {
                 secretJsonInput.setText(pasteData.toString());
-                secretJsonInput.setEnabled(true);
-                secretJsonInput.setTextColor(getColor(R.color.text));
-                isFileMode = false;
-                currentFilePath = null;
+                leaveFileMode();
             } else {
                 showToast(getString(R.string.clipboard_is_empty));
             }
@@ -241,8 +237,15 @@ public class ImportSecretActivity extends BaseCryptoActivity {
     protected void handleQrScanResult(int requestCode, String qrContent) {
         if (requestCode == QR_SCAN_JSON_REQUEST_CODE) {
             secretJsonInput.setText(qrContent);
-            secretJsonInput.setEnabled(true);
-            isFileMode=false;
+            leaveFileMode();
         }
+    }
+
+    /** Re-enables typed input after a file was picked, so Import reads the text box again. */
+    private void leaveFileMode() {
+        secretJsonInput.setEnabled(true);
+        secretJsonInput.setTextColor(getColor(R.color.text));
+        isFileMode = false;
+        currentFilePath = null;
     }
 } 
