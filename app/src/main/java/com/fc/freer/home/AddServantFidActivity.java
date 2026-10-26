@@ -34,6 +34,7 @@ import java.util.Set;
 
 public class AddServantFidActivity extends BaseCryptoActivity {
     private static final String TAG = "AddServantFidActivity";
+    private static final String MENU_PRIKEY_FROM_MASTER = "prikeyFromMaster";
     
     private TextView servantResultsHint;
     private LinearLayout servantResultsLayout;
@@ -92,6 +93,7 @@ public class AddServantFidActivity extends BaseCryptoActivity {
         // Initialize KeyCardContainer with CHOOSE_MULTI mode
         List<MenuItem> menuItems = new ArrayList<>();
         menuItems.add(new MenuItem("detail", getString(R.string.detail), MenuItemType.DETAIL));
+        menuItems.add(new MenuItem(MENU_PRIKEY_FROM_MASTER, getString(R.string.prikey_from_master_record)));
         keyCardContainer = new KeyCardContainer(this, servantResultsLayout, ChooseMode.CHOOSE_MULTI, menuItems, true);
         keyCardContainer.setOnKeyListChangedListener(this::onServantSelectionChanged);
         keyCardContainer.setOnMenuItemClickListener(this::onMenuItemClicked);
@@ -313,6 +315,31 @@ public class AddServantFidActivity extends BaseCryptoActivity {
     private void onMenuItemClicked(String menuItem, KeyInfo keyInfo) {
         if (getString(R.string.detail).equals(menuItem)) {
             showKeyInfoDetail(keyInfo);
+        } else if (MENU_PRIKEY_FROM_MASTER.equals(menuItem)) {
+            ServantPrikeyRecovery.recover(this, keyInfo, this::addRecoveredServant);
+        }
+    }
+
+    /**
+     * A servant whose prikey was just recovered is added right away, so the key is not lost
+     * if the user leaves without tapping Add.
+     */
+    private void addRecoveredServant(KeyInfo keyInfo) {
+        try {
+            keyInfo.setSaveTime(DateUtils.longToTime(System.currentTimeMillis(), DateUtils.LONG_FORMAT));
+            currentSetting.addServantKeyInfo(keyInfo);
+            SettingManager settingManager = SettingManager.getInstance();
+            settingManager.saveSettings(this, currentSetting);
+            settingManager.setCurrentSetting(currentSetting);
+            setResult(RESULT_OK);
+
+            ToastUtils.makeText(this, getString(R.string.servant_prikey_recovered));
+            // Redraw so the now-added servant drops out of the candidate list
+            displayServantResults(currentServantResults);
+            updateConfirmButton();
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error adding recovered servant: %s", e.getMessage());
+            ToastUtils.makeText(this, getString(R.string.failed_to_add_servant_fids) + ": " + e.getMessage());
         }
     }
     

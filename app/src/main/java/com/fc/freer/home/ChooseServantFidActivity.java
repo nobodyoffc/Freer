@@ -28,6 +28,7 @@ import java.util.List;
 public class ChooseServantFidActivity extends BaseCryptoActivity {
     private static final String TAG = "ChooseServantFidActivity";
     public static final int REQUEST_CODE_ADD_SERVANT_FID = 3002;
+    private static final String MENU_PRIKEY_FROM_MASTER = "prikeyFromMaster";
     
     private LinearLayout servantFidListContainer;
     private ImageButton addButton;
@@ -73,6 +74,7 @@ public class ChooseServantFidActivity extends BaseCryptoActivity {
         // Initialize KeyCardContainer with CHOOSE_ONE_RETURN mode and delete menu
         List<MenuItem> menuItems = new ArrayList<>();
         menuItems.add(MenuItem.createDeleteMenuItem(this));
+        menuItems.add(new MenuItem(MENU_PRIKEY_FROM_MASTER, getString(R.string.prikey_from_master_record)));
         keyCardContainer = new KeyCardContainer(this, servantFidListContainer, ChooseMode.CHOOSE_ONE_RETURN, menuItems, true);
         keyCardContainer.setShowDefaultMenuItems(true); // Show "Add to FID list" and "Clear FID list"
         keyCardContainer.setOnKeyClickedListener(this::onServantFidSelected);
@@ -158,7 +160,16 @@ public class ChooseServantFidActivity extends BaseCryptoActivity {
     }
     
     private void onMenuItemClicked(String menuItemId, KeyInfo keyInfo) {
-        if ("delete".equals(menuItemId)) {
+        if (MENU_PRIKEY_FROM_MASTER.equals(menuItemId)) {
+            ServantPrikeyRecovery.recover(this, keyInfo, recovered -> {
+                if (FidManager.getInstance().updateKeyInfo(this, recovered.getId(), recovered)) {
+                    ToastUtils.makeText(this, getString(R.string.servant_prikey_recovered));
+                    loadServantFidList();
+                } else {
+                    ToastUtils.makeText(this, getString(R.string.toast_failed_save_prikey));
+                }
+            });
+        } else if ("delete".equals(menuItemId)) {
             // Remove the servant FID from the current setting
             if (currentSetting != null) {
                 boolean removed = currentSetting.removeServantKeyInfo(keyInfo.getId());

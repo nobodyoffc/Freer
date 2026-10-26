@@ -8,7 +8,6 @@ import android.view.ViewGroup;
 import android.widget.PopupWindow;
 import android.widget.TextView;
 
-import com.fc.fc_ajdk.data.feipData.FreerHist;
 import com.fc.freer.utils.ToastUtils;
 
 import com.fc.fc_ajdk.core.crypto.Encryptor;
@@ -16,17 +15,12 @@ import com.fc.fc_ajdk.core.crypto.Decryptor;
 import com.fc.fc_ajdk.core.crypto.CryptoDataByte;
 import com.fc.fc_ajdk.core.crypto.KeyTools;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
-import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.utils.TimberLogger;
-import com.fc.fc_ajdk.fapi.client.FapiClient;
-import com.fc.freer.utils.ApiCenter;
-import com.fc.freer.utils.QRCodeGenerator;
 import com.fc.freer.R;
 import com.fc.freer.initiate.ConfigureManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.model.Configure;
 import com.fc.freer.ui.StringInputDialog;
-import com.fc.freer.utils.SecurePrikeyManager;
 
 import org.bitcoinj.core.ECKey;
 
@@ -318,144 +312,26 @@ public class AddPrikeyPopupMenuHelper {
     }
 
     private void handleFromMaster() {
-        try {
-            FidManager fidManager = FidManager.getInstance();
-            if (fidManager == null) {
-                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_fid_manager_unavailable));
-                return;
-            }
-
-            KeyInfo liveKeyInfo = fidManager.getLiveKeyInfo();
-            if (liveKeyInfo == null) {
-                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_live_keyinfo_unavailable));
-                return;
-            }
-
-            // 1. Check if liveKeyInfo.master is null
-            String master = liveKeyInfo.getMaster();
-            if (master == null || master.trim().isEmpty()) {
-                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_no_master_yet));
-                return;
-            }
-
-            // 2. Load FreerHist with fapiClient.masterAnnouncement
-            TimberLogger.d(TAG, "Loading FreerHist for master: " + master);
-            
-            // Get ApiCenter instance
-            ApiCenter apiCenter = ApiCenter.getInstance();
-            if (apiCenter == null) {
-                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_api_service_unavailable));
-                return;
-            }
-
-            // Get FapiClient
-            FapiClient fapiClient = (FapiClient) apiCenter.getClient(Service.ServiceType.FAPI_No1_NrC7);
-            if (fapiClient == null) {
-                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_fapi_client_unavailable));
-                return;
-            }
-
-            // Call masterAnnouncement in background thread
-            new Thread(() -> {
-                try {
-                    FreerHist freerHist = fapiClient.masterAnnouncement(liveKeyInfo.getId());
-                    
-                    homeActivity.runOnUiThread(() -> {
-                        if (freerHist == null) {
-                            ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_no_master_announcement));
-                            return;
-                        }
-
-                        String cipherPriKey = freerHist.getCipherPrikey();
-                        if (cipherPriKey == null || cipherPriKey.trim().isEmpty()) {
-                            ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_no_cipher_prikey));
-                            return;
-                        }
-
-                        // Try to decrypt with mainFid prikey
-                        processFromMasterCipher(cipherPriKey, liveKeyInfo);
-                    });
-
-                } catch (Exception e) {
-                    TimberLogger.e(TAG, "Error loading master announcement: " + e.getMessage(), e);
-                    homeActivity.runOnUiThread(() -> 
-                        ToastUtils.showError(homeActivity, homeActivity.getString(R.string.toast_error_loading_master_announcement, e.getMessage()))
-                    );
-                }
-            }).start();
-
-        } catch (Exception e) {
-            TimberLogger.e(TAG, "Error in handleFromMaster: " + e.getMessage(), e);
-            ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_error_processing_master, e.getMessage()));
+        FidManager fidManager = FidManager.getInstance();
+        if (fidManager == null) {
+            ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_fid_manager_unavailable));
+            return;
         }
-    }
 
-    private void processFromMasterCipher(String cipherPriKey, KeyInfo liveKeyInfo) {
-        try {
-            FidManager fidManager = FidManager.getInstance();
-            if (fidManager == null) {
-                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_fid_manager_unavailable));
-                return;
-            }
-
-            // Get main FID's private key
-            String mainFid = fidManager.getMainFid();
-            if(!liveKeyInfo.getMaster().equals(mainFid)){
-                QRCodeGenerator.generateAndShowQRCode(homeActivity, cipherPriKey, homeActivity.getString(R.string.prikey_cipher));
-                return;
-            }
-
-            KeyInfo mainKeyInfo = fidManager.getMainKeyInfo();
-            
-            if (mainKeyInfo == null || mainKeyInfo.getPrikeyCipher() == null || mainKeyInfo.getPrikeyCipher().trim().isEmpty()) {
-                // If main FID doesn't have private key, show QR code directly
-                QRCodeGenerator.generateAndShowQRCode(homeActivity, cipherPriKey, homeActivity.getString(R.string.prikey_cipher));
-                return;
-            }
-
-            byte[] mainPrikey32 = SecurePrikeyManager.requestPrikeySync(homeActivity, homeActivity.getString(R.string.decrypt_servant_prikey),mainKeyInfo.getPrikeyCipher());
-            if (mainPrikey32 == null) {
-                QRCodeGenerator.generateAndShowQRCode(homeActivity, cipherPriKey, homeActivity.getString(R.string.prikey_cipher));
-                return;
-            }
-
-            // Try to decrypt master cipher with main FID's private key
-            try {
-                Decryptor decryptor = new Decryptor();
-                CryptoDataByte masterResult = decryptor.decryptJsonByAsyOneWay(cipherPriKey, mainPrikey32);
-                
-                if (masterResult.getCode() != null && masterResult.getCode() != 0) {
-                    // Decryption failed, show QR code
-                    QRCodeGenerator.generateAndShowQRCode(homeActivity, cipherPriKey, homeActivity.getString(R.string.prikey_cipher));
-                    return;
-                }
-
-                // Decryption succeeded, encrypt with symkey and save to liveKeyInfo
-                byte[] decryptedPrikey = masterResult.getData();
-                if (decryptedPrikey == null) {
-                    QRCodeGenerator.generateAndShowQRCode(homeActivity, cipherPriKey, homeActivity.getString(R.string.prikey_cipher));
-                    return;
-                }
-
-                // Validate that this private key matches the live FID
-                if (!validatePrikeyForLiveFid(decryptedPrikey)) {
-                    ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_decrypted_prikey_mismatch));
-                    return;
-                }
-
-                // Encrypt with symkey and save
-                encryptAndSavePrikey(decryptedPrikey);
-
-            } catch (Exception e) {
-                // Decryption failed, show QR code
-                TimberLogger.d(TAG, "Failed to decrypt master cipher with main prikey, showing QR: " + e.getMessage());
-                QRCodeGenerator.generateAndShowQRCode(homeActivity, cipherPriKey, homeActivity.getString(R.string.prikey_cipher));
-            }
-
-        } catch (Exception e) {
-            TimberLogger.e(TAG, "Error processing master cipher: " + e.getMessage(), e);
-            QRCodeGenerator.generateAndShowQRCode(homeActivity, cipherPriKey, homeActivity.getString(R.string.prikey_cipher));
+        KeyInfo liveKeyInfo = fidManager.getLiveKeyInfo();
+        if (liveKeyInfo == null) {
+            ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_live_keyinfo_unavailable));
+            return;
         }
+
+        ServantPrikeyRecovery.recover(homeActivity, liveKeyInfo, recovered -> {
+            if (fidManager.updateKeyInfo(homeActivity, recovered.getId(), recovered)) {
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_prikey_saved));
+                homeActivity.refreshLiveFidCard();
+            } else {
+                ToastUtils.makeText(homeActivity, homeActivity.getString(R.string.toast_failed_save_prikey));
+            }
+        });
     }
 
     private void showPopup(View anchorView) {

@@ -759,6 +759,9 @@
     <string name="send_tx">Send TX</string>
     <string name="prikey_cipher">Prikey cipher</string>
     <string name="decrypt_servant_prikey">Decrypt servant prikey</string>
+    <string name="prikey_from_master_record">Prikey from master record</string>
+    <string name="servant_prikey_recovered">Servant prikey recovered and saved</string>
+    <string name="toast_recovered_prikey_mismatch">Decrypted prikey does not match this servant FID</string>
     
     <!-- TxActivity strings -->
     <string name="tx_transactions">Transactions</string>

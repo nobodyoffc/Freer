@@ -702,7 +702,10 @@
     <string name="fid_added_to_list">FID已添加到名单</string>
     <string name="send_tx">发送交易</string>
     <string name="prikey_cipher">私钥密文</string>
-    <string name="decrypt_servant_prikey">Decrypt servant prikey</string>
+    <string name="decrypt_servant_prikey">解密仆人私钥</string>
+    <string name="prikey_from_master_record">从主控声明取私钥</string>
+    <string name="servant_prikey_recovered">已恢复并保存仆人私钥</string>
+    <string name="toast_recovered_prikey_mismatch">解密的私钥与该仆人FID不匹配</string>
     
     <!-- TxActivity strings -->
     <string name="tx_transactions">交易</string>

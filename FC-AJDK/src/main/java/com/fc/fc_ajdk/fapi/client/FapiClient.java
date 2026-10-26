@@ -425,14 +425,30 @@ public class FapiClient implements ApiClient {
     }
 
     public FreerHist masterAnnouncement(String myFid) {
+        return masterAnnouncement(myFid, null);
+    }
+
+    /**
+     * The servant's latest master declaration. A servant may re-declare to a new master, so
+     * records are read newest first; with expectedMaster set, only a record naming that master
+     * is returned, since its cipherPrikey decrypts only with that master's prikey.
+     */
+    public FreerHist masterAnnouncement(String myFid, String expectedMaster) {
         Fcdsl fcdsl = new Fcdsl();
         fcdsl.setEntity(IndicesNames.FREER_HISTORY);
         fcdsl.addNewQuery().addNewExists(FieldNames.MASTER);
         fcdsl.addNewFilter().addNewTerms().addNewFields(FieldNames.SIGNER).addNewValues(myFid);
+        fcdsl.addSort(FieldNames.HEIGHT, Values.DESC).addSort(FieldNames.INDEX, Values.DESC);
         List<FreerHist> result = entitySearch(IndicesNames.FREER_HISTORY, fcdsl, FreerHist.class);
         if(result==null || result.isEmpty())
             return null;
-        return result.get(0);
+        if(expectedMaster==null)
+            return result.get(0);
+        for(FreerHist freerHist : result){
+            if(expectedMaster.equals(freerHist.getMaster()))
+                return freerHist;
+        }
+        return null;
     }
 
     public String getPubkey(String fid) {

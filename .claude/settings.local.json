@@ -67,7 +67,9 @@
       "Bash(echo \"mvn exit=$?\")",
       "Read(//tmp/**)",
       "Bash(mvn -q test -Dtest=MessageFrameAssemblerTest -DfailIfNoTests=false)",
-      "Bash(mvn -q test-compile)"
+      "Bash(mvn -q test-compile)",
+      "Bash(awk *)",
+      "Bash(adb -s 9LPJ4LWCH6P7V4JR shell dumpsys package com.fc.freer)"
     ],
     "deny": [],
     "ask": []
