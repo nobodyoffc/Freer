@@ -2437,10 +2437,10 @@
     <string name="im_connecting">正在连接消息服务…</string>
     <string name="im_not_ready_retry">消息服务未就绪</string>
     <string name="asking_symkey">正在请求对称密钥…</string>
-    <string name="symkey_received_version">已收到对称密钥（v%d）</string>
+    <string name="symkey_received_version">已收到对称密钥——%1$s 的那把</string>
     <string name="im_channel_ready">消息服务已就绪</string>
     <string name="asking_room_info">正在请求房间信息…</string>
-    <string name="room_info_received_symkey">已收到房间信息（对称密钥 v%d）</string>
+    <string name="room_info_received_symkey">已收到房间信息——对称密钥来自 %1$s</string>
 
     <!-- First-FCH request board (default nobody freer) -->
     <string name="nobody_board_education">这是一个建立在明人身份上的公开求助板：它的私钥是公开的，这里的内容任何人都能看到、也能冒名发布。它只用于求取你的第一笔 FCH。领取 FCH 永远不需要付款、点击链接或提供任何信息；唯一的凭证是你自己的余额增加。</string>
