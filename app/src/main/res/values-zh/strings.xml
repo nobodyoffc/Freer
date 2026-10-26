@@ -160,6 +160,7 @@
     <string name="lock_time">锁定时间</string>
     <string name="blocks">区块</string>
     <string name="days">天</string>
+    <string name="carve_on_chain">刻在链上</string>
     <string name="input_the_text_carved_on_chain">输入要刻在链上的文本</string>
     <string name="add_cash_to_spend">添加现钞</string>
     <string name="please_input_required_signer_number">请输入必需的签名数量</string>
@@ -181,7 +182,7 @@
     <string name="import_the_tx_json">导入交易JSON</string>
     <string name="show_tx_json">显示交易JSON</string>
     <string name="import_send_to_array">导入付款数组</string>
-    <string name="import_send_to_array_hint">输入付款数组: 地址1,金额1,地址2,金额2,...</string>
+    <string name="import_send_to_array_hint">地址与金额：地址1,金额1,地址2,金额2,… 或每行一组“地址 金额”，可直接从表格复制。也支持 JSON 数组。</string>
 
     <string name="invalid_array_format_must_be_pairs">数组格式无效：必须是偶数个元素（地址、金额配对）</string>
     <string name="invalid_fid_at_position">位置 %d 的地址无效: %s</string>
@@ -1798,9 +1799,9 @@
     <string name="about_protocol_title">什么是协议？</string>
     <string name="about_protocol_message">协议是 Freeverse 生态中正式协议的链上登记条目（协议 FEIP-1）。\n\n• 任何人都可以发布。协议无需中心化把关者即可登记在链上。\n\n• 它的 ID 就是发布它的那笔交易。\n\n协议条目让整个生态可以引用并基于公开发布的共享标准进行构建。</string>
 
-    <string name="about_secret">关于密文</string>
-    <string name="about_secret_title">什么是密文？</string>
-    <string name="about_secret_message">密文是存储在链上的加密个人笔记——密码、密钥或任何敏感文本（协议 FEIP-17）。\n\n• 只有你能读取。链上只保存密文；只有持有解密密钥的人才能还原明文。\n\n• 在区块链上备份。你的密文持久保存在链上，并在各设备间同步。\n\n即便存在于公开链上，密文依然能让敏感信息保持私密。</string>
+    <string name="about_secret">关于秘密</string>
+    <string name="about_secret_title">什么是秘密？</string>
+    <string name="about_secret_message">秘密是你的加密个人笔记——密码、密钥或任何敏感文本（协议 FEIP-17）。\n\n• 只有你能读取。秘密用你的公钥加密成密文，链上只保存密文；只有你的私钥能还原明文。\n\n• 在区块链上备份。上链的秘密持久保存在链上，并在各设备间同步；没上链的链下秘密只在本机，请用“备份链下秘密”备份。\n\n即便存在于公开链上，秘密依然保持私密。</string>
 
     <string name="about_service">关于服务</string>
     <string name="about_service_title">什么是服务？</string>

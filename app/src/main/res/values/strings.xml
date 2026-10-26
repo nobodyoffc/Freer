@@ -185,6 +185,7 @@
     <string name="lock_time">Lock time</string>
     <string name="blocks">blocks</string>
     <string name="days">days</string>
+    <string name="carve_on_chain">Carve on chain</string>
     <string name="input_the_text_carved_on_chain">Input the text carved on chain</string>
     <string name="pay_to">Pay to</string>
     <string name="add_cash_to_spend">Add cash to spend</string>
@@ -212,7 +213,7 @@
     <string name="import_the_tx_json">Import the TX JSON</string>
     <string name="show_tx_json">Show TX JSON</string>
     <string name="import_send_to_array">Import Send To Array</string>
-    <string name="import_send_to_array_hint">Input send to array: fid1,amount1,fid2,amount2,...</string>
+    <string name="import_send_to_array_hint">FIDs and amounts: fid1,amount1,fid2,amount2,... or one \"fid amount\" pair per line, as copied from a spreadsheet. JSON arrays work too.</string>
     <string name="invalid_array_format_must_be_pairs">Invalid array format: must have even number of elements (fid, amount pairs)</string>
     <string name="invalid_fid_at_position">Invalid FID at position %d: %s</string>
     <string name="amount_too_small_at_position">Amount too small at position %d, minimum is %f</string>

@@ -92,6 +92,8 @@ public class CreateTxActivity extends BaseCryptoActivity {
     private LinearLayout outputCardsContainer;
     private LinearLayout outputInputContainer;
     private LinearLayout opreturnContainer;
+    private View opreturnInputView;
+    private ImageView opreturnChevron;
     private LinearLayout buttonContainer;
 
     private List<View> inputCards = new ArrayList<>();
@@ -124,6 +126,12 @@ public class CreateTxActivity extends BaseCryptoActivity {
     private long totalCd;
     private boolean isLockModeEnabled = false;
     private boolean feeCalculationFailed = false; // Flag to track if fee calculation failed
+    // The above cover the added outputs only. The shown ones also count the recipient
+    // filled in the FID and amount boxes, which is added on Create or Copy.
+    private long shownTotalOutput;
+    private long shownFee;
+    private long shownRest;
+    private boolean shownFeeCalculationFailed = false;
 
     private ActivityResultLauncher<Intent> importTxLauncher;
     private ActivityResultLauncher<Intent> importSendToArrayLauncher;
@@ -241,8 +249,15 @@ public class CreateTxActivity extends BaseCryptoActivity {
         totalAndFeeText = findViewById(R.id.totalAndFeeText);
         totalInputText = findViewById(R.id.totalInputText);
 
-        opreturnInput = opreturnContainer.findViewById(R.id.opreturnInput).findViewById(R.id.textInput);
+        opreturnInputView = opreturnContainer.findViewById(R.id.opreturnInput);
+        opreturnInput = opreturnInputView.findViewById(R.id.textInput);
         opreturnInput.setHint(R.string.input_the_text_carved_on_chain);
+        opreturnChevron = findViewById(R.id.opreturnChevron);
+        findViewById(R.id.opreturnToggle).setOnClickListener(v -> {
+            boolean expand = opreturnInputView.getVisibility() != View.VISIBLE;
+            setOpreturnExpanded(expand);
+            if (expand) opreturnInput.requestFocus();
+        });
 
         // Initialize output input fields
         outputFidInput = outputInputContainer.findViewById(R.id.outputFidInput).findViewById(R.id.keyInput);
@@ -290,6 +305,7 @@ public class CreateTxActivity extends BaseCryptoActivity {
             @Override
             public void afterTextChanged(android.text.Editable s) {
                 validateOutputFields();
+                updateTotalAndFeeText();
             }
         };
 
@@ -323,6 +339,10 @@ public class CreateTxActivity extends BaseCryptoActivity {
 
             @Override
             public void afterTextChanged(android.text.Editable s) {
+                // Unfold when text arrives from import or QR scan
+                if (s.length() > 0 && opreturnInputView.getVisibility() != View.VISIBLE) {
+                    setOpreturnExpanded(true);
+                }
                 // Update fee and rest calculations when opreturn text changes
                 updateTotalAndFeeText();
             }
@@ -446,26 +466,13 @@ public class CreateTxActivity extends BaseCryptoActivity {
                 }
             }
 
-            AddOutputFromFidListDialog dialog = new AddOutputFromFidListDialog(this,fidList, rawTxInfo, rest, false, lockTime);
-            currentDialog = dialog;
-            dialog.setOnDoneListener(sendToList -> {
-                for (Cash cash : sendToList) {
-                    TxOutputCard card = makeCardWithSendTo(cash);
-
-                    outputCards.add(card);
-                    outputCardsContainer.addView(card);
-                }
-                currentDialog = null;
-                updateTotalAndFeeText();
-            });
-            dialog.setOnDismissListener(d -> currentDialog = null);
-            dialog.show();
+            showFidListOutputDialog(fidList, lockTime);
         });
 
         // Add long press listener for plus output button
         payToListView.setOnLongClickListener(v -> {
             TimberLogger.i(TAG, "payToList clicked");
-            AddTxOutputDialog dialog = new AddTxOutputDialog(this, rawTxInfo, rest);
+            AddTxOutputDialog dialog = new AddTxOutputDialog(this, rawTxInfo, shownRest);
             currentDialog = dialog;  // Set the current dialog
             dialog.setOnDoneListener(sendTo -> {
                 TxOutputCard card = new TxOutputCard(this);
@@ -500,85 +507,7 @@ public class CreateTxActivity extends BaseCryptoActivity {
         });
 
         // Add output button listener
-        addOutputButton.setOnClickListener(v -> {
-            if(outputFidInput.getText() == null || outputAmountInput.getText() == null){
-                ToastUtils.makeText(this, R.string.please_input_all_fields);
-                return;
-            }
-            if(outputFidInput.getText().toString().isEmpty() || outputAmountInput.getText().toString().isEmpty()){
-                ToastUtils.makeText(this,  R.string.please_input_all_fields);
-                return;
-            }
-            String fid = outputFidInput.getText().toString();
-            if (!KeyTools.isGoodFid(fid)) {
-                ToastUtils.makeText(this, R.string.invalid_fid);
-                return;
-            }
-
-            try {
-                double amount = Double.parseDouble(outputAmountInput.getText().toString());
-
-                // Validate amount range
-                if (amount < Constants.MIN_AMOUNT || amount > Constants.MAX_AMOUNT) {
-                    ToastUtils.makeText(this, getString(R.string.amount_must_be_between, Constants.MIN_AMOUNT, Constants.MAX_AMOUNT));
-                    return;
-                }
-
-                // Calculate lockTime from days input if lock mode is enabled
-                Long lockTime = null;
-                if (isLockModeEnabled && outputLockDaysInput.getText() != null) {
-                    String daysStr = outputLockDaysInput.getText().toString().trim();
-                    if (!daysStr.isEmpty()) {
-                        try {
-                            int days = Integer.parseInt(daysStr);
-                            if (days > 0) {
-                                // Calculate lockTime (best height + days in minutes)
-                                FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
-                                if(fapiClient == null || fapiClient.getBestHeight() == null) {
-                                    ToastUtils.makeText(this, getString(R.string.failed_to_get_best_height_when_making_lock_time));
-                                    return;
-                                } else {
-                                    lockTime = fapiClient.getBestHeight() + daysToHeights(days);
-
-                                    // Check if this is a P2SH multisig CLTV output
-                                    if (fid.startsWith("3")) {
-                                        // Handle multisig CLTV output asynchronously
-                                        handleMultisignCltvOutputForAddButton(fid, amount, lockTime);
-                                        return; // Exit early, continuation happens in async callback
-                                    }
-                                }
-                            }
-                        } catch (NumberFormatException e) {
-                            ToastUtils.makeText(this, R.string.invalid_lock_days);
-                            return;
-                        }
-                    }
-                }
-
-                Cash cash = new Cash(fid, amount, lockTime);
-                rawTxInfo.getOutputs().add(cash);
-
-                TxOutputCard card = makeCardWithSendTo(cash);
-
-
-                outputCards.add(card);
-                outputCardsContainer.addView(card);
-//                outputHint.setVisibility(View.GONE);
-
-                // Clear input fields
-                outputFidInput.setText("");
-                outputAmountInput.setText("");
-                if (isLockModeEnabled) {
-                    outputLockDaysInput.setText("");
-                }
-
-                // The text watchers will automatically disable the button when fields are cleared
-
-                updateTotalAndFeeText();
-            } catch (NumberFormatException e) {
-                ToastUtils.makeText(this, R.string.invalid_amount);
-            }
-        });
+        addOutputButton.setOnClickListener(v -> addFilledOutput(null));
 
         clearButton.setOnClickListener(v -> {
             TimberLogger.i(TAG, "clearButton clicked");
@@ -607,6 +536,7 @@ public class CreateTxActivity extends BaseCryptoActivity {
             }
 
             opreturnInput.setText("");
+            setOpreturnExpanded(false);
             outputFidInput.setText("");
             outputAmountInput.setText("");
             outputLockDaysInput.setText("");
@@ -630,6 +560,11 @@ public class CreateTxActivity extends BaseCryptoActivity {
 
         copyButton.setOnClickListener(v -> {
             TimberLogger.i(TAG, "copyButton clicked");
+            // A filled-in recipient counts as added
+            if (hasFilledOutput()) {
+                addFilledOutput(this::copyTxToClipboard);
+                return;
+            }
             copyTxToClipboard();
         });
 
@@ -645,32 +580,136 @@ public class CreateTxActivity extends BaseCryptoActivity {
 
         createButton.setOnClickListener(v -> {
             TimberLogger.i(TAG, "sendButton clicked");
-
-            updateRawTxInfo();
-
-            if(rawTxInfo ==null){
-                ToastUtils.makeText(this, R.string.no_tx_to_sign);
+            // A filled-in recipient counts as added
+            if (hasFilledOutput()) {
+                addFilledOutput(this::createTx);
                 return;
             }
-
-            // Get live KeyInfo
-            KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
-            if (liveKeyInfo == null) {
-                ToastUtils.makeText(this, R.string.no_active_fid);
-                return;
-            }
-
-            // Check if inputs are empty - if so, use TxSender for auto-selection
-            if (rawTxInfo.getInputs() == null || rawTxInfo.getInputs().isEmpty()) {
-                handleAutoInputSelection(liveKeyInfo);
-                return;
-            }
-
-            // Manual input mode - validate transaction
-            if(!goodTxInfo(rawTxInfo)) return;
-
-            signTx(liveKeyInfo.getId());
+            createTx();
         });
+    }
+
+    private void createTx() {
+        updateRawTxInfo();
+
+        if(rawTxInfo ==null){
+            ToastUtils.makeText(this, R.string.no_tx_to_sign);
+            return;
+        }
+
+        // Get live KeyInfo
+        KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
+        if (liveKeyInfo == null) {
+            ToastUtils.makeText(this, R.string.no_active_fid);
+            return;
+        }
+
+        // Check if inputs are empty - if so, use TxSender for auto-selection
+        if (rawTxInfo.getInputs() == null || rawTxInfo.getInputs().isEmpty()) {
+            handleAutoInputSelection(liveKeyInfo);
+            return;
+        }
+
+        // Manual input mode - validate transaction
+        if(!goodTxInfo(rawTxInfo)) return;
+
+        signTx(liveKeyInfo.getId());
+    }
+
+    private boolean hasFilledOutput() {
+        return (outputFidInput.getText() != null && !outputFidInput.getText().toString().trim().isEmpty())
+                || (outputAmountInput.getText() != null && !outputAmountInput.getText().toString().trim().isEmpty());
+    }
+
+    /**
+     * Adds the recipient filled in the FID and amount boxes as an output.
+     * @param then run once the output is added, which may be after fetching multisig info;
+     *             not run if the fields are invalid
+     */
+    private void addFilledOutput(Runnable then) {
+        if(outputFidInput.getText() == null || outputAmountInput.getText() == null){
+            ToastUtils.makeText(this, R.string.please_input_all_fields);
+            return;
+        }
+        if(outputFidInput.getText().toString().trim().isEmpty() || outputAmountInput.getText().toString().trim().isEmpty()){
+            ToastUtils.makeText(this,  R.string.please_input_all_fields);
+            return;
+        }
+        String fid = outputFidInput.getText().toString().trim();
+        if (!KeyTools.isGoodFid(fid)) {
+            ToastUtils.makeText(this, R.string.invalid_fid);
+            return;
+        }
+
+        try {
+            double amount = Double.parseDouble(outputAmountInput.getText().toString().trim());
+
+            // Validate amount range
+            if (amount < Constants.MIN_AMOUNT || amount > Constants.MAX_AMOUNT) {
+                ToastUtils.makeText(this, getString(R.string.amount_must_be_between, Constants.MIN_AMOUNT, Constants.MAX_AMOUNT));
+                return;
+            }
+
+            // Calculate lockTime from days input if lock mode is enabled
+            Long lockTime = null;
+            if (isLockModeEnabled) {
+                String daysStr = outputLockDaysInput.getText() != null ? outputLockDaysInput.getText().toString().trim() : "";
+                if (daysStr.isEmpty()) {
+                    ToastUtils.makeText(this, getString(R.string.enter_a_valid_lock_days));
+                    return;
+                }
+                try {
+                    int days = Integer.parseInt(daysStr);
+                    if (days > 0) {
+                        // Calculate lockTime (best height + days in minutes)
+                        FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
+                        if(fapiClient == null || fapiClient.getBestHeight() == null) {
+                            ToastUtils.makeText(this, getString(R.string.failed_to_get_best_height_when_making_lock_time));
+                            return;
+                        } else {
+                            lockTime = fapiClient.getBestHeight() + daysToHeights(days);
+
+                            // Check if this is a P2SH multisig CLTV output
+                            if (fid.startsWith("3")) {
+                                // Handle multisig CLTV output asynchronously
+                                handleMultisignCltvOutputForAddButton(fid, amount, lockTime, then);
+                                return; // Exit early, continuation happens in async callback
+                            }
+                        }
+                    }
+                } catch (NumberFormatException e) {
+                    ToastUtils.makeText(this, R.string.invalid_lock_days);
+                    return;
+                }
+            }
+
+            Cash cash = new Cash(fid, amount, lockTime);
+            rawTxInfo.getOutputs().add(cash);
+
+            TxOutputCard card = makeCardWithSendTo(cash);
+
+            outputCards.add(card);
+            outputCardsContainer.addView(card);
+
+            // Clear input fields
+            outputFidInput.setText("");
+            outputAmountInput.setText("");
+            if (isLockModeEnabled) {
+                outputLockDaysInput.setText("");
+            }
+
+            // The text watchers will automatically disable the button when fields are cleared
+
+            updateTotalAndFeeText();
+            if (then != null) then.run();
+        } catch (NumberFormatException e) {
+            ToastUtils.makeText(this, R.string.invalid_amount);
+        }
+    }
+
+    private void setOpreturnExpanded(boolean expanded) {
+        opreturnInputView.setVisibility(expanded ? View.VISIBLE : View.GONE);
+        opreturnChevron.setRotation(expanded ? 90f : 0f);
     }
 
     @NonNull
@@ -822,21 +861,7 @@ public class CreateTxActivity extends BaseCryptoActivity {
                                 }
                             }
 
-                            AddOutputFromFidListDialog dialog = new AddOutputFromFidListDialog(this, fidList, rawTxInfo, rest, false, lockTime);
-                            currentDialog = dialog;
-                            dialog.setOnDoneListener(sendToList -> {
-                                for (Cash cash : sendToList) {
-                                    TxOutputCard card = makeCardWithSendTo(cash);
-
-                                    outputCards.add(card);
-                                    outputCardsContainer.addView(card);
-                                }
-//                                outputHint.setVisibility(View.GONE);
-                                currentDialog = null;
-                                updateTotalAndFeeText();
-                            });
-                            dialog.setOnDismissListener(d -> currentDialog = null);
-                            dialog.show();
+                            showFidListOutputDialog(fidList, lockTime);
                             ToastUtils.makeText(this, getString(R.string.toast_creating_outputs, fidList.size()));
                         } else {
                             ToastUtils.makeText(this, R.string.contact_has_no_fid);
@@ -877,10 +902,10 @@ public class CreateTxActivity extends BaseCryptoActivity {
         df.setDecimalSeparatorAlwaysShown(false);
 
         // Create SpannableString for output text
-        String feeText = feeCalculationFailed ? "-" : df.format(FchUtils.satoshiToCash(fee));
+        String feeText = shownFeeCalculationFailed ? "-" : df.format(FchUtils.satoshiToCash(shownFee));
         String outputText = String.format(Locale.US, "%s %s F    %s %s c",
             getString(R.string.paying),
-            df.format(FchUtils.satoshiToCoin(totalOutput)),
+            df.format(FchUtils.satoshiToCoin(shownTotalOutput)),
             getString(R.string.fee),
             feeText);
         SpannableString spannableOutput = new SpannableString(outputText);
@@ -917,7 +942,7 @@ public class CreateTxActivity extends BaseCryptoActivity {
         // Update Rest text for output input
         DecimalFormat df2 = new DecimalFormat("0.########");
         df2.setDecimalSeparatorAlwaysShown(false);
-        String restValueText = feeCalculationFailed ? "-" : df2.format(FchUtils.satoshiToCoin(rest));
+        String restValueText = shownFeeCalculationFailed ? "-" : df2.format(FchUtils.satoshiToCoin(shownRest));
         String restTextStr = String.format(Locale.US, getString(R.string.rest_s_f), restValueText);
         outputRestText.setText(restTextStr);
 
@@ -1102,21 +1127,18 @@ public class CreateTxActivity extends BaseCryptoActivity {
             totalOutput += cash.getValue();
         }
 
+        // When in lock mode, CLTV outputs generate P2SH opReturn data, so the user opReturn is cleared.
+        // Otherwise the input field's text is used to ensure fee calculation includes it.
+        String userOpReturn = null;
+        if (!isLockModeEnabled) {
+            String opreturnText = opreturnInput.getText() != null ? opreturnInput.getText().toString() : null;
+            if (opreturnText != null && !opreturnText.isEmpty()) userOpReturn = opreturnText;
+        }
+
         // Only calculate fee if there are inputs (outputs can be empty)
         if (!rawTxInfo.getInputs().isEmpty()) {
-            // When in lock mode, CLTV outputs generate P2SH opReturn data
             // We need to sync this to rawTxInfo.opReturn for accurate fee calculation
-            if (isLockModeEnabled) {
-                rawTxInfo.setOpReturn(null); // Clear user opReturn in lock mode
-            } else {
-                // Update rawTxInfo.opReturn from the input field to ensure fee calculation includes it
-                String opreturnText = opreturnInput.getText() != null ? opreturnInput.getText().toString() : null;
-                if (opreturnText != null && !opreturnText.isEmpty()) {
-                    rawTxInfo.setOpReturn(opreturnText);
-                } else {
-                    rawTxInfo.setOpReturn(null);
-                }
-            }
+            rawTxInfo.setOpReturn(userOpReturn);
 
             TxHandler.FeeResult feeResult = TxHandler.calcFee(rawTxInfo);
 
@@ -1144,6 +1166,98 @@ public class CreateTxActivity extends BaseCryptoActivity {
                 if(rest == -changeFee)rest = 0;
             }
         }
+
+        updateShownTotals(userOpReturn);
+    }
+
+    /**
+     * Shown totals count the filled recipient as an output, as Create and Copy add it.
+     * rawTxInfo is left unchanged; the fee is calculated on a copy.
+     */
+    private void updateShownTotals(String userOpReturn) {
+        shownTotalOutput = totalOutput;
+        shownFee = fee;
+        shownRest = rest;
+        shownFeeCalculationFailed = feeCalculationFailed;
+
+        Cash filled = buildFilledOutput();
+        if (filled == null) return;
+        shownTotalOutput += filled.getValue();
+        if (rawTxInfo.getInputs().isEmpty()) return; // Inputs are auto-selected later; no fee yet
+
+        RawTxInfo tempRawTxInfo = new RawTxInfo();
+        tempRawTxInfo.setSenderInfo(rawTxInfo.getSenderInfo());
+        tempRawTxInfo.setSender(rawTxInfo.getSender());
+        tempRawTxInfo.setInputs(rawTxInfo.getInputs());
+        tempRawTxInfo.setOutputs(new ArrayList<>(rawTxInfo.getOutputs()));
+        tempRawTxInfo.getOutputs().add(filled);
+        tempRawTxInfo.setFeeRate(rawTxInfo.getFeeRate());
+        tempRawTxInfo.setOpReturn(userOpReturn);
+
+        TxHandler.FeeResult feeResult;
+        try {
+            feeResult = TxHandler.calcFee(tempRawTxInfo);
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Fee calculation with the filled output failed: " + e.getMessage());
+            feeResult = null;
+        }
+        if (feeResult == null || feeResult.fee() == null) {
+            shownFeeCalculationFailed = true;
+            shownFee = 0;
+            shownRest = 0;
+            return;
+        }
+        shownFeeCalculationFailed = false;
+        shownFee = feeResult.fee();
+        shownRest = totalInput - shownTotalOutput - shownFee;
+        long changeFee = TxHandler.getChangeFee(rawTxInfo.getSender());
+        if (shownRest == -changeFee) shownRest = 0;
+    }
+
+    /**
+     * The output the FID and amount boxes would add, without toasts or side effects.
+     * @return null if the fields are not a valid output yet
+     */
+    private Cash buildFilledOutput() {
+        String fid = outputFidInput.getText() != null ? outputFidInput.getText().toString().trim() : "";
+        String amountStr = outputAmountInput.getText() != null ? outputAmountInput.getText().toString().trim() : "";
+        if (!KeyTools.isGoodFid(fid) || amountStr.isEmpty()) return null;
+
+        double amount;
+        try {
+            amount = Double.parseDouble(amountStr);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        if (amount < Constants.MIN_AMOUNT || amount > Constants.MAX_AMOUNT) return null;
+
+        Long lockTime = null;
+        if (isLockModeEnabled) {
+            String daysStr = outputLockDaysInput.getText() != null ? outputLockDaysInput.getText().toString().trim() : "";
+            int days;
+            try {
+                days = Integer.parseInt(daysStr);
+            } catch (NumberFormatException e) {
+                return null;
+            }
+            if (days > 0) {
+                FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
+                if (fapiClient == null || fapiClient.getBestHeight() == null) return null;
+                lockTime = fapiClient.getBestHeight() + daysToHeights(days);
+            }
+        }
+
+        if (lockTime != null && fid.startsWith("3")) {
+            Multisig multisig = findKnownMultisig(fid);
+            if (multisig == null) {
+                // Multisig info is fetched only when added; estimate as a plain output until then
+                return new Cash(fid, amount);
+            }
+            Cash cash = new Cash(fid, amount);
+            cash.addMultisigCltvInfo(fid, lockTime, multisig);
+            return cash.getOwner() == null ? null : cash;
+        }
+        return new Cash(fid, amount, lockTime);
     }
 
     private void removeInputCard(View cardView, Cash cash) {
@@ -1255,51 +1369,142 @@ public class CreateTxActivity extends BaseCryptoActivity {
 
         TimberLogger.i(TAG, "Handling imported Cash array with " + cashList.size() + " items");
 
-        FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
-        Long bestHeight = null;
-        if (fapiClient != null && fapiClient.getBestHeight() != null) {
-            bestHeight = fapiClient.getBestHeight();
-        }
-
-        // Calculate lockTime if lock mode is enabled and user has entered lock days
+        // In lock mode, lock the imported outputs that have no lockTime of their own, as the add button does
         Long lockTimeToApply = null;
-        if (isLockModeEnabled && outputLockDaysInput.getText() != null) {
-            String daysStr = outputLockDaysInput.getText().toString().trim();
-            if (!daysStr.isEmpty()) {
-                try {
-                    int days = Integer.parseInt(daysStr);
-                    if (days > 0 && fapiClient != null && fapiClient.getBestHeight() != null) {
-                        lockTimeToApply = fapiClient.getBestHeight() + daysToHeights(days);
-                        TimberLogger.i(TAG, "Applying lockTime " + lockTimeToApply + " to imported Cash array (lock mode enabled)");
-                    }
-                } catch (NumberFormatException e) {
-                    TimberLogger.e(TAG, "Invalid lock days: " + e.getMessage());
+        if (isLockModeEnabled) {
+            String daysStr = outputLockDaysInput.getText() != null ? outputLockDaysInput.getText().toString().trim() : "";
+            int days;
+            try {
+                days = Integer.parseInt(daysStr);
+            } catch (NumberFormatException e) {
+                ToastUtils.makeText(this, getString(R.string.enter_a_valid_lock_days));
+                return;
+            }
+            if (days > 0) {
+                FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
+                if (fapiClient == null || fapiClient.getBestHeight() == null) {
+                    ToastUtils.makeText(this, getString(R.string.failed_to_get_best_height_when_making_lock_time));
+                    return;
                 }
+                lockTimeToApply = fapiClient.getBestHeight() + daysToHeights(days);
+                TimberLogger.i(TAG, "Applying lockTime " + lockTimeToApply + " to imported Cash array (lock mode enabled)");
             }
         }
 
-        // Add each Cash to outputs
+        List<String> lockedMultisigFids = new ArrayList<>();
         for (Cash cash : cashList) {
-            // Apply lockTime from lock mode to outputs that don't already have lockTime
-            // If lock mode is enabled and cash doesn't have lockTime, apply the calculated lockTime
             if (lockTimeToApply != null && (cash.getLockTime() == null || cash.getLockTime() == 0)) {
                 cash.setLockTime(lockTimeToApply);
-                TimberLogger.i(TAG, "Applied lockTime " + lockTimeToApply + " to imported Cash for " + cash.getOwner());
+            }
+            // Multisig CLTV outputs need the multisig to build their redeem scripts
+            if (cash.getLockTime() != null && cash.getLockTime() > 0 && cash.getOwner().startsWith("3")
+                    && !lockedMultisigFids.contains(cash.getOwner())) {
+                lockedMultisigFids.add(cash.getOwner());
+            }
+        }
+
+        resolveMultisigs(lockedMultisigFids, multisigMap -> addImportedOutputs(cashList));
+    }
+
+    /**
+     * Opens the dialog paying one amount to each FID. Locked multisig FIDs get their
+     * multisig info first, so their outputs are multisig CLTV and spendable.
+     */
+    private void showFidListOutputDialog(List<String> fidList, Long lockTime) {
+        List<String> lockedMultisigFids = new ArrayList<>();
+        if (lockTime != null && lockTime > 0) {
+            for (String fid : fidList) {
+                if (fid.startsWith("3") && !lockedMultisigFids.contains(fid)) lockedMultisigFids.add(fid);
+            }
+        }
+        resolveMultisigs(lockedMultisigFids, multisigMap -> {
+            AddOutputFromFidListDialog dialog = new AddOutputFromFidListDialog(this, fidList, rawTxInfo, shownRest, false, lockTime);
+            dialog.setMultisigMap(multisigMap);
+            currentDialog = dialog;
+            dialog.setOnDoneListener(sendToList -> {
+                for (Cash cash : sendToList) {
+                    TxOutputCard card = makeCardWithSendTo(cash);
+
+                    outputCards.add(card);
+                    outputCardsContainer.addView(card);
+                }
+                currentDialog = null;
+                updateTotalAndFeeText();
+            });
+            dialog.setOnDismissListener(d -> currentDialog = null);
+            dialog.show();
+        });
+    }
+
+    /**
+     * Runs then with the multisig info of the given FIDs, fetching what the phone does not have.
+     * Not run if any of them can't be found.
+     */
+    private void resolveMultisigs(List<String> fids, java.util.function.Consumer<Map<String, Multisig>> then) {
+        Map<String, Multisig> multisigMap = new java.util.HashMap<>();
+        List<String> missingFids = new ArrayList<>();
+        for (String fid : fids) {
+            Multisig multisig = findKnownMultisig(fid);
+            if (multisig != null) multisigMap.put(fid, multisig);
+            else missingFids.add(fid);
+        }
+        if (missingFids.isEmpty()) {
+            then.accept(multisigMap);
+            return;
+        }
+
+        FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
+        if (fapiClient == null) {
+            ToastUtils.makeText(this, getString(R.string.failed_to_get_apip_client));
+            return;
+        }
+
+        waitingDialog = new WaitingDialog(this, getString(R.string.fetching_multisign_info));
+        waitingDialog.show();
+
+        new Thread(() -> {
+            try {
+                Map<String, Multisig> fetched = fapiClient.multisigByIds(missingFids);
+                runOnUiThread(() -> {
+                    dismissWaitingDialog();
+                    if (isFinishing() || isDestroyed()) return;
+                    for (String fid : missingFids) {
+                        Multisig multisig = fetched == null ? null : fetched.get(fid);
+                        if (multisig == null) {
+                            ToastUtils.makeText(this, getString(R.string.failed_to_get_multisign_info_for_fid) + ": " + fid);
+                            return;
+                        }
+                        cachedMultisignMap.put(fid, multisig);
+                        multisigMap.put(fid, multisig);
+                    }
+                    then.accept(multisigMap);
+                });
+            } catch (Exception e) {
+                TimberLogger.e(TAG, "Error fetching multisig info: " + e.getMessage());
+                runOnUiThread(() -> {
+                    dismissWaitingDialog();
+                    ToastUtils.makeText(this, getString(R.string.failed_error_msg, e.getMessage()));
+                });
+            }
+        }).start();
+    }
+
+    /** Adds imported outputs; locked ones get the redeem script the tx is built from. */
+    private void addImportedOutputs(List<Cash> cashList) {
+        for (Cash cash : cashList) {
+            Long lockTime = cash.getLockTime();
+            if (lockTime != null && lockTime > 0) {
+                if (cash.getOwner().startsWith("3")) {
+                    cash.addMultisigCltvInfo(cash.getOwner(), lockTime, findKnownMultisig(cash.getOwner()));
+                } else {
+                    cash.setRedeemScript(new P2SH(cash.getOwner(), lockTime).getRedeemScript());
+                }
             }
 
             // Add to rawTxInfo outputs
             rawTxInfo.getOutputs().add(cash);
 
-            // Create output card
-            TxOutputCard card = new TxOutputCard(this);
-            card.setSendTo(cash, this, true, false);
-            card.setOnDeleteListener(this::removeOutputCard);
-
-            // Set lock time if present
-            if (cash.getLockTime() != null && cash.getLockTime() > 0 && bestHeight != null) {
-                card.setLockTime(cash.getLockTime(), bestHeight);
-            }
-
+            TxOutputCard card = makeCardWithSendTo(cash);
             outputCards.add(card);
             outputCardsContainer.addView(card);
         }
@@ -1430,6 +1635,19 @@ public class CreateTxActivity extends BaseCryptoActivity {
         );
     }
 
+    /** Multisig info already on the phone: fetched before, the live FID's, or local. Null if none. */
+    private Multisig findKnownMultisig(String fid) {
+        Multisig multisig = cachedMultisignMap.get(fid);
+        if (multisig != null) return multisig;
+        KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
+        if (liveKeyInfo != null && fid.equals(liveKeyInfo.getId()) && liveKeyInfo.getMultisign() != null) {
+            return liveKeyInfo.getMultisign();
+        }
+        multisig = getLocalMultisignInfo(fid);
+        if (multisig != null) cachedMultisignMap.put(fid, multisig);
+        return multisig;
+    }
+
     /**
      * Get multisig info from local sources (keyInfoMap and contactManager)
      * @param fid The FID to look up
@@ -1471,7 +1689,7 @@ public class CreateTxActivity extends BaseCryptoActivity {
      * Handle multisig CLTV output when adding from the add button
      * This checks if the P2SH address is multisig and fetches the info if needed
      */
-    private void handleMultisignCltvOutputForAddButton(String fid, double amount, Long lockTime) {
+    private void handleMultisignCltvOutputForAddButton(String fid, double amount, Long lockTime, Runnable then) {
 
         KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
         if (liveKeyInfo == null) {
@@ -1484,7 +1702,7 @@ public class CreateTxActivity extends BaseCryptoActivity {
         if (fid.equals(liveFid) && liveKeyInfo.getMultisign() != null) {
             // Use sender's multisig info
             addOutputWithMultisign(fid, amount, lockTime,
-                    liveKeyInfo.getMultisign());
+                    liveKeyInfo.getMultisign(), then);
             return;
         }
 
@@ -1494,7 +1712,7 @@ public class CreateTxActivity extends BaseCryptoActivity {
             if (cachedMultisig != null) {
                 TimberLogger.i(TAG, "Using cached multisig info for FID: " + fid);
                 addOutputWithMultisign(fid, amount, lockTime,
-                        cachedMultisig);
+                        cachedMultisig, then);
                 return;
             }
         }
@@ -1506,12 +1724,12 @@ public class CreateTxActivity extends BaseCryptoActivity {
             // Cache it for future use
             cachedMultisignMap.put(fid, localMultisig);
             addOutputWithMultisign(fid, amount, lockTime,
-                    localMultisig);
+                    localMultisig, then);
             return;
         }
 
         // Need to fetch from APIP
-        fetchSingleMultisignInfoAsync(fid, amount, lockTime);
+        fetchSingleMultisignInfoAsync(fid, amount, lockTime, then);
     }
 
     /**
@@ -1705,7 +1923,7 @@ public class CreateTxActivity extends BaseCryptoActivity {
     /**
      * Fetch multisig info for a single FID and add the output
      */
-    private void fetchSingleMultisignInfoAsync(String fid, double amount, Long lockTime) {
+    private void fetchSingleMultisignInfoAsync(String fid, double amount, Long lockTime, Runnable then) {
         FapiClient fapiClient = (FapiClient) ApiCenter.getInstance().getClient(Service.ServiceType.FAPI_No1_NrC7);
         if (fapiClient == null) {
             ToastUtils.makeText(this, getString(R.string.failed_to_get_apip_client));
@@ -1743,7 +1961,7 @@ public class CreateTxActivity extends BaseCryptoActivity {
                     runOnUiThread(() -> {
                         dismissWaitingDialog();
                         addOutputWithMultisign(fid, amount, lockTime,
-                                multisig);
+                                multisig, then);
                     });
                 } else {
                     runOnUiThread(() -> {
@@ -1764,7 +1982,7 @@ public class CreateTxActivity extends BaseCryptoActivity {
     /**
      * Add output with multisig information (for multisig CLTV)
      */
-    private void addOutputWithMultisign(String fid, double amount, Long lockTime, Multisig multisig) {
+    private void addOutputWithMultisign(String fid, double amount, Long lockTime, Multisig multisig, Runnable then) {
         Cash cash = new Cash(fid,amount);
         cash.addMultisigCltvInfo(fid,lockTime,multisig);
         if(cash.getOwner()==null)return;
@@ -1784,6 +2002,7 @@ public class CreateTxActivity extends BaseCryptoActivity {
         }
 
         updateTotalAndFeeText();
+        if (then != null) then.run();
     }
 
     /**

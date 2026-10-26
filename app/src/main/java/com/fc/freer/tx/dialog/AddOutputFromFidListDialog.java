@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.widget.Button;
 
 import com.fc.fc_ajdk.data.fchData.Cash;
+import com.fc.fc_ajdk.data.fchData.Multisig;
 import com.fc.freer.utils.ToastUtils;
 
 import androidx.annotation.NonNull;
@@ -18,6 +19,7 @@ import com.fc.freer.R;
 import com.google.android.material.textfield.TextInputEditText;
 
 import java.util.List;
+import java.util.Map;
 
 public class AddOutputFromFidListDialog extends Dialog {
     private static final String TAG = "AddOutputFromFidListDialog";
@@ -30,6 +32,7 @@ public class AddOutputFromFidListDialog extends Dialog {
     private OnDoneListener onDoneListener;
     private List<String> fidList;
     private Long lockTime;
+    private Map<String, Multisig> multisigMap;
 
     public interface OnDoneListener {
         void onDone(List<Cash> cashList);
@@ -95,13 +98,24 @@ public class AddOutputFromFidListDialog extends Dialog {
                 }
             }
 
-            // Create Cash list
+            // Create Cash list. A locked multisig FID needs its multisig for the redeem script;
+            // the single-sig CLTV script would make the output unspendable.
             List<Cash> cashList = new java.util.ArrayList<>();
             for (String fid : fidList) {
-                Cash cash = new Cash(fid, amount, lockTime);
+                Cash cash;
+                if (lockTime != null && lockTime > 0 && fid.startsWith("3")) {
+                    Multisig multisig = multisigMap == null ? null : multisigMap.get(fid);
+                    if (multisig == null) {
+                        ToastUtils.makeText(getContext(), getContext().getString(R.string.failed_to_get_multisign_info_for_fid) + ": " + fid);
+                        return;
+                    }
+                    cash = new Cash(fid, amount, lockTime, multisig);
+                } else {
+                    cash = new Cash(fid, amount, lockTime);
+                }
                 cashList.add(cash);
-                rawTxInfo.getOutputs().add(cash);
             }
+            rawTxInfo.getOutputs().addAll(cashList);
 
             if (onDoneListener != null) {
                 onDoneListener.onDone(cashList);
@@ -109,6 +123,11 @@ public class AddOutputFromFidListDialog extends Dialog {
 
             dismiss();
         });
+    }
+
+    /** The multisig info of the 3 FIDs in the list, needed when they are locked. */
+    public void setMultisigMap(Map<String, Multisig> multisigMap) {
+        this.multisigMap = multisigMap;
     }
 
     public void setOnDoneListener(OnDoneListener listener) {
