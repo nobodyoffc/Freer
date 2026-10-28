@@ -2920,4 +2920,12 @@
     <string name="toast_failed_check_on_chain">Could not reach the chain to check this item. Try again later.</string>
     <string name="toast_deleted_on_chain_recover_first">This item is deleted on chain. Recover it before updating it.</string>
     <string name="toast_carve_not_confirmed_wait">This item\'s carve has not confirmed yet. Wait for a block to confirm it, then try again.</string>
+    <!-- Import multisig TX -->
+    <string name="import_multisig_tx">Import Multisig TX</string>
+    <string name="import_multisig_tx_hint">Input a multisig TX JSON. Tap + to add another signed by a different member.</string>
+    <string name="no_multisig_tx_added">No TX added yet</string>
+    <string name="not_the_same_multisig_tx">This JSON is a different TX from the added ones</string>
+    <string name="multisig_signatures_collected">Signatures: %1$d / %2$d</string>
+    <string name="multisig_tx_json_signed_by">JSON #%1$d signed by:</string>
+    <string name="multisig_tx_json_unsigned">JSON #%1$d: no signatures</string>
 </resources>

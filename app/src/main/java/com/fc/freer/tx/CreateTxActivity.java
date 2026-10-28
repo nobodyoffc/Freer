@@ -31,6 +31,7 @@ import com.fc.fc_ajdk.data.fchData.Multisig;
 import com.fc.freer.BaseCryptoActivity;
 import com.fc.freer.FreerApplication;
 import com.fc.freer.account.CashActivity;
+import com.fc.freer.multisig.BuildMultisigTxActivity;
 import com.fc.freer.multisig.SignMultisigTxActivity;
 import com.fc.freer.utils.ChooseMode;
 import com.fc.freer.utils.ToastUtils;
@@ -187,6 +188,14 @@ public class CreateTxActivity extends BaseCryptoActivity {
                             com.fc.freer.utils.ImportParser.parseTxInfo(this, importedText, liveFid);
 
                         if (parseResult.success && parseResult.data != null) {
+                            Map<String, List<String>> fidSigMap = parseResult.data.getFidSigMap();
+                            if (liveFid != null && liveFid.startsWith("3") && fidSigMap != null && !fidSigMap.isEmpty()) {
+                                // Already signed: editing would void the signatures, so go sign or send it
+                                Intent signIntent = new Intent(this, SignMultisigTxActivity.class);
+                                signIntent.putExtra(SendTxActivity.EXTRA_TX_INFO_JSON, importedText);
+                                signTxLauncher.launch(signIntent);
+                                return;
+                            }
                             handleImportedTxInfo(parseResult.data);
                         } else {
                             showToast(parseResult.error);
@@ -570,11 +579,18 @@ public class CreateTxActivity extends BaseCryptoActivity {
 
         importButton.setOnClickListener(v -> {
             TimberLogger.i(TAG, "importButton clicked");
-            Intent intent = com.fc.freer.ui.ImportActivity.createIntent(
-                this,
-                getString(R.string.import_tx),
-                getString(R.string.import_the_tx_json)
-            );
+            Intent intent;
+            String liveFid = FidManager.getInstance().getLiveFid();
+            if (liveFid != null && liveFid.startsWith("3")) {
+                // A multisig TX may come as several JSONs, each signed by a different member
+                intent = new Intent(this, BuildMultisigTxActivity.class);
+            } else {
+                intent = com.fc.freer.ui.ImportActivity.createIntent(
+                    this,
+                    getString(R.string.import_tx),
+                    getString(R.string.import_the_tx_json)
+                );
+            }
             importTxLauncher.launch(intent);
         });
 

@@ -2841,4 +2841,12 @@
     <string name="toast_failed_check_on_chain">无法连接链上服务查询该条目，请稍后重试。</string>
     <string name="toast_deleted_on_chain_recover_first">该条目已在链上删除，请先恢复再更新。</string>
     <string name="toast_carve_not_confirmed_wait">该条目的上链尚未确认，请等待区块确认后再试。</string>
+    <!-- Import multisig TX -->
+    <string name="import_multisig_tx">导入多签交易</string>
+    <string name="import_multisig_tx_hint">输入多签交易JSON。点击 + 可再添加由其他成员签名的JSON。</string>
+    <string name="no_multisig_tx_added">尚未添加交易</string>
+    <string name="not_the_same_multisig_tx">此JSON与已添加的不是同一笔交易</string>
+    <string name="multisig_signatures_collected">签名：%1$d / %2$d</string>
+    <string name="multisig_tx_json_signed_by">JSON #%1$d 签名者：</string>
+    <string name="multisig_tx_json_unsigned">JSON #%1$d：无签名</string>
 </resources>

@@ -3,20 +3,21 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:orientation="vertical">
 
     <include layout="@layout/common_toolbar" />
 
+    <!-- TX info: the imported TX and who signed each imported JSON -->
     <ScrollView
         android:id="@+id/signaturesScrollView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="3"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
         android:layout_marginTop="8dp"
         android:background="@drawable/container_outline"
-        android:padding="8dp"
-        >
+        android:padding="8dp">
 
         <LinearLayout
             android:id="@+id/signaturesContainer"
@@ -31,12 +32,16 @@
         layout="@layout/layout_text_input_with_scan"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="2"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="8dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
+        android:padding="16dp"
         android:gravity="end">
 
         <ImageButton
@@ -54,8 +59,8 @@
         <ImageButton
             android:id="@+id/buildButton"
             style="@style/ImageButtonStyle"
-            android:src="@drawable/ic_build"
-            android:contentDescription="@string/build" />
+            android:src="@drawable/ic_import"
+            android:contentDescription="@string/import_a" />
 
         <ImageButton
             android:id="@+id/back_button"
@@ -65,4 +70,4 @@
 
     </LinearLayout>
 
-</LinearLayout> 
+</LinearLayout>
