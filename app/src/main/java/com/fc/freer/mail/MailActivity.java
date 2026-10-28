@@ -833,7 +833,7 @@ public class MailActivity extends BaseCryptoActivity {
         updateStatistics();
         updateButtonStates();
         updateSelectAllCheckBoxState();
-        showSuccessMessage("Loaded " + newerItems.size() + " newer mails from database");
+        showSuccessMessage(getString(R.string.toast_loaded_newer_mails, newerItems.size()));
         stopSwipeRefresh();
     }
 

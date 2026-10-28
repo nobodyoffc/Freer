@@ -151,7 +151,7 @@
                     android:id="@+id/name_sort_label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/name"
+                    android:text="@string/person_name"
                     android:textSize="14sp"
                     android:textColor="@color/accent"
                     android:layout_marginEnd="4dp" />
@@ -162,7 +162,7 @@
                     android:layout_height="16dp"
                     android:src="@drawable/ic_sort_none"
                     app:tint="@color/accent"
-                    android:contentDescription="@string/name" />
+                    android:contentDescription="@string/person_name" />
 
             </LinearLayout>
 

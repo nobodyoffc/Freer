@@ -54,7 +54,7 @@
         android:padding="16dp"
         android:gravity="end">
 
-        <ImageButtonButton
+        <ImageButton
             android:id="@+id/saveButton"
             style="@style/ImageButtonStyle"
             android:src="@drawable/ic_save"

@@ -206,7 +206,7 @@ public class DataActivity extends BaseCryptoActivity {
 
     @Override
     protected String getActivityTitle() {
-        return getString(R.string.data);
+        return getString(R.string.files);
     }
 
     private void initializeActivityResultLaunchers() {
@@ -1072,7 +1072,7 @@ public class DataActivity extends BaseCryptoActivity {
                 .setTitle(R.string.remove_local_data)
                 .setMessage(getString(R.string.confirm_remove_local_data, hatsWithLocalData.size())
                         + "\n\n" + getString(R.string.confirm_remove_local_data_warning))
-                .setPositiveButton(R.string.confirm, (dialog, which) -> {
+                .setPositiveButton(R.string.ok, (dialog, which) -> {
                     int removedCount = 0;
                     for (Hat hat : hatsWithLocalData) {
                         List<String> locas = hat.getLocas();
@@ -1277,7 +1277,17 @@ public class DataActivity extends BaseCryptoActivity {
             ToastUtils.showWarning(this, getString(R.string.hat_list_is_empty));
             return;
         }
-        String hatListJson = JsonUtils.toJson(hatList);
+        // The list shows raw HATs only; their cipher HATs carry the encrypted key (kCipher) and the
+        // DISK location, without which another device cannot download and decrypt the files.
+        List<Hat> exportList = new ArrayList<>(hatList);
+        for (Hat hat : hatList) {
+            if (hat.getCipherIds() == null) continue;
+            for (String cipherId : hat.getCipherIds()) {
+                Hat cipherHat = hatManager.getHatById(cipherId);
+                if (cipherHat != null) exportList.add(cipherHat);
+            }
+        }
+        String hatListJson = JsonUtils.toJson(exportList);
         Intent intent = new Intent(this, ExportHatActivity.class);
         intent.putExtra("hatList", hatListJson);
         detailActivityLauncher.launch(intent);

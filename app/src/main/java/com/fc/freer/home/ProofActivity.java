@@ -758,7 +758,7 @@ public class ProofActivity extends BaseCryptoActivity {
         hasMoreNewerData = newerItems.size() >= pageSize;
 
         updateUI();
-        showSuccessMessage("Loaded " + newerItems.size() + " newer proofs from database");
+        showSuccessMessage(getString(R.string.toast_loaded_newer_proofs, newerItems.size()));
         stopSwipeRefresh();
     }
 
@@ -1092,7 +1092,7 @@ public class ProofActivity extends BaseCryptoActivity {
 
             // Refresh the list
             refreshList();
-            showSuccessMessage("Hidden " + chosenObjects.size() + " proof(s)");
+            showSuccessMessage(getString(R.string.hidden_proofs_count, chosenObjects.size()));
         });
 
         // Set click listener for Issue button
@@ -1461,7 +1461,7 @@ public class ProofActivity extends BaseCryptoActivity {
 
         FidManager fidManager = FidManager.getInstance();
         if (fidManager == null || fidManager.getLiveFid() == null) {
-            showErrorMessage("No active FID");
+            showErrorMessage(getString(R.string.no_active_fid));
             return;
         }
 

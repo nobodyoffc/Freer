@@ -782,7 +782,7 @@ public class ChooseContactActivity extends BaseCryptoActivity {
         hasMoreNewerData = newerItems.size() >= pageSize;
 
         updateUI();
-        showSuccessMessage("Loaded " + newerItems.size() + " newer contacts from database");
+        showSuccessMessage(getString(R.string.toast_loaded_newer_contacts, newerItems.size()));
         stopSwipeRefresh();
     }
 
@@ -818,7 +818,7 @@ public class ChooseContactActivity extends BaseCryptoActivity {
                 loadFirstPage();
                 showSuccessMessage(getString(R.string.added_new_entities, added, CONTACT));
             } else {
-                showInfoMessage("No new contacts found");
+                showInfoMessage(getString(R.string.no_new_contacts_found));
             }
         } catch (Exception e) {
             TimberLogger.e(TAG, "Error reloading from database after API sync: %s", e.getMessage());
@@ -857,7 +857,7 @@ public class ChooseContactActivity extends BaseCryptoActivity {
                 showSuccessMessage(getString(R.string.added_new_entities, added, CONTACT));
             } else if (added == 0) {
                 hasMoreEarlierData = false;
-                showInfoMessage("No more earlier contacts found");
+                showInfoMessage(getString(R.string.no_more_earlier_contacts_found));
             } else {
                 showErrorMessage(getString(R.string.failed_to_update_contacts_db));
             }

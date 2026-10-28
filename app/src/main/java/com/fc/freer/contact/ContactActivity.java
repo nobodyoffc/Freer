@@ -772,7 +772,7 @@ public class ContactActivity extends BaseCryptoActivity {
         updateStatistics();
         updateButtonStates();
         updateSelectAllCheckBoxState();
-        showSuccessMessage("Loaded " + newerItems.size() + " newer contacts from database");
+        showSuccessMessage(getString(R.string.toast_loaded_newer_contacts, newerItems.size()));
         stopSwipeRefresh();
     }
 

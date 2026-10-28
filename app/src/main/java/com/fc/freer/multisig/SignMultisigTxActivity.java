@@ -146,10 +146,13 @@ public class SignMultisigTxActivity extends BaseCryptoActivity {
 
     private void checkState() {
         isFullSigned = isFullSigned();
-        if (isBuilt) {
+        // Sign until the required signatures are reached, then Send
+        if (isBuilt || isFullSigned) {
             signButton.setImageResource(R.drawable.ic_send);
-        } else if(isFullSigned){
-            signButton.setImageResource(R.drawable.ic_build);
+            signButton.setContentDescription(getString(R.string.send));
+        } else {
+            signButton.setImageResource(R.drawable.ic_sign);
+            signButton.setContentDescription(getString(R.string.sign));
         }
     }
 
@@ -178,6 +181,15 @@ public class SignMultisigTxActivity extends BaseCryptoActivity {
         });
 
         signButton.setOnClickListener(v -> {
+            if (isFullSigned && !isBuilt) {
+                buildResult = txHandler.buildSchnorrMultiSignTx(rawTxInfo);
+                if(!Hex.isHexString(buildResult)){
+                    ToastUtils.showError(this, getString(R.string.failed_to_build_multisign_tx));
+                    return;
+                }
+                isBuilt=true;
+                checkState();
+            }
             if(isBuilt) {
                 // Use the shared broadcast method from BaseCryptoActivity
                 broadcastTransaction(buildResult, new TxSendCallback() {
@@ -213,17 +225,6 @@ public class SignMultisigTxActivity extends BaseCryptoActivity {
                         ToastUtils.makeText(SignMultisigTxActivity.this, getString(R.string.tx_signed_but_not_broadcast));
                     }
                 });
-                return;
-            }
-            if (isFullSigned) {
-                buildResult = txHandler.buildSchnorrMultiSignTx(rawTxInfo);
-                if(!Hex.isHexString(buildResult)){
-                    ToastUtils.showError(this, getString(R.string.failed_to_build_multisign_tx));
-                } else{
-                    isBuilt=true;
-                    checkState();
-                    ToastUtils.makeText(this, getString(R.string.built_you_can_send_it));
-                }
                 return;
             }
 

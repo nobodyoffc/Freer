@@ -5,6 +5,7 @@ import static com.fc.fc_ajdk.constants.FieldNames.BIRTH_TIME;
 import static com.fc.fc_ajdk.constants.FieldNames.CLOSED;
 import static com.fc.fc_ajdk.constants.FieldNames.CODES;
 import static com.fc.fc_ajdk.constants.FieldNames.DESC;
+import static com.fc.fc_ajdk.constants.FieldNames.DOWNLOADS;
 import static com.fc.fc_ajdk.constants.FieldNames.ID;
 import static com.fc.fc_ajdk.constants.FieldNames.LAST_TIME;
 import static com.fc.fc_ajdk.constants.FieldNames.LOCAL_NAMES;
@@ -15,6 +16,7 @@ import static com.fc.fc_ajdk.constants.FieldNames.STD_NAME;
 import static com.fc.fc_ajdk.constants.FieldNames.T_CDD;
 import static com.fc.fc_ajdk.constants.FieldNames.T_RATE;
 import static com.fc.fc_ajdk.constants.FieldNames.TYPES;
+import static com.fc.fc_ajdk.constants.FieldNames.VER;
 import static com.fc.fc_ajdk.constants.FieldNames.HOME;
 import static com.fc.fc_ajdk.constants.FieldNames.WAITERS;
 
@@ -203,7 +205,9 @@ public class App extends FcObject {
 		addFieldToMap(fieldMap, LOCAL_NAMES, "Local Names", "本地名称");
 		addFieldToMap(fieldMap, TYPES, "Types", "类型");
 		addFieldToMap(fieldMap, DESC, "Description", "描述");
+		addFieldToMap(fieldMap, VER, "Version", "版本");
 		addFieldToMap(fieldMap, HOME, "Home", "主页");
+		addFieldToMap(fieldMap, DOWNLOADS, "Downloads", "下载");
 		addFieldToMap(fieldMap, WAITERS, "Waiters", "服务员");
 		addFieldToMap(fieldMap, PROTOCOLS, "Protocols", "协议");
 		addFieldToMap(fieldMap, CODES, "Codes", "代码");

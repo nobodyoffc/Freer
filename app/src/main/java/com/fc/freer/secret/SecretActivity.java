@@ -751,7 +751,7 @@ public class SecretActivity extends BaseCryptoActivity {
         updateStatistics();
         updateButtonStates();
         updateSelectAllCheckBoxState();
-        showSuccessMessage("Loaded " + newerItems.size() + " newer secrets from database");
+        showSuccessMessage(getString(R.string.toast_loaded_newer_secrets, newerItems.size()));
         stopSwipeRefresh();
     }
 

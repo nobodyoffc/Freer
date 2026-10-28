@@ -66,7 +66,7 @@
     <string name="menu_contact">Contact</string>
     <string name="menu_mail">Cmail</string>
     <string name="menu_news">News</string>
-    <string name="menu_data">Data</string>
+    <string name="menu_data">Files</string>
     <string name="menu_square">Square</string>
     <string name="menu_team">Team</string>
     <string name="menu_room">Room</string>
@@ -819,6 +819,8 @@
     <string name="failed_to_show_json_dialog">Failed to show JSON dialog</string>
     <string name="title">Title</string>
     <string name="name">Name</string>
+    <string name="person_name">Name</string>
+    <string name="files">Files</string>
     <string name="height">Height</string>
     <string name="update_height">Update Height</string>
     <string name="secret_not_ready_try_later">The secret manager is not ready. Try it later.</string>
@@ -1063,7 +1065,7 @@
     <string name="error_showing_menu">Error showing menu</string>
 
     <string name="change_api_service">Change API Service</string>
-    <string name="Input_url_or_search_api_services">Input API URL or Search APIs</string>
+    <string name="Input_url_or_search_api_services">Input URL or search services</string>
     <string name="no_api_services_found">No API services found</string>
     <string name="no_api_service_selected">No API service selected</string>
 
@@ -1076,8 +1078,8 @@
     <string name="loaded_newer_mails">Loaded %d newer Cmails</string>
     <string name="no_valid_participants_found_in_selected_mails">No valid participants found in selected Cmails</string>
     <string name="api_state">API state</string>
-    <string name="got_api_services">Got %d API services</string>
-    <string name="error_searching_api_services">Error when searching API services. %s</string>
+    <string name="got_api_services">Got %d services</string>
+    <string name="error_searching_api_services">Error when searching services. %s</string>
     <string name="error_no_setting">Setting not available</string>
     <string name="error_init_fudp_node">Failed to initialize FUDP node</string>
     <string name="error_discover_service">Failed to discover service from URL</string>
@@ -1298,6 +1300,18 @@
     <string name="loading_apps">Loading apps...</string>
     <string name="no_apps_found">No apps found</string>
     <string name="found_apps_count">Found %d apps</string>
+    <string name="found_services_count">Found %d services</string>
+    <string name="found_codes_count">Found %d codes</string>
+    <string name="found_protocols_count">Found %d protocols</string>
+    <string name="failed_to_update_services_db">Failed to update the service database</string>
+    <string name="failed_to_update_codes_db">Failed to update the code database</string>
+    <string name="failed_to_update_protocols_db">Failed to update the protocol database</string>
+    <string name="hidden_apps_count">Hid %d apps</string>
+    <string name="hidden_services_count">Hid %d services</string>
+    <string name="hidden_codes_count">Hid %d codes</string>
+    <string name="hidden_protocols_count">Hid %d protocols</string>
+    <string name="hidden_proofs_count">Hid %d proofs</string>
+    <string name="toast_loaded_newer_mails">Loaded %1$d newer mails</string>
     <string name="failed_to_update_apps_db">Failed to update apps database</string>
     <string name="no_new_apps_found">No new apps found</string>
     <string name="no_more_earlier_apps_found">No more earlier apps found</string>
@@ -1686,19 +1700,19 @@
     <string name="discard_changes_message">You have unsaved changes. Discard them?</string>
     <string name="discard">Discard</string>
     <string name="file_saved">File saved</string>
-    <string name="upload_data">Upload Data</string>
-    <string name="download_data">Download Data</string>
-    <string name="delete_data">Delete HATs and data</string>
-    <string name="remove_local_data">Remove local data</string>
-    <string name="confirm_remove_local_data">Remove local data from %1$d selected HATs?</string>
+    <string name="upload_data">Upload Files</string>
+    <string name="download_data">Download Files</string>
+    <string name="delete_data">Delete HATs and files</string>
+    <string name="remove_local_data">Remove local files</string>
+    <string name="confirm_remove_local_data">Remove local files from %1$d selected HATs?</string>
     <string name="confirm_remove_local_data_warning">The local files will be permanently deleted. The HAT records will be kept with updated locations.</string>
-    <string name="local_data_removed_successfully">Local data removed from %1$d HATs</string>
-    <string name="no_hats_with_local_data">No selected HATs have local data</string>
+    <string name="local_data_removed_successfully">Local files removed from %1$d HATs</string>
+    <string name="no_hats_with_local_data">No selected HATs have local files</string>
     <string name="no_local_only_hats_checked">No checked HATs with local-only data found</string>
     <string name="no_downloadable_hats_checked">No checked HATs with downloadable data found</string>
     <string name="local_files_not_found">%1$d HATs skipped: local files not found</string>
-    <string name="no_disk_only_hats_found">No data found that is only stored on DISK</string>
-    <string name="confirm_delete_data">Delete %1$d selected HATs and their local data?</string>
+    <string name="no_disk_only_hats_found">No files found that are only stored on DISK</string>
+    <string name="confirm_delete_data">Delete %1$d selected HATs and their local files?</string>
     <string name="confirm_delete_data_warning">This action cannot be undone. The local files and HAT records will be permanently deleted.</string>
     <string name="data_deleted_successfully">%1$d HATs deleted successfully</string>
     <string name="no_checked_hats">No HATs are checked</string>
@@ -2028,13 +2042,13 @@
     <string name="travel_places">Travel</string>
     <string name="objects">Objects</string>
     <string name="symbols">Symbols</string>
-    <string name="downloading_data">Downloading data…</string>
+    <string name="downloading_data">Downloading file…</string>
     <string name="cancel_download_title">Cancel download?</string>
     <string name="cancel_download_message">Stop downloading this file? The received data will be discarded, and downloading it again will be charged again.</string>
     <string name="keep_downloading">Keep downloading</string>
     <string name="cancel_download">Cancel download</string>
     <string name="open_with">Open with…</string>
-    <string name="uploading_data">Uploading data…</string>
+    <string name="uploading_data">Uploading file…</string>
 
     <string name="update_hat">Update HAT</string>
     <string name="hat_data_not_found">HAT data not found</string>
@@ -2256,8 +2270,8 @@
     <string name="searching_services">Searching %s services…</string>
     <string name="no_disk_services_found">No DISK services found</string>
     <string name="service_has_no_disk">This service does not have DISK component</string>
-    <string name="disk_not_configured_prompt">No DISK service configured. Please select a DISK service for data storage.</string>
-    <string name="data_requires_main_fid">Data is only available for the main FID, which holds the prikey for encryption.</string>
+    <string name="disk_not_configured_prompt">No DISK service configured. Please select a DISK service for file storage.</string>
+    <string name="data_requires_main_fid">Files are only available for the main FID, which holds the prikey for encryption.</string>
     <string name="use_default_server_as_disk">Use the default server as your DISK service? Choose another to pick a different one.</string>
     <string name="choose_another">Choose another</string>
     <string name="publishing_disk_setting">Publishing DISK setting onchain…</string>
@@ -2430,7 +2444,7 @@
     <string name="toast_failed_decrypt_prikey">Failed to decrypt prikey</string>
     <string name="toast_failed_convert_multisig_contact">Failed to convert multisig to contact</string>
     <string name="toast_unexpected_error">Unexpected error</string>
-    <string name="toast_tx_well_signed_build">The TX is well signed! Build it.</string>
+    <string name="toast_tx_well_signed_build">The TX is well signed! You can send it.</string>
     <string name="toast_signed">Signed!</string>
     <string name="toast_failed_get_prikey_of">Failed to get the priKey of %1$s</string>
     <string name="toast_key_not_part_multisig">Selected key is not part of this multisig transaction</string>
@@ -2534,8 +2548,8 @@
     <string name="failed_to_refresh">Failed to refresh</string>
     <string name="warning">Warning</string>
     <string name="send_anyway">Send Anyway</string>
-    <string name="consensus_doc_hint">Pick a data document or enter its DID</string>
-    <string name="consensus_doc_not_local">The chosen consensus document isn\'t available locally. Add it in Data first.</string>
+    <string name="consensus_doc_hint">Pick a file or enter its DID</string>
+    <string name="consensus_doc_not_local">The chosen consensus document isn\'t available locally. Add it in Files first.</string>
 
     <!-- Team consensus lifecycle -->
     <string name="home_disk_label">DISK</string>

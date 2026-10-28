@@ -813,6 +813,15 @@ public class DetailFragment extends Fragment {
             return;
         }
         
+        // App.Download is a plain POJO, not an FcEntity; show it as an expandable os/link/did map
+        if (value instanceof App.Download download) {
+            Map<String, String> downloadMap = new LinkedHashMap<>();
+            if (download.getOs() != null) downloadMap.put("os", download.getOs());
+            if (download.getLink() != null) downloadMap.put("link", download.getLink());
+            if (download.getDid() != null) downloadMap.put("did", download.getDid());
+            value = downloadMap;
+        }
+
         String displayValue;
         Object originalValue = value;
         

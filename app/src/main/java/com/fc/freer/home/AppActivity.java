@@ -756,7 +756,7 @@ public class AppActivity extends BaseCryptoActivity {
         hasMoreNewerData = newerItems.size() >= pageSize;
 
         updateUI();
-        showSuccessMessage("Loaded " + newerItems.size() + " newer apps from database");
+        showSuccessMessage(getString(R.string.toast_loaded_newer_apps, newerItems.size()));
         stopSwipeRefresh();
     }
 
@@ -1277,7 +1277,7 @@ public class AppActivity extends BaseCryptoActivity {
         appManager.commit();
 
         refreshList();
-        showSuccessMessage("Hidden " + chosenObjects.size() + " app(s)");
+        showSuccessMessage(getString(R.string.hidden_apps_count, chosenObjects.size()));
     }
 
     private String[] getAppIds(List<App> apps) {
@@ -1339,7 +1339,7 @@ public class AppActivity extends BaseCryptoActivity {
         // Check if user is the owner
         FidManager fidManager = FidManager.getInstance();
         if (fidManager == null || fidManager.getLiveFid() == null) {
-            showErrorMessage("No active FID");
+            showErrorMessage(getString(R.string.no_active_fid));
             return;
         }
 

@@ -131,7 +131,7 @@ public class ProtocolActivity extends BaseCryptoActivity {
         }
 
         if (protocolManager == null) {
-            ToastUtils.makeText(this, getString(R.string.app_not_ready_try_later));
+            ToastUtils.makeText(this, getString(R.string.protocol_not_ready_try_later));
             finish();
             return;
         }
@@ -541,7 +541,7 @@ public class ProtocolActivity extends BaseCryptoActivity {
                         loadProtocolCardList();
 
                         dismissWaitingDialog();
-                        showSuccessMessage(getString(R.string.found_apps_count, searchResults.size()));
+                        showSuccessMessage(getString(R.string.found_protocols_count, searchResults.size()));
                     } else {
                         dismissWaitingDialog();
                         showInfoMessage(getString(R.string.no_active_protocols_found));
@@ -789,7 +789,7 @@ public class ProtocolActivity extends BaseCryptoActivity {
     private void handleNewerFromAPIResult(Integer added) {
         try {
             if (added == -1) {
-                showErrorMessage(getString(R.string.failed_to_update_apps_db));
+                showErrorMessage(getString(R.string.failed_to_update_protocols_db));
             } else if (added > 0) {
                 loadFirstPage();
                 showSuccessMessage(getString(R.string.added_new_entities, added, PROTOCOL));
@@ -891,7 +891,7 @@ public class ProtocolActivity extends BaseCryptoActivity {
                 updateStatistics();
                 showInfoMessage(getString(R.string.no_active_protocols_found));
             } else {
-                showErrorMessage(getString(R.string.failed_to_update_apps_db));
+                showErrorMessage(getString(R.string.failed_to_update_protocols_db));
             }
         } finally {
             isLoadingEarlier = false;
@@ -1153,7 +1153,7 @@ public class ProtocolActivity extends BaseCryptoActivity {
         protocolManager.commit();
 
         refreshList();
-        showSuccessMessage("Hidden " + chosenObjects.size() + " protocol(s)");
+        showSuccessMessage(getString(R.string.hidden_protocols_count, chosenObjects.size()));
     }
 
     private void removeProtocolsFromContainerAndDB(String[] protocolIds) {
@@ -1203,7 +1203,7 @@ public class ProtocolActivity extends BaseCryptoActivity {
     private void handleEditIconClick(Protocol protocol) {
         FidManager fidManager = FidManager.getInstance();
         if (fidManager == null || fidManager.getLiveFid() == null) {
-            showErrorMessage("No active FID");
+            showErrorMessage(getString(R.string.no_active_fid));
             return;
         }
 
@@ -1246,7 +1246,7 @@ public class ProtocolActivity extends BaseCryptoActivity {
         // Check if user is the owner
         FidManager fidManager = FidManager.getInstance();
         if (fidManager == null || fidManager.getLiveFid() == null) {
-            showErrorMessage("No active FID");
+            showErrorMessage(getString(R.string.no_active_fid));
             return;
         }
 

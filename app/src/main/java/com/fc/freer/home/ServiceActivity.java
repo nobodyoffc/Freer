@@ -129,7 +129,7 @@ public class ServiceActivity extends BaseCryptoActivity {
         }
 
         if (serviceManager == null) {
-            ToastUtils.makeText(this, getString(R.string.app_not_ready_try_later));
+            ToastUtils.makeText(this, getString(R.string.service_not_ready_try_later));
             finish();
             return;
         }
@@ -539,7 +539,7 @@ public class ServiceActivity extends BaseCryptoActivity {
                         loadServiceCardList();
 
                         dismissWaitingDialog();
-                        showSuccessMessage(getString(R.string.found_apps_count, searchResults.size()));
+                        showSuccessMessage(getString(R.string.found_services_count, searchResults.size()));
                     } else {
                         dismissWaitingDialog();
                         showInfoMessage(getString(R.string.no_active_services_found));
@@ -787,7 +787,7 @@ public class ServiceActivity extends BaseCryptoActivity {
     private void handleNewerFromAPIResult(Integer added) {
         try {
             if (added == -1) {
-                showErrorMessage(getString(R.string.failed_to_update_apps_db));
+                showErrorMessage(getString(R.string.failed_to_update_services_db));
             } else if (added > 0) {
                 loadFirstPage();
                 showSuccessMessage(getString(R.string.added_new_entities, added, SERVICE));
@@ -889,7 +889,7 @@ public class ServiceActivity extends BaseCryptoActivity {
                 updateStatistics();
                 showInfoMessage(getString(R.string.no_active_services_found));
             } else {
-                showErrorMessage(getString(R.string.failed_to_update_apps_db));
+                showErrorMessage(getString(R.string.failed_to_update_services_db));
             }
         } finally {
             isLoadingEarlier = false;
@@ -1157,7 +1157,7 @@ public class ServiceActivity extends BaseCryptoActivity {
         serviceManager.commit();
 
         refreshList();
-        showSuccessMessage("Hidden " + chosenObjects.size() + " service(s)");
+        showSuccessMessage(getString(R.string.hidden_services_count, chosenObjects.size()));
     }
 
     private void removeServicesFromContainerAndDB(String[] serviceIds) {
@@ -1196,7 +1196,7 @@ public class ServiceActivity extends BaseCryptoActivity {
     private void handleEditIconClick(Service service) {
         FidManager fidManager = FidManager.getInstance();
         if (fidManager == null || fidManager.getLiveFid() == null) {
-            showErrorMessage("No active FID");
+            showErrorMessage(getString(R.string.no_active_fid));
             return;
         }
 
