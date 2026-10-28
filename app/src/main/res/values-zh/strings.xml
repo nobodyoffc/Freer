@@ -165,7 +165,7 @@
     <string name="add_cash_to_spend">添加现钞</string>
     <string name="please_input_required_signer_number">请输入必需的签名数量</string>
     <string name="no_enough_members">没有足够的成员</string>
-    <string name="the_members_can_t_more_than_16">成员不能超过16人</string>
+    <string name="the_members_can_t_more_than_15">成员不能超过15人</string>
     <string name="please_input_a_public_key">请输入公钥</string>
     <string name="txid">交易ID</string>
     <string name="index">索引</string>

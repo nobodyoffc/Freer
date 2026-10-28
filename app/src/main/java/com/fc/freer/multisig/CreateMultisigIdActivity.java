@@ -50,6 +50,8 @@ import java.util.List;
 public class CreateMultisigIdActivity extends BaseCryptoActivity {
     private static final String TAG = "CreateMultisigIdActivity";
     private static final int QR_SCAN_KEY_REQUEST_CODE = 1001;
+    // A multisig has at most 15 members, so at most 15 required signatures
+    private static final int MAX_MEMBERS = 15;
     
     private LinearLayout keyListContainer;
     private KeyCardContainer keyCardContainer;
@@ -146,8 +148,8 @@ public class CreateMultisigIdActivity extends BaseCryptoActivity {
         buttonContainer = findViewById(R.id.buttonContainer);
 
         // Initialize radio buttons array
-        radioButtons = new RadioButton[16];
-        for (int i = 0; i < 16; i++) {
+        radioButtons = new RadioButton[MAX_MEMBERS];
+        for (int i = 0; i < MAX_MEMBERS; i++) {
             int radioId = getResources().getIdentifier("radio" + (i + 1), "id", getPackageName());
             radioButtons[i] = findViewById(radioId);
             // Set initial color to hint color
@@ -267,8 +269,8 @@ public class CreateMultisigIdActivity extends BaseCryptoActivity {
             return;
         }
         
-        if (memberList.size() + 1 > 16) {
-            showToast(getString(R.string.the_members_can_t_more_than_16));
+        if (memberList.size() + 1 > MAX_MEMBERS) {
+            showToast(getString(R.string.the_members_can_t_more_than_15));
             return;
         }
         
@@ -306,8 +308,8 @@ public class CreateMultisigIdActivity extends BaseCryptoActivity {
             showToast(getString(R.string.please_input_a_public_key));
             return;
         }
-        if(memberList.size()>=16){
-            showToast(getString(R.string.the_members_can_t_more_than_16));
+        if(memberList.size()>=MAX_MEMBERS){
+            showToast(getString(R.string.the_members_can_t_more_than_15));
             return;
         }
         String str = selectedKeyInfo == null ? keyInput.getText().toString() : selectedKeyInfo.getPubkey();
@@ -529,8 +531,8 @@ public class CreateMultisigIdActivity extends BaseCryptoActivity {
         }
 
         // Check if adding these members would exceed the limit
-        if (memberList.size() + toAdd.size() > 16) {
-            showToast(getString(R.string.the_members_can_t_more_than_16));
+        if (memberList.size() + toAdd.size() > MAX_MEMBERS) {
+            showToast(getString(R.string.the_members_can_t_more_than_15));
             return;
         }
 

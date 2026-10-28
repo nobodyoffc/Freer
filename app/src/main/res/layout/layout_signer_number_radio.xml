@@ -171,14 +171,11 @@
                 android:textColor="@color/text"
                 android:buttonTint="@color/text" />
 
-            <RadioButton
-                android:id="@+id/radio16"
+            <!-- At most 15 members: an empty slot keeps this row aligned with the others -->
+            <Space
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="16"
-                android:textColor="@color/text"
-                android:buttonTint="@color/text" />
+                android:layout_weight="1" />
 
         </LinearLayout>
 

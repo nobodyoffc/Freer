@@ -191,7 +191,7 @@
     <string name="add_cash_to_spend">Add cash to spend</string>
     <string name="please_input_required_signer_number">Please input required signer number</string>
     <string name="no_enough_members">No enough members</string>
-    <string name="the_members_can_t_more_than_16">The members can\'t more than 16</string>
+    <string name="the_members_can_t_more_than_15">The members can\'t more than 15</string>
     <string name="please_input_a_public_key">Please input a public key</string>
     <string name="txid">TxId</string>
     <string name="index">Index</string>
