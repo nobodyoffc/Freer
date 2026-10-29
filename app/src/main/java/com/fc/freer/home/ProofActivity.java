@@ -387,6 +387,9 @@ public class ProofActivity extends BaseCryptoActivity {
         // Initialize the LinearLayout container for proof cards
         LinearLayout proofListContainer = findViewById(R.id.fragment_container);
 
+        // Drop the previous container's cards, or a reload stacks the new cards on the stale ones
+        if (proofCardContainer != null) proofCardContainer.clearAll();
+
         // Create ProofCardContainer with selection enabled (checkbox mode)
         proofCardContainer = new ProofCardContainer(this, proofListContainer, ChooseMode.CHOOSE_MULTI);
 
