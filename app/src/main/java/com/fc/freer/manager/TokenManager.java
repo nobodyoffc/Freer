@@ -1,5 +1,6 @@
 package com.fc.freer.manager;
 
+import static com.fc.fc_ajdk.constants.FieldNames.CLOSED;
 import static com.fc.fc_ajdk.constants.FieldNames.DEPLOYER;
 import static com.fc.fc_ajdk.constants.FieldNames.FID;
 import static com.fc.fc_ajdk.constants.FieldNames.ID;
@@ -10,6 +11,7 @@ import static com.fc.fc_ajdk.constants.FieldNames.TIME;
 import static com.fc.fc_ajdk.constants.FieldNames.TOKEN_ID;
 import static com.fc.fc_ajdk.constants.IndicesNames.TOKEN;
 import static com.fc.fc_ajdk.constants.IndicesNames.TOKEN_HISTORY;
+import static com.fc.fc_ajdk.constants.Values.TRUE;
 import static com.fc.fc_ajdk.constants.IndicesNames.TOKEN_HOLDER;
 import static com.fc.fc_ajdk.constants.Values.ASC;
 import static com.fc.fc_ajdk.constants.Values.DESC;
@@ -254,6 +256,7 @@ public class TokenManager extends FcManager<TokenHolder> {
             String adjustedSortField = sortField == null ? null
                 : adjustFieldName(Token.getFieldNameByDisplayName(sortField), sortField);
             addSortingToFcdsl(fcdsl, adjustedSortField, normalizeOrder(order));
+            excludeClosedTokens(fcdsl);
 
             if (referenceToken != null) {
                 fcdsl.addAfter(Arrays.asList(String.valueOf(referenceToken.getLastHeight()), referenceToken.getId()));
@@ -380,12 +383,21 @@ public class TokenManager extends FcManager<TokenHolder> {
         Fcdsl fcdsl = new Fcdsl();
         fcdsl.addSize(FreerApplication.DEFAULT_REQUEST_SIZE);
         fcdsl.addSort(LAST_HEIGHT, order).addSort(ID, order);
+        excludeClosedTokens(fcdsl);
         
         if (last != null) {
             fcdsl.addAfter(last);
         }
 
         return fcdsl;
+    }
+
+    /**
+     * A closed token can no longer be issued, so the token list leaves it out. Excluding closed=true
+     * (rather than requiring closed=false) keeps tokens indexed before the parser wrote the field.
+     */
+    private static void excludeClosedTokens(Fcdsl fcdsl) {
+        fcdsl.addNewExcept().addNewTerms().addNewFields(CLOSED).addNewValues(TRUE);
     }
 
     /**
