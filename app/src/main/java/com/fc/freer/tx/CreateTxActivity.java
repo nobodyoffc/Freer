@@ -892,7 +892,7 @@ public class CreateTxActivity extends BaseCryptoActivity {
     }
 
     public static long daysToHeights(int days) {
-        return days;//TODO (days * 24L * 60L) + 1;
+        return days * 24L * 60L;
     }
 
     private void updateRawTxInfo() {

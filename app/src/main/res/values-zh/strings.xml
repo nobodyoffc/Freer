@@ -369,7 +369,7 @@
     <string name="height_label">高度</string>
     <string name="height_description">1区块 = 1分钟</string>
     <string name="height_hint">例如：3653280</string>
-    <string name="fc_date_label">FcDate</string>
+    <string name="fc_date_label">自由宇宙时间</string>
     <string name="fc_date_description">年.天.小时.分钟</string>
     <string name="fc_date_hint">例如：3.150.12.30</string>
     <string name="standard_time_label">标准时间</string>
