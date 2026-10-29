@@ -1360,7 +1360,7 @@
 
     <!-- Hidden App Activity -->
     <string name="hidden_apps">隐藏应用</string>
-    <string name="hidden">隐藏</string>
+    <string name="hidden">已隐藏</string>
     <string name="reveal">显示</string>
     <string name="no_hidden_apps_found">未找到隐藏应用</string>
     <string name="apps_revealed_successfully">已成功显示 %d 个应用</string>
