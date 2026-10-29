@@ -5,7 +5,8 @@ import static com.fc.fc_ajdk.constants.FieldNames.DEPLOYER;
 import static com.fc.fc_ajdk.constants.FieldNames.FID;
 import static com.fc.fc_ajdk.constants.FieldNames.ID;
 import static com.fc.fc_ajdk.constants.FieldNames.LAST_HEIGHT;
-import static com.fc.fc_ajdk.constants.FieldNames.RECIPIENT;
+import static com.fc.fc_ajdk.constants.FieldNames.ISSUE_TO;
+import static com.fc.fc_ajdk.constants.FieldNames.TRANSFER_TO;
 import static com.fc.fc_ajdk.constants.FieldNames.SIGNER;
 import static com.fc.fc_ajdk.constants.FieldNames.TIME;
 import static com.fc.fc_ajdk.constants.FieldNames.TOKEN_ID;
@@ -720,8 +721,8 @@ public class TokenManager extends FcManager<TokenHolder> {
         if (tokenId != null) {
             fcdsl.addNewQuery().addNewTerms().addNewFields(TOKEN_ID).addNewValues(tokenId);
         } else if (fid != null) {
-            // Filter by signer OR recipient = fid
-            fcdsl.addNewQuery().addNewTerms().addNewFields(SIGNER, RECIPIENT).addNewValues(fid);
+            // Filter by signer OR a named recipient = fid (issueTo/transferTo are object-mapped, so .fid is a term)
+            fcdsl.addNewQuery().addNewTerms().addNewFields(SIGNER, ISSUE_TO + ".fid", TRANSFER_TO + ".fid").addNewValues(fid);
         }
 
         fcdsl.addSort(TIME, order).addSort(ID, order);

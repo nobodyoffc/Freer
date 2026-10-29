@@ -211,21 +211,19 @@ public class TokenHistoryActivity extends BaseCryptoActivity {
         // Set signer
         signerValue.setText(history.getSigner() != null ? history.getSigner() : "");
 
-        // Set recipient (for transfer operations)
-        if (history.getRecipient() != null && !history.getRecipient().isEmpty()) {
+        // Recipient and amount: the first line of transferTo or issueTo, the only recipients the protocol has
+        java.util.List<TokenHistory.FidAmount> lines = history.getTransferTo() != null && !history.getTransferTo().isEmpty()
+                ? history.getTransferTo() : history.getIssueTo();
+        TokenHistory.FidAmount first = lines != null && !lines.isEmpty() ? lines.get(0) : null;
+
+        if (first != null && first.getFid() != null) {
             recipientRow.setVisibility(View.VISIBLE);
-            recipientValue.setText(history.getRecipient());
+            recipientValue.setText(lines.size() > 1 ? first.getFid() + " (+" + (lines.size() - 1) + ")" : first.getFid());
         } else {
             recipientRow.setVisibility(View.GONE);
         }
 
-        // Set amount (from transferTo or issueTo)
-        Double amount = null;
-        if (history.getTransferTo() != null && !history.getTransferTo().isEmpty()) {
-            amount = history.getTransferTo().get(0).getAmount();
-        } else if (history.getIssueTo() != null && !history.getIssueTo().isEmpty()) {
-            amount = history.getIssueTo().get(0).getAmount();
-        }
+        Double amount = first != null ? first.getAmount() : null;
 
         if (amount != null) {
             amountRow.setVisibility(View.VISIBLE);
