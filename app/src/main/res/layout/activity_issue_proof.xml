@@ -68,6 +68,20 @@
                 android:layout_height="100dp"
                 android:layout_marginBottom="8dp" />
 
+            <!-- Issue To Input: the first owner; empty means the issuer -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/proof_issue_to"
+                android:textColor="@color/field_name"/>
+
+            <include
+                android:id="@+id/issueToView"
+                layout="@layout/layout_key_input_with_people_and_scan"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/two_line_height"
+                android:layout_marginBottom="8dp" />
+
             <!-- Options Container -->
             <LinearLayout
                 android:id="@+id/optionsContainer"

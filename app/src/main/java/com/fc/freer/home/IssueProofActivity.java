@@ -16,6 +16,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 
 import com.fc.fc_ajdk.constants.Constants;
+import com.fc.fc_ajdk.core.crypto.KeyTools;
 import com.fc.fc_ajdk.core.fch.RawTxInfo;
 import com.fc.fc_ajdk.data.fcData.KeyInfo;
 import com.fc.fc_ajdk.data.feipData.Contact;
@@ -31,6 +32,7 @@ import com.fc.freer.im.SearchFidsOnChainActivity;
 import com.fc.freer.manager.CashManager;
 import com.fc.freer.manager.FidManager;
 import com.fc.freer.manager.ProofManager;
+import com.fc.freer.nobody.NobodyGuard;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.core.fch.TxHandler;
 import com.fc.freer.tx.TxSender;
@@ -58,6 +60,7 @@ public class IssueProofActivity extends BaseCryptoActivity {
     private TextInputEditText titleInput;
     private TextInputEditText contentInput;
     private TextInputEditText cosignersInput;
+    private TextInputEditText issueToInput;
     private CheckBox transferableCheckBox;
     private CheckBox allSignsRequiredCheckBox;
 
@@ -74,12 +77,14 @@ public class IssueProofActivity extends BaseCryptoActivity {
 
     // Activity Result Launchers
     private ActivityResultLauncher<Intent> chooseContactLauncher;
+    private ActivityResultLauncher<Intent> chooseIssueToLauncher;
     private ActivityResultLauncher<Intent> qrScanLauncher;
 
     // Define request codes for QR scan
     private static final int QR_SCAN_TITLE_REQUEST_CODE = 3001;
     private static final int QR_SCAN_CONTENT_REQUEST_CODE = 3002;
     private static final int QR_SCAN_COSIGNERS_REQUEST_CODE = 3003;
+    private static final int QR_SCAN_ISSUE_TO_REQUEST_CODE = 3004;
 
     @Override
     protected int getLayoutId() {
@@ -126,6 +131,7 @@ public class IssueProofActivity extends BaseCryptoActivity {
 
         // Setup IoIconsView for cosigners input
         setupCosignersIoIcons();
+        setupIssueToIoIcons();
     }
 
     @Override
@@ -145,6 +151,9 @@ public class IssueProofActivity extends BaseCryptoActivity {
 
         cosignersInput = cosignersView.findViewById(R.id.keyInput);
         cosignersInput.setHint(R.string.input_cosigners_comma_separated);
+
+        issueToInput = findViewById(R.id.issueToView).findViewById(R.id.keyInput);
+        issueToInput.setHint(R.string.input_proof_issue_to);
 
         transferableCheckBox = findViewById(R.id.transferableCheckBox);
         allSignsRequiredCheckBox = findViewById(R.id.allSignsRequiredCheckBox);
@@ -219,6 +228,13 @@ public class IssueProofActivity extends BaseCryptoActivity {
             for (String fid : proof.getCosignersInvited()) {
                 addCosignerFid(fid);
             }
+            // A draft keeps "all signs required" as active=false, as the chain would index it
+            allSignsRequiredCheckBox.setChecked(Boolean.FALSE.equals(proof.isActive()));
+        }
+
+        // A draft owned by someone other than its issuer is to be issued to that owner
+        if (proof.getOwner() != null && !proof.getOwner().equals(proof.getIssuer())) {
+            issueToInput.setText(proof.getOwner());
         }
 
         ToastUtils.makeText(this, getString(R.string.proof_loaded_for_editing));
@@ -228,7 +244,7 @@ public class IssueProofActivity extends BaseCryptoActivity {
     protected void setupButtons() {
         clearButton.setOnClickListener(v -> clearAllInputs());
         saveButton.setOnClickListener(v -> saveProofToDatabase());
-        carveButton.setOnClickListener(v -> carveProof());
+        carveButton.setOnClickListener(v -> confirmIssueToThenCarve());
     }
 
     @Override
@@ -238,7 +254,9 @@ public class IssueProofActivity extends BaseCryptoActivity {
         } else if (requestCode == QR_SCAN_CONTENT_REQUEST_CODE) {
             contentInput.setText(qrContent);
         } else if (requestCode == QR_SCAN_COSIGNERS_REQUEST_CODE) {
-            cosignersInput.setText(qrContent);
+            if (qrContent != null) addCosignerFid(qrContent.trim());
+        } else if (requestCode == QR_SCAN_ISSUE_TO_REQUEST_CODE) {
+            if (qrContent != null) issueToInput.setText(qrContent.trim());
         }
     }
 
@@ -246,6 +264,7 @@ public class IssueProofActivity extends BaseCryptoActivity {
         titleInput.setText("");
         contentInput.setText("");
         cosignersInput.setText("");
+        issueToInput.setText("");
         transferableCheckBox.setChecked(false);
         allSignsRequiredCheckBox.setChecked(false);
 
@@ -272,6 +291,11 @@ public class IssueProofActivity extends BaseCryptoActivity {
             return;
         }
 
+        if (!addTypedCosigners()) return;
+
+        String issueTo = readIssueTo();
+        if (INVALID_ISSUE_TO.equals(issueTo)) return;
+
         // Get cosigners from the set
         List<String> cosignersList = new ArrayList<>(cosignerFids);
 
@@ -285,10 +309,10 @@ public class IssueProofActivity extends BaseCryptoActivity {
             proof.setCosignersInvited(cosignersList);
         }
         proof.setTransferable(transferable);
-        proof.setActive(true);
+        proof.setActive(!(allSignsRequired && !cosignersList.isEmpty()));
         proof.setDestroyed(false);
         proof.setIssuer(issuer);
-        proof.setOwner(issuer);
+        proof.setOwner(issueTo != null ? issueTo : issuer);
 
         // Save to database only (no blockchain operation)
         proof.setOnChain(false); // Mark as off-chain
@@ -311,6 +335,20 @@ public class IssueProofActivity extends BaseCryptoActivity {
         }
     }
 
+    /**
+     * The first owner is named in the op, not paid, so no tx confirmation asks about a nobody: ask here.
+     */
+    private void confirmIssueToThenCarve() {
+        String issueTo = readIssueTo();
+        if (INVALID_ISSUE_TO.equals(issueTo)) return;
+        if (issueTo == null) {
+            carveProof();
+            return;
+        }
+        NobodyGuard.confirm(this, java.util.Collections.singletonList(issueTo),
+                R.string.nobody_consequence_send, this::carveProof);
+    }
+
     private void carveProof() {
         String title = titleInput.getText() != null ? titleInput.getText().toString().trim() : "";
         String content = contentInput.getText() != null ? contentInput.getText().toString().trim() : "";
@@ -327,6 +365,11 @@ public class IssueProofActivity extends BaseCryptoActivity {
             ToastUtils.makeText(this, getString(R.string.please_input_proof_content));
             return;
         }
+
+        if (!addTypedCosigners()) return;
+
+        String issueTo = readIssueTo();
+        if (INVALID_ISSUE_TO.equals(issueTo)) return;
 
         // Get cosigners from the set
         String[] cosignersArray = null;
@@ -345,12 +388,12 @@ public class IssueProofActivity extends BaseCryptoActivity {
             proof.setCosignersInvited(cosignersList);
         }
         proof.setTransferable(transferable);
-        proof.setActive(true);
+        proof.setActive(!(allSignsRequired && cosignersArray != null));
         proof.setDestroyed(false);
         proof.setIssuer(issuer);
-        proof.setOwner(issuer);
+        proof.setOwner(issueTo != null ? issueTo : issuer);
 
-        String feipJson = makeIssueProofFeip(title, content, cosignersArray, transferable, allSignsRequired);
+        String feipJson = makeIssueProofFeip(title, content, cosignersArray, transferable, allSignsRequired, issueTo);
 
         byte[] prikey = SecurePrikeyManager.fetchPrikeySilent(liveKeyInfo.getPrikeyCipher());
         if (prikey != null) {
@@ -414,11 +457,41 @@ public class IssueProofActivity extends BaseCryptoActivity {
         }
     }
 
-    private static String makeIssueProofFeip(String title, String content, String[] cosigners, Boolean transferable, Boolean allSignsRequired) {
+    private static String makeIssueProofFeip(String title, String content, String[] cosigners, Boolean transferable, Boolean allSignsRequired, String issueTo) {
         Feip feip = Feip.fromName(PROOF);
-        ProofOpData proofOpData = ProofOpData.makeIssue(title, content, cosigners, transferable, allSignsRequired);
+        ProofOpData proofOpData = ProofOpData.makeIssue(title, content, cosigners, transferable, allSignsRequired, issueTo);
         feip.setData(proofOpData);
         return feip.toJson();
+    }
+
+    private static final String INVALID_ISSUE_TO = "";
+
+    /**
+     * Reads the first owner: null when empty or the issuer, INVALID_ISSUE_TO (after a toast) when not a FID.
+     */
+    private String readIssueTo() {
+        String fid = issueToInput.getText() != null ? issueToInput.getText().toString().trim() : "";
+        if (fid.isEmpty()) return null;
+        if (!KeyTools.isGoodFid(fid)) {
+            ToastUtils.makeText(this, getString(R.string.toast_invalid_fid) + ": " + fid);
+            return INVALID_ISSUE_TO;
+        }
+        if (fid.equals(FidManager.getInstance().getLiveFid())) return null;
+        return fid;
+    }
+
+    private void setupIssueToIoIcons() {
+        IoIconsView issueToIoIcons = findViewById(R.id.issueToView).findViewById(R.id.peopleAndScanIcons);
+        if (issueToIoIcons == null) return;
+        issueToIoIcons.init(this, false, true, true, true, false);
+        issueToIoIcons.setSingleChoice(true);
+        issueToIoIcons.setOnPeopleClickListener(isSingleChoice -> {
+            Intent intent = new Intent(IssueProofActivity.this, SearchFidsOnChainActivity.class);
+            intent.putExtra(SearchFidsOnChainActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_ONE_RETURN.name());
+            chooseIssueToLauncher.launch(intent);
+        });
+        issueToIoIcons.setOnScanClickListener(() ->
+                IoIconsView.launchQrScanner(IssueProofActivity.this, QR_SCAN_ISSUE_TO_REQUEST_CODE));
     }
 
     /**
@@ -437,6 +510,17 @@ public class IssueProofActivity extends BaseCryptoActivity {
                             addCosignerFid(fid);
                         }
                     }
+                }
+            }
+        );
+
+        chooseIssueToLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    java.util.List<String> fids = result.getData()
+                            .getStringArrayListExtra(SearchFidsOnChainActivity.EXTRA_SELECTED_FIDS);
+                    if (fids != null && !fids.isEmpty()) issueToInput.setText(fids.get(0));
                 }
             }
         );
@@ -491,6 +575,16 @@ public class IssueProofActivity extends BaseCryptoActivity {
 
         String trimmedFid = fid.trim();
 
+        if (!KeyTools.isGoodFid(trimmedFid)) {
+            ToastUtils.makeText(this, getString(R.string.toast_invalid_fid));
+            return;
+        }
+
+        if (trimmedFid.equals(FidManager.getInstance().getLiveFid())) {
+            ToastUtils.makeText(this, getString(R.string.toast_cosigner_is_issuer));
+            return;
+        }
+
         // Check if already added
         if (cosignerFids.contains(trimmedFid)) {
             ToastUtils.makeText(this, getString(R.string.toast_cosigner_already_added));
@@ -513,6 +607,27 @@ public class IssueProofActivity extends BaseCryptoActivity {
         }
 
         ToastUtils.makeText(this, getString(R.string.toast_cosigner_added));
+    }
+
+    /**
+     * Adds the FIDs typed into the cosigners input (separated by commas or spaces).
+     * Returns false, leaving the input as it is, when one of them is not a FID.
+     */
+    private boolean addTypedCosigners() {
+        String text = cosignersInput.getText() != null ? cosignersInput.getText().toString().trim() : "";
+        if (text.isEmpty()) return true;
+        String[] fids = text.split("[,，;；\\s]+");
+        for (String fid : fids) {
+            if (!fid.isEmpty() && !KeyTools.isGoodFid(fid)) {
+                ToastUtils.makeText(this, getString(R.string.toast_invalid_fid) + ": " + fid);
+                return false;
+            }
+        }
+        for (String fid : fids) {
+            if (!fid.isEmpty() && !cosignerFids.contains(fid)) addCosignerFid(fid);
+        }
+        cosignersInput.setText("");
+        return true;
     }
 
     /**

@@ -61,13 +61,13 @@ public class Proof extends FcObject {
 		// Add Proof fields using constants
 		addFieldToMap(fieldMap, TITLE, "Title", "标题");
 		addFieldToMap(fieldMap, CONTENT, "Content", "内容");
-		addFieldToMap(fieldMap, COSIGNERS_INVITED, "Cosigners Invited", "邀请共签人");
-		addFieldToMap(fieldMap, "cosignersSigned", "Cosigners Signed", "已签共签人");
-		addFieldToMap(fieldMap, TRANSFERABLE, "Transferable", "可转移");
+		addFieldToMap(fieldMap, COSIGNERS_INVITED, "Cosigners Invited", "受邀联合签名者");
+		addFieldToMap(fieldMap, "cosignersSigned", "Cosigners Signed", "已签联合签名者");
+		addFieldToMap(fieldMap, TRANSFERABLE, "Transferable", "可转让");
 		addFieldToMap(fieldMap, ACTIVE, "Active", "有效");
 		addFieldToMap(fieldMap, DESTROYED, "Destroyed", "已销毁");
-		addFieldToMap(fieldMap, ISSUER, "Issuer", "发行人");
-		addFieldToMap(fieldMap, OWNER, "Owner", "所有人");
+		addFieldToMap(fieldMap, ISSUER, "Issuer", "发行者");
+		addFieldToMap(fieldMap, OWNER, "Owner", "所有者");
 		addFieldToMap(fieldMap, BIRTH_TIME, "Birth Time", "创建时间");
 		addFieldToMap(fieldMap, BIRTH_HEIGHT, "Birth Height", "创建高度");
 		addFieldToMap(fieldMap, LAST_TX_ID, "Last Tx ID", "最新交易ID");

@@ -64,7 +64,7 @@ public class DetailActivity extends AppCompatActivity {
             return;
         }
 
-        ToolbarUtils.setupToolbar(this, entityClass.getSimpleName().replace("Detail","") + " "+getString(R.string.detail));
+        ToolbarUtils.setupToolbar(this, detailTitle(entityClass));
 
         // Set up FID/CID display in toolbar
         setupToolbarFidDisplay();
@@ -194,4 +194,10 @@ public class DetailActivity extends AppCompatActivity {
         clipboard.setPrimaryClip(clip);
         ToastUtils.makeText(this, getString(R.string.copied));
     }
-} 
+
+    private String detailTitle(Class<?> entityClass) {
+        if (entityClass == com.fc.fc_ajdk.data.feipData.Proof.class) return getString(R.string.proof_detail);
+        if (entityClass == com.fc.fc_ajdk.data.feipData.ProofHistory.class) return getString(R.string.proof_record_detail);
+        return entityClass.getSimpleName().replace("Detail","") + " "+getString(R.string.detail);
+    }
+}

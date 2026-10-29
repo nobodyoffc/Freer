@@ -6,6 +6,7 @@ import static com.fc.fc_ajdk.constants.FieldNames.LAST_HEIGHT;
 import static com.fc.fc_ajdk.constants.FieldNames.ID;
 import static com.fc.fc_ajdk.constants.FieldNames.OWNER;
 import static com.fc.fc_ajdk.constants.IndicesNames.PROOF;
+import static com.fc.fc_ajdk.constants.IndicesNames.PROOF_HISTORY;
 import static com.fc.fc_ajdk.constants.Values.ASC;
 import static com.fc.fc_ajdk.constants.Values.DESC;
 import static com.fc.fc_ajdk.constants.Values.FALSE;
@@ -18,6 +19,7 @@ import androidx.annotation.NonNull;
 
 import com.fc.fc_ajdk.constants.FieldNames;
 import com.fc.fc_ajdk.data.feipData.Proof;
+import com.fc.fc_ajdk.data.feipData.ProofHistory;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.utils.ToastUtils;
 import com.fc.fc_ajdk.data.apipData.Fcdsl;
@@ -174,8 +176,8 @@ public class ProofManager extends FcManager<Proof> {
 
         if(proof.getId()==null) proof.checkIdWithCreate();
         if (checkIfExisted(proof.getId())) {
-            String prompt = proof.getTitle() + " existed. Replace it?";
-            UserConfirmDialog dialog = new UserConfirmDialog(activity, "Replace Item", prompt, choice -> {
+            String prompt = activity.getString(R.string.proof_title_existed_replace, proof.getTitle());
+            UserConfirmDialog dialog = new UserConfirmDialog(activity, activity.getString(R.string.proof_existed_title), prompt, choice -> {
                 if (choice == UserConfirmDialog.Choice.YES) {
                     addEntity(proof);
                     processProofSequentially(activity, proofList, index + 1, savedCount + 1);
@@ -193,6 +195,44 @@ public class ProofManager extends FcManager<Proof> {
             addEntity(proof);
             processProofSequentially(activity, proofList, index + 1, savedCount + 1);
         }
+    }
+
+    /**
+     * Fetches the on-chain operation records (issue, sign, transfer, destroy), newest first:
+     * those of one proof when proofId is given, otherwise those signed by or sent to fid.
+     *
+     * @return the records, or null if the request failed
+     */
+    public List<ProofHistory> fetchProofHistoryFromAPI(String proofId, String fid) {
+        com.fc.fc_ajdk.fapi.client.FapiClient fapiClient = loadFapiClient();
+        if (fapiClient == null) {
+            TimberLogger.w(TAG, "Cannot fetch proof history: FapiClient not available");
+            return null;
+        }
+
+        Fcdsl fcdsl = new Fcdsl();
+        fcdsl.addSize(com.fc.freer.FreerApplication.DEFAULT_REQUEST_SIZE);
+        if (proofId != null) {
+            // issue/sign/transfer carry proofId; destroy carries proofIds
+            fcdsl.addNewQuery().addNewTerms().addNewFields(FieldNames.PROOF_ID, FieldNames.PROOF_IDS).addNewValues(proofId);
+        } else if (fid != null) {
+            fcdsl.addNewQuery().addNewTerms().addNewFields(FieldNames.SIGNER, FieldNames.ISSUE_TO, FieldNames.TRANSFER_TO).addNewValues(fid);
+        } else {
+            return null;
+        }
+        fcdsl.addSort(FieldNames.TIME, DESC).addSort(ID, DESC);
+
+        try {
+            return fapiClient.entitySearch(PROOF_HISTORY, fcdsl, ProofHistory.class);
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error fetching proof history: %s", e.getMessage());
+            return null;
+        }
+    }
+
+    @Override
+    protected String displayName(Context context) {
+        return context.getString(R.string.menu_proof);
     }
 
     public long getProofDBSize() {

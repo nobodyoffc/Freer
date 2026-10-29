@@ -177,7 +177,7 @@ public class ProofActivity extends BaseCryptoActivity {
                     if (loadingMessage != null) {
                         dismissWaitingDialog();
                     }
-                    showErrorMessage("Error: " + e.getMessage());
+                    showErrorMessage(getString(R.string.error_with_message, e.getMessage()));
                 });
             }
         }).start();
@@ -258,7 +258,11 @@ public class ProofActivity extends BaseCryptoActivity {
                     java.util.List<String> fids = result.getData()
                             .getStringArrayListExtra(SearchFidsOnChainActivity.EXTRA_SELECTED_FIDS);
                     if (fids != null && !fids.isEmpty()) {
-                        transferProofToFid(proofBeingTransferred, fids.get(0));
+                        Proof proof = proofBeingTransferred;
+                        String newOwner = fids.get(0);
+                        // The new owner is named in the op, not paid, so no tx confirmation asks about a nobody
+                        com.fc.freer.nobody.NobodyGuard.confirm(this, java.util.Collections.singletonList(newOwner),
+                                R.string.nobody_consequence_send, () -> transferProofToFid(proof, newOwner));
                     }
                     proofBeingTransferred = null;
                 } else proofBeingTransferred = null;
@@ -648,7 +652,7 @@ public class ProofActivity extends BaseCryptoActivity {
 
         // Set up Order spinner
         if (sortOrderSpinner != null) {
-            String[] orderOptions = new String[]{"Order", "DESC", "ASC"};
+            String[] orderOptions = new String[]{getString(R.string.order), "DESC", "ASC"};
             setupSpinner(sortOrderSpinner, orderOptions, R.string.order);
         }
     }
@@ -844,7 +848,7 @@ public class ProofActivity extends BaseCryptoActivity {
                 showErrorMessage(getString(R.string.failed_to_update_proofs_db));
             } else if (added > 0) {
                 loadFirstPage();
-                showSuccessMessage(getString(R.string.added_new_entities, added, PROOF));
+                showSuccessMessage(getString(R.string.added_new_entities, added, getString(R.string.menu_proof)));
             } else {
                 showInfoMessage(getString(R.string.no_new_proofs_found));
             }
@@ -1049,7 +1053,7 @@ public class ProofActivity extends BaseCryptoActivity {
         try {
             if (added > 0) {
                 refreshList();
-                showSuccessMessage(getString(R.string.added_new_entities, added, PROOF));
+                showSuccessMessage(getString(R.string.added_new_entities, added, getString(R.string.menu_proof)));
             } else if (added == 0) {
                 hasMoreEarlierData = false;
                 updateStatistics();
@@ -1481,18 +1485,26 @@ public class ProofActivity extends BaseCryptoActivity {
 
         String liveFid = fidManager.getLiveFid();
         if (!liveFid.equals(proof.getIssuer())) {
-            showErrorMessage("You can only carve proofs you issued");
+            showErrorMessage(getString(R.string.only_issuer_can_carve_proof));
             return;
         }
 
-        // Carve the proof on-chain
-        carveProofOnChain(proof);
+        // Carve the proof on-chain, once a nobody first owner is confirmed
+        String owner = proof.getOwner();
+        if (owner != null && !owner.equals(proof.getIssuer())) {
+            com.fc.freer.nobody.NobodyGuard.confirm(this, java.util.Collections.singletonList(owner),
+                    R.string.nobody_consequence_send, () -> carveProofOnChain(proof));
+        } else carveProofOnChain(proof);
     }
 
     /**
      * Handles pay icon click to transfer proofs to contacts
      */
     private void handlePayIconClick(Proof proof) {
+        if (!Boolean.TRUE.equals(proof.isTransferable())) {
+            ToastUtils.makeText(this, getString(R.string.proof_not_transferable));
+            return;
+        }
         // Launch on-chain FID search (also lets the user pick from contacts) in single-return mode
         Intent intent = new Intent(this, SearchFidsOnChainActivity.class);
         intent.putExtra(SearchFidsOnChainActivity.EXTRA_CHOOSE_MODE, ChooseMode.CHOOSE_ONE_RETURN.name());
@@ -1523,13 +1535,16 @@ public class ProofActivity extends BaseCryptoActivity {
         }
 
         Boolean transferable = proof.isTransferable();
-        // allSignsRequired is not stored in Proof, so we'll use false as default
-        Boolean allSignsRequired = false;
+        // A draft keeps "all signs required" as active=false, as the chain would index it
+        Boolean allSignsRequired = cosignersArray != null && Boolean.FALSE.equals(proof.isActive());
 
         FidManager fidManager = FidManager.getInstance();
         KeyInfo liveKeyInfo = fidManager.getLiveKeyInfo();
 
-        String feipJson = makeIssueProofFeip(title, content, cosignersArray, transferable, allSignsRequired);
+        // A draft owned by someone other than its issuer is issued to that owner
+        String issueTo = proof.getOwner() != null && !proof.getOwner().equals(liveKeyInfo.getId()) ? proof.getOwner() : null;
+
+        String feipJson = makeIssueProofFeip(title, content, cosignersArray, transferable, allSignsRequired, issueTo);
 
         byte[] prikey = SecurePrikeyManager.fetchPrikeySilent(liveKeyInfo.getPrikeyCipher());
         if (prikey != null) {
@@ -1552,10 +1567,10 @@ public class ProofActivity extends BaseCryptoActivity {
                                 newProof.setCosignersInvited(java.util.Arrays.asList(cosignersArray));
                             }
                             newProof.setTransferable(transferable);
-                            newProof.setActive(true);
+                            newProof.setActive(!allSignsRequired);
                             newProof.setDestroyed(false);
                             newProof.setIssuer(proof.getIssuer());
-                            newProof.setOwner(proof.getIssuer());
+                            newProof.setOwner(issueTo != null ? issueTo : liveKeyInfo.getId());
                             newProof.setOnChain(null);
                             newProof.setLastHeight(com.fc.fc_ajdk.constants.Constants.MaX_HEIGHT);
 
@@ -1585,7 +1600,7 @@ public class ProofActivity extends BaseCryptoActivity {
                     public void onError(String errorMessage) {
                         runOnUiThread(() -> {
                             dismissWaitingDialog();
-                            showErrorMessage("Failed to carve proof on-chain: " + errorMessage);
+                            showErrorMessage(getString(R.string.failed_to_carve_proof, errorMessage));
                         });
                     }
 
@@ -1609,16 +1624,16 @@ public class ProofActivity extends BaseCryptoActivity {
                 });
             }).start();
         } else {
-            showErrorMessage("Failed to get private key");
+            showErrorMessage(getString(R.string.failed_to_get_prikey));
         }
     }
 
     /**
      * Creates the FEIP JSON for issuing a proof
      */
-    private static String makeIssueProofFeip(String title, String content, String[] cosigners, Boolean transferable, Boolean allSignsRequired) {
+    private static String makeIssueProofFeip(String title, String content, String[] cosigners, Boolean transferable, Boolean allSignsRequired, String issueTo) {
         Feip feip = Feip.fromName(PROOF);
-        com.fc.fc_ajdk.data.feipData.ProofOpData proofOpData = com.fc.fc_ajdk.data.feipData.ProofOpData.makeIssue(title, content, cosigners, transferable, allSignsRequired);
+        com.fc.fc_ajdk.data.feipData.ProofOpData proofOpData = com.fc.fc_ajdk.data.feipData.ProofOpData.makeIssue(title, content, cosigners, transferable, allSignsRequired, issueTo);
         feip.setData(proofOpData);
         return feip.toJson();
     }
@@ -1628,31 +1643,35 @@ public class ProofActivity extends BaseCryptoActivity {
      */
     private void transferProofToFid(Proof proof, String recipientFid) {
         if (proof == null || recipientFid == null || recipientFid.isEmpty()) {
-            showErrorMessage("Invalid recipient");
+            showErrorMessage(getString(R.string.toast_invalid_fid));
             return;
         }
 
         FidManager fidManager = FidManager.getInstance();
         if (fidManager == null || fidManager.getLiveKeyInfo() == null) {
-            showErrorMessage("No active key");
+            showErrorMessage(getString(R.string.toast_no_active_key));
             return;
         }
 
         KeyInfo liveKeyInfo = fidManager.getLiveKeyInfo();
+        if (recipientFid.equals(liveKeyInfo.getId())) {
+            showErrorMessage(getString(R.string.proof_transfer_to_self));
+            return;
+        }
 
         // Create transfer FEIP
         Feip feip = Feip.fromName(PROOF);
-        com.fc.fc_ajdk.data.feipData.ProofOpData proofOpData = com.fc.fc_ajdk.data.feipData.ProofOpData.makeTransfer(proof.getId());
+        com.fc.fc_ajdk.data.feipData.ProofOpData proofOpData = com.fc.fc_ajdk.data.feipData.ProofOpData.makeTransfer(proof.getId(), recipientFid);
         feip.setData(proofOpData);
         String feipJson = feip.toJson();
 
         byte[] prikey = SecurePrikeyManager.fetchPrikeySilent(liveKeyInfo.getPrikeyCipher());
         if (prikey != null) {
-            showWaitingDialog("Transferring proof...");
+            showWaitingDialog(getString(R.string.transferring_proof));
             new Thread(() -> {
                 CashManager cashManager = CashManager.getInstance();
                 TxSender txSender = new TxSender();
-                txSender.carveFeipWithRecipient(this, liveKeyInfo.getId(), recipientFid, null, feipJson, prikey, cashManager, new TxHandler(), (FapiClient) ApiCenter.getInstance().getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.FAPI_No1_NrC7), new TxSender.TxCallback() {
+                txSender.carveSimpleFeip(this, liveKeyInfo.getId(), feipJson, prikey, cashManager, new TxHandler(), (FapiClient) ApiCenter.getInstance().getClient(com.fc.fc_ajdk.data.feipData.Service.ServiceType.FAPI_No1_NrC7), new TxSender.TxCallback() {
                     @Override
                     public void onSuccess(String txId) {
                         runOnUiThread(() -> {
@@ -1667,7 +1686,7 @@ public class ProofActivity extends BaseCryptoActivity {
                     public void onError(String errorMessage) {
                         runOnUiThread(() -> {
                             dismissWaitingDialog();
-                            showErrorMessage("Failed to transfer proof: " + errorMessage);
+                            showErrorMessage(getString(R.string.failed_to_transfer_proof, errorMessage));
                         });
                     }
 
@@ -1690,7 +1709,7 @@ public class ProofActivity extends BaseCryptoActivity {
                 });
             }).start();
         } else {
-            showErrorMessage("Failed to get private key");
+            showErrorMessage(getString(R.string.failed_to_get_prikey));
         }
     }
 
@@ -1700,7 +1719,7 @@ public class ProofActivity extends BaseCryptoActivity {
     private void signProof(Proof proof) {
         FidManager fidManager = FidManager.getInstance();
         if (fidManager == null || fidManager.getLiveKeyInfo() == null) {
-            showErrorMessage("No active key");
+            showErrorMessage(getString(R.string.toast_no_active_key));
             return;
         }
 
@@ -1714,7 +1733,7 @@ public class ProofActivity extends BaseCryptoActivity {
 
         byte[] prikey = SecurePrikeyManager.fetchPrikeySilent(liveKeyInfo.getPrikeyCipher());
         if (prikey != null) {
-            showWaitingDialog("Signing proof...");
+            showWaitingDialog(getString(R.string.signing_proof));
             new Thread(() -> {
                 CashManager cashManager = CashManager.getInstance();
                 TxSender txSender = new TxSender();
@@ -1744,7 +1763,7 @@ public class ProofActivity extends BaseCryptoActivity {
                     public void onError(String errorMessage) {
                         runOnUiThread(() -> {
                             dismissWaitingDialog();
-                            showErrorMessage("Failed to sign proof: " + errorMessage);
+                            showErrorMessage(getString(R.string.failed_to_sign_proof, errorMessage));
                         });
                     }
 
@@ -1767,7 +1786,7 @@ public class ProofActivity extends BaseCryptoActivity {
                 });
             }).start();
         } else {
-            showErrorMessage("Failed to get private key");
+            showErrorMessage(getString(R.string.failed_to_get_prikey));
         }
     }
 
@@ -1788,8 +1807,16 @@ public class ProofActivity extends BaseCryptoActivity {
 
         recordItem.setOnClickListener(v -> {
             popupWindow.dismiss();
-            // TODO: Implement record functionality
-            ToastUtils.makeText(this, getString(R.string.toast_record_to_be_implemented));
+            // One selected proof: its records; otherwise the live FID's records
+            Intent intent = new Intent(this, ProofHistoryActivity.class);
+            List<Proof> selectedProofs = proofCardContainer == null ? java.util.Collections.emptyList() : proofCardContainer.getSelectedProofs();
+            if (selectedProofs.size() == 1) {
+                intent.putExtra(ProofHistoryActivity.EXTRA_PROOF_ID, selectedProofs.get(0).getId());
+                intent.putExtra(ProofHistoryActivity.EXTRA_PROOF_TITLE, selectedProofs.get(0).getTitle());
+            } else {
+                intent.putExtra(ProofHistoryActivity.EXTRA_FID, FidManager.getInstance().getLiveFid());
+            }
+            startActivity(intent);
         });
 
         destroyItem.setOnClickListener(v -> {
@@ -1801,13 +1828,9 @@ public class ProofActivity extends BaseCryptoActivity {
                 return;
             }
             String liveFid = FidManager.getInstance().getLiveFid();
-            int removed = 0;
-            for(Proof proof:selectedProofs){
-                if(!proof.getOwner().equals(liveFid)) {
-                    selectedProofs.remove(proof);
-                    removed ++;
-                }
-            }
+            int selectedCount = selectedProofs.size();
+            selectedProofs.removeIf(proof -> !liveFid.equals(proof.getOwner()));
+            int removed = selectedCount - selectedProofs.size();
             if(removed>0)
                 ToastUtils.makeText(this, getString(R.string.removed_the_proofs_which_you_don_t_own,removed));
             // Pass selected proofs to DestroyProofActivity

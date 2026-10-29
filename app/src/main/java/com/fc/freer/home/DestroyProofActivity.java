@@ -189,10 +189,7 @@ public class DestroyProofActivity extends BaseCryptoActivity {
 
         int containerSize = proofCardContainer.getProofList().size();
 
-        StringBuilder statsText = new StringBuilder();
-        statsText.append("Total: ").append(containerSize);
-
-        proofStatisticsTextView.setText(statsText.toString());
+        proofStatisticsTextView.setText(getString(R.string.total_count, containerSize));
         proofStatisticsTextView.setVisibility(View.VISIBLE);
     }
 

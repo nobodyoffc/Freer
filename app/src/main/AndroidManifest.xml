@@ -926,6 +926,12 @@
             android:windowSoftInputMode="adjustResize"/>
 
         <activity
+            android:name="com.fc.freer.home.ProofHistoryActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
             android:name="com.fc.freer.home.CreateTokenActivity"
             android:exported="false"
             android:screenOrientation="portrait"
@@ -961,18 +967,18 @@
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize"/>
 
-        <!-- Messaging Activities -->
-        <activity
-            android:name="com.fc.freer.im.TalkActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustResize"/>
         <activity
             android:name="com.fc.freer.home.ClosedTokensActivity"
             android:exported="false"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize"/>
 
+        <!-- Messaging Activities -->
+        <activity
+            android:name="com.fc.freer.im.TalkActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize"/>
 
         <activity
             android:name="com.fc.freer.im.SquareActivity"

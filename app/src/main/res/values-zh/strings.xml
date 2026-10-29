@@ -788,8 +788,8 @@
     <string name="undecrypted">未解密</string>
 
     <!-- Proof related strings -->
-    <string name="proof_issuer_avatar">凭据发行人头像</string>
-    <string name="proof_owner_avatar">凭据拥有人头像</string>
+    <string name="proof_issuer_avatar">凭据发行者头像</string>
+    <string name="proof_owner_avatar">凭据所有者头像</string>
 
 
     <string name="my_proofs">我的凭据</string>
@@ -812,13 +812,35 @@
     <string name="issue_proof">发行凭据</string>
     <string name="input_proof_title">输入凭据标题</string>
     <string name="input_proof_content">输入凭据内容</string>
-    <string name="input_cosigners_comma_separated">输入共签人（FID），用逗号分隔（可选）</string>
+    <string name="input_cosigners_comma_separated">输入联合签名者的FID，多个用逗号分隔（可选）</string>
     <string name="transferable">可转让</string>
     <string name="all_signs_required">需要全部签名</string>
     <string name="please_input_proof_title">请输入凭据标题</string>
     <string name="please_input_proof_content">请输入凭据内容</string>
     <string name="proof_existed_title">凭据已存在</string>
     <string name="proof_already_exists_message">该ID的凭据已存在。要替换吗？</string>
+    <string name="proof_title_existed_replace">%1$s 已存在。要替换吗？</string>
+    <string name="only_issuer_can_carve_proof">只有发行者能把凭据上链</string>
+    <string name="failed_to_carve_proof">凭据上链失败：%1$s</string>
+    <string name="transferring_proof">正在转让凭据...</string>
+    <string name="failed_to_transfer_proof">转让凭据失败：%1$s</string>
+    <string name="signing_proof">正在签名凭据...</string>
+    <string name="failed_to_sign_proof">签名凭据失败：%1$s</string>
+    <string name="toast_cosigner_is_issuer">发行者不能做自己的联合签名者</string>
+    <string name="proof_issue_to">发行给</string>
+    <string name="input_proof_issue_to">首个所有者FID（留空则为自己）</string>
+    <string name="proof_not_transferable">此证明不可转让</string>
+    <string name="proof_transfer_to_self">你已是此证明的所有者</string>
+    <string name="proof_detail">凭据详情</string>
+    <string name="proof_record_detail">凭据记录详情</string>
+    <string name="proof_records">凭据记录</string>
+    <string name="my_proof_records">我的凭据记录</string>
+    <string name="loading_proof_records">正在加载凭据记录...</string>
+    <string name="no_proof_records_found">没有找到凭据记录</string>
+    <string name="proof_op_issue">发行</string>
+    <string name="proof_op_sign">签名</string>
+    <string name="proof_op_transfer">转让</string>
+    <string name="proof_op_destroy">销毁</string>
     <string name="carving_proof_on_chain">正在将凭据上链...</string>
     <string name="destroyed">已销毁</string>
     <string name="destroyed_proofs">已销毁的凭据</string>
@@ -1234,7 +1256,7 @@
     <string name="error_searching_news">搜索新闻时出错：%1$s</string>
     <string name="clearing_and_reloading">清除并重新加载中…</string>
     <string name="database_cleared_and_reloaded">数据库已清除并重新加载</string>
-    <string name="proof_loaded_for_editing">证据已加载以进行编辑</string>
+    <string name="proof_loaded_for_editing">凭据已加载，可以编辑</string>
 
     <!-- Affair input dialogs -->
     <string name="enter_symkey_prompt">请输入对称密钥用于加密/解密：</string>
@@ -1579,24 +1601,29 @@
     <string name="signer">签名者</string>
     <string name="no_valid_token_ids">没有有效的通证ID</string>
     <string name="insufficient_balance">余额不足</string>
-    <string name="issue_token">增发通证</string>
+    <string name="issue_token">发行通证</string>
     <string name="amount_to_issue">数量</string>
     <string name="add_recipient">添加接收者</string>
-    <string name="only_deployer_can_issue">只有部署者可以增发此通证</string>
-    <string name="exceeds_max_amt_per_issue">总量超过单次增发上限（%1$s）</string>
+    <string name="only_deployer_can_issue">只有部署者可以发行此通证</string>
+    <string name="exceeds_max_amt_per_issue">总量超过单次发行上限（%1$s）</string>
     <string name="exceeds_capacity">总量超过通证容量</string>
-    <string name="failed_to_issue_token">增发通证失败</string>
+    <string name="failed_to_issue_token">发行通证失败</string>
     <string name="burn_token">销毁通证</string>
     <string name="burn_token_confirm">销毁您持有的全部 %1$s？此操作不可撤销。</string>
     <string name="failed_to_burn_token">销毁通证失败</string>
     <string name="no_balance_to_burn">没有可销毁的余额</string>
     <string name="token_closed">此通证已关闭</string>
+    <string name="closed">已关闭</string>
+    <string name="closed_tokens">已关闭的通证</string>
+    <string name="closed_tokens_held">持有（已冻结）</string>
+    <string name="closed_tokens_deployed">我部署的</string>
+    <string name="no_closed_tokens_found">未找到已关闭的通证</string>
     <string name="too_many_decimal_places">数量最多支持 %1$d 位小数</string>
     <string name="decimal_must_be_integer">小数位必须是非负整数</string>
     <string name="invalid_capacity">无效的容量</string>
-    <string name="invalid_max_amt_per_issue">无效的单次增发上限</string>
-    <string name="invalid_min_cdd_per_issue">无效的单次增发最小CDD</string>
-    <string name="invalid_max_issues_per_addr">无效的单地址增发次数上限</string>
+    <string name="invalid_max_amt_per_issue">无效的单次发行上限</string>
+    <string name="invalid_min_cdd_per_issue">无效的单次发行最小CDD</string>
+    <string name="invalid_max_issues_per_addr">无效的单地址发行次数上限</string>
     <string name="price_per_kb">每KB价格 (FCH)</string>
     <string name="price_per_kb_in">每KB输入价格 (FCH)</string>
     <string name="price_per_kb_out">每KB输出价格 (FCH)</string>
@@ -1609,11 +1636,6 @@
     <string name="currency">货币</string>
     <string name="max_data_size">最大数据量</string>
     <string name="data_expires_in_days">数据保存天数</string>
-    <string name="closed">已关闭</string>
-    <string name="closed_tokens">已关闭的通证</string>
-    <string name="closed_tokens_held">持有（已冻结）</string>
-    <string name="closed_tokens_deployed">我部署的</string>
-    <string name="no_closed_tokens_found">未找到已关闭的通证</string>
     <!-- DataActivity -->
     <string name="size">大小</string>
     <string name="search_hint">搜索…</string>
@@ -1809,9 +1831,9 @@
     <string name="about_token_title">什么是通证？</string>
     <string name="about_token_message">通证是一种链上的同质化资产（协议 FEIP-20）。\n\n• 任何人都可以部署。部署时即固定它的规则——小数位数、可选的总量上限，以及发行方式。\n\n• 余额存在链上。发行、转账和销毁会转移或减少余额；部署者可以关闭该通证。\n\n• 它的 ID 就是部署交易。\n\n通证是规则在部署时即固定的简单链上资产。</string>
 
-    <string name="about_proof">关于凭证</string>
-    <string name="about_proof_title">什么是凭证？</string>
-    <string name="about_proof_message">凭证是记录某个事实或约定的链上文档（协议 FEIP-14）。\n\n• 存储在区块链上。它有标题和正文，它的 ID 就是签发它的那笔交易。\n\n• 可选的联署。签发者可以邀请联署人；当所有必需的签名齐备后，凭证即生效。\n\n• 可转让。所有权可以转让，所有者可以销毁它。\n\n凭证适合需要持久、可验证签名的收据、证书或约定。</string>
+    <string name="about_proof">关于凭据</string>
+    <string name="about_proof_title">什么是凭据？</string>
+    <string name="about_proof_message">凭据是记录某个事实或约定的链上文档（协议 FEIP-14）。\n\n• 存储在区块链上。它有标题和内容，内容公开；它的 ID 就是发行它的那笔交易。\n\n• 可选的联合签名。发行者可以邀请联合签名者；勾选"需要全部签名"时，签齐后凭据才生效。\n\n• 可转让。勾选"可转让"的凭据，所有者可以转给别人；所有者也可以销毁它，销毁不能撤回。\n\n凭据适合需要持久、可验证签名的借据、收据、证书或约定。</string>
 
     <string name="about_protocol">关于协议</string>
     <string name="about_protocol_title">什么是协议？</string>
@@ -2262,15 +2284,15 @@
     <string name="toast_content_copied">内容已复制到剪贴板</string>
     <string name="toast_error_showing_dialog">显示对话框出错：%1$s</string>
     <string name="toast_error_copying_fid">复制FID出错</string>
-    <string name="toast_no_proofs_for_destruction">未提供待销毁的证明</string>
-    <string name="toast_no_valid_proofs">未找到有效的证明</string>
-    <string name="toast_error_loading_proof">加载证明数据出错</string>
-    <string name="toast_no_proofs_to_destroy">没有可销毁的证明</string>
-    <string name="toast_deleted_proofs_local">已在本地删除%1$d个链下证明</string>
+    <string name="toast_no_proofs_for_destruction">未提供待销毁的凭据</string>
+    <string name="toast_no_valid_proofs">未找到有效的凭据</string>
+    <string name="toast_error_loading_proof">加载凭据数据出错</string>
+    <string name="toast_no_proofs_to_destroy">没有可销毁的凭据</string>
+    <string name="toast_deleted_proofs_local">已在本地删除%1$d个未上链的凭据</string>
     <string name="toast_no_active_key">没有可用的活动密钥</string>
-    <string name="toast_failed_destroy_proofs_onchain">链上销毁证明失败：%1$s</string>
+    <string name="toast_failed_destroy_proofs_onchain">链上销毁凭据失败：%1$s</string>
     <string name="toast_sign_tx_failed_unsigned">无法签名交易 - 显示未签名交易</string>
-    <string name="toast_proofs_deleted_local">证明已在本地删除</string>
+    <string name="toast_proofs_deleted_local">凭据已在本地删除</string>
     <string name="toast_fid_added_to_list">FID已添加到列表</string>
     <string name="toast_no_data_create_qr">没有可用于生成二维码的数据</string>
     <string name="toast_invalid_fid">无效的FID</string>
@@ -2279,8 +2301,8 @@
     <string name="toast_failed_load_fid_info">加载FID信息失败</string>
     <string name="toast_error_loading_fid_info">加载FID信息出错：%1$s</string>
     <string name="toast_tokens_must_publish_onchain">通证必须发布到链上</string>
-    <string name="toast_loaded_proofs">已加载%1$d个证明</string>
-    <string name="toast_loaded_newer_proofs">已加载%1$d个较新的证明</string>
+    <string name="toast_loaded_proofs">已加载%1$d个凭据</string>
+    <string name="toast_loaded_newer_proofs">已加载%1$d个较新的凭据</string>
     <string name="toast_record_to_be_implemented">记录功能待实现</string>
     <string name="toast_loaded_apps">已加载%1$d个应用</string>
     <string name="toast_loaded_newer_apps">已加载%1$d个较新的应用</string>
@@ -2288,11 +2310,11 @@
     <string name="toast_error_detail">错误：%1$s</string>
     <string name="toast_failed_carve_cid_onchain">链上铸刻CID失败：%1$s</string>
     <string name="toast_hidden_token_holders">已隐藏%1$d个通证持有者</string>
-    <string name="toast_failed_load_proof_data">加载证明数据失败</string>
+    <string name="toast_failed_load_proof_data">加载凭据数据失败</string>
     <string name="toast_failed_carve_feip">链上铸刻FEIP失败：%1$s</string>
     <string name="toast_failed_add_contacts">添加联系人失败</string>
-    <string name="toast_cosigner_already_added">联署人已添加</string>
-    <string name="toast_cosigner_added">已添加联署人</string>
+    <string name="toast_cosigner_already_added">该联合签名者已添加</string>
+    <string name="toast_cosigner_added">已添加联合签名者</string>
     <string name="toast_fid_added_to_input">FID已添加到输入</string>
     <string name="toast_loaded_contacts">已加载%1$d个联系人</string>
     <string name="toast_loaded_newer_contacts">已加载%1$d个较新的联系人</string>

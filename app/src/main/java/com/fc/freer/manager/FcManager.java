@@ -940,9 +940,14 @@ public abstract class FcManager<T extends FcEntity> {
         if(totalOnChain == null) totalOnChain = 0L;
         if(addTotalOnChain)setTotalOnChain(totalOnChain + 1);
         commit();
-        ToastUtils.makeText(activity, activity.getString(R.string.entity_saved_successfully, StringUtils.capitalize(entityName)));
+        ToastUtils.makeText(activity, activity.getString(R.string.entity_saved_successfully, displayName(activity)));
         activity.setResult(Activity.RESULT_OK);
         activity.finish();
+    }
+
+    /** The entity's name as the user reads it; managers with a localized name override this. */
+    protected String displayName(android.content.Context context) {
+        return StringUtils.capitalize(entityName);
     }
 
     /**

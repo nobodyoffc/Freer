@@ -14,6 +14,8 @@ public class ProofOpData {
     private Boolean transferable;
     private Boolean allSignsRequired;
     private String[] proofIds;
+    private String issueTo;
+    private String transferTo;
 
     public enum Op {
         ISSUE(FeipOp.ISSUE),
@@ -48,9 +50,9 @@ public class ProofOpData {
     public static final Map<String, String[]> OP_FIELDS = new HashMap<>();
 
     static {
-        OP_FIELDS.put(Op.ISSUE.toLowerCase(), new String[]{FieldNames.TITLE, FieldNames.CONTENT, FieldNames.COSIGNERS, FieldNames.TRANSFERABLE, FieldNames.ALL_SIGNS_REQUIRED});
+        OP_FIELDS.put(Op.ISSUE.toLowerCase(), new String[]{FieldNames.TITLE, FieldNames.CONTENT, FieldNames.COSIGNERS, FieldNames.TRANSFERABLE, FieldNames.ALL_SIGNS_REQUIRED, FieldNames.ISSUE_TO});
         OP_FIELDS.put(Op.SIGN.toLowerCase(), new String[]{FieldNames.PROOF_ID});
-        OP_FIELDS.put(Op.TRANSFER.toLowerCase(), new String[]{FieldNames.PROOF_ID});
+        OP_FIELDS.put(Op.TRANSFER.toLowerCase(), new String[]{FieldNames.PROOF_ID, FieldNames.TRANSFER_TO});
         OP_FIELDS.put(Op.DESTROY.toLowerCase(), new String[]{FieldNames.PROOF_IDS});
     }
 
@@ -118,7 +120,28 @@ public class ProofOpData {
         this.proofIds = proofIds;
     }
 
+    public String getIssueTo() {
+        return issueTo;
+    }
+
+    public void setIssueTo(String issueTo) {
+        this.issueTo = issueTo;
+    }
+
+    public String getTransferTo() {
+        return transferTo;
+    }
+
+    public void setTransferTo(String transferTo) {
+        this.transferTo = transferTo;
+    }
+
     public static ProofOpData makeIssue(String title, String content, String[] cosigners, Boolean transferable, Boolean allSignsRequired) {
+        return makeIssue(title, content, cosigners, transferable, allSignsRequired, null);
+    }
+
+    /** issueTo is the first owner; null leaves the issuer as the owner. */
+    public static ProofOpData makeIssue(String title, String content, String[] cosigners, Boolean transferable, Boolean allSignsRequired, String issueTo) {
         ProofOpData data = new ProofOpData();
         data.setOp(Op.ISSUE.toLowerCase());
         data.setTitle(title);
@@ -126,6 +149,7 @@ public class ProofOpData {
         data.setCosigners(cosigners);
         data.setTransferable(transferable);
         data.setAllSignsRequired(allSignsRequired);
+        data.setIssueTo(issueTo);
         return data;
     }
 
@@ -136,10 +160,11 @@ public class ProofOpData {
         return data;
     }
 
-    public static ProofOpData makeTransfer(String proofId) {
+    public static ProofOpData makeTransfer(String proofId, String transferTo) {
         ProofOpData data = new ProofOpData();
         data.setOp(Op.TRANSFER.toLowerCase());
         data.setProofId(proofId);
+        data.setTransferTo(transferTo);
         return data;
     }
 
