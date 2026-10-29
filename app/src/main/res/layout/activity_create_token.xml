@@ -121,7 +121,7 @@
         <ImageButton
             android:id="@+id/publishButton"
             style="@style/ImageButtonStyle"
-            android:src="@drawable/ic_carve"
+            android:src="@drawable/ic_send"
             android:contentDescription="@string/carve" />
 
         <ImageButton
