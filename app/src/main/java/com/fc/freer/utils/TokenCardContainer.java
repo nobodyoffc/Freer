@@ -38,7 +38,6 @@ public class TokenCardContainer {
     private OnTokenClickListener onTokenClickListener;
     private OnHistoryIconClickListener onHistoryIconClickListener;
     private OnIssueIconClickListener onIssueIconClickListener;
-    private OnEditIconClickListener onEditIconClickListener;
     private OnClearIconClickListener onClearIconClickListener;
     private boolean hideEditButton = false;
     private boolean showClearButton = false;
@@ -57,10 +56,6 @@ public class TokenCardContainer {
 
     public interface OnIssueIconClickListener {
         void onIssueIconClick(Token token);
-    }
-
-    public interface OnEditIconClickListener {
-        void onEditIconClick(Token token);
     }
 
     public interface OnClearIconClickListener {
@@ -89,10 +84,6 @@ public class TokenCardContainer {
 
     public void setOnIssueIconClickListener(OnIssueIconClickListener listener) {
         this.onIssueIconClickListener = listener;
-    }
-
-    public void setOnEditIconClickListener(OnEditIconClickListener listener) {
-        this.onEditIconClickListener = listener;
     }
 
     public void setOnClearIconClickListener(OnClearIconClickListener listener) {
@@ -302,20 +293,8 @@ public class TokenCardContainer {
                     }
                 });
             } else {
-                // Only show edit button for deployer
-                FidManager fidManager = FidManager.getInstance();
-                String liveFid = fidManager != null ? fidManager.getLiveFid() : null;
-                if (liveFid != null && liveFid.equals(token.getDeployer())) {
-                    editButton.setVisibility(VISIBLE);
-                    editButton.setImageResource(R.drawable.ic_edit);
-                    editButton.setOnClickListener(v -> {
-                        if (onEditIconClickListener != null) {
-                            onEditIconClickListener.onEditIconClick(token);
-                        }
-                    });
-                } else {
-                    editButton.setVisibility(GONE);
-                }
+                // Tokens exist only on chain and FEIP20 has no update op, so there is nothing to edit
+                editButton.setVisibility(GONE);
             }
         }
     }

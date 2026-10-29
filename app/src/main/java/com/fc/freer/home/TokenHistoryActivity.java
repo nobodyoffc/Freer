@@ -196,10 +196,10 @@ public class TokenHistoryActivity extends BaseCryptoActivity {
         // Set operation
         opValue.setText(history.getOp() != null ? history.getOp().toUpperCase() : "");
 
-        // Set time
+        // Set time (chain time is in seconds)
         if (history.getTime() != null) {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
-            timeValue.setText(sdf.format(new Date(history.getTime())));
+            timeValue.setText(sdf.format(new Date(history.getTime() * 1000L)));
         } else {
             timeValue.setText("");
         }

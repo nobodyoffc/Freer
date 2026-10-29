@@ -24,6 +24,7 @@ import com.fc.fc_ajdk.data.feipData.Contact;
 import com.fc.fc_ajdk.data.feipData.Protocol;
 import com.fc.fc_ajdk.data.feipData.Service;
 import com.fc.fc_ajdk.data.feipData.Team;
+import com.fc.fc_ajdk.data.feipData.TokenHistory;
 import com.fc.fc_ajdk.utils.Hex;
 import com.fc.freer.initiate.ConfigureManager;
 import com.fc.freer.home.RateActivity;
@@ -820,6 +821,14 @@ public class DetailFragment extends Fragment {
             if (download.getLink() != null) downloadMap.put("link", download.getLink());
             if (download.getDid() != null) downloadMap.put("did", download.getDid());
             value = downloadMap;
+        }
+
+        // TokenHistory.FidAmount (issueTo / transferTo items) is a plain POJO too; show it as a fid/amount map
+        if (value instanceof TokenHistory.FidAmount fidAmount) {
+            Map<String, String> fidAmountMap = new LinkedHashMap<>();
+            if (fidAmount.getFid() != null) fidAmountMap.put("fid", fidAmount.getFid());
+            if (fidAmount.getAmount() != null) fidAmountMap.put("amount", java.math.BigDecimal.valueOf(fidAmount.getAmount()).stripTrailingZeros().toPlainString());
+            value = fidAmountMap;
         }
 
         String displayValue;
