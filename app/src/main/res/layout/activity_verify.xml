@@ -47,7 +47,7 @@
         <!-- Key Container -->
         <include
             android:id="@+id/keyView"
-            layout="@layout/layout_text_input_with_scan"
+            layout="@layout/layout_text_input_with_scan_short"
             android:layout_width="match_parent"
             android:layout_height="@dimen/two_line_height"
             android:layout_marginTop="8dp" />

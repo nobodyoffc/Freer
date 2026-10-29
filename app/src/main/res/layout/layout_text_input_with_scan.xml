@@ -19,8 +19,8 @@
             android:inputType="textMultiLine"
             android:minLines="3"
             android:paddingStart="8dp"
-            android:paddingEnd="70dp"
-            android:paddingBottom="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="40dp"
             />
     </com.google.android.material.textfield.TextInputLayout>
 

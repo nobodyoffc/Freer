@@ -161,14 +161,14 @@
 
             <include
                 android:id="@+id/titlesView"
-                layout="@layout/layout_text_input_with_scan"
+                layout="@layout/layout_text_input_with_scan_short"
                 android:layout_width="match_parent"
                 android:layout_height="60dp"
                 android:layout_marginBottom="8dp" />
 
             <include
                 android:id="@+id/memoView"
-                layout="@layout/layout_text_input_with_scan"
+                layout="@layout/layout_text_input_with_scan_short"
                 android:layout_width="match_parent"
                 android:layout_height="60dp" />
 

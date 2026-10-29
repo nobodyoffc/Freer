@@ -34,7 +34,7 @@
         <!-- Input View -->
         <include
             android:id="@+id/inputView"
-            layout="@layout/layout_text_input_with_scan"
+            layout="@layout/layout_text_input_with_scan_short"
             android:layout_width="match_parent"
             android:layout_height="70dp"
             android:layout_marginTop="8dp" />
