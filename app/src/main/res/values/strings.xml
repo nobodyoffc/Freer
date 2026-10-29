@@ -1648,6 +1648,11 @@
     <string name="consume_via_share">Consume Via Share</string>
     <string name="order_via_share">Order Via Share</string>
     <string name="currency">Currency</string>
+    <string name="closed">Closed</string>
+    <string name="closed_tokens">Closed Tokens</string>
+    <string name="closed_tokens_held">Held (frozen)</string>
+    <string name="closed_tokens_deployed">Deployed by me</string>
+    <string name="no_closed_tokens_found">No closed tokens found</string>
     <string name="max_data_size">Max Data Size</string>
     <string name="data_expires_in_days">Data Expires In Days</string>
     <!-- DataActivity -->

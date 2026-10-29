@@ -352,6 +352,7 @@ public class MyTokenActivity extends BaseCryptoActivity {
     }
 
     private void showItemList(List<TokenHolder> newList) {
+        newList = withoutClosedTokens(newList);
         if (newList == null || newList.isEmpty()) {
             ToastUtils.makeText(this, getString(R.string.no_token_holders_found));
             updateUI();
@@ -362,6 +363,20 @@ public class MyTokenActivity extends BaseCryptoActivity {
         tokenHolderList.addAll(newList);
         updateUI();
         loadCardList();
+    }
+
+    /**
+     * A closed token's balance is frozen (FEIP20 rejects transfer and destroy), so it is listed
+     * on the Closed page instead, where it offers no send or burn.
+     */
+    private List<TokenHolder> withoutClosedTokens(List<TokenHolder> holders) {
+        if (holders == null) return null;
+        List<TokenHolder> open = new ArrayList<>();
+        for (TokenHolder holder : holders) {
+            Token token = tokenInfoMap.get(holder.getTokenId());
+            if (token == null || !Boolean.TRUE.equals(token.getClosed())) open.add(holder);
+        }
+        return open;
     }
 
     private void loadCardList() {
@@ -569,6 +584,11 @@ public class MyTokenActivity extends BaseCryptoActivity {
             popupWindow.dismiss();
             Intent intent = new Intent(this, HiddenTokenHolderActivity.class);
             hiddenLauncher.launch(intent);
+        });
+
+        popupView.findViewById(R.id.closed_item).setOnClickListener(v -> {
+            popupWindow.dismiss();
+            startActivity(new Intent(this, ClosedTokensActivity.class));
         });
 
         popupView.findViewById(R.id.about_item).setOnClickListener(v -> {

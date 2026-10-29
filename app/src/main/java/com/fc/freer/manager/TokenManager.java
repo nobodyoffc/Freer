@@ -393,6 +393,33 @@ public class TokenManager extends FcManager<TokenHolder> {
     }
 
     /**
+     * Every token holding of the live FID in the local database.
+     */
+    public List<TokenHolder> getAllTokenHolders() {
+        if (entityDB == null) return new ArrayList<>();
+        return new ArrayList<>(entityDB.getAll().values());
+    }
+
+    /**
+     * Closed tokens deployed by the given FID.
+     */
+    public List<Token> fetchClosedTokensDeployedBy(String fid) {
+        FapiClient fapiClient = loadFapiClient();
+        if (fapiClient == null || fid == null) return null;
+        try {
+            Fcdsl fcdsl = new Fcdsl();
+            fcdsl.addSize(FreerApplication.DEFAULT_REQUEST_SIZE);
+            fcdsl.addNewQuery().addNewTerms().addNewFields(DEPLOYER).addNewValues(fid);
+            fcdsl.addNewFilter().addNewTerms().addNewFields(CLOSED).addNewValues(TRUE);
+            fcdsl.addSort(LAST_HEIGHT, DESC).addSort(ID, DESC);
+            return fapiClient.entitySearch(TOKEN, fcdsl, Token.class);
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error fetching closed tokens: %s", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * A closed token can no longer be issued, so the token list leaves it out. Excluding closed=true
      * (rather than requiring closed=false) keeps tokens indexed before the parser wrote the field.
      */

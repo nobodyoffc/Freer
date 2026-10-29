@@ -1609,6 +1609,11 @@
     <string name="currency">货币</string>
     <string name="max_data_size">最大数据量</string>
     <string name="data_expires_in_days">数据保存天数</string>
+    <string name="closed">已关闭</string>
+    <string name="closed_tokens">已关闭的通证</string>
+    <string name="closed_tokens_held">持有（已冻结）</string>
+    <string name="closed_tokens_deployed">我部署的</string>
+    <string name="no_closed_tokens_found">未找到已关闭的通证</string>
     <!-- DataActivity -->
     <string name="size">大小</string>
     <string name="search_hint">搜索…</string>
