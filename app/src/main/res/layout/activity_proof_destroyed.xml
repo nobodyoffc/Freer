@@ -183,24 +183,6 @@
 
             </LinearLayout>
 
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1" />
-
-            <TextView
-                android:id="@+id/selectAllLabel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/all"
-                android:textColor="@color/text"
-                android:textSize="16sp" />
-
-            <CheckBox
-                android:id="@+id/select_all_checkbox"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-
         </LinearLayout>
 
     </LinearLayout>
@@ -213,18 +195,6 @@
         android:orientation="horizontal"
         android:paddingStart="16dp"
         android:gravity="end">
-
-        <Button
-            android:id="@+id/recover_button"
-            style="@style/ButtonStyle"
-            android:text="@string/recover"
-             />
-
-        <Button
-            android:id="@+id/toggle_mode_button"
-            style="@style/ButtonStyle"
-            android:layout_margin="8dp"
-            android:text="@string/hided" />
 
         <ImageButton
             android:id="@+id/back_button"

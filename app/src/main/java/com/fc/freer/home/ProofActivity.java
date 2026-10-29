@@ -110,6 +110,7 @@ public class ProofActivity extends BaseCryptoActivity {
     private ActivityResultLauncher<Intent> destroyProofLauncher;
     private ActivityResultLauncher<Intent> chooseContactLauncher;
     private ActivityResultLauncher<Intent> issueProofLauncher;
+    private ActivityResultLauncher<Intent> hiddenProofLauncher;
 
     // Temporary storage for proof being transferred
     private Proof proofBeingTransferred = null;
@@ -231,6 +232,16 @@ public class ProofActivity extends BaseCryptoActivity {
 
         // Initialize issue proof launcher
         issueProofLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK) {
+                    refreshList();
+                }
+            }
+        );
+
+        // Initialize hidden proof launcher; revealed proofs come back into the list
+        hiddenProofLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == RESULT_OK) {
@@ -1773,6 +1784,7 @@ public class ProofActivity extends BaseCryptoActivity {
         TextView destroyItem = popupView.findViewById(R.id.destroy_item);
         TextView refreshItem = popupView.findViewById(R.id.refresh_item);
         TextView destroyedListItem = popupView.findViewById(R.id.destroyed_item);
+        TextView hiddenListItem = popupView.findViewById(R.id.hidden_item);
 
         recordItem.setOnClickListener(v -> {
             popupWindow.dismiss();
@@ -1808,6 +1820,11 @@ public class ProofActivity extends BaseCryptoActivity {
             popupWindow.dismiss();
             Intent intent = new Intent(this, ProofDestroyedActivity.class);
             startActivity(intent);
+        });
+
+        hiddenListItem.setOnClickListener(v -> {
+            popupWindow.dismiss();
+            hiddenProofLauncher.launch(new Intent(this, HiddenProofActivity.class));
         });
 
         refreshItem.setOnClickListener(v -> {

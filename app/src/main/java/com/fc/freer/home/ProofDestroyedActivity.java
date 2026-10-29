@@ -5,7 +5,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.view.View;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -39,12 +38,7 @@ public class ProofDestroyedActivity extends BaseCryptoActivity {
     private LinearLayout proofListContainer;
     protected ProofManager proofManager;
 
-    private Button recoverButton;
-    private Button toggleModeButton;
-
-
     private Button loadMoreButton;
-    private CheckBox selectAllCheckBox;
     private SwipeRefreshLayout swipeRefreshLayout;
     private ScrollView proofScrollView;
 
@@ -60,7 +54,6 @@ public class ProofDestroyedActivity extends BaseCryptoActivity {
 
     private TextView proofStatisticsTextView;
 
-    private boolean isDestroyedMode = true;
     private Long totalDestroyed;
 
     private enum SortState { NONE, ASCENDING, DESCENDING }
@@ -121,10 +114,7 @@ public class ProofDestroyedActivity extends BaseCryptoActivity {
 
     @Override
     protected void initializeViews() {
-        recoverButton = findViewById(R.id.recover_button);
-        toggleModeButton = findViewById(R.id.toggle_mode_button);
         loadMoreButton = findViewById(R.id.load_more_button);
-        selectAllCheckBox = findViewById(R.id.select_all_checkbox);
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
         proofScrollView = findViewById(R.id.proof_scroll_view);
 
@@ -145,7 +135,6 @@ public class ProofDestroyedActivity extends BaseCryptoActivity {
         setupIssuerSortButton();
         setupTitleSortButton();
         setupSwipeRefresh();
-        setupSelectAllCheckBox();
     }
 
     @Override
@@ -155,28 +144,9 @@ public class ProofDestroyedActivity extends BaseCryptoActivity {
 
     @Override
     protected void setupButtons() {
-        recoverButton.setOnClickListener(v -> {
-            if (proofCardContainer == null) {
-                return;
-            }
-            if (isDestroyedMode) {
-                ToastUtils.makeText(this, getString(R.string.recover_only_available_in_hided_mode));
-                return;
-            }
-
-            List<Proof> selectedProofs = proofCardContainer.getSelectedProofs();
-            if (selectedProofs.isEmpty()) {
-                ToastUtils.makeText(this, getString(R.string.no_proofs_selected_for_recovery));
-                return;
-            }
-            recoverHidedProofs(selectedProofs);
-        });
-
-        toggleModeButton.setOnClickListener(v -> toggleMode());
-
         if (loadMoreButton != null) {
             loadMoreButton.setOnClickListener(v -> {
-                if (!isDestroyedMode || isLoadingEarlier || !hasMoreEarlierData) {
+                if (isLoadingEarlier || !hasMoreEarlierData) {
                     return;
                 }
                 loadMoreButton.setEnabled(false);
@@ -238,35 +208,6 @@ public class ProofDestroyedActivity extends BaseCryptoActivity {
         }).start();
     }
 
-    private void loadLocalHidedProofs() {
-        showWaitingDialog(getString(R.string.loading_hided_proofs));
-
-        new Thread(() -> {
-            try {
-                List<Proof> localHided = proofManager.getLocalHiddenProofs();
-                runOnUiThread(() -> {
-                    proofList.clear();
-                    if (localHided != null) {
-                        proofList.addAll(localHided);
-                    }
-                    totalDestroyed = proofManager.getLocalHiddenProofsSize();
-                    hasMoreEarlierData = false;
-                    hasMoreNewerData = false;
-                    updateUI();
-                    loadProofCardList();
-                    dismissWaitingDialog();
-                });
-            } catch (Exception e) {
-                TimberLogger.e(TAG, "Error loading hided proofs: %s", e.getMessage());
-                runOnUiThread(() -> {
-                    dismissWaitingDialog();
-                    ToastUtils.makeText(this, e.getMessage());
-                    clearProofList();
-                });
-            }
-        }).start();
-    }
-
     private void loadProofCardList() {
         proofListContainer = findViewById(R.id.fragment_container);
         if (proofListContainer == null) {
@@ -277,7 +218,7 @@ public class ProofDestroyedActivity extends BaseCryptoActivity {
             proofCardContainer.clearAll();
         }
 
-        proofCardContainer = new ProofCardContainer(this, proofListContainer, ChooseMode.CHOOSE_MULTI);
+        proofCardContainer = new ProofCardContainer(this, proofListContainer, ChooseMode.WITHOUT_CHOOSE);
         proofCardContainer.setOnProofListChangedListener(updatedProofList -> {
             proofList.clear();
             proofList.addAll(updatedProofList);
@@ -293,37 +234,6 @@ public class ProofDestroyedActivity extends BaseCryptoActivity {
 
         setupScrollListener();
         updateUI();
-    }
-
-    private void setupSelectAllCheckBox() {
-        if (selectAllCheckBox == null) {
-            return;
-        }
-
-        selectAllCheckBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (proofCardContainer == null || !buttonView.isPressed()) {
-                return;
-            }
-            proofCardContainer.selectAll(isChecked);
-        });
-    }
-
-    private void updateSelectAllCheckBoxState() {
-        if (selectAllCheckBox == null || proofCardContainer == null) {
-            return;
-        }
-
-        selectAllCheckBox.setOnCheckedChangeListener(null);
-
-        if (proofCardContainer.areAllSelected()) {
-            selectAllCheckBox.setChecked(true);
-        } else if (proofCardContainer.areNoneSelected()) {
-            selectAllCheckBox.setChecked(false);
-        } else {
-            selectAllCheckBox.setChecked(false);
-        }
-
-        setupSelectAllCheckBox();
     }
 
     private void setupSortButton() {
@@ -375,13 +285,7 @@ public class ProofDestroyedActivity extends BaseCryptoActivity {
         if (swipeRefreshLayout == null) {
             return;
         }
-        swipeRefreshLayout.setOnRefreshListener(() -> {
-            if (!isDestroyedMode) {
-                swipeRefreshLayout.setRefreshing(false);
-                return;
-            }
-            loadNewerProofs();
-        });
+        swipeRefreshLayout.setOnRefreshListener(this::loadNewerProofs);
         swipeRefreshLayout.setColorSchemeResources(
             android.R.color.holo_blue_bright,
             android.R.color.holo_green_light,
@@ -395,7 +299,7 @@ public class ProofDestroyedActivity extends BaseCryptoActivity {
         }
 
         proofScrollView.setOnScrollChangeListener((v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
-            if (!isDestroyedMode || isLoadingNewer || isLoadingEarlier) {
+            if (isLoadingNewer || isLoadingEarlier) {
                 return;
             }
 
@@ -425,7 +329,7 @@ public class ProofDestroyedActivity extends BaseCryptoActivity {
     }
 
     private void loadNewerProofs() {
-        if (!isDestroyedMode || isLoadingNewer || latestSortKeys == null) {
+        if (isLoadingNewer || latestSortKeys == null) {
             swipeRefreshLayout.setRefreshing(false);
             return;
         }
@@ -480,7 +384,7 @@ public class ProofDestroyedActivity extends BaseCryptoActivity {
     }
 
     private void loadEarlierProofs() {
-        if (!isDestroyedMode || isLoadingEarlier || !hasMoreEarlierData || earliestSortKeys == null) {
+        if (isLoadingEarlier || !hasMoreEarlierData || earliestSortKeys == null) {
             return;
         }
 
@@ -530,53 +434,6 @@ public class ProofDestroyedActivity extends BaseCryptoActivity {
         }).start();
     }
 
-    private void recoverHidedProofs(List<Proof> proofsToRecover) {
-        showWaitingDialog(getString(R.string.recovering_proofs_locally));
-
-        new Thread(() -> {
-            try {
-                for (Proof proof : proofsToRecover) {
-                    proofManager.addProof(proof);
-                    proofManager.removeFromLocalDeletedList(proof);
-                }
-                proofManager.commit();
-
-                runOnUiThread(() -> {
-                    proofCardContainer.removeSelectedProofs();
-                    proofList.removeAll(proofsToRecover);
-                    totalDestroyed = proofManager.getLocalHiddenProofsSize();
-                    updateUI();
-                    dismissWaitingDialog();
-                    ToastUtils.makeText(this, getString(R.string.proofs_recovered_successfully));
-                });
-            } catch (Exception e) {
-                TimberLogger.e(TAG, "Failed to recover proofs: %s", e.getMessage());
-                runOnUiThread(() -> {
-                    dismissWaitingDialog();
-                    ToastUtils.makeText(this, String.format(getString(R.string.failed_to_recover_proofs), e.getMessage()));
-                });
-            }
-        }).start();
-    }
-
-    private void toggleMode() {
-        isDestroyedMode = !isDestroyedMode;
-        toggleModeButton.setText(isDestroyedMode ? getString(R.string.hided) : getString(R.string.destroyed));
-
-        clearProofList();
-
-        if (swipeRefreshLayout != null) {
-            swipeRefreshLayout.setEnabled(isDestroyedMode);
-            swipeRefreshLayout.setRefreshing(false);
-        }
-
-        if (isDestroyedMode) {
-            loadDestroyedProofs(this);
-        } else {
-            loadLocalHidedProofs();
-        }
-    }
-
     private void clearProofList() {
         if (proofCardContainer != null) {
             proofCardContainer.clearAll();
@@ -594,7 +451,6 @@ public class ProofDestroyedActivity extends BaseCryptoActivity {
 
     private void updateUI() {
         updateButtonStates();
-        updateSelectAllCheckBoxState();
         updateStatistics();
         currentSortState = SortState.NONE;
         currentSortType = SortType.LAST_TIME;
@@ -602,13 +458,8 @@ public class ProofDestroyedActivity extends BaseCryptoActivity {
     }
 
     private void updateButtonStates() {
-        boolean hasSelected = proofCardContainer != null && !proofCardContainer.getSelectedProofs().isEmpty();
-
-        recoverButton.setEnabled(hasSelected && !isDestroyedMode);
-        recoverButton.setAlpha((hasSelected && !isDestroyedMode) ? 1.0f : 0.5f);
-
         if (loadMoreButton != null) {
-            loadMoreButton.setVisibility(isDestroyedMode && hasMoreEarlierData ? View.VISIBLE : View.GONE);
+            loadMoreButton.setVisibility(hasMoreEarlierData ? View.VISIBLE : View.GONE);
         }
     }
 
@@ -619,10 +470,10 @@ public class ProofDestroyedActivity extends BaseCryptoActivity {
 
         int containerSize = proofList.size();
         StringBuilder statsText = new StringBuilder();
-        statsText.append(isDestroyedMode ? getString(R.string.destroyed) : getString(R.string.hided));
+        statsText.append(getString(R.string.destroyed));
         statsText.append(": ").append(containerSize);
 
-        if (isDestroyedMode && totalDestroyed != null) {
+        if (totalDestroyed != null) {
             statsText.append("      Total: ").append(totalDestroyed);
         }
 
