@@ -242,11 +242,27 @@ public class DetailFragment extends Fragment {
             showAvatar = false;
         }
         
+        // A token's id is a txid, not a FID: its slot shows the token's logo instead, if any
+        // (only the deployer's own Image; see TokenLogoManager).
+        boolean showLogo = !showAvatar
+                && currentEntity instanceof com.fc.fc_ajdk.data.feipData.Token
+                && com.fc.freer.manager.TokenLogoManager.hasCover((com.fc.fc_ajdk.data.feipData.Token) currentEntity);
+
         // Load the avatar if allowed
         if (showAvatar) {
             loadAvatar();
         } else {
             avatarView.setVisibility(View.GONE);
+        }
+        if (showLogo) {
+            com.fc.fc_ajdk.data.feipData.Token token = (com.fc.fc_ajdk.data.feipData.Token) currentEntity;
+            int sizePx = (int) (96 * density);
+            com.fc.freer.manager.TokenLogoManager.getInstance(requireContext()).load(token, sizePx, logo -> {
+                if (logo == null || !isAdded() || currentEntity != token) return;
+                avatarView.setImageBitmap(logo);
+                avatarView.setContentDescription(getString(R.string.token_logo));
+                avatarView.setVisibility(View.VISIBLE);
+            });
         }
         
         // Create a container for the ID field
@@ -283,6 +299,9 @@ public class DetailFragment extends Fragment {
         // Add the avatar and ID container to the avatar ID container
         if (showAvatar) {
             avatarView.setVisibility(View.VISIBLE);
+            avatarIdContainer.addView(avatarView);
+        } else if (showLogo) {
+            // Stays hidden until the logo arrives.
             avatarIdContainer.addView(avatarView);
         }
         avatarIdContainer.addView(idContainer);

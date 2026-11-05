@@ -21,6 +21,7 @@ import com.fc.freer.R;
 import com.fc.freer.manager.AvatarManager;
 import com.fc.freer.manager.CidFidManager;
 import com.fc.freer.manager.FidManager;
+import com.fc.freer.manager.TokenLogoManager;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -173,6 +174,7 @@ public class TokenCardContainer {
         TextView decimalValue = cardView.findViewById(R.id.token_decimal_value);
 
         setupAvatar(avatarView, token.getDeployer());
+        setupLogo(cardView.findViewById(R.id.token_logo), token);
         nameValue.setText(token.getName() != null ? token.getName() : "");
         
         String deployerDisplay = token.getDeployer();
@@ -208,6 +210,23 @@ public class TokenCardContainer {
         } else {
             avatarView.setImageResource(R.drawable.container_outline);
         }
+    }
+
+    /**
+     * The token's logo, in the slot at the card's start. It stays gone until the logo is known,
+     * so a token without one has no empty slot; the deployer's avatar always sits ahead of its CID.
+     */
+    private void setupLogo(ImageView logoView, Token token) {
+        if (logoView == null) return;
+        logoView.setVisibility(GONE);
+        logoView.setTag(R.id.token_logo, token.getId());
+        if (!TokenLogoManager.hasCover(token)) return;
+        int sizePx = (int) (48 * context.getResources().getDisplayMetrics().density);
+        TokenLogoManager.getInstance(context).load(token, sizePx, logo -> {
+            if (logo == null || !token.getId().equals(logoView.getTag(R.id.token_logo))) return;
+            logoView.setImageBitmap(logo);
+            logoView.setVisibility(VISIBLE);
+        });
     }
 
     private String formatNumber(Double number) {

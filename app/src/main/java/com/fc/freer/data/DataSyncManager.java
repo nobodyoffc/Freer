@@ -456,6 +456,49 @@ public class DataSyncManager {
     }
     
     /**
+     * Downloads public, content-addressed bytes (e.g. a FEIP24 Image) by DID: first from each
+     * DISK its {@code locas} name ({@code (sid)…} or {@code fudp://…}), then from the default
+     * DISK. Kept only if the bytes hash back to {@code did} and fit {@code maxBytes}; a server
+     * named in a public record is untrusted.
+     *
+     * @return true when {@code outputFile} holds the verified bytes
+     */
+    public boolean downloadVerified(String did, List<String> locas, File outputFile, long maxBytes) {
+        if (did == null || !did.matches("[0-9a-fA-F]{64}") || outputFile == null) return false;
+        List<FapiClient> clients = new ArrayList<>();
+        if (locas != null) {
+            for (String loca : locas) {
+                if (loca == null) continue;
+                if (!loca.startsWith(SID_LOCATION_PREFIX) && !loca.toLowerCase().startsWith(FUDP_LOCATION_PREFIX)) continue;
+                try {
+                    FapiClient c = getFapiClientForLoca(loca);
+                    if (c != null && !clients.contains(c)) clients.add(c);
+                } catch (Exception e) {
+                    TimberLogger.w(TAG, "downloadVerified: no client for %s: %s", loca, e.getMessage());
+                }
+            }
+        }
+        FapiClient defaultClient = getFapiClient();
+        if (defaultClient != null && !clients.contains(defaultClient)) clients.add(defaultClient);
+        for (FapiClient c : clients) {
+            try {
+                if (c.diskGet(did, outputFile) == null) continue;
+                if (outputFile.length() > maxBytes
+                        || !did.equalsIgnoreCase(Hex.toHex(Hash.sha256x2Bytes(outputFile)))) {
+                    TimberLogger.w(TAG, "downloadVerified: %s from %s is too large or other bytes", did, c.getServerUrl());
+                    outputFile.delete();
+                    continue;
+                }
+                return true;
+            } catch (Exception e) {
+                TimberLogger.w(TAG, "downloadVerified: %s failed: %s", did, e.getMessage());
+                outputFile.delete();
+            }
+        }
+        return false;
+    }
+
+    /**
      * Downloads and decrypts data from DISK using the two-HAT model.
      * <p>
      * Steps:

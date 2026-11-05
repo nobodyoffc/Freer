@@ -1561,6 +1561,7 @@
     <string name="send_token">发送通证</string>
     <string name="token_name">通证名称</string>
     <string name="deployer">部署者</string>
+    <string name="token_logo">代币标志</string>
     <string name="circulating">流通量</string>
     <string name="capacity">容量</string>
     <string name="decimal">小数位</string>

@@ -1600,6 +1600,7 @@
     <string name="send_token">Send Token</string>
     <string name="token_name">Token Name</string>
     <string name="deployer">Deployer</string>
+    <string name="token_logo">Token logo</string>
     <string name="circulating">Circulating</string>
     <string name="capacity">Capacity</string>
     <string name="decimal">Decimal</string>
