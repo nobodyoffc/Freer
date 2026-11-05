@@ -37,6 +37,10 @@ public class TokenHolderCardContainer {
     private OnBurnIconClickListener onBurnIconClickListener;
     private OnTokenHolderClickListener onTokenHolderClickListener;
     private Map<String, Token> tokenInfoMap;
+    // Holders-of-one-token mode: each card names its holder instead of its token
+    private boolean showHolder;
+    private Map<String, String> cidMap;
+    private Double circulating;
 
     public interface OnTokenHolderListChangedListener {
         void onListChanged(List<TokenHolder> updatedList);
@@ -80,6 +84,25 @@ public class TokenHolderCardContainer {
 
     public void setTokenInfoMap(Map<String, Token> tokenInfoMap) {
         this.tokenInfoMap = tokenInfoMap;
+    }
+
+    /**
+     * Cards name the holder (CID, else FID) with the FID below, instead of the token.
+     * Used when every card is the same token.
+     *
+     * @param cidMap      FID to CID, may be null
+     * @param circulating the token's circulating supply, to show each holder's share; may be null
+     */
+    public void setShowHolder(Map<String, String> cidMap, Double circulating) {
+        this.showHolder = true;
+        this.cidMap = cidMap;
+        this.circulating = circulating;
+    }
+
+    public void putCids(Map<String, String> more) {
+        if (more == null) return;
+        if (cidMap == null) cidMap = new java.util.HashMap<>();
+        cidMap.putAll(more);
     }
 
     private void notifyListChanged() {
@@ -138,6 +161,21 @@ public class TokenHolderCardContainer {
         TextView nameValue = cardView.findViewById(R.id.token_holder_name_value);
         TextView tokenIdValue = cardView.findViewById(R.id.token_holder_token_id_value);
         TextView balanceValue = cardView.findViewById(R.id.token_holder_balance_value);
+
+        if (showHolder) {
+            String fid = tokenHolder.getFid();
+            String cid = cidMap != null && fid != null ? cidMap.get(fid) : null;
+            nameValue.setText(cid != null ? cid : (fid != null ? fid : ""));
+            tokenIdValue.setText(cid != null ? fid : "");
+            tokenIdValue.setVisibility(cid != null ? VISIBLE : GONE);
+            String balance = formatBalance(tokenHolder.getBalance());
+            if (circulating != null && circulating > 0 && tokenHolder.getBalance() != null) {
+                balance += String.format(java.util.Locale.getDefault(), "  (%.2f%%)",
+                    tokenHolder.getBalance() * 100 / circulating);
+            }
+            balanceValue.setText(balance);
+            return;
+        }
 
         // Get token name from cache if available
         String tokenName = tokenHolder.getTokenId();

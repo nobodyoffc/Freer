@@ -924,6 +924,10 @@
             android:exported="false"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize"/>
+        <activity
+            android:name="com.fc.freer.home.TokenHoldersActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"/>
 
         <activity
             android:name="com.fc.freer.home.ProofHistoryActivity"

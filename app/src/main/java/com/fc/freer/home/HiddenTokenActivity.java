@@ -102,6 +102,8 @@ public class HiddenTokenActivity extends BaseCryptoActivity {
         cardContainer.setHideEditButton(true);
         cardContainer.setOnListChangedListener(updatedList -> updateUI());
 
+        cardContainer.setOnHoldersIconClickListener(token -> TokenHoldersActivity.start(this, token));
+
         cardContainer.setOnHistoryIconClickListener(token -> {
             Intent intent = new Intent(this, TokenHistoryActivity.class);
             intent.putExtra(TokenHistoryActivity.EXTRA_TOKEN_ID, token.getId());

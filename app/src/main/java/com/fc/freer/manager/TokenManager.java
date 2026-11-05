@@ -57,6 +57,7 @@ public class TokenManager extends FcManager<TokenHolder> {
     private static TokenManager instance;
     private Long totalTokens;
     private Long totalTokenHistory;
+    private Long totalHoldersOfToken;
 
     private TokenManager() {
         super(TokenHolder.class, TOKEN_HOLDER);
@@ -149,6 +150,49 @@ public class TokenManager extends FcManager<TokenHolder> {
             TimberLogger.e(TAG, "Error fetching token holders: %s", e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * One page of every holder of a token, richest first, straight from the API.
+     * Unlike the other holder queries it is not limited to the liveFid, so it never touches the local holder DB.
+     *
+     * @param after the last holder of the previous page, or null for the first page
+     */
+    public List<TokenHolder> fetchHoldersOfToken(String tokenId, int size, TokenHolder after) {
+        if (tokenId == null) return null;
+        FapiClient fapiClient = loadFapiClient();
+        if (fapiClient == null) {
+            TimberLogger.w(TAG, "Cannot fetch holders of token: FapiClient not available");
+            return null;
+        }
+
+        try {
+            Fcdsl fcdsl = new Fcdsl();
+            fcdsl.addSize(size);
+            fcdsl.addNewQuery().addNewTerms().addNewFields(TOKEN_ID).addNewValues(tokenId);
+            fcdsl.addSort(FieldNames.BALANCE, DESC).addSort(ID, ASC);
+            if (after != null) {
+                fcdsl.addAfter(Arrays.asList(
+                    String.valueOf(after.getBalance() != null ? after.getBalance() : 0D), after.getId()));
+            }
+
+            List<TokenHolder> holders = fapiClient.entitySearch(TOKEN_HOLDER, fcdsl, TokenHolder.class);
+            if (after == null) {
+                totalHoldersOfToken = fapiClient.getLastResponse() != null ? fapiClient.getLastResponse().getTotal() : null;
+            }
+            if (holders != null) {
+                TimberLogger.i(TAG, "Fetched %d holders of token %s", holders.size(), tokenId);
+            }
+            return holders;
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Error fetching holders of token %s: %s", tokenId, e.getMessage());
+            return null;
+        }
+    }
+
+    /** Total holders of the token last asked of {@link #fetchHoldersOfToken}, when the API reported one. */
+    public Long getTotalHoldersOfToken() {
+        return totalHoldersOfToken;
     }
 
     /**

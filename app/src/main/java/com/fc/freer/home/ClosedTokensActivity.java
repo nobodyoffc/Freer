@@ -115,6 +115,8 @@ public class ClosedTokensActivity extends BaseCryptoActivity {
 
         // The token card hides the issue icon on a closed token; history stays available
         TokenCardContainer deployedCards = new TokenCardContainer(this, deployedContainer, ChooseMode.WITHOUT_CHOOSE);
+        deployedCards.setOnHoldersIconClickListener(token -> TokenHoldersActivity.start(this, token));
+
         deployedCards.setOnHistoryIconClickListener(token -> {
             Intent intent = new Intent(this, TokenHistoryActivity.class);
             intent.putExtra(TokenHistoryActivity.EXTRA_TOKEN_ID, token.getId());

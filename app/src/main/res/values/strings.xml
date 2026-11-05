@@ -1690,6 +1690,7 @@
     <string name="loading_tokens">Loading tokens…</string>
     <string name="loading_token_holders">Loading token holders…</string>
     <string name="loading_token_history">Loading token history…</string>
+    <string name="token_holders">Token Holders</string>
     <string name="token_not_ready_try_later">Token manager not ready. Please try again later.</string>
     <string name="no_tokens_to_close">No tokens to close</string>
     <string name="no_closable_tokens_found">No closable tokens found</string>

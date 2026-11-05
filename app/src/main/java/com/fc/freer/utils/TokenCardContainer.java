@@ -38,6 +38,7 @@ public class TokenCardContainer {
     private OnTokenListChangedListener onListChangedListener;
     private OnTokenClickListener onTokenClickListener;
     private OnHistoryIconClickListener onHistoryIconClickListener;
+    private OnHoldersIconClickListener onHoldersIconClickListener;
     private OnIssueIconClickListener onIssueIconClickListener;
     private OnClearIconClickListener onClearIconClickListener;
     private boolean hideEditButton = false;
@@ -53,6 +54,10 @@ public class TokenCardContainer {
 
     public interface OnHistoryIconClickListener {
         void onHistoryIconClick(Token token);
+    }
+
+    public interface OnHoldersIconClickListener {
+        void onHoldersIconClick(Token token);
     }
 
     public interface OnIssueIconClickListener {
@@ -81,6 +86,10 @@ public class TokenCardContainer {
 
     public void setOnHistoryIconClickListener(OnHistoryIconClickListener listener) {
         this.onHistoryIconClickListener = listener;
+    }
+
+    public void setOnHoldersIconClickListener(OnHoldersIconClickListener listener) {
+        this.onHoldersIconClickListener = listener;
     }
 
     public void setOnIssueIconClickListener(OnIssueIconClickListener listener) {
@@ -279,6 +288,17 @@ public class TokenCardContainer {
                     onHistoryIconClickListener.onHistoryIconClick(token);
                 }
             });
+        }
+
+        // Holders button - shown wherever a listener is set; holder lists are public
+        ImageButton holdersButton = cardView.findViewById(R.id.token_holders_button);
+        if (holdersButton != null) {
+            if (onHoldersIconClickListener != null) {
+                holdersButton.setVisibility(VISIBLE);
+                holdersButton.setOnClickListener(v -> onHoldersIconClickListener.onHoldersIconClick(token));
+            } else {
+                holdersButton.setVisibility(GONE);
+            }
         }
 
         // Issue button - the parser accepts issue from the deployer, or from anyone when openIssue is true
