@@ -552,6 +552,15 @@ public class HomeActivity extends AppCompatActivity {
                 TimberLogger.e(TAG, "menu_proof view not found");
             }
 
+            // Image (FEIP24)
+            View imageView = findViewById(R.id.menu_image);
+            if (imageView != null) {
+                imageView.setOnClickListener(v ->
+                        startActivity(new Intent(HomeActivity.this, com.fc.freer.image.ImagesActivity.class)));
+            } else {
+                TimberLogger.e(TAG, "menu_image view not found");
+            }
+
             // Data (Disk) — disabled until home.DISK is configured.
             dataView = findViewById(R.id.menu_disk);
             if (dataView != null) {

@@ -242,6 +242,8 @@ public class FieldNames {
     public static final String PROOF_IDS = "proofIds";
 
     public static final String TITLE = "title";
+    public static final String PUBLISHER = "publisher";
+    public static final String DELETED = "deleted";
     public static final String TITLES = "titles";
     public static final String MEMO = "memo";
     public static final String SEE_STATEMENT = "seeStatement";

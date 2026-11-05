@@ -102,9 +102,76 @@ public final class TokenLogoManager {
         });
     }
 
+    /**
+     * Any Image's picture at about {@code sizePx}, or null, on the main thread. No publisher
+     * rule here: that rule is a token's (use {@link #load}). The bytes are still DID-checked.
+     */
+    public void loadImage(Image image, int sizePx, Callback callback) {
+        loadImage(image, sizePx, true, callback);
+    }
+
+    /**
+     * As {@link #loadImage(Image, int, Callback)}; with {@code allowDownload} false only a copy
+     * already on the phone is shown, so a list of other people's images costs no DISK reads.
+     */
+    public void loadImage(Image image, int sizePx, boolean allowDownload, Callback callback) {
+        if (image == null) {
+            callback.onLogo(null);
+            return;
+        }
+        executor.execute(() -> {
+            Bitmap picture = null;
+            try {
+                picture = pictureBlocking(image, sizePx, allowDownload);
+            } catch (Exception e) {
+                TimberLogger.w(TAG, "picture of %s: %s", image.getId(), e.getMessage());
+            }
+            Bitmap result = picture;
+            main.post(() -> callback.onLogo(result));
+        });
+    }
+
+    /**
+     * Keeps a file this phone just uploaded under its did, so showing it needs no download.
+     * Ignored unless the bytes hash to {@code did}.
+     */
+    public void seed(String did, File source) {
+        if (did == null || source == null || !source.exists()) return;
+        String lower = did.toLowerCase();
+        File file = new File(dir, lower);
+        if (file.exists()) return;
+        try {
+            byte[] hash = com.fc.fc_ajdk.core.crypto.Hash.sha256x2Bytes(source);
+            if (hash == null || !lower.equals(com.fc.fc_ajdk.utils.Hex.toHex(hash))) return;
+            File tmp = new File(dir, lower + ".part");
+            java.nio.file.Files.copy(source.toPath(), tmp.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            if (!tmp.renameTo(file)) {
+                //noinspection ResultOfMethodCallIgnored
+                tmp.delete();
+            }
+            failedAt.remove(lower);
+            prune();
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "seed %s: %s", did, e.getMessage());
+        }
+    }
+
+    /** Remembers a record this phone just carved, so it shows before the index has it. */
+    public void remember(Image image) {
+        if (image == null || image.getId() == null) return;
+        prefs.edit()
+                .putString(image.getId(), JsonUtils.toJson(image))
+                .putLong(image.getId() + ".at", System.currentTimeMillis())
+                .apply();
+    }
+
     private Bitmap loadBlocking(Token token, int sizePx) {
         Image image = imageRecord(token.getCover());
         if (!showsLogo(token, image)) return null;
+        return pictureBlocking(image, sizePx, true);
+    }
+
+    private Bitmap pictureBlocking(Image image, int sizePx, boolean allowDownload) {
         String did = image.getDid() == null ? null : image.getDid().toLowerCase();
         if (did == null || !did.matches("[0-9a-f]{64}")) return null;
 
@@ -114,6 +181,7 @@ public final class TokenLogoManager {
 
         File file = new File(dir, did);
         if (!file.exists()) {
+            if (!allowDownload) return null;
             Long failed = failedAt.get(did);
             if (failed != null && System.currentTimeMillis() - failed < RETRY_AFTER_MS) return null;
             File tmp = new File(dir, did + ".part");

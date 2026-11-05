@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <include layout="@layout/common_toolbar" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <ImageView
+                android:id="@+id/image_picture"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:adjustViewBounds="true"
+                android:contentDescription="@string/menu_image"
+                android:maxHeight="420dp"
+                android:scaleType="fitCenter"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/image_picture_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:textColor="@color/hint"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:id="@+id/image_fields"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </LinearLayout>
+    </ScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="8dp"
+        android:gravity="end"
+        android:orientation="horizontal">
+
+        <ImageButton
+            android:id="@+id/image_copy_button"
+            style="@style/ImageButtonStyle"
+            android:contentDescription="@string/copy"
+            android:src="@drawable/ic_copy" />
+
+        <ImageButton
+            android:id="@+id/image_edit_button"
+            style="@style/ImageButtonStyle"
+            android:contentDescription="@string/update_image"
+            android:src="@drawable/ic_edit"
+            android:visibility="gone" />
+
+        <ImageButton
+            android:id="@+id/image_delete_button"
+            style="@style/ImageButtonStyle"
+            android:contentDescription="@string/delete"
+            android:src="@drawable/ic_delete"
+            android:visibility="gone" />
+
+        <ImageButton
+            android:id="@+id/image_recover_button"
+            style="@style/ImageButtonStyle"
+            android:contentDescription="@string/recover"
+            android:src="@drawable/ic_refresh"
+            android:visibility="gone" />
+
+        <ImageButton
+            android:id="@+id/back_button"
+            style="@style/ImageButtonStyle"
+            android:contentDescription="@string/back"
+            android:src="@drawable/ic_back" />
+    </LinearLayout>
+</LinearLayout>

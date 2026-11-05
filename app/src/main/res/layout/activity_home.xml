@@ -129,7 +129,7 @@
                 android:layout_height="wrap_content"
                 android:padding="16dp"
                 android:columnCount="3"
-                android:rowCount="8"
+                android:rowCount="9"
                 android:alignmentMode="alignMargins"
                 android:useDefaultMargins="true">
 
@@ -754,6 +754,37 @@
                         android:text="@string/menu_protocol"
                         android:textAlignment="center"/>
                 </LinearLayout>
+                <!-- Image (FEIP24) -->
+                <LinearLayout
+                    android:id="@+id/menu_image"
+                    android:visibility="gone"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_columnWeight="1"
+                    android:layout_row="8"
+                    android:layout_column="0"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackground">
+
+                    <ImageView
+                        android:layout_width="82dp"
+                        android:layout_height="82dp"
+                        android:tag="icon"
+                        android:src="@drawable/ic_gallery"
+                        android:contentDescription="@string/menu_image"
+                        android:background="@drawable/icon_background"
+                        android:padding="12dp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/menu_image"
+                        android:textAlignment="center"/>
+                </LinearLayout>
+
                 <!-- Proof -->
                 <LinearLayout
                     android:id="@+id/menu_proof"
