@@ -279,6 +279,7 @@ public class FieldNames {
     public static final String MIN_CDD_PER_ISSUE = "minCddPerIssue";
 
     public static final String MAX_ISSUES_PER_ADDR = "maxIssuesPerAddr";
+    public static final String COVER = "cover";
 
     public static final String DECIMAL = "decimal";
 

@@ -30,6 +30,8 @@ public class Token extends FcObject {
 	private String maxAmtPerIssue;
 	private String minCddPerIssue;
 	private String maxIssuesPerAddr;
+	/** Record id of the FEIP24 Image shown as this token's logo; shown only if its publisher is the deployer (FEIP20 Cover). */
+	private String cover;
 	private Boolean closed;
 	
 	private String deployer;
@@ -289,5 +291,13 @@ public class Token extends FcObject {
 
 		Map<String, String> languages = getFieldNameMap().get(fieldName);
 		return languages != null ? languages.get(language) : null;
+	}
+
+	public String getCover() {
+		return cover;
+	}
+
+	public void setCover(String cover) {
+		this.cover = cover;
 	}
 }

@@ -27,6 +27,8 @@ public class TokenHistory extends FcObject {
 	private String maxAmtPerIssue;
 	private String minCddPerIssue;
 	private String maxIssuesPerAddr;
+	/** Record id of the FEIP24 Image shown as this token's logo. */
+	private String cover;
 	private List<FidAmount> issueTo;
 	private List<FidAmount> transferTo;
 
@@ -218,5 +220,12 @@ public class TokenHistory extends FcObject {
     public void setTokenIds(List<String> tokenIds) {
         this.tokenIds = tokenIds;
     }
-	
+
+	public String getCover() {
+		return cover;
+	}
+
+	public void setCover(String cover) {
+		this.cover = cover;
+	}
 }
