@@ -391,6 +391,66 @@ public class Hat extends FcObject {
         return kept.isEmpty() ? null : kept;
     }
 
+    // ---------------------------------------------------------------------------------------
+    // Merging an imported HAT (an export from another device, a pasted record) into the one
+    // already held for the same DID. Mirror of FreerForMac Hat+Merge.swift.
+    //
+    // An import used to replace the held record, which could drop the cipherIds and key that
+    // reach the user's encrypted backups, or a name they chose. Merging loses nothing: name
+    // stays unless missing or the did-prefix placeholder; every other single-valued field is
+    // only filled when missing; aids, pids, locas and cipherIds are unioned, held entries
+    // first; Leaked is true if either side says so; last only moves forward. The incoming
+    // record's local:// entries are always dropped: they are paths on the exporting device.
+    // ---------------------------------------------------------------------------------------
+
+    public static final String LOCAL_LOCATION_PREFIX = "local://";
+
+    /** @return the merged HAT: {@code existing} changed in place, or {@code incoming} when
+     *  nothing is held -- either way without the incoming local:// entries. */
+    public static Hat mergeImport(Hat existing, Hat incoming) {
+        List<String> foreign = incoming.getLocas();
+        if (foreign != null) {
+            List<String> kept = new java.util.ArrayList<>();
+            for (String l : foreign) if (l != null && !l.startsWith(LOCAL_LOCATION_PREFIX)) kept.add(l);
+            incoming.setLocas(union(null, kept));
+        }
+        if (existing == null) return incoming;
+
+        String id = existing.getId();
+        if (id != null && (blankToNull(existing.getName()) == null
+                || existing.getName().equals(id.substring(0, Math.min(8, id.length()))))) {
+            if (incoming.getName() != null) existing.setName(incoming.getName());
+        }
+        if (existing.getHAlg() == null) existing.setHAlg(incoming.getHAlg());
+        if (existing.getSize() == null) existing.setSize(incoming.getSize());
+        if (existing.getBorn() == null) existing.setBorn(incoming.getBorn());
+        if (incoming.getLast() != null && (existing.getLast() == null || existing.getLast() < incoming.getLast())) {
+            existing.setLast(incoming.getLast());
+        }
+        if (blankToNull(existing.getDesc()) == null) existing.setDesc(incoming.getDesc());
+        if (existing.getTypes() == null || existing.getTypes().isEmpty()) existing.setTypes(incoming.getTypes());
+        existing.setAids(union(existing.getAids(), incoming.getAids()));
+        existing.setPids(union(existing.getPids(), incoming.getPids()));
+        if (existing.getSrcDid() == null) existing.setSrcDid(incoming.getSrcDid());
+        if (existing.getPreDid() == null) existing.setPreDid(incoming.getPreDid());
+        if (existing.gettDid() == null) existing.settDid(incoming.gettDid());
+        if (existing.gettSize() == null) existing.settSize(incoming.gettSize());
+        if (existing.getOffset() == null) existing.setOffset(incoming.getOffset());
+        if (existing.getRawDid() == null) existing.setRawDid(incoming.getRawDid());
+        if (existing.getKey() == null) existing.setKey(incoming.getKey());
+        if (existing.getkCipher() == null) existing.setkCipher(incoming.getkCipher());
+        if (Boolean.TRUE.equals(existing.getLeaked()) || Boolean.TRUE.equals(incoming.getLeaked())) {
+            existing.setLeaked(true);
+        } else if (existing.getLeaked() == null) {
+            existing.setLeaked(incoming.getLeaked());
+        }
+        existing.setCipherIds(union(existing.getCipherIds(), incoming.getCipherIds()));
+        if (existing.getRank() == null) existing.setRank(incoming.getRank());
+        if (existing.getState() == null) existing.setState(incoming.getState());
+        existing.setLocas(union(existing.getLocas(), incoming.getLocas()));
+        return existing;
+    }
+
     public String getHAlg() {
         return hAlg;
     }

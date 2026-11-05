@@ -6,7 +6,6 @@ import android.content.Context;
 import com.fc.fc_ajdk.data.fcData.Hat;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.R;
-import com.fc.freer.ui.UserConfirmDialog;
 import com.fc.freer.utils.ToastUtils;
 
 import java.util.ArrayList;
@@ -333,26 +332,12 @@ public class HatManager extends LocalEntityManager<Hat> {
             hat.checkIdWithCreate();
         }
 
-        if (checkIfExisted(hat.getId())) {
-            String prompt = hat.getId() + " existed. Replace it?";
-            UserConfirmDialog dialog = new UserConfirmDialog(activity, "Replace Item", prompt, choice -> {
-                if (choice == UserConfirmDialog.Choice.YES) {
-                    addEntity(hat);
-                    processHatsSequentially(activity, hatList, index + 1, savedCount + 1);
-                } else if (choice == UserConfirmDialog.Choice.NO) {
-                    processHatsSequentially(activity, hatList, index + 1, savedCount);
-                } else if (choice == UserConfirmDialog.Choice.STOP) {
-                    commit();
-                    ToastUtils.makeText(activity, activity.getString(R.string.entity_saved_successfully, String.valueOf(savedCount)));
-                    activity.setResult(Activity.RESULT_OK);
-                    activity.finish();
-                }
-            });
-            dialog.show();
-        } else {
-            addEntity(hat);
-            processHatsSequentially(activity, hatList, index + 1, savedCount + 1);
-        }
+        // Merge, never replace: the held record may carry the cipherIds and key that reach the
+        // user's encrypted backups, and a name they chose. Merging loses nothing, so there is
+        // nothing to ask. Foreign local:// paths are dropped either way (Hat.mergeImport).
+        Hat held = checkIfExisted(hat.getId()) ? getHatById(hat.getId()) : null;
+        addEntity(Hat.mergeImport(held, hat));
+        processHatsSequentially(activity, hatList, index + 1, savedCount + 1);
     }
 
     // ========================================
