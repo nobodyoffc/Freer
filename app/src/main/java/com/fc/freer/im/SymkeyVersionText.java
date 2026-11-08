@@ -35,12 +35,6 @@ public final class SymkeyVersionText {
         return version * 1000L;
     }
 
-    private static boolean thisYear(long version) {
-        Calendar then = Calendar.getInstance();
-        then.setTimeInMillis(millisOf(version));
-        return then.get(Calendar.YEAR) == Calendar.getInstance().get(Calendar.YEAR);
-    }
-
     /**
      * The mint time in prose, for a sealed row, a banner or a toast.
      *
@@ -50,11 +44,7 @@ public final class SymkeyVersionText {
     public static String prose(Context context, long version, Collection<Long> among) {
         if (isLegacy(version)) return context.getString(R.string.symkey_version_legacy, version);
 
-        String pattern = needsTime(version, among)
-                ? (thisYear(version) ? "d MMM HH:mm" : "d MMM yyyy HH:mm")
-                : (thisYear(version) ? "d MMM" : "d MMM yyyy");
-        return new java.text.SimpleDateFormat(pattern, Locale.getDefault())
-                .format(new Date(millisOf(version)));
+        return format(version, needsTime(version, among) ? "yyyy-MM-dd HH:mm" : "yyyy-MM-dd");
     }
 
     public static String prose(Context context, long version) {
@@ -63,8 +53,7 @@ public final class SymkeyVersionText {
 
     /**
      * Year-first and fixed-width, for a column that has to diff by eye -- a key list, a ledger
-     * row, an ask row. The current year's {@code 2026-} is dropped, because every row in the
-     * column shares it.
+     * row, an ask row. The year is always kept, so a key from last year never reads as this one.
      *
      * <p>Year-first rather than {@code 26-09-19}: {@code 26} reads as a day in half the world,
      * and this app has users in both halves. Seconds, because two keys of one entity are minted
@@ -72,8 +61,17 @@ public final class SymkeyVersionText {
      */
     public static String compact(Context context, long version) {
         if (isLegacy(version)) return context.getString(R.string.symkey_version_legacy, version);
-        String pattern = thisYear(version) ? "MM-dd HH:mm:ss" : "yyyy-MM-dd HH:mm:ss";
-        return new java.text.SimpleDateFormat(pattern, Locale.getDefault())
+        return format(version, "yyyy-MM-dd HH:mm:ss");
+    }
+
+    /**
+     * <b>One numeric form in every language, year always included</b> -- the same text the Mac
+     * shows. A localised date read "21 9月" in Chinese and "21 Sep" in English, and dropping the
+     * year made a key from last September read as this one; two members comparing keys have to
+     * read the same digits. {@link Locale#ROOT} so no locale swaps in its own digits.
+     */
+    private static String format(long version, String pattern) {
+        return new java.text.SimpleDateFormat(pattern, Locale.ROOT)
                 .format(new Date(millisOf(version)));
     }
 

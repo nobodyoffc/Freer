@@ -2325,7 +2325,7 @@
     <string name="im_connecting">Connecting to messaging…</string>
     <string name="im_not_ready_retry">Messaging is not ready</string>
     <string name="asking_symkey">Asking for symkey…</string>
-    <string name="symkey_received_version">Symkey received — the one from %1$s</string>
+    <string name="symkey_received_version">Symkey received — the one created on %1$s</string>
     <string name="im_channel_ready">Messaging is ready</string>
     <string name="asking_room_info">Asking for room info…</string>
     <string name="room_info_received_symkey">Room info received — symkey from %1$s</string>

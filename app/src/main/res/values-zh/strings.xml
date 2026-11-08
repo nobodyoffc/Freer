@@ -2538,10 +2538,10 @@
     <string name="im_connecting">正在连接消息服务…</string>
     <string name="im_not_ready_retry">消息服务未就绪</string>
     <string name="asking_symkey">正在请求对称密钥…</string>
-    <string name="symkey_received_version">已收到对称密钥——%1$s 的那把</string>
+    <string name="symkey_received_version">已收到对称密钥（%1$s 生成）</string>
     <string name="im_channel_ready">消息服务已就绪</string>
     <string name="asking_room_info">正在请求房间信息…</string>
-    <string name="room_info_received_symkey">已收到房间信息——对称密钥来自 %1$s</string>
+    <string name="room_info_received_symkey">已收到房间信息——对称密钥（%1$s 生成）</string>
 
     <!-- First-FCH request board (default nobody freer) -->
     <string name="nobody_board_education">这是一个建立在明人身份上的公开求助板：它的私钥是公开的，这里的内容任何人都能看到、也能冒名发布。它只用于求取你的第一笔 FCH。领取 FCH 永远不需要付款、点击链接或提供任何信息；唯一的凭证是你自己的余额增加。</string>
@@ -2936,4 +2936,40 @@
     <string name="multisig_signatures_collected">签名：%1$d / %2$d</string>
     <string name="multisig_tx_json_signed_by">JSON #%1$d 签名者：</string>
     <string name="multisig_tx_json_unsigned">JSON #%1$d：无签名</string>
+    <!-- Symkey identity (docs/SYMKEY_IDENTITY_SPEC.md §6-7) -->
+    <string name="symkey_version_legacy">v%1$d</string>
+    <string name="symkey_legacy_chip">旧版</string>
+    <string name="symkey_sealed_from">已用 %1$s 生成的对称密钥加密——本机没有该密钥</string>
+    <string name="symkey_sealed_unknown">已加密——本机没有该密钥</string>
+    <string name="symkey_ask_for_this">请求此对称密钥…</string>
+    <string name="symkey_asked_again_in">刚刚已请求——%1$d 秒后可再次请求</string>
+    <string name="symkey_ask_sent">已请求 %1$s 生成的对称密钥</string>
+    <string name="symkey_ask_not_sent">暂时无法请求该对称密钥</string>
+    <string name="symkey_ask_banner_one">正在等待 %1$s 生成的对称密钥——%2$s 已请求</string>
+    <string name="symkey_ask_banner_many">正在等待 %1$d 把对称密钥——最近一次请求：%2$s</string>
+    <string name="symkey_ask_banner_who">已请求：%1$s</string>
+    <string name="symkey_ask_more">向更多成员请求…</string>
+    <string name="symkey_ask_give_up">放弃</string>
+    <string name="symkey_ask_gave_up">已停止请求</string>
+    <string name="symkey_exchange">对称密钥交换记录…</string>
+    <string name="symkey_exchange_title">对称密钥交换记录</string>
+    <string name="symkey_leak_radius">%1$d 人持有此会话的密钥</string>
+    <string name="symkey_leak_radius_none">本设备从未送出或收到此会话的密钥</string>
+    <string name="symkey_ledger_empty">暂无记录</string>
+    <string name="symkey_ledger_sent">已给 %1$s</string>
+    <string name="symkey_ledger_received">收自 %1$s</string>
+    <string name="symkey_ledger_repeats">×%1$d，最近 %2$s</string>
+    <string name="symkey_ledger_solicited">应请求</string>
+    <string name="symkey_ledger_unsolicited">未经请求</string>
+    <string name="symkey_outcome_shared">已分享</string>
+    <string name="symkey_outcome_stored">已保存</string>
+    <string name="symkey_outcome_duplicate">已持有</string>
+    <string name="symkey_outcome_refused">已拒绝</string>
+    <string name="symkey_outcome_unreadable">无法打开</string>
+    <string name="symkey_outcome_not_held">未持有</string>
+    <string name="symkey_outcome_not_a_member">非成员</string>
+    <string name="symkey_outcome_no_pubkey">无公钥</string>
+    <string name="symkey_version_copied">已复制 %1$s</string>
+    <string name="symkey_ask_which_version">正在请求 %1$s 生成的对称密钥</string>
+    <string name="symkey_cooldown_row">%1$s 已请求——%2$d 秒后可再次请求</string>
 </resources>
