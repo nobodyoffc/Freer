@@ -23,6 +23,16 @@
             android:textSize="24sp"
             android:textStyle="bold" />
 
+        <!-- The label the peer has in Contacts; gone when none -->
+        <TextView
+            android:id="@+id/callPeerContactLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="@color/hint"
+            android:textSize="16sp"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/callStatus"
             android:layout_width="wrap_content"

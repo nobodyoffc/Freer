@@ -34,6 +34,7 @@ import com.fc.freer.im.NobodyBoard;
 import com.fc.freer.im.SealedRow;
 import com.fc.freer.im.SymkeyVersionText;
 import com.fc.freer.nobody.NobodyUi;
+import com.fc.freer.contact.ContactLabel;
 import com.fc.freer.im.voice.VoiceMessageHelper;
 import com.fc.freer.im.voice.VoicePlayer;
 import com.fc.freer.manager.AvatarManager;
@@ -470,7 +471,8 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
 
                     if (showSender && senderId != null) {
                         String displayId = truncateFid(senderId);
-                        NobodyUi.setName(senderName, senderId, displayId);
+                        NobodyUi.setName(senderName, senderId,
+                                ContactLabel.inline(itemView.getContext(), senderId, displayId));
                         senderName.setVisibility(View.VISIBLE);
                     } else {
                         senderName.setVisibility(View.GONE);
@@ -894,7 +896,8 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                             senderAvatar.setPadding(0, 0, 0, 0);
                         }
                         if (resolveName && finalCid != null && !finalCid.isEmpty()) {
-                            NobodyUi.setName(senderName, fid, finalCid);
+                            NobodyUi.setName(senderName, fid,
+                                    ContactLabel.inline(context, fid, finalCid));
                         }
                     });
                 } catch (Exception ignored) {

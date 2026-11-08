@@ -133,6 +133,8 @@ public class IncomeCardContainer {
         // Set from value (truncate if longer than 13 chars)
         String fromText = income.getFrom();
         fromValue.setText(fromText != null ? fromText : "");
+        com.fc.freer.contact.ContactLabel.bindLine(
+                cardView.findViewById(R.id.income_from_contact_label), fromText);
 
         // Set time values (date and time on separate lines)
         if (income.getTime() != null) {
@@ -566,6 +568,8 @@ public class IncomeCardContainer {
 
         String fromText = income.getFrom();
         fromValue.setText(fromText != null ? fromText : "");
+        com.fc.freer.contact.ContactLabel.bindLine(
+                cardView.findViewById(R.id.income_from_contact_label), fromText);
 
         if (income.getTime() != null) {
             Date date = new Date(income.getTime() * 1000L);

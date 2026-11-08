@@ -84,6 +84,7 @@ import com.fc.freer.ui.WaitingDialog;
 import com.fc.freer.utils.DialogUtils;
 import com.fc.freer.nobody.NobodyGuard;
 import com.fc.freer.nobody.NobodyUi;
+import com.fc.freer.contact.ContactLabel;
 import com.fc.freer.utils.ApiCenter;
 import com.fc.freer.utils.ServicePickerUtils;
 import com.fc.freer.utils.ChooseMode;
@@ -168,6 +169,7 @@ public class ChatActivity extends BaseCryptoActivity
     private ImageView toolbarAvatarView;
     private TextView toolbarTitleView;
     private CharSequence toolbarTitleText;
+    private TextView toolbarContactLabelView;
     private boolean partnerNobodyNoticeShown;
     private boolean strangerConfirmShown = false;
     private WaitingDialog leaveTeamWaitingDialog;
@@ -261,6 +263,9 @@ public class ChatActivity extends BaseCryptoActivity
         adapter = new MessageAdapter(messages, null, imType, this);
         messagesRecyclerView.setAdapter(adapter);
         NobodyUi.observe(this, this::onNobodiesLearned);
+        ContactLabel.observe(this, () -> {
+            if (imType != ImType.P2P && adapter != null && !isFinishing()) adapter.notifyDataSetChanged();
+        });
         
         micButton = findViewById(R.id.mic_button);
         recordingOverlay = findViewById(R.id.recording_overlay);
@@ -622,6 +627,20 @@ public class ChatActivity extends BaseCryptoActivity
         String title = displayName != null ? displayName : targetId;
         titleView.setText(StringUtils.omitMiddle(title, 20));
         textContainer.addView(titleView);
+
+        if (imType == ImType.P2P) {
+            // The label this FID has in Contacts, under the CID/FID — never instead of it
+            TextView labelView = new TextView(this);
+            labelView.setTextColor(getResources().getColor(R.color.main_background, getTheme()));
+            labelView.setAlpha(0.75f);
+            labelView.setTextSize(12);
+            labelView.setMaxLines(1);
+            labelView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            textContainer.addView(labelView);
+            toolbarContactLabelView = labelView;
+            ContactLabel.bindLine(labelView, targetId);
+            ContactLabel.observe(this, () -> ContactLabel.bindLine(toolbarContactLabelView, targetId));
+        }
 
         titleLayout.addView(textContainer);
         

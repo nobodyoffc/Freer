@@ -97,7 +97,9 @@ public class PendingIssueAdapter extends RecyclerView.Adapter<PendingIssueAdapte
         }
 
         void bind(PendingIssue issue) {
-            com.fc.freer.nobody.NobodyUi.setName(peerFidText, issue.getPeerFid(), issue.getPeerFid());
+            com.fc.freer.nobody.NobodyUi.setName(peerFidText, issue.getPeerFid(),
+                    com.fc.freer.contact.ContactLabel.inline(itemView.getContext(),
+                            issue.getPeerFid(), issue.getPeerFid()));
 
             loadAvatar(issue.getPeerFid());
 

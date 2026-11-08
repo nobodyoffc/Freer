@@ -898,7 +898,8 @@ public final class MeetingManager {
         com.fc.freer.im.ImManager im = com.fc.freer.manager.FidManager.getInstance().getImManager();
         var p = im == null ? null : im.getTalkPartner(fid);
         String cid = p == null ? null : p.getCid();
-        return cid != null && !cid.isEmpty() ? cid : com.fc.fc_ajdk.utils.StringUtils.omitMiddle(fid, 20);
+        return com.fc.freer.contact.ContactLabel.paren(fid,
+                cid != null && !cid.isEmpty() ? cid : com.fc.fc_ajdk.utils.StringUtils.omitMiddle(fid, 20));
     }
 
     /** Join the ringing meeting; {@code done} as for {@link #join}. */

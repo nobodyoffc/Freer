@@ -102,6 +102,8 @@ public class ChooseFidActivity extends BaseCryptoActivity {
                     keyInfo.setCid(cid);
                 }
             }
+            String contactLabel = com.fc.freer.contact.ContactLabel.of(fid);
+            if (contactLabel != null) keyInfo.setLabel(contactLabel);
             keyCardContainer.addKeyCard(keyInfo);
         }
     }

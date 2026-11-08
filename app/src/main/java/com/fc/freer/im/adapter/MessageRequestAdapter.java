@@ -70,12 +70,11 @@ public class MessageRequestAdapter extends RecyclerView.Adapter<MessageRequestAd
 
         void bind(PendingIssue issue, OnRequestActionListener listener) {
             String fid = issue.getPeerFid();
-            if (fid != null && fid.length() > 12) {
-                com.fc.freer.nobody.NobodyUi.setName(peerFidText, fid,
-                        fid.substring(0, 6) + "..." + fid.substring(fid.length() - 4));
-            } else {
-                com.fc.freer.nobody.NobodyUi.setName(peerFidText, fid, fid);
-            }
+            String shown = fid != null && fid.length() > 12
+                    ? fid.substring(0, 6) + "..." + fid.substring(fid.length() - 4)
+                    : fid;
+            com.fc.freer.nobody.NobodyUi.setName(peerFidText, fid,
+                    com.fc.freer.contact.ContactLabel.inline(itemView.getContext(), fid, shown));
 
             int count = issue.getMessageCount();
             messageCountText.setText(itemView.getContext()

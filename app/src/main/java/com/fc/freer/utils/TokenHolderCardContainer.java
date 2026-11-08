@@ -165,7 +165,8 @@ public class TokenHolderCardContainer {
         if (showHolder) {
             String fid = tokenHolder.getFid();
             String cid = cidMap != null && fid != null ? cidMap.get(fid) : null;
-            nameValue.setText(cid != null ? cid : (fid != null ? fid : ""));
+            nameValue.setText(com.fc.freer.contact.ContactLabel.inline(cardView.getContext(), fid,
+                    cid != null ? cid : (fid != null ? fid : "")));
             tokenIdValue.setText(cid != null ? fid : "");
             tokenIdValue.setVisibility(cid != null ? VISIBLE : GONE);
             String balance = formatBalance(tokenHolder.getBalance());

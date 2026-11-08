@@ -60,6 +60,7 @@ public class StrangerPeerDialog {
         if (peerFid != null && peerFid.length() > 8) {
             alias = StringUtils.omitMiddle(peerFid,13) ;
         }
+        alias = com.fc.freer.contact.ContactLabel.paren(peerFid, alias);
 
         PendingIssue.StrangerPeerData data = issue.getDataAs(PendingIssue.StrangerPeerData.class);
         if (data != null && data.firstMessageContent != null && !data.firstMessageContent.isEmpty()) {

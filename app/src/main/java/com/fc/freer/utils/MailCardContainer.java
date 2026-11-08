@@ -505,7 +505,8 @@ public class MailCardContainer {
             if (recipient != null) {
                 recipient = StringUtils.omitMiddle(recipient, 15);
             }
-            setTextValue(fidValue, recipient);
+            fidValue.setText(com.fc.freer.contact.ContactLabel.inline(context, mail.getTo(),
+                    recipient != null ? recipient : ""));
             setupAvatar(avatarView, mail.getTo());
         } else {
             // Show sender info
@@ -513,7 +514,8 @@ public class MailCardContainer {
             if (sender != null) {
                 sender = StringUtils.omitMiddle(sender, 15);
             }
-            setTextValue(fidValue, sender);
+            fidValue.setText(com.fc.freer.contact.ContactLabel.inline(context, mail.getFrom(),
+                    sender != null ? sender : ""));
             setupAvatar(avatarView, mail.getFrom());
         }
 

@@ -177,6 +177,7 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
         private final ImageView iconGood;
         private final TextView textTrate;
         private final TextView textShortId;
+        private final TextView contactLabel;
         
         ConversationViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -195,6 +196,7 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
             iconGood = itemView.findViewById(R.id.icon_good);
             textTrate = itemView.findViewById(R.id.text_trate);
             textShortId = itemView.findViewById(R.id.text_short_id);
+            contactLabel = itemView.findViewById(R.id.contact_label);
         }
         
         void bind(Conversation conversation, OnConversationClickListener listener,
@@ -211,6 +213,9 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
                 displayName = conversation.getTargetId();
             }
             com.fc.freer.nobody.NobodyUi.setName(name, conversation.getTargetId(), displayName);
+            // Only a P2P target is a FID; a group id is never a contact
+            com.fc.freer.contact.ContactLabel.bindLine(contactLabel,
+                    conversation.getType() == ImType.P2P ? conversation.getTargetId() : null);
             
             // Avatar
             //

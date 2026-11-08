@@ -47,6 +47,20 @@
                 android:id="@+id/recipientInputContainer"
                 layout="@layout/layout_key_input_with_people_and_scan" />
 
+            <!-- The label the typed recipient has in Contacts; gone when none -->
+            <TextView
+                android:id="@+id/recipientContactLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:textSize="13sp"
+                android:textColor="@color/hint"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:visibility="gone" />
+
             <!-- Amount Input -->
             <TextView
                 android:layout_width="wrap_content"

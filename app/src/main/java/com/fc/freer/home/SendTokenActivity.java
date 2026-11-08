@@ -196,6 +196,7 @@ public class SendTokenActivity extends BaseCryptoActivity {
         View recipientContainer = findViewById(R.id.recipientInputContainer);
         recipientInput = recipientContainer.findViewById(R.id.keyInput);
         recipientInput.setHint(getString(R.string.recipient));
+        com.fc.freer.contact.ContactLabel.watch(recipientInput, findViewById(R.id.recipientContactLabel));
 
         amountInput = findViewById(R.id.amountInput);
 

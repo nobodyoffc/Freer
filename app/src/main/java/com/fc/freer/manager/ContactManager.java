@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A singleton class to manage and share the Contact database across activities.
@@ -51,6 +52,13 @@ public class ContactManager extends FcManager<Contact> {
     public static final String MASTER = "Master";
 
     private static ContactManager instance;
+
+    /** FID → the label the user gave that contact; null until first asked for. */
+    private volatile Map<String, String> labelCache;
+    private static final List<Runnable> labelListeners = new CopyOnWriteArrayList<>();
+    private static final java.util.concurrent.atomic.AtomicBoolean labelNotifyPending =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+    private static final android.os.Handler MAIN = new android.os.Handler(android.os.Looper.getMainLooper());
 
     private ContactManager() {
         super(Contact.class, CONTACT);
@@ -301,6 +309,7 @@ public class ContactManager extends FcManager<Contact> {
             }
 
             entityDB.updateItemsOnly(handledContactList);
+            invalidateLabels();
         }
         SecurePrikeyManager.erasePrikey(prikey);
         return pageContactList;
@@ -319,6 +328,14 @@ public class ContactManager extends FcManager<Contact> {
     protected void markEntityAsNew(Contact entity) {}
 
     public void checkGuideAndMaster() {
+        try {
+            checkGuideAndMasterInner();
+        } finally {
+            invalidateLabels();
+        }
+    }
+
+    private void checkGuideAndMasterInner() {
         KeyInfo liveKeyInfo = FidManager.getInstance().getLiveKeyInfo();
         String guideFid = liveKeyInfo.getGuide();
         String masterFid = liveKeyInfo.getMaster();
@@ -691,6 +708,118 @@ public class ContactManager extends FcManager<Contact> {
      */
     public List<Contact> searchContacts(String searchQuery) {
         return searchEntities(searchQuery);
+    }
+
+    // ---------------------------------------------------------------- labels
+
+    /**
+     * The label the user gave this FID in Contacts — its name and first title,
+     * e.g. "Alice · Accountant" — or null when it is no active contact, is the
+     * live FID itself, or carries nothing beyond its own CID/FID.
+     */
+    public String getLabel(String fid) {
+        if (fid == null || fid.isEmpty() || fid.equals(liveFid)) return null;
+        return labels().get(fid);
+    }
+
+    private Map<String, String> labels() {
+        Map<String, String> cache = labelCache;
+        if (cache != null) return cache;
+        Map<String, String> built = new HashMap<>();
+        try {
+            Map<String, Contact> all = entityDB == null ? null : entityDB.getAll();
+            if (all != null) {
+                for (Contact contact : all.values()) {
+                    String label = labelOf(contact);
+                    if (label != null) built.put(contact.getFid(), label);
+                }
+            }
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "Failed to build contact labels: %s", e.getMessage());
+        }
+        labelCache = built;
+        return built;
+    }
+
+    static String labelOf(Contact contact) {
+        if (contact == null || contact.getFid() == null) return null;
+        if (Boolean.FALSE.equals(contact.getActive())) return null;
+        String fid = contact.getFid();
+        String name = contact.getName() == null ? null : contact.getName().trim();
+        // freshName() defaults a contact's name to its CID or FID: that says nothing new
+        if (name != null && (name.isEmpty() || name.equals(fid) || name.equals(contact.getCid())
+                || name.equals(knownCid(fid)))) {
+            name = null;
+        }
+        String title = null;
+        if (contact.getTitles() != null) {
+            for (String t : contact.getTitles()) {
+                if (t != null && !t.trim().isEmpty()) {
+                    title = t.trim();
+                    break;
+                }
+            }
+        }
+        if (name == null) return title;
+        if (title == null || title.equals(name)) return name;
+        return name + " · " + title;
+    }
+
+    private static String knownCid(String fid) {
+        CidFidManager cidFidManager = CidFidManager.getInstance();
+        return cidFidManager == null ? null : cidFidManager.getCidByFid(fid);
+    }
+
+    /** Drop the label cache and tell observers, on the main thread. */
+    public void invalidateLabels() {
+        labelCache = null;
+        // A sync saves contacts one by one: tell observers once per burst
+        if (!labelNotifyPending.compareAndSet(false, true)) return;
+        MAIN.postDelayed(() -> {
+            labelNotifyPending.set(false);
+            for (Runnable listener : labelListeners) listener.run();
+        }, 200);
+    }
+
+    public static void addLabelListener(Runnable listener) {
+        labelListeners.add(listener);
+    }
+
+    public static void removeLabelListener(Runnable listener) {
+        labelListeners.remove(listener);
+    }
+
+    @Override
+    public void addEntity(Contact entity) {
+        super.addEntity(entity);
+        invalidateLabels();
+    }
+
+    @Override
+    public void updateEntity(Contact entity) {
+        super.updateEntity(entity);
+        invalidateLabels();
+    }
+
+    @Override
+    public void removeEntity(Contact entity) {
+        super.removeEntity(entity);
+        invalidateLabels();
+    }
+
+    @Override
+    public void removeEntities(List<Contact> entities) {
+        super.removeEntities(entities);
+        invalidateLabels();
+    }
+
+    @Override
+    public int rollBack(Context context) {
+        try {
+            return super.rollBack(context);
+        } finally {
+            invalidateLabels();
+        }
     }
 
     // Abstract method implementations for ContactManager

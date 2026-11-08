@@ -117,6 +117,7 @@ public class PayActivity extends BaseCryptoActivity {
         View recipientContainer = findViewById(R.id.recipientInputContainer);
         recipientInput = recipientContainer.findViewById(R.id.keyInput);
         recipientInput.setHint(getString(R.string.payee));
+        com.fc.freer.contact.ContactLabel.watch(recipientInput, findViewById(R.id.recipientContactLabel));
 
         amountInput = findViewById(R.id.amountInput);
         amountInput.setHint(getString(R.string.amount));

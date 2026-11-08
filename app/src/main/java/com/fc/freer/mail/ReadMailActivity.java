@@ -240,6 +240,8 @@ public class ReadMailActivity extends BaseCryptoActivity {
                 idText.setText(R.string.me);
             }
             else NobodyUi.setName(idText, fid, name);
+            // The label the user gave this FID in Contacts, under the name the mail claims
+            if (!fid.equals(myFid)) com.fc.freer.contact.ContactLabel.bindLine(labelText, fid);
 
             // Setup avatar
             setupAvatar(avatar, fid);

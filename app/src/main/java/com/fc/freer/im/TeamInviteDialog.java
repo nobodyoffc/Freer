@@ -67,6 +67,8 @@ public class TeamInviteDialog {
         if (senderAlias != null && senderAlias.length() > 8) {
             senderAlias = senderAlias.substring(0, 8) + "...";
         }
+        // Who the user knows the inviter as, beside the FID it claims
+        senderAlias = com.fc.freer.contact.ContactLabel.paren(issue.getPeerFid(), senderAlias);
         String teamName = data.teamName != null ? data.teamName : "";
         String teamId = data.teamId != null ? data.teamId : "";
         String message = activity.getString(R.string.team_invite_notification_message,

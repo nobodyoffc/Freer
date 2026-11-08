@@ -588,7 +588,7 @@ public final class CallManager implements CallSignaller.Listener {
         nm.notify(NOTIFY_INCOMING, new NotificationCompat.Builder(context, CHANNEL_INCOMING)
                 .setSmallIcon(R.drawable.ic_call)
                 .setContentTitle(context.getString(R.string.call_incoming_title))
-                .setContentText(call.peerFid)
+                .setContentText(CallActivity.notificationName(call.peerFid))
                 .setCategory(NotificationCompat.CATEGORY_CALL)
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setOngoing(true)

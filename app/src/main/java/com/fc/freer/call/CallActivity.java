@@ -110,6 +110,7 @@ public class CallActivity extends AppCompatActivity implements CallManager.Liste
         CallManager.Phase phase = calls.phase();
         String fid = calls.peerFid();
         peer.setText(fid == null ? "" : displayName(fid));
+        com.fc.freer.contact.ContactLabel.bindLine(findViewById(R.id.callPeerContactLabel), fid);
 
         switch (phase) {
             case CALLING -> status.setText(R.string.call_status_calling);
@@ -143,7 +144,8 @@ public class CallActivity extends AppCompatActivity implements CallManager.Liste
         String unverified = calls.unverifiedFid();
         boolean silent = calls.peerSilent() && phase == CallManager.Phase.CONNECTED;
         warning.setVisibility(unverified == null && !silent ? View.GONE : View.VISIBLE);
-        if (unverified != null) warning.setText(getString(R.string.call_unverified, displayName(unverified)));
+        if (unverified != null) warning.setText(getString(R.string.call_unverified,
+                com.fc.freer.contact.ContactLabel.paren(unverified, displayName(unverified))));
         else if (silent) warning.setText(getString(R.string.call_peer_silent, fid == null ? "" : displayName(fid)));
 
         boolean ringingIn = phase == CallManager.Phase.RINGING_IN;
@@ -182,7 +184,13 @@ public class CallActivity extends AppCompatActivity implements CallManager.Liste
                 .show();
     }
 
-    private String displayName(String fid) {
+    /** The peer for a notification: CID or short FID, with its Contacts label. */
+    public static String notificationName(String fid) {
+        if (fid == null) return "";
+        return com.fc.freer.contact.ContactLabel.paren(fid, displayName(fid));
+    }
+
+    private static String displayName(String fid) {
         ImManager im = FidManager.getInstance().getImManager();
         TalkPartner p = im == null ? null : im.getTalkPartner(fid);
         String cid = p == null ? null : p.getCid();

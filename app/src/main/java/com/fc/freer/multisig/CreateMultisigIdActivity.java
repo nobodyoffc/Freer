@@ -323,6 +323,7 @@ public class CreateMultisigIdActivity extends BaseCryptoActivity {
                 for(String key: multisig.getPubkeys()){
                     KeyInfo newKeyInfo = new KeyInfo(null, key);
                     if(memberList==null)memberList = new ArrayList<>();
+                    withContactLabel(newKeyInfo);
                     memberList.add(newKeyInfo);
                     keyCardContainer.addKeyCard(newKeyInfo);
                 }
@@ -340,6 +341,7 @@ public class CreateMultisigIdActivity extends BaseCryptoActivity {
         }else {
             // Add the KeyInfo to member list
             KeyInfo newKeyInfo = new KeyInfo(null, str);
+            withContactLabel(newKeyInfo);
             memberList.add(newKeyInfo);
             keyCardContainer.addKeyCard(newKeyInfo);
         }
@@ -537,6 +539,7 @@ public class CreateMultisigIdActivity extends BaseCryptoActivity {
         }
 
         for (KeyInfo keyInfo : toAdd) {
+            withContactLabel(keyInfo);
             memberList.add(keyInfo);
             keyCardContainer.addKeyCard(keyInfo);
         }
@@ -547,4 +550,11 @@ public class CreateMultisigIdActivity extends BaseCryptoActivity {
         // Show success message
         showToast(getString(R.string.added_new_entities, toAdd.size(), "member"));
     }
-} 
+
+    /** Show the member's Contacts label on its card when it carries none of its own. */
+    private static void withContactLabel(KeyInfo keyInfo) {
+        if (keyInfo == null || (keyInfo.getLabel() != null && !keyInfo.getLabel().isEmpty())) return;
+        String label = com.fc.freer.contact.ContactLabel.of(keyInfo.getId());
+        if (label != null) keyInfo.setLabel(label);
+    }
+}

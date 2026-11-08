@@ -158,6 +158,14 @@ public class AskRoomInfoActivity extends BaseCryptoActivity {
         fidView.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
         textColumn.addView(fidView);
 
+        TextView contactLabelView = new TextView(this);
+        contactLabelView.setTextSize(12);
+        contactLabelView.setTextColor(getResources().getColor(R.color.hint, null));
+        contactLabelView.setSingleLine(true);
+        contactLabelView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        com.fc.freer.contact.ContactLabel.bindLine(contactLabelView, fid);
+        textColumn.addView(contactLabelView);
+
         // Our own FID is a real target here: another device signed in as this
         // identity is often the only holder of the room info. Say so, so the
         // row does not read as a pointless "ask yourself".

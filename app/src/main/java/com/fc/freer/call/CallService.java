@@ -76,7 +76,8 @@ public class CallService extends Service {
         PendingIntent hangup = PendingIntent.getService(this, 1,
                 new Intent(this, CallService.class).setAction(ACTION_HANGUP),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        String peer = meeting ? MeetingManager.getInstance(this).title() : CallManager.getInstance(this).peerFid();
+        String peer = meeting ? MeetingManager.getInstance(this).title()
+                : CallActivity.notificationName(CallManager.getInstance(this).peerFid());
         return new NotificationCompat.Builder(this, CHANNEL_ONGOING)
                 .setSmallIcon(R.drawable.ic_call)
                 .setContentTitle(getString(meeting ? R.string.meeting_ongoing_title : R.string.call_ongoing_title))

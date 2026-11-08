@@ -187,6 +187,7 @@ public class MemberListActivity extends BaseCryptoActivity {
             bindConsensusNote(memberFids);
         });
         NobodyUi.resolveAsync(memberFids);
+        com.fc.freer.contact.ContactLabel.observe(this, () -> adapter.notifyDataSetChanged());
 
         membersRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
@@ -429,13 +430,15 @@ public class MemberListActivity extends BaseCryptoActivity {
                 String display = (role != null && !role.isEmpty())
                         ? primary + " [" + role + "]"
                         : primary;
+                CharSequence shown = com.fc.freer.contact.ContactLabel.inline(
+                        itemView.getContext(), fid, display);
                 if (hasCid) {
-                    NobodyUi.setName(cidText, fid, display);
+                    NobodyUi.setName(cidText, fid, shown);
                     cidText.setVisibility(View.VISIBLE);
                     fidText.setVisibility(View.GONE);
                 } else {
                     cidText.setVisibility(View.GONE);
-                    NobodyUi.setName(fidText, fid, display);
+                    NobodyUi.setName(fidText, fid, shown);
                     fidText.setVisibility(View.VISIBLE);
                 }
             }

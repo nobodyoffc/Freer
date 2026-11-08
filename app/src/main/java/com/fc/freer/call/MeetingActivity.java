@@ -303,7 +303,8 @@ public class MeetingActivity extends AppCompatActivity implements MeetingManager
             h.ring.setContentDescription(talking ? getString(R.string.meeting_speaking) : null);
             String cid = cid(p.fid());
             String you = p.me() ? " " + getString(R.string.meeting_you) : "";
-            NobodyUi.setName(h.name, p.fid(), (cid != null ? cid : p.fid()) + you);
+            NobodyUi.setName(h.name, p.fid(), com.fc.freer.contact.ContactLabel.inline(
+                    h.name.getContext(), p.fid(), (cid != null ? cid : p.fid()) + you));
             h.name.setTypeface(null, talking ? Typeface.BOLD : Typeface.NORMAL);
             h.fid.setText(p.fid());
             h.fid.setVisibility(cid != null ? View.VISIBLE : View.GONE);

@@ -62,6 +62,8 @@ public class RoomInviteDialog {
         if (senderAlias != null && senderAlias.length() > 8) {
             senderAlias = senderAlias.substring(0, 8) + "...";
         }
+        // Who the user knows the inviter as, beside the FID it claims
+        senderAlias = com.fc.freer.contact.ContactLabel.paren(issue.getPeerFid(), senderAlias);
 
         String roomName = (data != null && data.roomName != null) ? data.roomName : "";
         String roomId = (data != null && data.roomId != null) ? data.roomId : "";

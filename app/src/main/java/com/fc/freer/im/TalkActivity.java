@@ -143,6 +143,7 @@ public class TalkActivity extends BaseCryptoActivity implements ConversationAdap
         conversationsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         conversationsRecyclerView.setAdapter(adapter);
         NobodyUi.observe(this, fids -> adapter.notifyDataSetChanged());
+        com.fc.freer.contact.ContactLabel.observe(this, () -> adapter.notifyDataSetChanged());
         
         swipeRefreshLayout.setOnRefreshListener(this::refreshConversations);
         

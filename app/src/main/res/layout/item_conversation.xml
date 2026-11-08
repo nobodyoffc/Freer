@@ -106,6 +106,19 @@
 
         </LinearLayout>
 
+        <!-- The label this FID has in Contacts; gone when it has none -->
+        <TextView
+            android:id="@+id/contact_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textColor="@color/hint"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:visibility="gone"
+            tools:text="Alice · Accountant"
+            tools:visibility="visible" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
