@@ -855,22 +855,8 @@ public final class MeetingManager {
         if (Math.abs(System.currentTimeMillis() - m.started) > RING_FRESH_MS) return;
         ringing = m;
         TimberLogger.i(TAG, "meeting %s rings", meetingId);
-        NotificationManager nm = context.getSystemService(NotificationManager.class);
-        nm.createNotificationChannel(new NotificationChannel(CallManager.CHANNEL_INCOMING,
-                context.getString(R.string.call_channel_incoming), NotificationManager.IMPORTANCE_HIGH));
-        Intent open = new Intent(context, MeetingActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        PendingIntent pi = PendingIntent.getActivity(context, 1, open,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        nm.notify(NOTIFY_MEETING, new NotificationCompat.Builder(context, CallManager.CHANNEL_INCOMING)
-                .setSmallIcon(R.drawable.ic_call)
-                .setContentTitle(context.getString(R.string.meeting_ringing_title))
-                .setContentText(ringText(m))
-                .setCategory(NotificationCompat.CATEGORY_CALL)
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setOngoing(true)
-                .setContentIntent(pi)
-                .setFullScreenIntent(pi, true)
-                .build());
+        Intent open = postRingNotification(m);
+        learnHostCid(m);
         try {
             ringtone = RingtoneManager.getRingtone(context, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE));
             if (ringtone != null) ringtone.play();
@@ -888,6 +874,50 @@ public final class MeetingManager {
     }
 
     /** "Alice started a meeting", for the ring. */
+    /**
+     * Show, or refresh, who started the ringing meeting: their avatar, CID
+     * or short FID, and Contacts label. Refreshing does not ring again.
+     */
+    private Intent postRingNotification(MeetingBoard.Meeting m) {
+        NotificationManager nm = context.getSystemService(NotificationManager.class);
+        nm.createNotificationChannel(new NotificationChannel(CallManager.CHANNEL_INCOMING,
+                context.getString(R.string.call_channel_incoming), NotificationManager.IMPORTANCE_HIGH));
+        Intent open = new Intent(context, MeetingActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        PendingIntent pi = PendingIntent.getActivity(context, 1, open,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        NotificationCompat.Builder b = new NotificationCompat.Builder(context, CallManager.CHANNEL_INCOMING)
+                .setSmallIcon(R.drawable.ic_call)
+                .setLargeIcon(CallManager.avatar(context, m.hostFid))
+                .setContentTitle(context.getString(R.string.meeting_ringing_title))
+                .setContentText(ringText(m))
+                .setCategory(NotificationCompat.CATEGORY_CALL)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setContentIntent(pi)
+                .setFullScreenIntent(pi, true);
+        // With a CID shown, the FID it belongs to goes under it: a CID alone proves nothing.
+        if (m.hostFid != null && CallActivity.knownCid(m.hostFid) != null) {
+            b.setSubText(com.fc.fc_ajdk.utils.StringUtils.omitMiddle(m.hostFid, 20));
+        }
+        nm.notify(NOTIFY_MEETING, b.build());
+        return open;
+    }
+
+    /** Ask the chain for the host's CID when nothing here has it, then rename the ring. */
+    private void learnHostCid(MeetingBoard.Meeting m) {
+        String fid = m.hostFid;
+        if (fid == null || fid.isEmpty() || CallActivity.knownCid(fid) != null) return;
+        java.util.concurrent.Executors.newSingleThreadExecutor().execute(() -> {
+            if (CallManager.fetchCid(context, fid) == null) return;
+            main.post(() -> {
+                if (ringing != m) return;
+                postRingNotification(m);
+                notifyUi();
+            });
+        });
+    }
+
     public String ringText(MeetingBoard.Meeting m) {
         String who = hostName(m.hostFid);
         return m.title == null || m.title.isEmpty() ? context.getString(R.string.meeting_ringing_text, who)
@@ -895,11 +925,9 @@ public final class MeetingManager {
     }
 
     private static String hostName(String fid) {
-        com.fc.freer.im.ImManager im = com.fc.freer.manager.FidManager.getInstance().getImManager();
-        var p = im == null ? null : im.getTalkPartner(fid);
-        String cid = p == null ? null : p.getCid();
+        String cid = CallActivity.knownCid(fid);
         return com.fc.freer.contact.ContactLabel.paren(fid,
-                cid != null && !cid.isEmpty() ? cid : com.fc.fc_ajdk.utils.StringUtils.omitMiddle(fid, 20));
+                cid != null ? cid : com.fc.fc_ajdk.utils.StringUtils.omitMiddle(fid, 20));
     }
 
     /** Join the ringing meeting; {@code done} as for {@link #join}. */

@@ -291,6 +291,7 @@ public final class CallManager implements CallSignaller.Listener {
         reset();
         phase = Phase.CALLING;
         notifyUi();
+        learnCid(peerFid);
         Executors.newSingleThreadExecutor().execute(() -> {
             // The callee's CALL service, and no other (§6.2): no home.CALL means not callable.
             com.fc.freer.im.handler.P2pHandler.CallRelay via = checked;
@@ -389,6 +390,7 @@ public final class CallManager implements CallSignaller.Listener {
             ring();
             watchRing(incoming);
             notifyUi();
+            learnCid(incoming.peerFid);
         });
     }
 
@@ -577,24 +579,56 @@ public final class CallManager implements CallSignaller.Listener {
         };
     }
 
+    /**
+     * Ask the chain for the peer's CID when no cache or contact has it, so a
+     * stranger shows a name rather than only a FID. Off the main thread; the
+     * answer lands in {@code CidFidManager}, where {@link CallActivity} reads it.
+     */
+    private void learnCid(String fid) {
+        if (fid == null || fid.isEmpty() || CallActivity.knownCid(fid) != null) return;
+        Executors.newSingleThreadExecutor().execute(() -> {
+            String cid = fetchCid(context, fid);
+            if (cid == null) return;
+            main.post(() -> {
+                if (phase == Phase.RINGING_IN && call != null && fid.equals(call.peerFid)) {
+                    postIncomingNotification(); // now with the CID
+                }
+                notifyUi();
+            });
+        });
+    }
+
+    /**
+     * The CID of {@code fid} from the cache, Contacts or the chain, remembered
+     * in {@code CidFidManager}; null when it has none. Blocks on the network:
+     * never on the main thread.
+     */
+    static String fetchCid(Context context, String fid) {
+        try {
+            com.fc.freer.manager.ContactManager cm = com.fc.freer.manager.ContactManager.getInstance();
+            java.util.Map<String, String> found = cm == null ? null
+                    : cm.getCidGlobal(java.util.Collections.singletonList(fid), context);
+            String cid = found == null ? null : found.get(fid);
+            return cid == null || cid.isEmpty() ? null : cid;
+        } catch (RuntimeException e) {
+            TimberLogger.w(TAG, "no CID for %s: %s", fid, e.getMessage());
+            return null;
+        }
+    }
+
+    /** The FID's generated avatar, or null when it draws none. */
+    static android.graphics.Bitmap avatar(Context context, String fid) {
+        if (fid == null) return null;
+        try {
+            return com.fc.freer.manager.AvatarManager.getInstance(context).getAvatarBitmap(fid);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     /** The incoming-call notification opens the call screen, over the lock screen if need be (§11.1). */
     private void ring() {
-        NotificationManager nm = context.getSystemService(NotificationManager.class);
-        nm.createNotificationChannel(new NotificationChannel(CHANNEL_INCOMING,
-                context.getString(R.string.call_channel_incoming), NotificationManager.IMPORTANCE_HIGH));
-        Intent open = new Intent(context, CallActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        PendingIntent pi = PendingIntent.getActivity(context, 0, open,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        nm.notify(NOTIFY_INCOMING, new NotificationCompat.Builder(context, CHANNEL_INCOMING)
-                .setSmallIcon(R.drawable.ic_call)
-                .setContentTitle(context.getString(R.string.call_incoming_title))
-                .setContentText(CallActivity.notificationName(call.peerFid))
-                .setCategory(NotificationCompat.CATEGORY_CALL)
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setOngoing(true)
-                .setContentIntent(pi)
-                .setFullScreenIntent(pi, true)
-                .build());
+        Intent open = postIncomingNotification();
         try {
             ringtone = RingtoneManager.getRingtone(context, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE));
             if (ringtone != null) ringtone.play();
@@ -607,6 +641,37 @@ public final class CallManager implements CallSignaller.Listener {
         } catch (RuntimeException ignored) {
             // from the background the notification does it
         }
+    }
+
+    /**
+     * Show, or refresh, who is calling: avatar, CID or short FID, and the
+     * Contacts label. Refreshing does not ring again.
+     */
+    private Intent postIncomingNotification() {
+        NotificationManager nm = context.getSystemService(NotificationManager.class);
+        nm.createNotificationChannel(new NotificationChannel(CHANNEL_INCOMING,
+                context.getString(R.string.call_channel_incoming), NotificationManager.IMPORTANCE_HIGH));
+        Intent open = new Intent(context, CallActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        PendingIntent pi = PendingIntent.getActivity(context, 0, open,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        String fid = call.peerFid;
+        android.graphics.Bitmap avatar = avatar(context, fid);
+        String cid = fid == null ? null : CallActivity.knownCid(fid);
+        NotificationCompat.Builder b = new NotificationCompat.Builder(context, CHANNEL_INCOMING)
+                .setSmallIcon(R.drawable.ic_call)
+                .setLargeIcon(avatar)
+                .setContentTitle(context.getString(R.string.call_incoming_title))
+                .setContentText(CallActivity.notificationName(fid))
+                .setCategory(NotificationCompat.CATEGORY_CALL)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setContentIntent(pi)
+                .setFullScreenIntent(pi, true);
+        // With a CID shown, the FID it belongs to goes under it: a CID alone proves nothing.
+        if (cid != null && fid != null) b.setSubText(com.fc.fc_ajdk.utils.StringUtils.omitMiddle(fid, 20));
+        nm.notify(NOTIFY_INCOMING, b.build());
+        return open;
     }
 
     /** While ringing, watch the relay: another device may answer, or the caller leave (§6.3). */

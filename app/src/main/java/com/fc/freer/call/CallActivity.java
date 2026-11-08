@@ -39,7 +39,9 @@ public class CallActivity extends AppCompatActivity implements CallManager.Liste
                     });
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable tick = this::render;
-    private TextView peer, status, path, warning;
+    private TextView peer, peerFidLine, status, path, warning;
+    private android.widget.ImageView avatar;
+    private String avatarFid;
     private CheckBox mute, speaker;
     private Button answer, hangup;
     private View toggles;
@@ -55,6 +57,8 @@ public class CallActivity extends AppCompatActivity implements CallManager.Liste
         calls = CallManager.getInstance(this);
 
         peer = findViewById(R.id.callPeer);
+        peerFidLine = findViewById(R.id.callPeerFid);
+        avatar = findViewById(R.id.callPeerAvatar);
         status = findViewById(R.id.callStatus);
         path = findViewById(R.id.callPath);
         warning = findViewById(R.id.callWarning);
@@ -109,8 +113,7 @@ public class CallActivity extends AppCompatActivity implements CallManager.Liste
         handler.removeCallbacks(tick);
         CallManager.Phase phase = calls.phase();
         String fid = calls.peerFid();
-        peer.setText(fid == null ? "" : displayName(fid));
-        com.fc.freer.contact.ContactLabel.bindLine(findViewById(R.id.callPeerContactLabel), fid);
+        renderPeer(fid);
 
         switch (phase) {
             case CALLING -> status.setText(R.string.call_status_calling);
@@ -166,6 +169,24 @@ public class CallActivity extends AppCompatActivity implements CallManager.Liste
         }
     }
 
+    /** Avatar, CID (or short FID), the FID under a CID, and the Contacts label. */
+    private void renderPeer(String fid) {
+        peer.setText(fid == null ? "" : displayName(fid));
+        String cid = fid == null ? null : knownCid(fid);
+        peerFidLine.setText(cid == null ? null : StringUtils.omitMiddle(fid, 24));
+        peerFidLine.setVisibility(cid == null ? View.GONE : View.VISIBLE);
+        com.fc.freer.contact.ContactLabel.bindLine(findViewById(R.id.callPeerContactLabel), fid);
+        if (fid == null) {
+            avatar.setVisibility(View.GONE);
+            avatarFid = null;
+        } else if (!fid.equals(avatarFid)) {
+            avatarFid = fid;
+            android.graphics.Bitmap bitmap = CallManager.avatar(this, fid);
+            avatar.setImageBitmap(bitmap);
+            avatar.setVisibility(bitmap == null ? View.GONE : View.VISIBLE);
+        }
+    }
+
     /** Paying moves the user's money: ask first, and say where it goes. */
     private void confirmTopUp(String relayUrl) {
         new androidx.appcompat.app.AlertDialog.Builder(this)
@@ -191,10 +212,32 @@ public class CallActivity extends AppCompatActivity implements CallManager.Liste
     }
 
     private static String displayName(String fid) {
-        ImManager im = FidManager.getInstance().getImManager();
-        TalkPartner p = im == null ? null : im.getTalkPartner(fid);
-        String cid = p == null ? null : p.getCid();
-        return cid != null && !cid.isEmpty() ? cid : StringUtils.omitMiddle(fid, 20);
+        String cid = knownCid(fid);
+        return cid != null ? cid : StringUtils.omitMiddle(fid, 20);
+    }
+
+    /**
+     * The peer's CID from what this phone already knows — chats, the CID
+     * cache, Contacts — without touching the network; null when none.
+     * {@link CallManager} asks the chain for the rest.
+     */
+    static String knownCid(String fid) {
+        if (fid == null) return null;
+        try {
+            ImManager im = FidManager.getInstance().getImManager();
+            TalkPartner p = im == null ? null : im.getTalkPartner(fid);
+            String cid = p == null ? null : p.getCid();
+            if (cid != null && !cid.isEmpty()) return cid;
+            com.fc.freer.manager.CidFidManager cache = com.fc.freer.manager.CidFidManager.getInstance();
+            cid = cache == null ? null : cache.getCidByFid(fid);
+            if (cid != null && !cid.isEmpty()) return cid;
+            com.fc.freer.manager.ContactManager contacts = com.fc.freer.manager.ContactManager.getInstance();
+            com.fc.fc_ajdk.data.feipData.Contact c = contacts == null ? null : contacts.getContactByFid(fid);
+            cid = c == null ? null : c.getCid();
+            return cid != null && !cid.isEmpty() ? cid : null;
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     public static String duration(long ms) {

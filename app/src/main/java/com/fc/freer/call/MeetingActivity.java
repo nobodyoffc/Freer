@@ -136,6 +136,27 @@ public class MeetingActivity extends AppCompatActivity implements MeetingManager
         render();
     }
 
+    /** Avatar, CID (or short FID), the FID under a CID, and the Contacts label; null hides it. */
+    private void renderHost(String fid) {
+        View row = findViewById(R.id.meetingHost);
+        row.setVisibility(fid == null ? View.GONE : View.VISIBLE);
+        if (fid == null) return;
+        String cid = CallActivity.knownCid(fid);
+        ((TextView) findViewById(R.id.meetingHostName)).setText(
+                cid != null ? cid : com.fc.fc_ajdk.utils.StringUtils.omitMiddle(fid, 20));
+        TextView fidLine = findViewById(R.id.meetingHostFid);
+        fidLine.setText(cid == null ? null : com.fc.fc_ajdk.utils.StringUtils.omitMiddle(fid, 24));
+        fidLine.setVisibility(cid == null ? View.GONE : View.VISIBLE);
+        com.fc.freer.contact.ContactLabel.bindLine(findViewById(R.id.meetingHostLabel), fid);
+        android.widget.ImageView avatar = findViewById(R.id.meetingHostAvatar);
+        if (!fid.equals(avatar.getTag())) {
+            avatar.setTag(fid);
+            android.graphics.Bitmap bitmap = CallManager.avatar(this, fid);
+            avatar.setImageBitmap(bitmap);
+            avatar.setVisibility(bitmap == null ? View.GONE : View.VISIBLE);
+        }
+    }
+
     private void render() {
         handler.removeCallbacks(tick);
         MeetingBoard.Meeting ringing = meetings.isActive() ? null : meetings.ringing();
@@ -145,6 +166,7 @@ public class MeetingActivity extends AppCompatActivity implements MeetingManager
             // Ringing: who started what, and Join or Decline; nothing else yet.
             title.setText(R.string.meeting_ringing_title);
             status.setText(meetings.ringText(ringing));
+            renderHost(ringing.hostFid);
             path.setText("");
             warning.setVisibility(View.GONE);
             toggles.setVisibility(View.GONE);
@@ -160,6 +182,7 @@ public class MeetingActivity extends AppCompatActivity implements MeetingManager
             return;
         }
         shownRinging = false;
+        renderHost(null);
         leave.setVisibility(View.VISIBLE);
         MeetingManager.Phase phase = meetings.phase();
         MeetingView s = meetings.session();

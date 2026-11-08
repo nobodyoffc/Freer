@@ -14,6 +14,15 @@
         android:orientation="vertical"
         android:padding="24dp">
 
+        <ImageView
+            android:id="@+id/callPeerAvatar"
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:layout_marginBottom="12dp"
+            android:contentDescription="@null"
+            android:scaleType="fitCenter"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/callPeer"
             android:layout_width="wrap_content"
@@ -22,6 +31,17 @@
             android:textIsSelectable="true"
             android:textSize="24sp"
             android:textStyle="bold" />
+
+        <!-- The FID under its CID: a CID is chosen by its owner; gone without one -->
+        <TextView
+            android:id="@+id/callPeerFid"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="@color/hint"
+            android:textIsSelectable="true"
+            android:textSize="13sp"
+            android:visibility="gone" />
 
         <!-- The label the peer has in Contacts; gone when none -->
         <TextView
