@@ -3017,6 +3017,11 @@ public class ChatActivity extends BaseCryptoActivity
     }
 
     private void showLeaveTeamConfirmation() {
+        // The chain ignores an owner's leave: the team would only vanish from this phone
+        if (isEntityOwner()) {
+            new com.fc.freer.ui.RemindDialog(this, getString(R.string.cannot_leave_own_teams_or_rooms), true).show();
+            return;
+        }
         DialogUtils.show(new AlertDialog.Builder(this)
                 .setTitle(R.string.leave_team)
                 .setMessage(R.string.confirm_leave_team)
@@ -3101,6 +3106,7 @@ public class ChatActivity extends BaseCryptoActivity
         if (setting == null || setting.getImManager() == null) return;
 
         ImManager imMgr = setting.getImManager();
+        TeamSyncManager.markLeftLocally(liveFid, java.util.Collections.singletonList(targetId));
         String convId = ImType.TEAM.name() + "_" + targetId;
         Conversation conv = imMgr.getConversationsDb().get(convId);
         if (conv != null) {

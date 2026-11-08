@@ -11,8 +11,6 @@ import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.im.dock.DockServiceRegistry;
 import com.fc.freer.im.handler.TeamHandler;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import com.tencent.mmkv.MMKV;
 
 import java.util.List;
@@ -22,17 +20,23 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Syncs on-chain teams where liveFid is a member.
- * Uses cursor-based pagination persisted in MMKV.
+ *
+ * Every run walks all of them, not only those changed since the last run: a
+ * team whose record never changes again would otherwise never come back once
+ * its conversation is lost locally — deleted from the talk list, or marked
+ * left by a leave the chain rejected (an owner cannot leave their own team).
+ * A FID belongs to few teams, so the full walk is cheap.
  */
 public class TeamSyncManager {
     private static final String TAG = "TeamSyncManager";
     private static final String MMKV_PREFIX = "team_sync_";
-    private static final String CURSOR_KEY = "cursor";
+    private static final String LOCAL_LEAVE_PREFIX = "local_leave_";
     private static final int PAGE_SIZE = 20;
+    /** A local leave not yet on chain keeps its team hidden for this long. */
+    private static final long LOCAL_LEAVE_GRACE_MS = 2 * 60 * 60 * 1000L;
 
     private final String liveFid;
     private final MMKV cursorStore;
-    private final Gson gson = new Gson();
     private final AtomicBoolean syncing = new AtomicBoolean(false);
 
     public interface SyncCallback {
@@ -43,6 +47,28 @@ public class TeamSyncManager {
     public TeamSyncManager(String liveFid) {
         this.liveFid = liveFid;
         this.cursorStore = MMKV.mmkvWithID(MMKV_PREFIX + liveFid, MMKV.SINGLE_PROCESS_MODE);
+    }
+
+    /**
+     * Record that liveFid asked to leave or disband these teams, so a sync run
+     * before the TX confirms does not show them again.
+     */
+    public static void markLeftLocally(String liveFid, List<String> teamIds) {
+        if (liveFid == null || teamIds == null) return;
+        try {
+            MMKV store = MMKV.mmkvWithID(MMKV_PREFIX + liveFid, MMKV.SINGLE_PROCESS_MODE);
+            long now = System.currentTimeMillis();
+            for (String tid : teamIds) {
+                if (tid != null) store.encode(LOCAL_LEAVE_PREFIX + tid, now);
+            }
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "Failed to record local leave: %s", e.getMessage());
+        }
+    }
+
+    private boolean recentlyLeftLocally(String teamId) {
+        long at = cursorStore.decodeLong(LOCAL_LEAVE_PREFIX + teamId, 0L);
+        return at > 0 && System.currentTimeMillis() - at < LOCAL_LEAVE_GRACE_MS;
     }
 
     public void sync(FapiClient fapiClient, TeamHandler teamHandler,
@@ -56,7 +82,7 @@ public class TeamSyncManager {
         try {
             int newCount = 0;
             int updatedCount = 0;
-            List<String> cursor = loadCursor();
+            List<String> cursor = null;
 
             while (true) {
                 Fcdsl fcdsl = new Fcdsl();
@@ -105,6 +131,10 @@ public class TeamSyncManager {
 
                         if (liveFidIsMember && isActive) {
                             if (conv.getLeftGroup() != null && conv.getLeftGroup()) {
+                                if (recentlyLeftLocally(team.getId())) {
+                                    // Our leave is on its way to the chain: keep it hidden
+                                    continue;
+                                }
                                 conv.setLeftGroup(false);
                                 registerTeamDock(team, dockRegistry, fapiClient);
                                 TimberLogger.i(TAG, "Rejoined team: %s", team.getId());
@@ -126,12 +156,9 @@ public class TeamSyncManager {
                     }
                 }
 
-                if (teams.size() < PAGE_SIZE) {
-                    saveCursorFromLastTeam(teams);
-                    break;
-                }
-                saveCursorFromLastTeam(teams);
-                cursor = loadCursor();
+                if (teams.size() < PAGE_SIZE) break;
+                cursor = afterLastTeam(teams);
+                if (cursor == null) break;
             }
 
             if (callback != null) callback.onSyncComplete(newCount, updatedCount);
@@ -165,32 +192,9 @@ public class TeamSyncManager {
         }
     }
 
-    private void saveCursorFromLastTeam(List<Team> teams) {
-        if (teams == null || teams.isEmpty()) return;
+    private static List<String> afterLastTeam(List<Team> teams) {
         Team last = teams.get(teams.size() - 1);
-        if (last.getLastHeight() != null) {
-            List<String> cursor = List.of(String.valueOf(last.getLastHeight()), last.getId());
-            saveCursor(cursor);
-        }
-    }
-
-    private List<String> loadCursor() {
-        try {
-            String json = cursorStore.decodeString(CURSOR_KEY);
-            if (json != null) {
-                return gson.fromJson(json, new TypeToken<List<String>>(){}.getType());
-            }
-        } catch (Exception e) {
-            TimberLogger.w(TAG, "Failed to load cursor: %s", e.getMessage());
-        }
-        return null;
-    }
-
-    private void saveCursor(List<String> cursor) {
-        try {
-            cursorStore.encode(CURSOR_KEY, gson.toJson(cursor));
-        } catch (Exception e) {
-            TimberLogger.w(TAG, "Failed to save cursor: %s", e.getMessage());
-        }
+        if (last.getLastHeight() == null || last.getId() == null) return null;
+        return List.of(String.valueOf(last.getLastHeight()), last.getId());
     }
 }

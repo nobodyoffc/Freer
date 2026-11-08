@@ -432,8 +432,11 @@ public class TeamActivity extends BaseCryptoActivity implements ConversationAdap
         TeamHandler teamHandler = (imManager != null) ? imManager.getTeamHandler() : null;
         int ownedCount = 0;
         if (teamHandler != null && liveFid != null) {
-            for (String tid : teamIds) {
-                if (teamHandler.isOwner(tid, liveFid)) {
+            for (Conversation conv : selected) {
+                String tid = conv.getTargetId();
+                if (tid == null) continue;
+                // The stored team may be missing; the conversation carries the owner too
+                if (teamHandler.isOwner(tid, liveFid) || liveFid.equals(conv.getAvatarDid())) {
                     ownedCount++;
                 }
             }
@@ -561,6 +564,7 @@ public class TeamActivity extends BaseCryptoActivity implements ConversationAdap
         if (setting == null || setting.getImManager() == null) return;
 
         ImManager im = setting.getImManager();
+        TeamSyncManager.markLeftLocally(liveFid, teamIds);
         for (String tid : teamIds) {
             String convId = ImType.TEAM.name() + "_" + tid;
             Conversation conv = im.getConversationsDb().get(convId);
