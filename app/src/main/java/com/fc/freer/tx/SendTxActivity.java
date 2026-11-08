@@ -577,8 +577,91 @@ public class SendTxActivity extends BaseCryptoActivity {
         long fee = spendingSum - payingSum;
         addTextLine(getString(R.string.fee) + ": " + FchUtils.satoshiToCash(fee) + " c");
 
-        // CDD
-        addTextLine(getString(R.string.cdd) + ": " + cdd);
+        addCoinDaysCard(cdd, rawTxInfo != null && rawTxInfo.getCd() != null ? rawTxInfo.getCd() : 0L);
+    }
+
+    /**
+     * Coin days destroyed, as a tinted card rather than a summary line. They are the one cost of
+     * spending that can't be bought back: the identity's weight on chain, built over real days,
+     * and every input spent here restarts from zero. A line beside the fee read like small change.
+     */
+    private void addCoinDaysCard(long destroyed, long required) {
+        float density = getResources().getDisplayMetrics().density;
+        boolean shortOfRequired = required > 0 && destroyed < required;
+        int tint = getResources().getColor(shortOfRequired ? R.color.error : R.color.warning, getTheme());
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (12 * density);
+        card.setPadding(pad, pad, pad, pad);
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setCornerRadius(8 * density);
+        bg.setColor((tint & 0x00FFFFFF) | 0x1A000000);
+        bg.setStroke((int) Math.max(1, density), (tint & 0x00FFFFFF) | 0x73000000);
+        card.setBackground(bg);
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        cardParams.setMargins(0, (int) (12 * density), 0, (int) (8 * density));
+        card.setLayoutParams(cardParams);
+
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(android.view.Gravity.BOTTOM);
+
+        TextView number = new TextView(this);
+        number.setText(String.valueOf(destroyed));
+        number.setTextSize(28);
+        number.setTypeface(null, android.graphics.Typeface.BOLD);
+        number.setTextColor(tint);
+        number.setOnClickListener(v -> copyToClipboard(String.valueOf(destroyed), "cdd"));
+        top.addView(number);
+
+        TextView unit = new TextView(this);
+        unit.setText(getString(R.string.cdd_card_title));
+        unit.setTextSize(15);
+        unit.setTypeface(null, android.graphics.Typeface.BOLD);
+        unit.setTextColor(getResources().getColor(R.color.text, getTheme()));
+        unit.setPadding((int) (8 * density), 0, 0, (int) (4 * density));
+        top.addView(unit);
+
+        // The why sits behind an icon: worth reading once, noise on every send after that.
+        View spacer = new View(this);
+        top.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1f));
+        ImageView info = new ImageView(this);
+        info.setImageResource(R.drawable.ic_help);
+        info.setColorFilter(tint);
+        int iconSize = (int) (28 * density);
+        info.setPadding((int) (4 * density), (int) (4 * density), (int) (4 * density), (int) (4 * density));
+        info.setContentDescription(getString(R.string.cdd_card_title));
+        String noteText = required > 0 && destroyed > required
+                ? getString(R.string.cdd_card_note_excess, required, destroyed)
+                : getString(R.string.cdd_card_note);
+        info.setOnClickListener(v -> {
+            AlertDialog.Builder b = new AlertDialog.Builder(this)
+                    .setTitle(destroyed + " " + getString(R.string.cdd_card_title))
+                    .setMessage(noteText)
+                    .setPositiveButton(R.string.ok, null);
+            // Same action as the cash button in the bottom bar, offered where the reason is read.
+            if (reselectInputsButton != null && reselectInputsButton.getVisibility() == View.VISIBLE) {
+                b.setNeutralButton(R.string.reselect_inputs, (d, w) -> openCashSelector());
+            }
+            DialogUtils.show(b);
+        });
+        top.addView(info, new LinearLayout.LayoutParams(iconSize, iconSize));
+        card.addView(top);
+
+        if (required > 0) {
+            TextView req = new TextView(this);
+            req.setText(getString(shortOfRequired ? R.string.cdd_card_required_short : R.string.cdd_card_required,
+                    required));
+            req.setTextSize(14);
+            req.setTypeface(null, android.graphics.Typeface.BOLD);
+            req.setTextColor(getResources().getColor(shortOfRequired ? R.color.error : R.color.field_name, getTheme()));
+            req.setPadding(0, (int) (4 * density), 0, 0);
+            card.addView(req);
+        }
+
+        fragmentContainer.addView(card);
     }
 
     private void addTextLine(String text) {

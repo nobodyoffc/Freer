@@ -3015,4 +3015,9 @@
     <string name="multisig_signatures_collected">Signatures: %1$d / %2$d</string>
     <string name="multisig_tx_json_signed_by">JSON #%1$d signed by:</string>
     <string name="multisig_tx_json_unsigned">JSON #%1$d: no signatures</string>
+    <string name="cdd_card_title">coin days destroyed</string>
+    <string name="cdd_card_required">%1$d required</string>
+    <string name="cdd_card_required_short">%1$d required. Not enough</string>
+    <string name="cdd_card_note">Spent coins restart aging from zero. Coin days are your weight on chain; once destroyed they take days to earn back.\n\nYou decide how many are destroyed: reselect inputs (the cash button at the bottom) to spend other cashes, such as newer ones that hold fewer coin days.</string>
+    <string name="cdd_card_note_excess">Only %1$d are required, but these inputs destroy %2$d. Spent coins restart aging from zero; once destroyed they take days to earn back.\n\nYou decide how many are destroyed: reselect inputs (the cash button at the bottom) to spend other cashes, such as newer ones that hold fewer coin days.</string>
 </resources>

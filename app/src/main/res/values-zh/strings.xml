@@ -2972,4 +2972,9 @@
     <string name="symkey_version_copied">已复制 %1$s</string>
     <string name="symkey_ask_which_version">正在请求 %1$s 生成的对称密钥</string>
     <string name="symkey_cooldown_row">%1$s 已请求——%2$d 秒后可再次请求</string>
+    <string name="cdd_card_title">币天将被销毁</string>
+    <string name="cdd_card_required">需要 %1$d</string>
+    <string name="cdd_card_required_short">需要 %1$d，不足</string>
+    <string name="cdd_card_note">花出的币将从零重新积累币天。币天是你在链上的权重，一旦销毁，需要很多天才能重新积累。\n\n销毁多少由你决定：点击“重选输入”（底部的钞票按钮）可改用其他钞票，比如币天较少的新钞票。</string>
+    <string name="cdd_card_note_excess">只需要 %1$d，但这些输入将销毁 %2$d。花出的币将从零重新积累币天，一旦销毁，需要很多天才能重新积累。\n\n销毁多少由你决定：点击“重选输入”（底部的钞票按钮）可改用其他钞票，比如币天较少的新钞票。</string>
 </resources>
