@@ -70,6 +70,9 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
 
         /** The meeting card was tapped (VOICE_SPEC §3.3). */
         default void onJoinMeeting(ImMessage card, String meetingId) {}
+
+        /** The "edited" tag on a row was tapped: show its earlier versions. */
+        default void onShowEditHistory(ImMessage message) {}
     }
 
     private final List<ImMessage> messages;
@@ -330,6 +333,25 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                 return;
             }
 
+            // Withdrawn by its author: a centred line in place of the bubble, nothing to act on.
+            if (message.isWithdrawn()) {
+                incomingContainer.setVisibility(View.GONE);
+                outgoingContainer.setVisibility(View.GONE);
+                systemMessage.setVisibility(View.VISIBLE);
+                systemMessage.setClickable(false);
+                systemMessage.setOnClickListener(null);
+                systemMessage.setBackground(null);
+                Context ctx = itemView.getContext();
+                String who;
+                if (isOutgoing) who = ctx.getString(R.string.im_withdrawn_mine);
+                else if (isP2P) who = ctx.getString(R.string.im_withdrawn_theirs);
+                else who = ctx.getString(R.string.im_withdrawn_by, meetingSenderName(senderId));
+                String when = message.getTimestamp() != null
+                        ? TIME_FORMAT.format(new Date(message.getTimestamp())) : "";
+                systemMessage.setText(when.isEmpty() ? who : who + " · " + when);
+                return;
+            }
+
             String content = message.getContent();
 
             // Content authored by a nobody FID (public private key — anyone can
@@ -388,6 +410,18 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
             // wrote an imported row rests on whoever shared the file.
             if (message.getStatus() == MessageStatus.IMPORTED) {
                 time = itemView.getContext().getString(R.string.im_imported_unverified, time);
+            }
+            // Edited rows say so; tapping the tag shows what they said before.
+            boolean edited = message.isEdited() && message.getEditHistory() != null;
+            if (edited) {
+                time = time + " · " + itemView.getContext().getString(R.string.im_edited_tag);
+            }
+            TextView timeView = isOutgoing ? outgoingTime : incomingTime;
+            if (edited && listener != null) {
+                timeView.setOnClickListener(v -> listener.onShowEditHistory(message));
+            } else {
+                timeView.setOnClickListener(null);
+                timeView.setClickable(false);
             }
 
             if (isOutgoing) {

@@ -142,6 +142,7 @@ public class RoomHandler extends BaseHandler {
                 DockItem dockItem = orgDock.client.dockPut(data, recipients, null, null, "IM");
                 if (dockItem != null && dockItem.getId() != null) {
                     message.setDockId(dockItem.getId());
+                    message.setDockUrl(orgDock.dockUrl);
                     message.setDeliveryMethod(DeliveryMethod.DOCK_STORED);
                     message.setStatus(MessageStatus.SENT);
                     room.setLastActive(System.currentTimeMillis());
@@ -172,6 +173,9 @@ public class RoomHandler extends BaseHandler {
 
             if (dockItem != null && dockItem.getId() != null) {
                 message.setDockId(dockItem.getId());
+                // Forwarded: the item is stored under our DOCK's identity, so we cannot
+                // delete it ourselves; a withdraw still tries and is refused harmlessly.
+                message.setDockUrl(targetDockUrl);
                 message.setDeliveryMethod(DeliveryMethod.DOCK_STORED);
                 message.setStatus(MessageStatus.SENT);
                 room.setLastActive(System.currentTimeMillis());

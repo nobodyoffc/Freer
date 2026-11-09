@@ -270,7 +270,10 @@ public class P2pHandler extends BaseHandler {
         if (directClient != null && directClient != ownDockClient) {
             Boolean direct = putToDock(directClient, envelope, message, targetFid, null,
                     "directly in target DOCK " + targetDockUrl);
-            if (Boolean.TRUE.equals(direct)) return true;
+            if (Boolean.TRUE.equals(direct)) {
+                message.setDockUrl(targetDockUrl);
+                return true;
+            }
             if (direct == null && dockRegistry != null) {
                 // Connection-level failure — drop the dead client so a later
                 // attempt re-bootstraps instead of reusing it.
@@ -286,7 +289,12 @@ public class P2pHandler extends BaseHandler {
         if (ownDockClient != null) {
             Boolean forwarded = putToDock(ownDockClient, envelope, message, targetFid, targetDockUrl,
                     "in target DOCK " + targetDockUrl + " via own DOCK forward");
-            if (Boolean.TRUE.equals(forwarded)) return true;
+            if (Boolean.TRUE.equals(forwarded)) {
+                // Either a plain store on our own DOCK (deletable by us) or a forward,
+                // which the target DOCK files under our DOCK's identity (not deletable).
+                message.setDockUrl(targetDockUrl);
+                return true;
+            }
         }
         return false;
     }

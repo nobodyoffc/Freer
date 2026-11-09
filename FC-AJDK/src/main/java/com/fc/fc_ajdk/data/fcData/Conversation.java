@@ -91,6 +91,7 @@ public class Conversation extends FcEntity {
         if (message.getContentType() == null) {
             return message.getContent();
         }
+        if (message.isWithdrawn()) return "[Withdrawn]";
         return switch (message.getContentType()) {
             case TEXT -> message.getContent();
             case HAT -> "[File]";
@@ -105,7 +106,7 @@ public class Conversation extends FcEntity {
             case PRESENCE -> "";
             case REACTION -> "[Reaction]";
             case EDIT -> message.getContent();
-            case DELETE -> "[Deleted]";
+            case DELETE -> "[Withdrawn]";
             case FORWARD -> "[Forwarded] " + message.getContent();
             case ROOM_INFO -> "";
             case ROOM_LEAVE -> "";

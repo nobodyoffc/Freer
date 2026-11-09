@@ -114,6 +114,12 @@ public class ChatActivity extends BaseCryptoActivity
     
     private RecyclerView messagesRecyclerView;
     private EditText messageInput;
+    /** The sent message the input is editing, or null when composing a new one. */
+    private ImMessage editingMessage;
+    /** What was in the input before an edit began, put back when it ends. */
+    private String draftBeforeEdit;
+    private View editBar;
+    private TextView editBarOriginal;
     private ImageButton sendButton;
     private ImageButton attachButton;
     private ImageButton emojiButton;
@@ -316,6 +322,10 @@ public class ChatActivity extends BaseCryptoActivity
         channelInfoLeft = findViewById(R.id.channel_info_left);
         channelInfoRight = findViewById(R.id.channel_info_right);
         
+        editBar = findViewById(R.id.edit_bar);
+        editBarOriginal = findViewById(R.id.edit_bar_original);
+        findViewById(R.id.edit_bar_cancel).setOnClickListener(v -> endEdit());
+
         setupChatTypeInfo();
         setupSymkeyAskBanner();
         setupEmojiPanel();
@@ -1272,7 +1282,10 @@ public class ChatActivity extends BaseCryptoActivity
 
     private void saveDraft() {
         if (messageInput == null || targetId == null) return;
-        String text = messageInput.getText().toString();
+        // Mid-edit, the input holds the edit, not the draft it displaced.
+        String text = editingMessage != null
+                ? (draftBeforeEdit != null ? draftBeforeEdit : "")
+                : messageInput.getText().toString();
         String key = getDraftKey();
         if (text.isEmpty()) {
             Hawk.delete(key);
@@ -1284,6 +1297,18 @@ public class ChatActivity extends BaseCryptoActivity
     private void sendMessage() {
         String text = messageInput.getText().toString().trim();
         if (text.isEmpty()) return;
+
+        if (editingMessage != null) {
+            ImMessage original = editingMessage;
+            endEdit();
+            hideKeyboard();
+            if (imManager != null) {
+                imManager.editMessage(original, text, error -> {
+                    if (error != null) ToastUtils.makeText(this, error);
+                });
+            }
+            return;
+        }
         
         hideKeyboard();
         hideEmojiPanel();
@@ -1986,13 +2011,43 @@ public class ChatActivity extends BaseCryptoActivity
         TextView copyItem = menuView.findViewById(R.id.action_copy);
         TextView resendItem = menuView.findViewById(R.id.action_resend);
         TextView deleteItem = menuView.findViewById(R.id.action_delete);
+        TextView editItem = menuView.findViewById(R.id.action_edit);
+        TextView withdrawItem = menuView.findViewById(R.id.action_withdraw);
 
-        if (isText && message.getContent() != null) {
+        boolean amendable = imManager != null && imManager.canAmend(message);
+        if (amendable && com.fc.fc_ajdk.data.fcData.MessageAmend.isEditable(message)) {
+            editItem.setVisibility(View.VISIBLE);
+            editItem.setOnClickListener(v -> {
+                popup.dismiss();
+                beginEdit(message);
+            });
+        } else {
+            editItem.setVisibility(View.GONE);
+        }
+        if (amendable) {
+            withdrawItem.setVisibility(View.VISIBLE);
+            withdrawItem.setOnClickListener(v -> {
+                popup.dismiss();
+                confirmWithdraw(message);
+            });
+        } else {
+            withdrawItem.setVisibility(View.GONE);
+        }
+
+        // Text copies its words; a file share copies its HAT JSON. Not a row still
+        // sealed, and not a nobody's file card, which is never actionable.
+        String copyable = message.getContent();
+        boolean isHat = message.getContentType() == ContentType.HAT;
+        boolean nobodyHat = isHat && !isOutgoing && NobodyBoard.isKnownNobody(message.getSenderId());
+        boolean canCopy = copyable != null && !copyable.isEmpty() && !SealedRow.isPlaceholder(copyable)
+                && !message.isWithdrawn() && (isText || (isHat && !nobodyHat));
+        if (canCopy) {
             copyItem.setVisibility(View.VISIBLE);
+            copyItem.setText(isHat ? R.string.im_copy_hat_json : R.string.copy);
             copyItem.setOnClickListener(v -> {
                 popup.dismiss();
                 ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                clipboard.setPrimaryClip(ClipData.newPlainText("message", message.getContent()));
+                clipboard.setPrimaryClip(ClipData.newPlainText(isHat ? "HAT" : "message", copyable));
                 ToastUtils.makeText(this, getString(R.string.copied_to_clipboard));
             });
         } else {
@@ -2012,7 +2067,7 @@ public class ChatActivity extends BaseCryptoActivity
         deleteItem.setOnClickListener(v -> {
             popup.dismiss();
             DialogUtils.show(new AlertDialog.Builder(this)
-                    .setMessage(R.string.confirm_delete_message)
+                    .setMessage(R.string.im_delete_for_me_confirm)
                     .setPositiveButton(R.string.delete, (d, w) -> deleteMessageLocally(message))
                     .setNegativeButton(R.string.cancel, null));
         });
@@ -2021,6 +2076,105 @@ public class ChatActivity extends BaseCryptoActivity
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
         int yOff = -(anchorView.getHeight() + menuView.getMeasuredHeight());
         popup.showAsDropDown(anchorView, 0, yOff);
+    }
+
+    // ── Edit / withdraw ──────────────────────────────────────────────────
+
+    /** Put a sent message's text in the input for editing; sending then replaces it. */
+    private void beginEdit(ImMessage message) {
+        if (messageInput == null || !messageInput.isEnabled()) return;
+        if (editingMessage == null) draftBeforeEdit = messageInput.getText().toString();
+        editingMessage = message;
+        String text = message.getContent() != null ? message.getContent() : "";
+        editBarOriginal.setText(text);
+        editBar.setVisibility(View.VISIBLE);
+        messageInput.setText(text);
+        messageInput.setSelection(text.length());
+        messageInput.requestFocus();
+        android.view.inputmethod.InputMethodManager imm =
+                (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) imm.showSoftInput(messageInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+    }
+
+    /** Leave edit mode and give the input back its earlier draft. */
+    private void endEdit() {
+        if (editingMessage == null) return;
+        editingMessage = null;
+        editBar.setVisibility(View.GONE);
+        String draft = draftBeforeEdit != null ? draftBeforeEdit : "";
+        draftBeforeEdit = null;
+        messageInput.setText(draft);
+        messageInput.setSelection(draft.length());
+    }
+
+    private void confirmWithdraw(ImMessage message) {
+        DialogUtils.show(new AlertDialog.Builder(this)
+                .setTitle(R.string.im_withdraw_confirm_title)
+                .setMessage(R.string.im_withdraw_confirm_body)
+                .setPositiveButton(R.string.action_withdraw, (d, w) -> {
+                    if (editingMessage != null && editingMessage.getId() != null
+                            && editingMessage.getId().equals(message.getId())) {
+                        endEdit();
+                    }
+                    if (imManager != null) {
+                        imManager.withdrawMessage(message, error -> {
+                            if (error != null) ToastUtils.makeText(this, error);
+                        });
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null));
+    }
+
+    @Override
+    public void onShowEditHistory(ImMessage message) {
+        java.util.List<ImMessage.Edition> history = message.getEditHistory();
+        if (history == null || history.isEmpty()) return;
+        java.text.SimpleDateFormat fmt = new java.text.SimpleDateFormat("yy-MM-dd HH:mm", java.util.Locale.getDefault());
+        android.text.SpannableStringBuilder text = new android.text.SpannableStringBuilder();
+        // Newest first: the current text, then each earlier version.
+        appendVersion(text, getString(R.string.im_edit_version_current,
+                fmt.format(new java.util.Date(message.getEditedAt()))), message.getContent());
+        for (int i = history.size() - 1; i >= 0; i--) {
+            ImMessage.Edition v = history.get(i);
+            String when = v.getAt() != null ? fmt.format(new java.util.Date(v.getAt())) : "";
+            String label = v.getEditId() == null
+                    ? getString(R.string.im_edit_version_original, when)
+                    : getString(R.string.im_edit_version_edited, when);
+            appendVersion(text, label, v.getContent());
+        }
+        DialogUtils.show(new AlertDialog.Builder(this)
+                .setTitle(R.string.im_edit_history_title)
+                .setMessage(text)
+                .setPositiveButton(R.string.ok, null));
+    }
+
+    private void appendVersion(android.text.SpannableStringBuilder text, String label, String content) {
+        if (text.length() > 0) text.append("\n\n");
+        int start = text.length();
+        text.append(label);
+        text.setSpan(new android.text.style.ForegroundColorSpan(getColor(R.color.hint)),
+                start, text.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        text.setSpan(new android.text.style.RelativeSizeSpan(0.85f),
+                start, text.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        text.append("\n").append(content != null ? content : "");
+    }
+
+    @Override
+    public void onMessageAmended(ImMessage original) {
+        if (!isMessageForThisChat(original)) return;
+        runOnUiThread(() -> {
+            if (editingMessage != null && original.getId().equals(editingMessage.getId())
+                    && original.isWithdrawn()) {
+                endEdit();
+            }
+            for (int i = messages.size() - 1; i >= 0; i--) {
+                if (original.getId().equals(messages.get(i).getId())) {
+                    messages.set(i, original);
+                    adapter.notifyItemChanged(i);
+                    return;
+                }
+            }
+        });
     }
 
     private void deleteMessageLocally(ImMessage message) {

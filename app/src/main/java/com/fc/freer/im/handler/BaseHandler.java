@@ -284,13 +284,43 @@ public abstract class BaseHandler {
             if (orgDockUrl != null) {
                 FapiClient orgClient = dockRegistry.getClientForDock(orgDockUrl);
                 if (orgClient != null) {
-                    return new OrgDockInfo(orgClient, null); // direct send, no forwarding
+                    return new OrgDockInfo(orgClient, null, orgDockUrl); // direct send, no forwarding
                 }
             }
         }
 
         // Fallback: use user's own DOCK with forwarding
         return null;
+    }
+
+    /**
+     * Delete one of our own items from a DOCK (dock.delete is sender-only). Blocking.
+     *
+     * <p>Refused, by design, for an item our own DOCK forwarded: the target DOCK
+     * filed it under the forwarding server's identity, not ours. A withdraw treats
+     * that as "could not erase it there" and still sends its notice.
+     *
+     * @return true when the DOCK confirmed the delete
+     */
+    public boolean deleteDockItem(String dockUrl, String dockId) {
+        if (dockUrl == null || dockId == null || dockRegistry == null) return false;
+        FapiClient client = dockRegistry.isFailed(dockUrl) ? null : dockRegistry.getClientForDock(dockUrl);
+        if (client == null) client = dockRegistry.retryBootstrap(dockUrl);
+        if (client == null) {
+            TimberLogger.w(TAG, "No client for DOCK %s; item %s not deleted", dockUrl, dockId);
+            return false;
+        }
+        try {
+            java.util.Map<String, Object> result = client.dockDelete(dockId);
+            if (result == null) {
+                TimberLogger.i(TAG, "DOCK %s did not delete %s: %s", dockUrl, dockId, client.getLastError());
+                return false;
+            }
+            return true;
+        } catch (Exception e) {
+            TimberLogger.w(TAG, "dock.delete of %s on %s failed: %s", dockId, dockUrl, e.getMessage());
+            return false;
+        }
     }
 
     /**
@@ -314,10 +344,13 @@ public abstract class BaseHandler {
     protected static class OrgDockInfo {
         public final FapiClient client;
         public final String targetDockUrl; // null = direct send; non-null = forward
+        /** The DOCK the client talks to, recorded on the message so its author can delete the item. */
+        public final String dockUrl;
 
-        OrgDockInfo(FapiClient client, String targetDockUrl) {
+        OrgDockInfo(FapiClient client, String targetDockUrl, String dockUrl) {
             this.client = client;
             this.targetDockUrl = targetDockUrl;
+            this.dockUrl = dockUrl;
         }
     }
 

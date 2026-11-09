@@ -12,6 +12,7 @@ import android.os.Looper;
 import com.fc.fc_ajdk.core.crypto.Decryptor;
 import com.fc.fc_ajdk.call.CallSignal;
 import com.fc.fc_ajdk.data.fcData.ContentType;
+import com.fc.fc_ajdk.data.fcData.MessageAmend;
 import com.fc.freer.call.CallSignaller;
 import com.fc.fc_ajdk.data.fcData.Conversation;
 import com.fc.fc_ajdk.data.fcData.DockItem;
@@ -146,6 +147,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
      * Deliver a received message into the normal conversation and notify the UI.
      */
     private void deliverMessage(ImMessage message) {
+        // An edit or withdraw that arrived first is waiting for this message.
+        applyPendingAmends(message, false);
         messagesDb.put(message.getId(), message);
         addToConversationIndex(message);
         updateConversation(message);
@@ -250,6 +253,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         default void onSymkeyReceived(String entityId, long version) {}
         default void onRoomInfoReceived(String roomId, long symkeyVersion) {}
         default void onMessagesRedecrypted(String entityId, List<ImMessage> messages) {}
+        /** A message was edited or withdrawn by its author; redraw its row from this copy. */
+        default void onMessageAmended(ImMessage original) {}
         default void onRoomInviteReceived(PendingIssue issue) {}
         /** A new HISTORY_REQUEST issue; its data names the thread as it is on this device. */
         default void onHistoryRequestReceived(PendingIssue issue) {}
@@ -1198,6 +1203,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                     if (ImMessageBody.openWithSymkey(msg, symkey)) {
                         // The bundle is redundant once the plaintext is beside it.
                         msg.setBody(null);
+                        applyPendingAmends(msg, false);
                         messagesDb.put(msg.getId(), msg);
                         redecrypted.add(msg);
                         break;
@@ -1207,6 +1213,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 TimberLogger.w(TAG, "Re-decrypt failed for message %s: %s", msgId, e.getMessage());
             }
         }
+
+        redecryptSealedEdits(entityId, entityType);
 
         if (!redecrypted.isEmpty()) {
             TimberLogger.i(TAG, "Re-decrypted %d messages for entity %s", redecrypted.size(), entityId);
@@ -2251,6 +2259,11 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 return;
             }
 
+            if (MessageAmend.isAmend(message)) {
+                handleAmend(message);
+                return;
+            }
+
             String senderId = message.getSenderId();
 
             // Fix 1: Dedup self-sent group messages already stored by send()
@@ -2422,6 +2435,7 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
 
         message.setStatus(MessageStatus.QUARANTINED);
         message.setUnread(true);
+        applyPendingAmends(message, false);
         messagesDb.put(message.getId(), message);
         addToQuarantineIndex(message);
 
@@ -3382,6 +3396,282 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         }
     }
     
+    // ========== Edit / withdraw (MessageAmend) ==========
+    //
+    // An EDIT or withdraw (ContentType.DELETE) is stored under its own id, never
+    // in a conversation index: it is not a row, it changes one. Seen ids dedupe
+    // re-delivery and the echo of our own group sends. One that arrives before
+    // its original waits in a per-original list; a sealed EDIT waits per entity
+    // for its symkey. A sealed withdraw needs no content, so it never waits.
+
+    private static String amendPendingKey(String originalId) {
+        return "amend_pending_" + originalId;
+    }
+
+    private static String amendSealedKey(String entityId) {
+        return "amend_sealed_" + entityId;
+    }
+
+    private void addToIdList(String key, String id) {
+        if (!messagesDb.getListNames().contains(key)) {
+            messagesDb.createList(key, String.class);
+        }
+        List<String> existing = messagesDb.getAllFromList(key);
+        if (existing == null || !existing.contains(id)) {
+            messagesDb.addToList(key, id);
+        }
+    }
+
+    private List<String> takeIdList(String key) {
+        if (!messagesDb.getListNames().contains(key)) return new ArrayList<>();
+        List<String> ids = messagesDb.getAllFromList(key);
+        messagesDb.clearList(key);
+        return ids != null ? new ArrayList<>(ids) : new ArrayList<>();
+    }
+
+    /** An incoming EDIT or withdraw, already decoded and signature-checked. Executor thread. */
+    private void handleAmend(ImMessage op) {
+        String originalId = MessageAmend.targetOf(op);
+        if (originalId == null || op.getId() == null) return;
+        if (op.getType() == ImType.P2P && op.getSenderId() != null
+                && contactPolicy != null && contactPolicy.isBlacklisted(op.getSenderId())) {
+            return;
+        }
+        if (messagesDb.get(op.getId()) != null) {
+            TimberLogger.d(TAG, "Amendment %s already seen", op.getId());
+            return;
+        }
+        messagesDb.put(op.getId(), op);
+
+        if (op.getContentType() == ContentType.EDIT && isUnopened(op)) {
+            addToIdList(amendSealedKey(op.getTargetId()), op.getId());
+            TimberLogger.d(TAG, "Edit %s held until its symkey arrives", op.getId());
+            return;
+        }
+        routeAmend(op);
+    }
+
+    /** Whether a message's text is not readable yet (sealed, awaiting its key). */
+    private static boolean isUnopened(ImMessage m) {
+        return m.getContent() == null ? m.getBody() != null : SealedRow.isPlaceholder(m.getContent());
+    }
+
+    /** Apply an opened amendment to its original, or park it until the original arrives. */
+    private void routeAmend(ImMessage op) {
+        String originalId = MessageAmend.targetOf(op);
+        ImMessage original = messagesDb.get(originalId);
+        boolean waitForText = op.getContentType() == ContentType.EDIT
+                && original != null && isUnopened(original);
+        if (original == null || waitForText) {
+            addToIdList(amendPendingKey(originalId), op.getId());
+            TimberLogger.d(TAG, "Amendment %s waits for %s", op.getId(), originalId);
+            return;
+        }
+        if (applyAmend(original, op)) {
+            messagesDb.put(original.getId(), original);
+            amended(original);
+        }
+    }
+
+    private boolean applyAmend(ImMessage original, ImMessage op) {
+        MessageAmend.Outcome outcome = MessageAmend.apply(original, op);
+        if (outcome == MessageAmend.Outcome.REJECTED) {
+            TimberLogger.w(TAG, "Rejected %s %s of %s from %s", op.getContentType(), op.getId(),
+                    original.getId(), op.getSenderId());
+        }
+        return outcome == MessageAmend.Outcome.APPLIED;
+    }
+
+    /**
+     * Apply what has been waiting for {@code original}, in place. The caller
+     * persists it. With {@code notify}, also redraws it (the caller is not about
+     * to announce it as a new message itself).
+     */
+    private void applyPendingAmends(ImMessage original, boolean notify) {
+        if (original == null || original.getId() == null || messagesDb == null) return;
+        String key = amendPendingKey(original.getId());
+        if (!messagesDb.getListNames().contains(key)) return;
+        if (isUnopened(original)) {
+            // Only a withdraw can land on a sealed original; edits keep waiting for its text.
+            List<String> keep = new ArrayList<>();
+            boolean changed = false;
+            for (String id : takeIdList(key)) {
+                ImMessage op = messagesDb.get(id);
+                if (op == null) continue;
+                if (op.getContentType() == ContentType.DELETE) changed |= applyAmend(original, op);
+                else keep.add(id);
+            }
+            if (!original.isWithdrawn()) for (String id : keep) addToIdList(key, id);
+            if (changed && notify) {
+                messagesDb.put(original.getId(), original);
+                amended(original);
+            }
+            return;
+        }
+        boolean changed = false;
+        for (String id : takeIdList(key)) {
+            ImMessage op = messagesDb.get(id);
+            if (op != null) changed |= applyAmend(original, op);
+        }
+        if (changed && notify) {
+            messagesDb.put(original.getId(), original);
+            amended(original);
+        }
+    }
+
+    /** Sealed edits for this entity whose key may have just arrived. */
+    private void redecryptSealedEdits(String entityId, ImType entityType) {
+        String key = amendSealedKey(entityId);
+        if (!messagesDb.getListNames().contains(key)) return;
+        List<String> still = new ArrayList<>();
+        for (String id : takeIdList(key)) {
+            ImMessage op = messagesDb.get(id);
+            if (op == null || op.getBody() == null) continue;
+            Long version = op.getSymkeyVersion();
+            boolean opened = false;
+            try {
+                for (byte[] symkey : symkeyStore.getSymkeys(entityId, version != null ? version : 1L)) {
+                    if (ImMessageBody.openWithSymkey(op, symkey)) {
+                        op.setBody(null);
+                        messagesDb.put(op.getId(), op);
+                        opened = true;
+                        break;
+                    }
+                }
+            } catch (Exception e) {
+                TimberLogger.w(TAG, "Re-decrypt of edit %s failed: %s", id, e.getMessage());
+            }
+            if (opened) routeAmend(op);
+            else still.add(id);
+        }
+        for (String id : still) addToIdList(key, id);
+    }
+
+    /** Persisted already; refresh the preview if it shows this message, and redraw it. */
+    private void amended(ImMessage original) {
+        if (original.getType() != null && original.getStatus() != MessageStatus.QUARANTINED) {
+            String convId = original.getType().name() + "_" +
+                    (original.getType() == ImType.P2P
+                            ? original.getConversationPartnerId(liveFid)
+                            : original.getTargetId());
+            Conversation conv = conversationsDb.get(convId);
+            if (conv != null && original.getId().equals(conv.getLastMessageId())) {
+                conv.updateWithMessage(original);
+                conversationsDb.put(conv.getId(), conv);
+                mainHandler.post(() -> {
+                    for (ImListener l : listeners) l.onConversationUpdated(conv);
+                });
+            }
+        }
+        mainHandler.post(() -> {
+            for (ImListener l : listeners) l.onMessageAmended(original);
+        });
+    }
+
+    /** Result of an edit or withdraw, on the main thread. */
+    public interface AmendCallback {
+        /** @param error null on success, else a message fit for the user */
+        void onResult(String error);
+    }
+
+    /** Whether the UI should offer Edit/Withdraw on this message right now. */
+    public boolean canAmend(ImMessage message) {
+        return MessageAmend.canAmend(message, liveFid, System.currentTimeMillis());
+    }
+
+    /**
+     * Replace the text of a message we sent, within {@link MessageAmend#WINDOW_MS}.
+     * Applied here at once; the EDIT then goes out through the normal queue.
+     */
+    public void editMessage(ImMessage message, String newText, AmendCallback callback) {
+        executor.execute(() -> {
+            String error = null;
+            ImMessage original = message != null && message.getId() != null
+                    ? messagesDb.get(message.getId()) : null;
+            long now = System.currentTimeMillis();
+            String text = newText != null ? newText.trim() : "";
+            if (original == null || !MessageAmend.canAmend(original, liveFid, now)
+                    || !MessageAmend.isEditable(original)) {
+                error = context.getString(R.string.im_amend_too_late);
+            } else if (text.isEmpty()) {
+                error = context.getString(R.string.im_edit_empty);
+            } else if (!text.equals(original.getContent())) {
+                ImMessage op = MessageAmend.createEdit(original, text, now);
+                sendAmend(original, op);
+            }
+            reply(callback, error);
+        });
+    }
+
+    /**
+     * Withdraw a message we sent, within {@link MessageAmend#WINDOW_MS}: delete
+     * its DOCK item where we own it, then tell the recipients' apps to remove it.
+     */
+    public void withdrawMessage(ImMessage message, AmendCallback callback) {
+        executor.execute(() -> {
+            ImMessage original = message != null && message.getId() != null
+                    ? messagesDb.get(message.getId()) : null;
+            if (original == null || !MessageAmend.canAmend(original, liveFid, System.currentTimeMillis())) {
+                reply(callback, context.getString(R.string.im_amend_too_late));
+                return;
+            }
+            String dockUrl = original.getDockUrl();
+            String dockId = original.getDockId();
+            com.fc.freer.im.handler.BaseHandler handler = handlerFor(original.getType());
+            // dock.delete is a network round trip (maybe a fresh connection), so it
+            // runs off the IM executor, which everything else is queued behind.
+            new Thread(() -> {
+                if (handler != null && dockUrl != null && dockId != null) {
+                    boolean gone = handler.deleteDockItem(dockUrl, dockId);
+                    TimberLogger.i(TAG, "Withdraw %s: DOCK item %s %s", original.getId(), dockId,
+                            gone ? "deleted" : "kept (not ours to delete, or unreachable)");
+                }
+                executor.execute(() -> {
+                    ImMessage fresh = messagesDb.get(original.getId());
+                    if (fresh == null || fresh.isWithdrawn()) {
+                        reply(callback, null);
+                        return;
+                    }
+                    // The notice is signed now; the window was checked when the user asked.
+                    long at = Math.min(System.currentTimeMillis(),
+                            fresh.getTimestamp() + MessageAmend.WINDOW_MS);
+                    ImMessage op = MessageAmend.createWithdraw(fresh,
+                            context.getString(R.string.im_withdraw_fallback), at);
+                    sendAmend(fresh, op);
+                    reply(callback, null);
+                });
+            }, "im-withdraw").start();
+        });
+    }
+
+    /** Apply locally, remember the op (dedupes our own echo), and queue it. Executor thread. */
+    private void sendAmend(ImMessage original, ImMessage op) {
+        if (fudpNode != null) op.setIdFromLong(fudpNode.generateMessageId());
+        if (!op.hasFudpId()) {
+            TimberLogger.e(TAG, "No FUDP node: cannot send amendment of %s", original.getId());
+            return;
+        }
+        if (!applyAmend(original, op)) return;
+        messagesDb.put(original.getId(), original);
+        messagesDb.put(op.getId(), op);
+        amended(original);
+        messageQueue.enqueue(op);
+    }
+
+    private void reply(AmendCallback callback, String error) {
+        if (callback != null) mainHandler.post(() -> callback.onResult(error));
+    }
+
+    private com.fc.freer.im.handler.BaseHandler handlerFor(ImType type) {
+        if (type == null) return null;
+        return switch (type) {
+            case P2P -> p2pHandler;
+            case SQUARE -> squareHandler;
+            case TEAM -> teamHandler;
+            case ROOM -> roomHandler;
+        };
+    }
+
     // ========== System Messages ==========
 
     private void addSystemMessage(ImType type, String targetId, String text) {
@@ -4107,6 +4397,9 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
 
                 msg.setStatus(MessageStatus.IMPORTED);
                 msg.setUnread(false);
+                // The sharer's copy is already folded; an amendment that reached us
+                // before the history did still applies on top of it.
+                applyPendingAmends(msg, false);
                 messagesDb.put(msg.getId(), msg);
                 addToConversationIndex(msg);
                 if (newest == null || ts > newest.getTimestamp()) newest = msg;

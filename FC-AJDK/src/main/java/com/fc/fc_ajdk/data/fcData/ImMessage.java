@@ -92,7 +92,44 @@ public class ImMessage extends FcEntity {
     private Boolean unread;
     private Boolean pinned;
     private Boolean deleted;       // Soft delete
-    
+
+    // Edit / withdraw state (local-only, never on the wire) -- see MessageAmend.
+    // Kept on the ORIGINAL message, so a history export carries the folded
+    // result and the EDIT/DELETE operations themselves never need re-applying.
+    /** When the version now in `content` was written: the latest edit's signed timestamp. */
+    private Long editedAt;
+    /** Id of the EDIT that produced the version now in `content`. */
+    private String editId;
+    /** Earlier versions, oldest first. The original is the one with a null editId. */
+    private List<Edition> editHistory;
+    /** The author withdrew it: content, data and every earlier version are gone. */
+    private Boolean withdrawn;
+    private Long withdrawnAt;
+    /** The DOCK holding this message's item, so its author can delete it there. */
+    private String dockUrl;
+
+    /** One earlier version of an edited message. */
+    public static class Edition {
+        private String content;
+        private Long at;
+        private String editId;
+
+        public Edition() {}
+
+        public Edition(String content, Long at, String editId) {
+            this.content = content;
+            this.at = at;
+            this.editId = editId;
+        }
+
+        public String getContent() { return content; }
+        public void setContent(String content) { this.content = content; }
+        public Long getAt() { return at; }
+        public void setAt(Long at) { this.at = at; }
+        public String getEditId() { return editId; }
+        public void setEditId(String editId) { this.editId = editId; }
+    }
+
     // ========== Size threshold ==========
 
     /**
@@ -1012,4 +1049,20 @@ public class ImMessage extends FcEntity {
     public void setDeleted(Boolean deleted) {
         this.deleted = deleted;
     }
+
+    public Long getEditedAt() { return editedAt; }
+    public void setEditedAt(Long editedAt) { this.editedAt = editedAt; }
+    public String getEditId() { return editId; }
+    public void setEditId(String editId) { this.editId = editId; }
+    public List<Edition> getEditHistory() { return editHistory; }
+    public void setEditHistory(List<Edition> editHistory) { this.editHistory = editHistory; }
+    public Boolean getWithdrawn() { return withdrawn; }
+    public void setWithdrawn(Boolean withdrawn) { this.withdrawn = withdrawn; }
+    public Long getWithdrawnAt() { return withdrawnAt; }
+    public void setWithdrawnAt(Long withdrawnAt) { this.withdrawnAt = withdrawnAt; }
+    public String getDockUrl() { return dockUrl; }
+    public void setDockUrl(String dockUrl) { this.dockUrl = dockUrl; }
+
+    public boolean isWithdrawn() { return Boolean.TRUE.equals(withdrawn); }
+    public boolean isEdited() { return editedAt != null; }
 }

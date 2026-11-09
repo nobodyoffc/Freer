@@ -2313,6 +2313,26 @@
     <!-- Message actions menu -->
     <string name="resend">重发</string>
     <string name="confirm_delete_message">删除这条消息？</string>
+    <string name="action_edit">编辑</string>
+    <string name="action_withdraw">撤回</string>
+    <string name="im_delete_for_me">仅在本机删除</string>
+    <string name="im_copy_hat_json">复制 HAT JSON</string>
+    <string name="im_delete_for_me_confirm">仅从本机删除这条消息？对方仍能看到。要让对方也删除，请在发送后 10 分钟内使用“撤回”。</string>
+    <string name="im_amend_too_late">消息只能在发送后 10 分钟内编辑或撤回。</string>
+    <string name="im_edit_empty">编辑后的消息为空。</string>
+    <string name="im_withdraw_fallback">[撤回了一条消息]</string>
+    <string name="im_withdraw_confirm_title">撤回这条消息？</string>
+    <string name="im_withdraw_confirm_body">对方的 Freer 会删除它；Freer 能删除的 DOCK 存档也会删除。已经读过、复制或保存过的人仍可能留有副本。</string>
+    <string name="im_withdrawn_mine">你撤回了一条消息</string>
+    <string name="im_withdrawn_theirs">消息已撤回</string>
+    <string name="im_withdrawn_by">%1$s 撤回了一条消息</string>
+    <string name="im_edited_tag">已编辑</string>
+    <string name="im_editing_message">正在编辑消息</string>
+    <string name="im_edit_cancel">取消编辑</string>
+    <string name="im_edit_history_title">早先版本</string>
+    <string name="im_edit_version_original">原文 · %1$s</string>
+    <string name="im_edit_version_edited">编辑于 %1$s</string>
+    <string name="im_edit_version_current">现在 · %1$s</string>
     <string name="copied_to_clipboard">已复制到剪贴板</string>
 
     <!-- DataSyncManager error messages (surfaced via toast) -->

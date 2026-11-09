@@ -2392,6 +2392,26 @@
     <!-- Message actions menu -->
     <string name="resend">Resend</string>
     <string name="confirm_delete_message">Delete this message?</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_withdraw">Withdraw</string>
+    <string name="im_delete_for_me">Delete on this device</string>
+    <string name="im_copy_hat_json">Copy HAT JSON</string>
+    <string name="im_delete_for_me_confirm">Delete this message from this device only? Others still see it. To remove it for them, use Withdraw (within 10 minutes of sending).</string>
+    <string name="im_amend_too_late">A message can only be edited or withdrawn within 10 minutes of sending.</string>
+    <string name="im_edit_empty">The edited message is empty.</string>
+    <string name="im_withdraw_fallback">[Withdrew a message]</string>
+    <string name="im_withdraw_confirm_title">Withdraw this message?</string>
+    <string name="im_withdraw_confirm_body">Recipients\' Freer apps will remove it, and it is deleted from the DOCK where Freer can. Anyone who has already read, copied or saved it may keep a copy.</string>
+    <string name="im_withdrawn_mine">You withdrew a message</string>
+    <string name="im_withdrawn_theirs">Message withdrawn</string>
+    <string name="im_withdrawn_by">%1$s withdrew a message</string>
+    <string name="im_edited_tag">edited</string>
+    <string name="im_editing_message">Editing message</string>
+    <string name="im_edit_cancel">Cancel editing</string>
+    <string name="im_edit_history_title">Earlier versions</string>
+    <string name="im_edit_version_original">Original · %1$s</string>
+    <string name="im_edit_version_edited">Edited · %1$s</string>
+    <string name="im_edit_version_current">Now · %1$s</string>
     <string name="copied_to_clipboard">Copied to clipboard</string>
 
     <!-- DataSyncManager error messages (surfaced via toast) -->
