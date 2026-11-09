@@ -123,6 +123,9 @@ public class PendingIssueAdapter extends RecyclerView.Adapter<PendingIssueAdapte
                 case HISTORY_IMPORT_FAILED:
                     typeLabel = itemView.getContext().getString(R.string.history_import_failed_issue);
                     break;
+                case KEY_ROTATION_DUE:
+                    typeLabel = itemView.getContext().getString(R.string.key_rotation_due);
+                    break;
                 default:
                     typeLabel = issue.getIssueType().name();
                     break;
@@ -148,7 +151,8 @@ public class PendingIssueAdapter extends RecyclerView.Adapter<PendingIssueAdapte
                     && issue.getIssueType() != PendingIssue.IssueType.CONSENSUS_CHANGE
                     && issue.getIssueType() != PendingIssue.IssueType.TEAM_INVITE
                     && issue.getIssueType() != PendingIssue.IssueType.HISTORY_REQUEST
-                    && issue.getIssueType() != PendingIssue.IssueType.HISTORY_IMPORT_FAILED;
+                    && issue.getIssueType() != PendingIssue.IssueType.HISTORY_IMPORT_FAILED
+                    && issue.getIssueType() != PendingIssue.IssueType.KEY_ROTATION_DUE;
             acceptBtn.setVisibility(inlineDecidable ? View.VISIBLE : View.GONE);
             rejectBtn.setVisibility(inlineDecidable ? View.VISIBLE : View.GONE);
 

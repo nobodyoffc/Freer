@@ -30,13 +30,16 @@ import com.fc.fc_ajdk.data.apipData.Filter;
 import com.fc.fc_ajdk.fapi.client.FapiClient;
 import com.fc.freer.utils.ApiCenter;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 
 /**
  * Handler for Team messaging.
- * Teams are on-chain with owner-managed membership.
+ * Teams are on chain (FEIP18): managers invite and dismiss, the owner alone mints symkeys.
  * Messages are encrypted with team symkey.
  */
 public class TeamHandler extends BaseHandler {
@@ -521,7 +524,9 @@ public class TeamHandler extends BaseHandler {
      * does not, since a locally-edited team is not evidence of what the chain says.
      */
     private void saveOnChainTeam(Team team) {
-        checkConsensusObligation(teamCache.get(team.getId()), team);
+        Team cached = teamCache.get(team.getId());
+        checkConsensusObligation(cached, team);
+        checkKeyRotationDue(cached, team);
         saveTeam(team);
     }
 
@@ -562,6 +567,53 @@ public class TeamHandler extends BaseHandler {
                     ConsensusDocHelper.resolveTeamDiskSid(fresh));
         } catch (Exception e) {
             TimberLogger.e(TAG, "Failed to check consensus obligation: %s", e.getMessage());
+        }
+    }
+
+    /**
+     * Prompt the owner to rotate after members leave -- FIMP4V3 §3.3.
+     * <p>
+     * A manager can dismiss and a member can leave, but only the owner can mint, so the owner
+     * is the one who has to hear about it. No message is sent for that: the removal is on chain,
+     * and the owner's own sync is what sees it, whoever signed it. This only <i>prompts</i>.
+     * Rotating on sight is forbidden (FIMP4V3 §7.2), because every device of the owner would
+     * mint in the same second.
+     * <p>
+     * The issue closes itself once this device holds a key minted after the issue was raised:
+     * a version is its mint time in seconds (FIMP0 §Symkey id), which covers a rotation done on
+     * the owner's other device. A rotation done <i>before</i> the removal confirmed does not
+     * count, rightly: it was distributed to a member list that still had the removed FID in it.
+     */
+    private void checkKeyRotationDue(Team cached, Team fresh) {
+        if (pendingIssueManager == null || fresh == null || fresh.getId() == null) return;
+        String teamId = fresh.getId();
+        try {
+            if (!liveFid.equals(fresh.getOwner()) || Boolean.FALSE.equals(fresh.getActive())) {
+                // Taken over by someone else, or disbanded: no longer this FID's key to rotate.
+                pendingIssueManager.resolveKeyRotationIssue(teamId, PendingIssue.IssueStatus.EXPIRED);
+                return;
+            }
+
+            PendingIssue open = pendingIssueManager.getOpenKeyRotationIssue(teamId);
+            if (open != null && open.getCreatedAt() != null && symkeyStore != null
+                    && symkeyStore.getCurrentVersion(teamId) * 1000L >= open.getCreatedAt()) {
+                pendingIssueManager.resolveKeyRotationIssue(teamId, PendingIssue.IssueStatus.ACCEPTED);
+            }
+
+            // Only a copy this device already had can show who is gone; a first sight of the
+            // team has nothing to compare against.
+            if (cached == null || cached.getMembers() == null) return;
+            Set<String> now = fresh.getMembers() == null
+                    ? new HashSet<>() : new HashSet<>(fresh.getMembers());
+            List<String> removed = new ArrayList<>();
+            for (String m : cached.getMembers()) {
+                if (m == null || m.equals(liveFid) || now.contains(m)) continue;
+                removed.add(m);
+            }
+            if (removed.isEmpty()) return;
+            pendingIssueManager.addOrUpdateKeyRotationIssue(teamId, fresh.getStdName(), removed);
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Failed to check key rotation for team %s: %s", teamId, e.getMessage());
         }
     }
 
@@ -632,6 +684,9 @@ public class TeamHandler extends BaseHandler {
         }
 
         distributeSymkey(teamId, minted.version);
+        if (pendingIssueManager != null) {
+            pendingIssueManager.resolveKeyRotationIssue(teamId, PendingIssue.IssueStatus.ACCEPTED);
+        }
         TimberLogger.d(TAG, "Created symkey for team %s version %d", teamId, minted.version);
         return true;
     }

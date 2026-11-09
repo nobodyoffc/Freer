@@ -24,7 +24,12 @@ public class PendingIssue extends FcEntity {
         /** Somebody asked for a conversation's messages; handing them over needs this user's yes. */
         HISTORY_REQUEST,
         /** History shared with this user could not be downloaded after the automatic attempts. */
-        HISTORY_IMPORT_FAILED
+        HISTORY_IMPORT_FAILED,
+        /**
+         * Members left this owner's team, or were dismissed, and the symkey has not been rotated
+         * since. Until it is, they can still open what the team sends (FIMP4V3 §3.3).
+         */
+        KEY_ROTATION_DUE
     }
 
     public enum IssueStatus {
@@ -221,6 +226,50 @@ public class PendingIssue extends FcEntity {
         data.teamName = teamName;
         data.senderFid = senderFid;
         data.transfer = transfer;
+        issue.setDataFrom(data);
+
+        if (teamName != null && !teamName.isEmpty()) issue.setNote(teamName);
+        return issue;
+    }
+
+    /**
+     * Payload for KEY_ROTATION_DUE issues: the team, and every FID that left it since the last
+     * rotation this device knows of. One issue per team accumulates removals, so a manager
+     * dismissing three members in three transactions is one prompt, not three.
+     */
+    public static class KeyRotationData {
+        public String teamId;
+        public String teamName;
+        public java.util.List<String> removedFids;
+
+        public String toJson() { return JsonUtils.toJson(this); }
+        public static KeyRotationData fromJson(String json) {
+            return JsonUtils.fromJson(json, KeyRotationData.class);
+        }
+    }
+
+    /** Issue id for a due key rotation: one per team. */
+    public static String keyRotationIssueId(String teamId) {
+        return "KEY_ROTATION_" + teamId;
+    }
+
+    /**
+     * The peer is the team id, not a removed member: {@code peerFid} feeds the stranger filter's
+     * set of known peers, and a dismissed member is exactly who should not be waved through it.
+     */
+    public static PendingIssue createKeyRotation(String teamId, String teamName,
+                                                 java.util.List<String> removedFids) {
+        PendingIssue issue = new PendingIssue();
+        issue.setId(keyRotationIssueId(teamId));
+        issue.setIssueType(IssueType.KEY_ROTATION_DUE);
+        issue.setStatus(IssueStatus.PENDING);
+        issue.setPeerFid(teamId);
+        issue.setCreatedAt(System.currentTimeMillis());
+
+        KeyRotationData data = new KeyRotationData();
+        data.teamId = teamId;
+        data.teamName = teamName;
+        data.removedFids = new java.util.ArrayList<>(removedFids);
         issue.setDataFrom(data);
 
         if (teamName != null && !teamName.isEmpty()) issue.setNote(teamName);

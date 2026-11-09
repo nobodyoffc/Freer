@@ -171,6 +171,9 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
             case HISTORY_IMPORT_FAILED:
                 populateHistoryImportFailedData(container, label);
                 break;
+            case KEY_ROTATION_DUE:
+                populateKeyRotationData(container, label);
+                break;
             default:
                 break;
         }
@@ -289,6 +292,26 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
         if (data.senderFid != null) addDataRow(container, getString(R.string.from), data.senderFid);
     }
 
+    private void populateKeyRotationData(LinearLayout container, TextView label) {
+        PendingIssue.KeyRotationData data = issue.getDataAs(PendingIssue.KeyRotationData.class);
+        if (data == null) return;
+
+        label.setVisibility(View.VISIBLE);
+        container.setVisibility(View.VISIBLE);
+
+        addDataRow(container, "", getString(R.string.key_rotation_explain));
+        if (data.teamName != null) addDataRow(container, getString(R.string.team_name), data.teamName);
+        if (data.teamId != null) addDataRow(container, getString(R.string.team_id), data.teamId);
+        if (data.removedFids != null && !data.removedFids.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (String fid : data.removedFids) {
+                if (sb.length() > 0) sb.append('\n');
+                sb.append(com.fc.freer.contact.ContactLabel.inline(this, fid, fid));
+            }
+            addDataRow(container, getString(R.string.key_rotation_removed_members), sb.toString());
+        }
+    }
+
     private void populateConsensusData(LinearLayout container, TextView label) {
         PendingIssue.ConsensusChangeData data =
                 issue.getDataAs(PendingIssue.ConsensusChangeData.class);
@@ -354,6 +377,11 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
 
         if (issue.getIssueType() == PendingIssue.IssueType.HISTORY_IMPORT_FAILED) {
             setupHistoryImportFailedButtons(actionContainer, acceptBtn, rejectBtn);
+            return;
+        }
+
+        if (issue.getIssueType() == PendingIssue.IssueType.KEY_ROTATION_DUE) {
+            setupKeyRotationButtons(actionContainer, acceptBtn, rejectBtn);
             return;
         }
 
@@ -514,6 +542,57 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
      * Accepting an invitation opens {@link JoinTeamActivity}, which confirms the invitation
      * against the team's on-chain invitees and shows the consensus before any join is carved.
      */
+    /**
+     * Rotate now, or later. Rotating is the owner's own tap on this one device, never automatic
+     * (FIMP4V3 §7.2). A successful mint closes the issue from inside {@code createSymkey}.
+     */
+    private void setupKeyRotationButtons(LinearLayout actionContainer, Button acceptBtn, Button rejectBtn) {
+        PendingIssue.KeyRotationData data = issue.getDataAs(PendingIssue.KeyRotationData.class);
+        boolean open = data != null && data.teamId != null
+                && (issue.getStatus() == PendingIssue.IssueStatus.PENDING
+                    || issue.getStatus() == PendingIssue.IssueStatus.DEFERRED);
+        actionContainer.setVisibility(open ? View.VISIBLE : View.GONE);
+        if (!open) return;
+
+        acceptBtn.setText(R.string.key_rotation_rotate_now);
+        rejectBtn.setText(R.string.key_rotation_later);
+        rejectBtn.setEnabled(issue.getStatus() == PendingIssue.IssueStatus.PENDING);
+
+        acceptBtn.setOnClickListener(v -> {
+            hideKeyboard();
+            if (imManager == null || imManager.getTeamHandler() == null) {
+                ToastUtils.showWarning(this, getString(R.string.failed_to_create_symkey));
+                return;
+            }
+            acceptBtn.setEnabled(false);
+            rejectBtn.setEnabled(false);
+            com.fc.freer.im.handler.TeamHandler teamHandler = imManager.getTeamHandler();
+            new Thread(() -> {
+                boolean ok = teamHandler.createSymkey(data.teamId);
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (ok) {
+                        ToastUtils.showInfo(this, getString(R.string.symkey_created_successfully));
+                        finish();
+                    } else {
+                        ToastUtils.showWarning(this, getString(R.string.failed_to_create_symkey));
+                        acceptBtn.setEnabled(true);
+                        rejectBtn.setEnabled(issue.getStatus() == PendingIssue.IssueStatus.PENDING);
+                    }
+                });
+            }).start();
+        });
+
+        rejectBtn.setOnClickListener(v -> {
+            hideKeyboard();
+            if (pendingIssueManager != null && issue.getId() != null) {
+                pendingIssueManager.defer(issue.getId());
+                ToastUtils.showInfo(this, getString(R.string.key_rotation_postponed));
+            }
+            finish();
+        });
+    }
+
     private void setupTeamInviteButtons(LinearLayout actionContainer, Button acceptBtn, Button rejectBtn) {
         boolean open = issue.getStatus() == PendingIssue.IssueStatus.PENDING
                 || issue.getStatus() == PendingIssue.IssueStatus.DEFERRED;
@@ -607,6 +686,8 @@ public class PendingIssueDetailActivity extends BaseCryptoActivity {
                 return getString(R.string.history_request_issue);
             case HISTORY_IMPORT_FAILED:
                 return getString(R.string.history_import_failed_issue);
+            case KEY_ROTATION_DUE:
+                return getString(R.string.key_rotation_due);
             default:
                 return type.name();
         }

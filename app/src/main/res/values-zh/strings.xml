@@ -2606,6 +2606,12 @@
     <string name="sign_later">稍后</string>
     <string name="consensus_signed">已签署共识</string>
     <string name="consensus_signing_postponed">已推迟。你可以稍后在待办事项中签署。</string>
+    <string name="key_rotation_due">团队密钥需要更换</string>
+    <string name="key_rotation_explain">以下成员已退出或被移出团队。他们仍持有当前团队密钥，在你更换密钥之前仍能读到新消息。</string>
+    <string name="key_rotation_removed_members">已移出的成员</string>
+    <string name="key_rotation_rotate_now">更换密钥</string>
+    <string name="key_rotation_later">稍后</string>
+    <string name="key_rotation_postponed">已推迟。你可以稍后在待办事项中更换密钥。</string>
     <string name="failed_to_sign_consensus">签署共识失败</string>
     <string name="confirm_leave_team_consensus">不签署新共识，退出 %1$s？</string>
     <string name="left_team">已退出团队</string>

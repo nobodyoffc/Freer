@@ -2648,6 +2648,12 @@
     <string name="sign_later">Later</string>
     <string name="consensus_signed">Consensus signed</string>
     <string name="consensus_signing_postponed">Postponed. You can sign later from the pending issues.</string>
+    <string name="key_rotation_due">Team key rotation due</string>
+    <string name="key_rotation_explain">These members left the team or were dismissed. They still hold the current team key and can read new messages until you rotate it.</string>
+    <string name="key_rotation_removed_members">Removed members</string>
+    <string name="key_rotation_rotate_now">Rotate key</string>
+    <string name="key_rotation_later">Later</string>
+    <string name="key_rotation_postponed">Postponed. You can rotate later from the pending issues.</string>
     <string name="failed_to_sign_consensus">Failed to sign the consensus</string>
     <string name="confirm_leave_team_consensus">Leave %1$s instead of signing its new consensus?</string>
     <string name="left_team">Left the team</string>

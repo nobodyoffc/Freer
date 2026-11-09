@@ -341,6 +341,69 @@ public class PendingIssueManager {
         return result;
     }
 
+    // ========== Key rotation due ==========
+
+    private static boolean isOpen(PendingIssue issue) {
+        return issue != null && (issue.getStatus() == PendingIssue.IssueStatus.PENDING
+                || issue.getStatus() == PendingIssue.IssueStatus.DEFERRED);
+    }
+
+    /**
+     * Tell the owner that members left a team and the key has not been rotated (FIMP4V3 §3.3).
+     * An open issue for the team absorbs further removals and comes back to PENDING if it had
+     * been postponed, since a further removal is new information. A resolved one is replaced.
+     *
+     * @return true when the issue was created or gained a removed member
+     */
+    public boolean addOrUpdateKeyRotationIssue(String teamId, String teamName, List<String> removed) {
+        if (teamId == null || removed == null || removed.isEmpty()) return false;
+
+        String issueId = PendingIssue.keyRotationIssueId(teamId);
+        PendingIssue existing = db.get(issueId);
+        if (isOpen(existing)) {
+            PendingIssue.KeyRotationData data =
+                    existing.getDataAs(PendingIssue.KeyRotationData.class);
+            if (data == null) data = new PendingIssue.KeyRotationData();
+            java.util.LinkedHashSet<String> all = new java.util.LinkedHashSet<>();
+            if (data.removedFids != null) all.addAll(data.removedFids);
+            if (!all.addAll(removed)) return false;
+            data.teamId = teamId;
+            if (teamName != null) data.teamName = teamName;
+            data.removedFids = new java.util.ArrayList<>(all);
+            existing.setDataFrom(data);
+            existing.setStatus(PendingIssue.IssueStatus.PENDING);
+            db.put(existing.getId(), existing);
+        } else {
+            PendingIssue issue = PendingIssue.createKeyRotation(teamId, teamName, removed);
+            db.put(issue.getId(), issue);
+        }
+        notifyCountChange();
+        toastNewIssue(context.getString(R.string.key_rotation_due));
+        TimberLogger.i(TAG, "Key rotation due: team=%s removed=%s", teamId, removed);
+        return true;
+    }
+
+    /** The open key-rotation issue for a team, or null. */
+    public PendingIssue getOpenKeyRotationIssue(String teamId) {
+        if (teamId == null) return null;
+        PendingIssue issue = db.get(PendingIssue.keyRotationIssueId(teamId));
+        return isOpen(issue) ? issue : null;
+    }
+
+    /**
+     * Close a team's key-rotation issue: ACCEPTED when a newer key exists, EXPIRED when this FID
+     * no longer owns the team or the team is disbanded. A no-op when nothing is open.
+     */
+    public void resolveKeyRotationIssue(String teamId, PendingIssue.IssueStatus status) {
+        PendingIssue issue = getOpenKeyRotationIssue(teamId);
+        if (issue == null) return;
+        issue.setStatus(status);
+        issue.setResolvedAt(System.currentTimeMillis());
+        db.put(issue.getId(), issue);
+        notifyCountChange();
+        TimberLogger.i(TAG, "Key rotation issue for team %s resolved: %s", teamId, status);
+    }
+
     // ========== Consensus change ==========
 
     /**

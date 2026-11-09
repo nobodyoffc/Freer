@@ -62,7 +62,8 @@ public class PendingIssueActivity extends BaseCryptoActivity {
                 if (issue.getIssueType() == PendingIssue.IssueType.CONSENSUS_CHANGE
                         || issue.getIssueType() == PendingIssue.IssueType.TEAM_INVITE
                         || issue.getIssueType() == PendingIssue.IssueType.HISTORY_REQUEST
-                        || issue.getIssueType() == PendingIssue.IssueType.HISTORY_IMPORT_FAILED) {
+                        || issue.getIssueType() == PendingIssue.IssueType.HISTORY_IMPORT_FAILED
+                        || issue.getIssueType() == PendingIssue.IssueType.KEY_ROTATION_DUE) {
                     PendingIssueDetailActivity.start(PendingIssueActivity.this, issue);
                 } else if (issue.getIssueType() == PendingIssue.IssueType.ROOM_INVITE) {
                     pendingIssueManager.acceptRoomInvite(issue.getId());
@@ -84,7 +85,8 @@ public class PendingIssueActivity extends BaseCryptoActivity {
                     if (issue.getIssueType() == PendingIssue.IssueType.CONSENSUS_CHANGE
                             || issue.getIssueType() == PendingIssue.IssueType.TEAM_INVITE
                             || issue.getIssueType() == PendingIssue.IssueType.HISTORY_REQUEST
-                            || issue.getIssueType() == PendingIssue.IssueType.HISTORY_IMPORT_FAILED) {
+                            || issue.getIssueType() == PendingIssue.IssueType.HISTORY_IMPORT_FAILED
+                        || issue.getIssueType() == PendingIssue.IssueType.KEY_ROTATION_DUE) {
                         PendingIssueDetailActivity.start(PendingIssueActivity.this, issue);
                         return;
                     }
