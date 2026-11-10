@@ -346,7 +346,7 @@
     <string name="sha256" translatable="false">SHA256</string>
     <string name="sha256x2" translatable="false">SHA256x2</string>
     <string name="md5" translatable="false">MD5</string>
-    <string name="sha1" translatable="false">SHA1</string>
+    <string name="argon2id" translatable="false">Argon2id</string>
     <string name="sha3" translatable="false">SHA3</string>
     <string name="ripemd160" translatable="false">RIPEMD160</string>
     <string name="to_list">To List</string>
@@ -512,6 +512,7 @@
     <string name="file_not_found">File not found</string>
     <string name="please_generate_a_random_number_first">Please generate a random number first</string>
     <string name="please_enter_text_to_hash">Please enter text to hash</string>
+    <string name="hashing_with_argon2id">Hashing with Argon2id…</string>
     <string name="error_during_password_change">"Error during password change. "</string>
     <string name="storage_permission_is_required_to_read_backup_files">Storage permission is required to read backup files</string>
     <string name="failed_to_decrypt">"Failed to decrypt. "</string>

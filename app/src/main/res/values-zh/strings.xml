@@ -472,6 +472,7 @@
     <string name="input_the_pubkey_or_redeem_script">输入公钥或赎回脚本</string>
     <string name="please_generate_a_random_number_first">请先生成一个随机数</string>
     <string name="please_enter_text_to_hash">请输入要哈希的文本</string>
+    <string name="hashing_with_argon2id">正在用 Argon2id 哈希…</string>
     <string name="error_during_password_change">更改密码错误</string>
 
     <string name="storage_permission_is_required_to_read_backup_files">需要获取存储权限</string>

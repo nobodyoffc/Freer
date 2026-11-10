@@ -90,6 +90,31 @@ public enum Kdf {
         }
     }
 
+    /**
+     * Raw Argon2id v1.3 over arbitrary bytes with the Argon2id_No1_NrC7 parameters. For UTF-8 text
+     * and the same salt it equals {@code Argon2id_No1_NrC7.deriveSymkey}; with an empty salt it is
+     * the phrase-key derivation (FTSP28).
+     */
+    public static byte[] argon2id(byte[] password, byte[] salt) {
+        if (NativeArgon2.isAvailable() && salt.length >= NativeArgon2.MIN_SALT_LENGTH) {
+            byte[] out = NativeArgon2.argon2id(password, salt, ARGON2ID_ITERATIONS,
+                    ARGON2ID_MEMORY_KIB, ARGON2ID_PARALLELISM, DERIVED_KEY_LEN);
+            if (out != null) return out;
+        }
+        Argon2Parameters params = new Argon2Parameters.Builder(Argon2Parameters.ARGON2_id)
+                .withVersion(Argon2Parameters.ARGON2_VERSION_13)
+                .withIterations(ARGON2ID_ITERATIONS)
+                .withMemoryAsKB(ARGON2ID_MEMORY_KIB)
+                .withParallelism(ARGON2ID_PARALLELISM)
+                .withSalt(salt)
+                .build();
+        Argon2BytesGenerator gen = new Argon2BytesGenerator();
+        gen.init(params);
+        byte[] out = new byte[DERIVED_KEY_LEN];
+        gen.generateBytes(password, out);
+        return out;
+    }
+
     public static Kdf fromDisplayName(String displayName) {
         for (Kdf k : Kdf.values()) {
             if (k.displayName.equals(displayName)) return k;

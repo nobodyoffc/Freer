@@ -88,9 +88,9 @@
                     android:layout_marginTop="4dp">
 
                     <RadioButton
-                        android:id="@+id/radioSha1"
+                        android:id="@+id/radioArgon2id"
                         style="@style/EncryptOptionRadioButton"
-                        android:text="@string/sha1" />
+                        android:text="@string/argon2id" />
 
                     <RadioButton
                         android:id="@+id/radioSha3"

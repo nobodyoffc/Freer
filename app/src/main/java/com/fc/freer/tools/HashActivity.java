@@ -18,6 +18,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 
 import com.fc.fc_ajdk.core.crypto.Hash;
+import com.fc.fc_ajdk.core.crypto.Kdf;
 import com.fc.fc_ajdk.utils.Hex;
 import com.fc.fc_ajdk.utils.TimberLogger;
 import com.fc.freer.BaseCryptoActivity;
@@ -43,6 +44,7 @@ public class HashActivity extends BaseCryptoActivity {
     private Uri currentFileUri;
     private boolean isFileMode = false;
     private CheckBox asHexCheckBox;
+    private ImageButton hashButton;
     
     // Activity result launcher
     private ActivityResultLauncher<Intent> filePickerLauncher;
@@ -101,7 +103,7 @@ public class HashActivity extends BaseCryptoActivity {
             }
         });
 
-        ImageButton hashButton = findViewById(R.id.hashButton);
+        hashButton = findViewById(R.id.hashButton);
         setupButton(hashButton, v -> {
             resultText.setText("");
             copyButton.setEnabled(false);
@@ -344,6 +346,12 @@ public class HashActivity extends BaseCryptoActivity {
                 // Get the selected hash algorithm
                 int selectedId = getSelectedHashAlgorithmId();
                 
+                if (selectedId == R.id.radioArgon2id) {
+                    // Argon2id takes 64 MiB and ~a second: keep it off the UI thread.
+                    hashArgon2idInBackground(inputBytes);
+                    return;
+                }
+
                 // Apply the selected hash algorithm
                 hashResult = applyHashAlgorithm(selectedId, inputBytes);
             }
@@ -370,8 +378,8 @@ public class HashActivity extends BaseCryptoActivity {
         }
         
         // Check second row options
-        if (((RadioButton)secondRow.findViewById(R.id.radioSha1)).isChecked()) {
-            return R.id.radioSha1;
+        if (((RadioButton)secondRow.findViewById(R.id.radioArgon2id)).isChecked()) {
+            return R.id.radioArgon2id;
         } else if (((RadioButton)secondRow.findViewById(R.id.radioSha3)).isChecked()) {
             return R.id.radioSha3;
         } else if (((RadioButton)secondRow.findViewById(R.id.radioRipemd160)).isChecked()) {
@@ -382,6 +390,23 @@ public class HashActivity extends BaseCryptoActivity {
         return R.id.radioSha256;
     }
     
+    /**
+     * Argon2id with the Freer parameters (t=3, m=64 MiB, p=1, 32 bytes) and an empty salt, so a
+     * phrase hashed here equals the private key derived from it by "Create key by phrase".
+     */
+    private void hashArgon2idInBackground(byte[] inputBytes) {
+        hashButton.setEnabled(false);
+        showToast(getString(R.string.hashing_with_argon2id));
+        new Thread(() -> {
+            String hashResult = applyHashAlgorithm(R.id.radioArgon2id, inputBytes);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                hashButton.setEnabled(true);
+                setResult(hashResult, hashResult != null);
+            });
+        }, "HashArgon2id").start();
+    }
+
     private String applyHashAlgorithm(int selectedId, byte[] inputBytes) {
         try {
             if (selectedId == R.id.radioSha256) {
@@ -390,8 +415,8 @@ public class HashActivity extends BaseCryptoActivity {
                 return Hex.toHex(Hash.sha256x2(inputBytes));
             } else if (selectedId == R.id.radioMd5) {
                 return Hex.toHex(Objects.requireNonNull(Hash.md5(inputBytes)));
-            } else if (selectedId == R.id.radioSha1) {
-                return Hex.toHex(Objects.requireNonNull(Hash.sha1(inputBytes)));
+            } else if (selectedId == R.id.radioArgon2id) {
+                return Hex.toHex(Kdf.argon2id(inputBytes, new byte[0]));
             } else if (selectedId == R.id.radioSha3) {
                 return Hash.sha3String(Hex.toHex(inputBytes));
             } else if (selectedId == R.id.radioRipemd160) {
@@ -399,7 +424,8 @@ public class HashActivity extends BaseCryptoActivity {
             }
             // Default to SHA256
             return Hex.toHex(Hash.sha256(inputBytes));
-        }catch (Exception e){
+        }catch (Exception | OutOfMemoryError e){
+            TimberLogger.e(TAG, "Hash failed: " + e.getMessage(), e);
             return null;
         }
     }
