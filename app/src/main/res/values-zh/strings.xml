@@ -1116,7 +1116,7 @@
     <string name="prikey_backup_completed">私钥已备份。</string>
     <string name="this_password_existed">该密码已存在</string>
     <string name="prikey_leaked_tooltip">私钥已泄露，我谁都不是，谁都可以是我.</string>
-    <string name="weight_tooltip">基于币天、币天销毁和声誉的重量</string>
+    <string name="weight_tooltip">基于币天、币天销毁和声誉的权重</string>
     <string name="reputation_tooltip">他人给予的声誉</string>
     <string name="hot_tooltip">声誉消耗的币天总和</string>
     <string name="cash_tooltip">现钞数量</string>
