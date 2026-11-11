@@ -85,6 +85,8 @@ public class QrCodeActivity extends BaseCryptoActivity {
     private boolean isScanningEnabled = false;
     private boolean isCameraInitialized = false;
     private boolean isProcessingQRCode = false;
+    // Set when a scan was requested before the camera provider was ready
+    private boolean startScanWhenReady = false;
 
     private final ActivityResultLauncher<Intent> galleryLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -303,30 +305,49 @@ public class QrCodeActivity extends BaseCryptoActivity {
                     cameraProvider = cameraProviderFuture.get();
                     isCameraInitialized = true;
                     Timber.i("Camera initialized successfully");
+                    if (startScanWhenReady) {
+                        startScanWhenReady = false;
+                        if (!isFinishing() && !isDestroyed()) {
+                            startScanning();
+                        }
+                    }
                 } catch (ExecutionException | InterruptedException e) {
                     Timber.e(e, "Error initializing camera: %s", e.getMessage());
                     showError(getString(R.string.retry_after_authorization) + e.getMessage());
                     isCameraInitialized = false;
+                    startScanWhenReady = false;
                 } catch (Exception e) {
                     Timber.e(e, "Unexpected error in camera initialization: %s", e.getMessage());
                     isCameraInitialized = false;
+                    startScanWhenReady = false;
                 }
             }, ContextCompat.getMainExecutor(this));
         } catch (Exception e) {
             Timber.e(e, "Failed to get camera provider instance: %s", e.getMessage());
             isCameraInitialized = false;
+            startScanWhenReady = false;
             runOnUiThread(() -> showError("Camera initialization failed"));
+        }
+    }
+
+    /**
+     * Start scanning, initializing the camera provider first if that has not happened yet.
+     * On a fresh install the permission is granted after onCreate, so the provider
+     * is not ready when the grant arrives.
+     */
+    private void startScanningWhenCameraReady() {
+        if (isCameraInitialized && cameraProvider != null) {
+            startScanning();
+        } else {
+            startScanWhenReady = true;
+            initializeCamera();
         }
     }
 
     private void toggleScanning() {
         if (!isScanningEnabled) {
-            if (!isCameraInitialized) {
-                showError(getString(R.string.retry_after_authorization));
-                return;
-            }
             if (allPermissionsGranted()) {
-                startScanning();
+                startScanningWhenCameraReady();
             } else {
                 requestPermissions();
             }
@@ -346,7 +367,7 @@ public class QrCodeActivity extends BaseCryptoActivity {
         if (!permissionsToRequest.isEmpty()) {
             ActivityCompat.requestPermissions(this, permissionsToRequest.toArray(new String[0]), PERMISSION_REQUEST_CODE);
         } else {
-            startScanning();
+            startScanningWhenCameraReady();
         }
     }
 
@@ -356,7 +377,7 @@ public class QrCodeActivity extends BaseCryptoActivity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_REQUEST_CODE) {
             if (allPermissionsGranted()) {
-                startScanning();
+                startScanningWhenCameraReady();
             } else {
                 showPermissionRationale();
             }
