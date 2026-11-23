@@ -2556,6 +2556,9 @@
     <string name="team_transfer_system_message">团队 \'%1$s\' 正在转移给您。交易在链上确认后，打开待处理转移即可接受。</string>
 
     <string name="retry">重试</string>
+    <string name="dock_unreachable">连不上 DOCK 服务器，新消息可能收不到。</string>
+    <string name="dock_retrying">正在重连…</string>
+    <string name="dock_still_unreachable">仍然连不上 DOCK 服务器，会自动继续重试。</string>
     <string name="im_connecting">正在连接消息服务…</string>
     <string name="im_not_ready_retry">消息服务未就绪</string>
     <string name="asking_symkey">正在请求对称密钥…</string>

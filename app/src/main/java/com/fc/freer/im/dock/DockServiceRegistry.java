@@ -519,4 +519,9 @@ public class DockServiceRegistry {
     public void resetRetryCooldowns() {
         lastRetryAttempt.clear();
     }
+
+    /** Clear one DOCK's retry cooldown, for a retry the user asked for. */
+    public void resetRetryCooldown(String dockUrl) {
+        if (dockUrl != null) lastRetryAttempt.remove(dockUrl);
+    }
 }

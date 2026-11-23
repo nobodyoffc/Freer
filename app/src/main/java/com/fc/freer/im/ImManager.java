@@ -267,6 +267,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         default void onChannelNotConfigured(String suggestedDockUrl) {}
         /** Fired when home.DOCK becomes available on-chain (e.g. a pending registration confirmed). */
         default void onChannelConfigured() {}
+        /** A fetch from this DOCK just got through ({@code true}) or failed ({@code false}). Any thread. */
+        default void onDockReachability(String dockUrl, boolean reachable) {}
     }
 
     public interface StrangerPeerCallback {
@@ -451,11 +453,13 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 // A collect that got through means the network is up: a good moment to retry
                 // shared history whose download failed earlier.
                 retryReceivedHistorySharesSoon();
+                for (ImListener l : listeners) l.onDockReachability(dockUrl, true);
             }
-            
+
             @Override
             public void onFetchError(String dockUrl, String error) {
                 TimberLogger.w(TAG, "Dock fetch error from %s: %s", dockUrl, error);
+                for (ImListener l : listeners) l.onDockReachability(dockUrl, false);
             }
         });
         
@@ -3162,6 +3166,44 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             if (callback != null) {
                 callback.onRetryComplete(reconnected);
             }
+        });
+    }
+
+    /**
+     * The DOCK a chat's messages arrive in: my own for P2P, the group's for a
+     * Square, Team or Room. Null if none is registered.
+     */
+    public String getChatDockUrl(ImType imType, String targetId) {
+        if (dockRegistry == null || imType == null) return null;
+        return switch (imType) {
+            case P2P -> dockRegistry.getDockUrl("p2p_self", liveFid);
+            case SQUARE -> dockRegistry.getDockUrl(SQUARE, targetId);
+            case TEAM -> dockRegistry.getDockUrl(TEAM, targetId);
+            case ROOM -> dockRegistry.getDockUrl(ROOM, targetId);
+            default -> null;
+        };
+    }
+
+    public boolean isDockFailed(String dockUrl) {
+        return dockRegistry != null && dockRegistry.isFailed(dockUrl);
+    }
+
+    /**
+     * Reconnect one DOCK now, skipping its retry cooldown, and fetch from it if
+     * that worked. {@code done} gets whether the connection came up, on a
+     * background thread; the fetch's own outcome arrives as
+     * {@link ImListener#onDockReachability}.
+     */
+    public void retryDockNow(String dockUrl, java.util.function.Consumer<Boolean> done) {
+        if (dockRegistry == null || dockUrl == null) {
+            if (done != null) done.accept(false);
+            return;
+        }
+        executor.execute(() -> {
+            dockRegistry.resetRetryCooldown(dockUrl);
+            boolean up = dockRegistry.recoverDock(dockUrl) != null;
+            if (up && dockScheduler != null) dockScheduler.fetchNow();
+            if (done != null) done.accept(up);
         });
     }
 

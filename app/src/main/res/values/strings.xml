@@ -2323,6 +2323,9 @@
     <string name="team_transfer_system_message">Team \'%1$s\' is being transferred to you. Open pending transfers to accept after the transaction confirms on chain.</string>
 
     <string name="retry">Retry</string>
+    <string name="dock_unreachable">Can\'t reach the DOCK server — new messages may not arrive.</string>
+    <string name="dock_retrying">Reconnecting…</string>
+    <string name="dock_still_unreachable">Still can\'t reach the DOCK server. It will keep retrying.</string>
     <string name="im_connecting">Connecting to messaging…</string>
     <string name="im_not_ready_retry">Messaging is not ready</string>
     <string name="asking_symkey">Asking for symkey…</string>

@@ -147,6 +147,18 @@ public class ChatActivity extends BaseCryptoActivity
     private LinearLayout symkeyAskBanner;
     private TextView symkeyAskSummary;
     private TextView symkeyAskWho;
+    /** Shown while this chat's DOCK stays unreachable; see {@link #checkDockSoon()}. */
+    private LinearLayout dockFailBar;
+    private TextView dockFailText;
+    private TextView dockFailRetry;
+    /** A failure must outlast this before the bar shows: one blip usually recovers on the next fetch. */
+    private static final long DOCK_FAIL_GRACE_MS = 5_000;
+    private final android.os.Handler dockHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private boolean dockCheckPending;
+    private final Runnable dockCheck = () -> {
+        dockCheckPending = false;
+        updateDockFailBar();
+    };
 
     private LinearLayout channelInfoLayout;
     private TextView channelInfoLeft;
@@ -331,6 +343,10 @@ public class ChatActivity extends BaseCryptoActivity
         btnBack = findViewById(R.id.btn_back);
         inputArea = findViewById(R.id.input_area);
         chatTypeInfo = findViewById(R.id.chat_type_info);
+        dockFailBar = findViewById(R.id.dock_fail_bar);
+        dockFailText = findViewById(R.id.dock_fail_text);
+        dockFailRetry = findViewById(R.id.dock_fail_retry);
+        dockFailRetry.setOnClickListener(v -> retryChatDock());
         symkeyAskBanner = findViewById(R.id.symkey_ask_banner);
         symkeyAskSummary = findViewById(R.id.symkey_ask_summary);
         symkeyAskWho = findViewById(R.id.symkey_ask_who);
@@ -942,6 +958,7 @@ public class ChatActivity extends BaseCryptoActivity
             imManager = im;
             imManager.addListener(this);
             imManager.setActiveChatDock(imType, targetId);
+            checkDockSoon();
             adapter.setLiveFid(liveFid);
             // So a sealed row can show the cooldown rather than a button that does nothing.
             adapter.setSymkeyAsks(imManager.getKeyAskStore(), targetId);
@@ -4024,6 +4041,7 @@ public class ChatActivity extends BaseCryptoActivity
             imManager.setActiveChatDock(imType, targetId);
 
             retryFailedDocksForCurrentChat();
+            checkDockSoon();
             promptOpenHistoryRequests();
             refreshSymkeyAskBanner();
 
@@ -4058,10 +4076,67 @@ public class ChatActivity extends BaseCryptoActivity
         if (isRecording) cancelRecording();
         if (voicePlayer != null) voicePlayer.stop();
         com.fc.freer.call.MeetingManager.getInstance(this).removeCardListener(meetingCards);
+        dockHandler.removeCallbacks(dockCheck);
+        dockCheckPending = false;
         if (imManager != null) {
             imManager.removeListener(this);
             imManager.clearActiveChatDock();
         }
+    }
+
+    // ── DOCK failure bar ───────────────────────────────────────────────
+
+    /** Look at this chat's DOCK after the grace period, unless a look is already due. */
+    private void checkDockSoon() {
+        if (dockCheckPending) return;
+        dockCheckPending = true;
+        dockHandler.postDelayed(dockCheck, DOCK_FAIL_GRACE_MS);
+    }
+
+    private void updateDockFailBar() {
+        if (dockFailBar == null || isFinishing()) return;
+        String url = imManager == null ? null : imManager.getChatDockUrl(imType, targetId);
+        // No DOCK at all is the send-only / no-dock case, which has its own notice.
+        boolean failed = url != null && imManager.isDockFailed(url);
+        if (failed && dockFailBar.getVisibility() != View.VISIBLE) {
+            dockFailText.setText(R.string.dock_unreachable);
+            dockFailRetry.setEnabled(true);
+        }
+        dockFailBar.setVisibility(failed ? View.VISIBLE : View.GONE);
+    }
+
+    private void retryChatDock() {
+        if (imManager == null) return;
+        String url = imManager.getChatDockUrl(imType, targetId);
+        if (url == null) return;
+        dockFailText.setText(R.string.dock_retrying);
+        dockFailRetry.setEnabled(false);
+        imManager.retryDockNow(url, up -> runOnUiThread(() -> {
+            if (isFinishing()) return;
+            dockFailRetry.setEnabled(true);
+            if (up) {
+                // Connected; the fetch it started reports back through onDockReachability.
+                imManager.setActiveChatDock(imType, targetId);
+                updateDockFailBar();
+            } else {
+                dockFailText.setText(R.string.dock_still_unreachable);
+            }
+        }));
+    }
+
+    @Override
+    public void onDockReachability(String dockUrl, boolean reachable) {
+        runOnUiThread(() -> {
+            if (imManager == null || dockFailBar == null) return;
+            if (!dockUrl.equals(imManager.getChatDockUrl(imType, targetId))) return;
+            if (reachable) {
+                dockHandler.removeCallbacks(dockCheck);
+                dockCheckPending = false;
+                dockFailBar.setVisibility(View.GONE);
+            } else {
+                checkDockSoon();
+            }
+        });
     }
 
     @Override
