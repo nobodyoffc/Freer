@@ -3004,4 +3004,23 @@
     <string name="cdd_card_required_short">需要 %1$d，不足</string>
     <string name="cdd_card_note">花出的币将从零重新积累币天。币天是你在链上的权重，一旦销毁，需要很多天才能重新积累。\n\n销毁多少由你决定：点击“重选输入”（底部的钞票按钮）可改用其他钞票，比如币天较少的新钞票。</string>
     <string name="cdd_card_note_excess">只需要 %1$d，但这些输入将销毁 %2$d。花出的币将从零重新积累币天，一旦销毁，需要很多天才能重新积累。\n\n销毁多少由你决定：点击“重选输入”（底部的钞票按钮）可改用其他钞票，比如币天较少的新钞票。</string>
+    <!-- 聊天：回复与 @提及（与 Mac、iOS 版一致） -->
+    <string name="im_replying_to">回复 %1$s</string>
+    <string name="im_reply_cancel">取消回复</string>
+    <string name="im_reply_yourself">自己</string>
+    <string name="im_quote_you">你</string>
+    <string name="im_quote_someone">某人</string>
+    <string name="im_quote_missing">原消息不在此设备上。</string>
+    <string name="im_quote_withdrawn">消息已撤回</string>
+    <string name="im_mention">@ 提及</string>
+    <string name="im_mention_search_hint">搜索名称、FID…</string>
+    <string name="im_mention_count">%1$d 位成员</string>
+    <string name="im_mention_count_filtered">%1$d / %2$d 位成员</string>
+    <string name="im_mention_none">没有匹配的成员。</string>
+    <string name="im_mention_you">%1$s（自己）</string>
+    <string name="im_mention_chip">有人@我</string>
+    <string name="im_mentioned_once">%1$s——有人@了你</string>
+    <string name="im_mentioned_times">%1$s——有人@了你 %2$d 次</string>
+    <string name="issue_mention">有人@我</string>
+    <string name="issue_mention_messages">%1$d 条消息</string>
 </resources>

@@ -3047,4 +3047,23 @@
     <string name="cdd_card_required_short">%1$d required. Not enough</string>
     <string name="cdd_card_note">Spent coins restart aging from zero. Coin days are your weight on chain; once destroyed they take days to earn back.\n\nYou decide how many are destroyed: reselect inputs (the cash button at the bottom) to spend other cashes, such as newer ones that hold fewer coin days.</string>
     <string name="cdd_card_note_excess">Only %1$d are required, but these inputs destroy %2$d. Spent coins restart aging from zero; once destroyed they take days to earn back.\n\nYou decide how many are destroyed: reselect inputs (the cash button at the bottom) to spend other cashes, such as newer ones that hold fewer coin days.</string>
+    <!-- Chat: replies and @mentions (shared with Freer for Mac and iOS) -->
+    <string name="im_replying_to">Replying to %1$s</string>
+    <string name="im_reply_cancel">Cancel the reply</string>
+    <string name="im_reply_yourself">yourself</string>
+    <string name="im_quote_you">You</string>
+    <string name="im_quote_someone">Someone</string>
+    <string name="im_quote_missing">The original message is not on this device.</string>
+    <string name="im_quote_withdrawn">Message withdrawn</string>
+    <string name="im_mention">Mention</string>
+    <string name="im_mention_search_hint">Search name, FID…</string>
+    <string name="im_mention_count">%1$d members</string>
+    <string name="im_mention_count_filtered">%1$d of %2$d members</string>
+    <string name="im_mention_none">No member matches.</string>
+    <string name="im_mention_you">%1$s (you)</string>
+    <string name="im_mention_chip">@ you</string>
+    <string name="im_mentioned_once">%1$s — you were mentioned</string>
+    <string name="im_mentioned_times">%1$s — you were mentioned %2$d times</string>
+    <string name="issue_mention">Mentioned you</string>
+    <string name="issue_mention_messages">%1$d messages</string>
 </resources>

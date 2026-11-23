@@ -30,6 +30,17 @@ import java.util.Set;
 public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapter.ConversationViewHolder> {
     
     private final List<Conversation> conversations;
+    /** Threads with an unread message that @mentions the live identity, by conversation id. */
+    private java.util.Set<String> mentioned = new java.util.HashSet<>();
+
+    public void setMentioned(java.util.Set<String> ids) {
+        this.mentioned = ids != null ? ids : new java.util.HashSet<>();
+        notifyDataSetChanged();
+    }
+
+    boolean isMentioned(Conversation c) {
+        return c.getType() != null && mentioned.contains(c.getType().name() + "_" + c.getTargetId());
+    }
     private final OnConversationClickListener listener;
     private boolean selectionMode = false;
     private final Set<String> selectedIds = new HashSet<>();
@@ -169,6 +180,7 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
         private final TextView time;
         private final TextView preview;
         private final TextView unreadBadge;
+        private final TextView mentionChip;
         private final ImageView typeIndicator;
         private final View metricsLayout;
         private final TextView textMemberNum;
@@ -188,6 +200,7 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
             time = itemView.findViewById(R.id.time);
             preview = itemView.findViewById(R.id.preview);
             unreadBadge = itemView.findViewById(R.id.unread_badge);
+            mentionChip = itemView.findViewById(R.id.mention_chip);
             typeIndicator = itemView.findViewById(R.id.type_indicator);
             metricsLayout = itemView.findViewById(R.id.group_metrics_layout);
             textMemberNum = itemView.findViewById(R.id.text_member_num);
@@ -332,6 +345,9 @@ public class ConversationAdapter extends RecyclerView.Adapter<ConversationAdapte
                 preview.setTextColor(itemView.getContext().getColor(R.color.hint));
             }
             
+            // Somebody @mentioned you in what is unread here.
+            mentionChip.setVisibility(adapter.isMentioned(conversation) ? View.VISIBLE : View.GONE);
+
             // Unread badge
             Integer unread = conversation.getUnreadCount();
             if (unread != null && unread > 0) {

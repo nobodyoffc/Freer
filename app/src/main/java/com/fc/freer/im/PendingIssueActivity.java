@@ -51,6 +51,10 @@ public class PendingIssueActivity extends BaseCryptoActivity {
 
         adapter.setOnItemClickListener(issue -> {
             hideKeyboard();
+            if (issue.getIssueType() == PendingIssue.IssueType.MENTION) {
+                openMentionedChat(issue);
+                return;
+            }
             PendingIssueDetailActivity.start(PendingIssueActivity.this, issue);
         });
 
@@ -142,13 +146,28 @@ public class PendingIssueActivity extends BaseCryptoActivity {
             return;
         }
 
-        List<PendingIssue> issues = pendingIssueManager.getOpenIssues();
+        // Somebody waiting on you in a group first: the most direct question there is.
+        List<PendingIssue> issues = new java.util.ArrayList<>(pendingIssueManager.getMentionIssues());
+        issues.addAll(pendingIssueManager.getOpenIssues());
         adapter.setItems(issues);
         showEmpty(issues.isEmpty());
         List<String> peers = new java.util.ArrayList<>();
         for (PendingIssue issue : issues) peers.add(issue.getPeerFid());
         com.fc.freer.nobody.NobodyUi.resolveAsync(peers);
         swipeRefreshLayout.setRefreshing(false);
+    }
+
+    /** A mention is answered by reading it: open the group's chat. */
+    private void openMentionedChat(PendingIssue issue) {
+        String convId = issue.getDataJson();
+        if (convId == null) return;
+        int cut = convId.indexOf('_');
+        if (cut <= 0) return;
+        android.content.Intent intent = new android.content.Intent(this, ChatActivity.class);
+        intent.putExtra(ChatActivity.EXTRA_TYPE, convId.substring(0, cut));
+        intent.putExtra(ChatActivity.EXTRA_TARGET_ID, convId.substring(cut + 1));
+        intent.putExtra(ChatActivity.EXTRA_DISPLAY_NAME, issue.getPeerAlias());
+        startActivity(intent);
     }
 
     private void showEmpty(boolean empty) {

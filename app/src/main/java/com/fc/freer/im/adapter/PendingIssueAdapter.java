@@ -97,6 +97,10 @@ public class PendingIssueAdapter extends RecyclerView.Adapter<PendingIssueAdapte
         }
 
         void bind(PendingIssue issue) {
+            if (issue.getIssueType() == PendingIssue.IssueType.MENTION) {
+                bindMention(issue);
+                return;
+            }
             com.fc.freer.nobody.NobodyUi.setName(peerFidText, issue.getPeerFid(),
                     com.fc.freer.contact.ContactLabel.inline(itemView.getContext(),
                             issue.getPeerFid(), issue.getPeerFid()));
@@ -169,6 +173,22 @@ public class PendingIssueAdapter extends RecyclerView.Adapter<PendingIssueAdapte
                 if (actionListener != null) actionListener.onReject(issue);
             });
 
+            itemView.setOnClickListener(v -> {
+                if (itemClickListener != null) itemClickListener.onItemClick(issue);
+            });
+        }
+
+        /** "Mentioned you — 2 messages", under the group's name; a tap opens the group. */
+        private void bindMention(PendingIssue issue) {
+            Context ctx = itemView.getContext();
+            peerFidText.setText(issue.getPeerAlias());
+            avatarView.setImageResource(R.drawable.ic_person);
+            descriptionText.setText(ctx.getString(R.string.issue_mention) + " - "
+                    + ctx.getString(R.string.issue_mention_messages, issue.getMessageCount()));
+            timeText.setText(issue.getCreatedAt() != null
+                    ? TIME_FORMAT.format(new Date(issue.getCreatedAt())) : "");
+            acceptBtn.setVisibility(View.GONE);
+            rejectBtn.setVisibility(View.GONE);
             itemView.setOnClickListener(v -> {
                 if (itemClickListener != null) itemClickListener.onItemClick(issue);
             });

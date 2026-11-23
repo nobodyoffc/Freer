@@ -287,6 +287,8 @@ public class SquareActivity extends BaseCryptoActivity implements ConversationAd
 
         adapter.setPendingTargetIds(pendingIds);
         adapter.setUnavailableTargetIds(imManager.getUnavailableTargetIds("square"));
+        // Groups here where somebody @mentioned you, unread: the banner, and a chip on each row.
+        adapter.setMentioned(MentionBanner.bind(this, imManager, liveFid, ImType.SQUARE));
         filterConversations(searchEditText.getText().toString());
         swipeRefreshLayout.setRefreshing(false);
     }

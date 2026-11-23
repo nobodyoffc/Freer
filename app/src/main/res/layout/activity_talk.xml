@@ -62,6 +62,17 @@
 
     </LinearLayout>
 
+    <!-- Groups on this page where somebody @mentioned you in a message not yet read.
+         One row per group, filled by MentionBanner. -->
+    <LinearLayout
+        android:id="@+id/mentions_banner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:visibility="gone" />
+
     <!-- Send-only mode banner: no DOCK registered, sending works but receiving doesn't -->
     <LinearLayout
         android:id="@+id/send_only_banner"

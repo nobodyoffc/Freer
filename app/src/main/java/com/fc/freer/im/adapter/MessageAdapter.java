@@ -73,6 +73,44 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
 
         /** The "edited" tag on a row was tapped: show its earlier versions. */
         default void onShowEditHistory(ImMessage message) {}
+
+        /** A long press on a speaker's face in a group: write {@code @} and their name. */
+        default void onSpeakerAvatarLongClick(String fid) {}
+
+        /** The quote above a reply was tapped: show the message it quotes. */
+        default void onQuoteClick(String messageId) {}
+
+        /** The quoted message when it is not among the rows on screen, from the store. */
+        default ImMessage findQuoted(String messageId) { return null; }
+    }
+
+    /** How a group's {@code @} names the live identity besides its FID. */
+    private String mentionCid;
+    /** The message a tapped quote went to, lit up for a moment. */
+    private String flashId;
+
+    public void setMentionCid(String cid) {
+        this.mentionCid = cid;
+    }
+
+    /** Light up the row of {@code messageId} once, the next time it is drawn. */
+    public void flash(String messageId) {
+        this.flashId = messageId;
+        for (int i = 0; i < messages.size(); i++) {
+            if (messageId != null && messageId.equals(messages.get(i).getId())) {
+                notifyItemChanged(i);
+                return;
+            }
+        }
+    }
+
+    /** The row of {@code messageId}, or -1 when it is not on screen. */
+    public int positionOf(String messageId) {
+        if (messageId == null) return -1;
+        for (int i = 0; i < messages.size(); i++) {
+            if (messageId.equals(messages.get(i).getId())) return i;
+        }
+        return -1;
     }
 
     private final List<ImMessage> messages;
@@ -163,7 +201,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
     public MessageViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_message, parent, false);
-        return new MessageViewHolder(view);
+        return new MessageViewHolder(view, this);
     }
 
     @Override
@@ -275,9 +313,15 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         private final ImageView statusIcon;
         private final FrameLayout incomingHatContainer;
         private final FrameLayout outgoingHatContainer;
+        private final TextView incomingQuote;
+        private final TextView outgoingQuote;
+        private final MessageAdapter owner;
 
-        MessageViewHolder(@NonNull View itemView) {
+        MessageViewHolder(@NonNull View itemView, MessageAdapter owner) {
             super(itemView);
+            this.owner = owner;
+            incomingQuote = itemView.findViewById(R.id.incoming_quote);
+            outgoingQuote = itemView.findViewById(R.id.outgoing_quote);
             incomingContainer = itemView.findViewById(R.id.incoming_container);
             outgoingContainer = itemView.findViewById(R.id.outgoing_container);
             systemMessage = itemView.findViewById(R.id.system_message);
@@ -444,7 +488,9 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                     outgoingContent.setVisibility(View.VISIBLE);
                     outgoingHatContainer.setVisibility(View.GONE);
                     bindText(outgoingContent, content, sealedText);
+                    if (sealedText == null) applyMentions(outgoingContent, message, true, isP2P);
                 }
+                bindQuote(outgoingQuote, message, true, listener);
 
                 outgoingTime.setText(time);
 
@@ -493,7 +539,9 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                     incomingContent.setVisibility(View.VISIBLE);
                     incomingHatContainer.setVisibility(View.GONE);
                     bindText(incomingContent, content, sealedText);
+                    if (sealedText == null) applyMentions(incomingContent, message, false, isP2P);
                 }
+                bindQuote(incomingQuote, message, false, listener);
 
                 incomingTime.setText(time);
 
@@ -516,6 +564,10 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
 
                     if (listener != null && senderId != null) {
                         senderAvatar.setOnClickListener(v -> listener.onSpeakerAvatarClick(senderId));
+                        senderAvatar.setOnLongClickListener(v -> {
+                            listener.onSpeakerAvatarLongClick(senderId);
+                            return true;
+                        });
 
                         senderName.setOnClickListener(v -> listener.onSpeakerNameClick(senderId));
                         senderName.setOnLongClickListener(v -> {
@@ -532,6 +584,114 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                     listener.onMessageLongPress(message, v);
                     return true;
                 });
+            }
+
+            // The row a tapped quote went to: lit up once, then left alone.
+            View row = isOutgoing ? outgoingContainer : incomingContainer;
+            if (owner.flashId != null && owner.flashId.equals(message.getId())) {
+                owner.flashId = null;
+                row.setAlpha(0.35f);
+                row.animate().alpha(1f).setDuration(900).start();
+            } else {
+                row.animate().cancel();
+                row.setAlpha(1f);
+            }
+        }
+
+        /**
+         * Each {@code @} of somebody known drawn bold — in the accent on another's bubble, in
+         * white on ours — and the bubble of a message naming us outlined, so it is found when
+         * scrolling back through a busy group. Groups only: a P2P chat has nobody to point at.
+         */
+        private void applyMentions(TextView view, ImMessage message, boolean isOutgoing, boolean isP2P) {
+            String liveFid = owner.liveFid;
+            boolean mentionsMe = !isP2P && liveFid != null
+                    && com.fc.fc_ajdk.data.fcData.Mentions.mentions(message, liveFid, owner.mentionCid);
+            view.setBackgroundResource(isOutgoing
+                    ? (mentionsMe ? R.drawable.message_bubble_outgoing_mentioned : R.drawable.message_bubble_outgoing)
+                    : (mentionsMe ? R.drawable.message_bubble_incoming_mentioned : R.drawable.message_bubble_incoming));
+            String content = message.getContent();
+            if (isP2P || content == null || content.indexOf('@') < 0) return;
+            com.fc.freer.manager.CidFidManager cids = com.fc.freer.manager.CidFidManager.getInstance();
+            android.text.SpannableString text = new android.text.SpannableString(view.getText());
+            if (!text.toString().equals(content)) return;
+            int color = isOutgoing ? android.graphics.Color.WHITE
+                    : itemView.getContext().getColor(R.color.accent);
+            boolean any = false;
+            for (com.fc.fc_ajdk.data.fcData.Mentions.Token t
+                    : com.fc.fc_ajdk.data.fcData.Mentions.tokens(content)) {
+                boolean known = t.name.equals(liveFid) || t.name.equals(owner.mentionCid)
+                        || (t.name.length() == 34 && t.name.startsWith("F"))
+                        || (cids != null && cids.getFidByCid(t.name) != null);
+                if (!known) continue;
+                text.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                        t.start, t.end, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                text.setSpan(new android.text.style.ForegroundColorSpan(color),
+                        t.start, t.end, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                any = true;
+            }
+            if (any) view.setText(text);
+        }
+
+        /** What a quote shows of a message that is not plain text, as the thread list does. */
+        private static String quotePreview(ImMessage m) {
+            ContentType ct = m.getContentType();
+            if (ct == ContentType.HAT) return "[File]";
+            if (ct == ContentType.STREAM) return "[Stream]";
+            if (ct == ContentType.VOICE) return "[Voice]";
+            if (m.isSealed() || SealedRow.isPlaceholder(m.getContent())) return "[Encrypted]";
+            return m.getContent() != null ? m.getContent() : "";
+        }
+
+        /**
+         * Who wrote the message a reply quotes and how it began, above the reply. A tap goes to
+         * the original. It is looked for among the rows on screen, then in the store: a reply can
+         * come long after what it answers.
+         */
+        private void bindQuote(TextView quoteView, ImMessage message, boolean isOutgoing,
+                               MessageInteractionListener listener) {
+            String replyTo = message.getReplyToId();
+            if (replyTo == null || replyTo.isEmpty()) {
+                quoteView.setVisibility(View.GONE);
+                quoteView.setOnClickListener(null);
+                return;
+            }
+            Context ctx = itemView.getContext();
+            int at = owner.positionOf(replyTo);
+            ImMessage quoted = at >= 0 ? owner.messages.get(at)
+                    : (listener != null ? listener.findQuoted(replyTo) : null);
+            android.text.SpannableStringBuilder text = new android.text.SpannableStringBuilder();
+            if (quoted == null) {
+                text.append(ctx.getString(R.string.im_quote_missing));
+            } else {
+                String author;
+                if (owner.liveFid != null && quoted.isOutgoing(owner.liveFid)) {
+                    author = ctx.getString(R.string.im_quote_you);
+                } else if (quoted.getSenderId() != null) {
+                    com.fc.freer.manager.CidFidManager cids = com.fc.freer.manager.CidFidManager.getInstance();
+                    String cid = cids != null ? cids.getCidByFid(quoted.getSenderId()) : null;
+                    author = cid != null && !cid.isEmpty() ? cid : truncateFid(quoted.getSenderId());
+                } else {
+                    author = ctx.getString(R.string.im_quote_someone);
+                }
+                text.append(author);
+                text.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                        0, author.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                text.append('\n');
+                String said;
+                if (quoted.isWithdrawn()) said = ctx.getString(R.string.im_quote_withdrawn);
+                else if (quoted.getContentType() == ContentType.TEXT && quoted.getContent() != null
+                        && !SealedRow.isPlaceholder(quoted.getContent())) said = quoted.getContent();
+                else said = quotePreview(quoted);
+                text.append(said);
+            }
+            quoteView.setText(text);
+            quoteView.setVisibility(View.VISIBLE);
+            if (at >= 0 && listener != null) {
+                quoteView.setOnClickListener(v -> listener.onQuoteClick(replyTo));
+            } else {
+                quoteView.setOnClickListener(null);
+                quoteView.setClickable(false);
             }
         }
 

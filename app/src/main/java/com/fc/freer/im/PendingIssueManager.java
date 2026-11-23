@@ -711,6 +711,32 @@ public class PendingIssueManager {
         return issues;
     }
 
+    /**
+     * One row per group where somebody @mentioned this FID in a message not yet read — worked
+     * out now, not stored, so reading the thread clears it. Kept apart from the stored issues:
+     * nothing here is accepted or rejected, it is answered by reading.
+     */
+    public List<PendingIssue> getMentionIssues() {
+        List<PendingIssue> out = new ArrayList<>();
+        if (imManager == null) return out;
+        try {
+            for (MentionCenter.UnreadMention m : MentionCenter.unread(imManager, liveFid, null)) {
+                PendingIssue issue = new PendingIssue();
+                issue.setId("mention|" + m.conversationId());
+                issue.setIssueType(PendingIssue.IssueType.MENTION);
+                issue.setStatus(PendingIssue.IssueStatus.PENDING);
+                issue.setPeerAlias(m.groupName());
+                issue.setMessageCount(m.count);
+                issue.setCreatedAt(m.conversation.getLastMessageTime());
+                issue.setDataJson(m.conversationId());
+                out.add(issue);
+            }
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Failed to collect mentions: %s", e.getMessage());
+        }
+        return out;
+    }
+
     public int getPendingCount() {
         int count = 0;
         try {

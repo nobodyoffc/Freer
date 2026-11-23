@@ -8,6 +8,16 @@
     android:elevation="4dp">
 
     <TextView
+        android:id="@+id/action_reply"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/reply"
+        android:padding="12dp"
+        android:textSize="14sp"
+        android:visibility="gone"
+        android:background="?android:attr/selectableItemBackground" />
+
+    <TextView
         android:id="@+id/action_copy"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

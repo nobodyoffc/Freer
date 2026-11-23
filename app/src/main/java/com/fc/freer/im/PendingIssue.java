@@ -29,7 +29,13 @@ public class PendingIssue extends FcEntity {
          * Members left this owner's team, or were dismissed, and the symkey has not been rotated
          * since. Until it is, they can still open what the team sends (FIMP4V3 §3.3).
          */
-        KEY_ROTATION_DUE
+        KEY_ROTATION_DUE,
+        /**
+         * Somebody @mentioned this FID in a group message it has not read. Never stored: worked
+         * out from the unread messages each time (see {@link MentionCenter}), so reading the
+         * thread is what clears it. Its {@code dataJson} is the conversation id.
+         */
+        MENTION
     }
 
     public enum IssueStatus {

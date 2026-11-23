@@ -1700,6 +1700,8 @@ public class HomeActivity extends AppCompatActivity {
             PendingIssueManager pendingMgrForBadge = FidManager.getInstance().getPendingIssueManager();
             if (pendingMgrForBadge != null) {
                 todoCount = pendingMgrForBadge.getPendingCount();
+                // Each group where somebody @mentioned you, unread, is one more thing to do.
+                todoCount += pendingMgrForBadge.getMentionIssues().size();
             }
             setBadgeCount(badgeTodo, todoCount);
 

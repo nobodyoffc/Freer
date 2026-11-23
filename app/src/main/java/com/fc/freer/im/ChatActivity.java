@@ -120,6 +120,14 @@ public class ChatActivity extends BaseCryptoActivity
     private String draftBeforeEdit;
     private View editBar;
     private TextView editBarOriginal;
+    /** The message the next send quotes, and the bar above the input that says so. */
+    private ImMessage replyingMessage;
+    private View replyBar;
+    private TextView replyBarTitle;
+    private TextView replyBarOriginal;
+    /** Where the {@code @} that opened the mention list was typed, so the name goes there. */
+    private int mentionAtIndex = -1;
+    private ActivityResultLauncher<Intent> mentionPickerLauncher;
     private ImageButton sendButton;
     private ImageButton attachButton;
     private ImageButton emojiButton;
@@ -213,6 +221,7 @@ public class ChatActivity extends BaseCryptoActivity
         displayName = getIntent().getStringExtra(EXTRA_DISPLAY_NAME);
         
         initFilePickerLauncher();
+        initMentionPickerLauncher();
         initTeamOperationLaunchers();
         initRoomOperationLaunchers();
         initRecordAudioPermissionLauncher();
@@ -293,6 +302,13 @@ public class ChatActivity extends BaseCryptoActivity
                 if (messageInput.isEnabled()) {
                     sendButton.setEnabled(hasText);
                 }
+                // An @ just typed in a group opens the list of whom it can name.
+                if (imType != ImType.P2P && messageInput.isEnabled() && count == 1 && before == 0
+                        && start < s.length() && s.charAt(start) == '@'
+                        && (start == 0 || Character.isWhitespace(s.charAt(start - 1)))) {
+                    mentionAtIndex = start;
+                    openMentionPicker();
+                }
             }
 
             @Override
@@ -325,6 +341,10 @@ public class ChatActivity extends BaseCryptoActivity
         editBar = findViewById(R.id.edit_bar);
         editBarOriginal = findViewById(R.id.edit_bar_original);
         findViewById(R.id.edit_bar_cancel).setOnClickListener(v -> endEdit());
+        replyBar = findViewById(R.id.reply_bar);
+        replyBarTitle = findViewById(R.id.reply_bar_title);
+        replyBarOriginal = findViewById(R.id.reply_bar_original);
+        findViewById(R.id.reply_bar_cancel).setOnClickListener(v -> endReply());
 
         setupChatTypeInfo();
         setupSymkeyAskBanner();
@@ -1221,6 +1241,9 @@ public class ChatActivity extends BaseCryptoActivity
         
         Collections.reverse(loaded);
         messages.addAll(loaded);
+        adapter.setMentionCid(MentionCenter.myCid(liveFid));
+        // The thread is open: our own @s of ourselves in it have been seen.
+        MentionCenter.markSeen(messages, liveFid);
         
         adapter.notifyDataSetChanged();
         scrollToBottom();
@@ -1335,6 +1358,12 @@ public class ChatActivity extends BaseCryptoActivity
         TimberLogger.d(TAG, "Sending message: type=%s, target=%s, text=%s", imType, targetId, text);
 
         ImMessage message = ImMessage.createText(imType, liveFid, targetId, text);
+        if (replyingMessage != null && replyingMessage.getId() != null) {
+            message.setReplyToId(replyingMessage.getId());
+        }
+        endReply();
+        // One of ours that @s ourselves was seen here, where it was written.
+        MentionCenter.markSeen(Collections.singletonList(message), liveFid);
         
         messages.add(message);
         adapter.notifyItemInserted(messages.size() - 1);
@@ -2008,6 +2037,23 @@ public class ChatActivity extends BaseCryptoActivity
         boolean isText = message.getContentType() == ContentType.TEXT;
         boolean isFailed = message.getStatus() == MessageStatus.FAILED;
 
+        TextView replyItem = menuView.findViewById(R.id.action_reply);
+        boolean canReply = message.getId() != null && !message.isWithdrawn()
+                && messageInput != null && messageInput.isEnabled()
+                && !SealedRow.isPlaceholder(message.getContent())
+                && (isText || message.getContentType() == ContentType.HAT
+                    || message.getContentType() == ContentType.VOICE
+                    || message.getContentType() == ContentType.STREAM);
+        if (canReply) {
+            replyItem.setVisibility(View.VISIBLE);
+            replyItem.setOnClickListener(v -> {
+                popup.dismiss();
+                beginReply(message);
+            });
+        } else {
+            replyItem.setVisibility(View.GONE);
+        }
+
         TextView copyItem = menuView.findViewById(R.id.action_copy);
         TextView resendItem = menuView.findViewById(R.id.action_resend);
         TextView deleteItem = menuView.findViewById(R.id.action_delete);
@@ -2083,6 +2129,7 @@ public class ChatActivity extends BaseCryptoActivity
     /** Put a sent message's text in the input for editing; sending then replaces it. */
     private void beginEdit(ImMessage message) {
         if (messageInput == null || !messageInput.isEnabled()) return;
+        endReply();
         if (editingMessage == null) draftBeforeEdit = messageInput.getText().toString();
         editingMessage = message;
         String text = message.getContent() != null ? message.getContent() : "";
@@ -2105,6 +2152,105 @@ public class ChatActivity extends BaseCryptoActivity
         draftBeforeEdit = null;
         messageInput.setText(draft);
         messageInput.setSelection(draft.length());
+    }
+
+    // ── Reply and mention ────────────────────────────────────────────────
+
+    /** Quote {@code message} in what is typed next. An edit ends first: it cannot become a reply. */
+    private void beginReply(ImMessage message) {
+        if (messageInput == null || !messageInput.isEnabled()) return;
+        endEdit();
+        replyingMessage = message;
+        String author;
+        if (message.isOutgoing(liveFid)) {
+            author = getString(R.string.im_reply_yourself);
+        } else {
+            String cid = MentionCenter.cidOf(message.getSenderId());
+            author = cid != null && !cid.isEmpty() ? cid
+                    : (message.getSenderId() != null ? message.getSenderId() : getString(R.string.im_quote_someone));
+        }
+        replyBarTitle.setText(getString(R.string.im_replying_to, author));
+        String said = message.getContentType() == ContentType.TEXT && message.getContent() != null
+                ? message.getContent() : "";
+        replyBarOriginal.setText(said);
+        replyBarOriginal.setVisibility(said.isEmpty() ? View.GONE : View.VISIBLE);
+        replyBar.setVisibility(View.VISIBLE);
+        showKeyboardOnInput();
+    }
+
+    private void endReply() {
+        replyingMessage = null;
+        if (replyBar != null) replyBar.setVisibility(View.GONE);
+    }
+
+    private void showKeyboardOnInput() {
+        messageInput.requestFocus();
+        android.view.inputmethod.InputMethodManager imm =
+                (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) imm.showSoftInput(messageInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+    }
+
+    private void initMentionPickerLauncher() {
+        mentionPickerLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    int at = mentionAtIndex;
+                    mentionAtIndex = -1;
+                    if (result.getResultCode() != RESULT_OK || result.getData() == null) return;
+                    String handle = result.getData().getStringExtra(MentionPickerActivity.RESULT_HANDLE);
+                    if (handle == null || handle.isEmpty()) return;
+                    Editable text = messageInput.getText();
+                    if (at >= 0 && at < text.length() && text.charAt(at) == '@') {
+                        // Over the @ that opened the list.
+                        String insert = "@" + handle + " ";
+                        text.replace(at, at + 1, insert);
+                        messageInput.setSelection(Math.min(at + insert.length(), text.length()));
+                    } else {
+                        insertMention(handle);
+                    }
+                    showKeyboardOnInput();
+                });
+    }
+
+    /** The list of whom an {@code @} can name in this group — see {@link MentionPickerActivity}. */
+    private void openMentionPicker() {
+        if (mentionPickerLauncher == null) return;
+        List<String> fids = MentionCenter.candidates(imManager, imType, targetId, liveFid, messages);
+        Intent intent = new Intent(this, MentionPickerActivity.class);
+        intent.putExtra(MentionPickerActivity.EXTRA_FIDS, fids.toArray(new String[0]));
+        intent.putExtra(MentionPickerActivity.EXTRA_LIVE_FID, liveFid);
+        mentionPickerLauncher.launch(intent);
+    }
+
+    /** Write {@code @handle } at the cursor, after a space if the text there needs one. */
+    private void insertMention(String handle) {
+        Editable text = messageInput.getText();
+        int at = Math.max(0, messageInput.getSelectionStart());
+        String before = at > 0 && !Character.isWhitespace(text.charAt(at - 1)) ? " " : "";
+        String insert = before + "@" + handle + " ";
+        text.insert(at, insert);
+        messageInput.setSelection(Math.min(at + insert.length(), text.length()));
+    }
+
+    @Override
+    public void onSpeakerAvatarLongClick(String fid) {
+        if (imType == ImType.P2P || messageInput == null || !messageInput.isEnabled() || fid == null) return;
+        String cid = MentionCenter.cidOf(fid);
+        insertMention(cid != null && !cid.isEmpty() ? cid : fid);
+        showKeyboardOnInput();
+    }
+
+    @Override
+    public void onQuoteClick(String messageId) {
+        int at = adapter.positionOf(messageId);
+        if (at < 0) return;
+        messagesRecyclerView.smoothScrollToPosition(at);
+        adapter.flash(messageId);
+    }
+
+    @Override
+    public ImMessage findQuoted(String messageId) {
+        return imManager != null ? imManager.getMessageById(messageId) : null;
     }
 
     private void confirmWithdraw(ImMessage message) {

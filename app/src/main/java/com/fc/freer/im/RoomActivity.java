@@ -252,6 +252,8 @@ public class RoomActivity extends BaseCryptoActivity implements ConversationAdap
         }
         
         adapter.setUnavailableTargetIds(imManager.getUnavailableTargetIds("room"));
+        // Groups here where somebody @mentioned you, unread: the banner, and a chip on each row.
+        adapter.setMentioned(MentionBanner.bind(this, imManager, liveFid, ImType.ROOM));
         filterConversations(searchEditText.getText().toString());
         swipeRefreshLayout.setRefreshing(false);
     }

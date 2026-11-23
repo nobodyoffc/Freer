@@ -2694,6 +2694,12 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
     /**
      * Get all conversations sorted by last active.
      */
+    /** One stored message by id — a reply's quote whose original is not on screen. */
+    public ImMessage getMessageById(String messageId) {
+        if (messageId == null || messagesDb == null) return null;
+        return messagesDb.get(messageId);
+    }
+
     public List<Conversation> getConversations() {
         if (conversationsDb == null) {
             TimberLogger.e(TAG, "Cannot load conversations: conversationsDb is not initialized");
@@ -2800,6 +2806,11 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                 for (int i = index.size() - 1; i >= 0; i--) {
                     ImMessage msg = messagesDb.get(index.get(i));
                     if (msg == null) continue;
+                    // Our own messages are never unread, and the newest one is often ours — a
+                    // reply. Stopping there left everything above it unread for good, and an
+                    // @mention in it counted as new forever. Stop at the first incoming one
+                    // already read instead.
+                    if (msg.isOutgoing(liveFid)) continue;
                     if (msg.getUnread() == null || !msg.getUnread()) break;
                     msg.setUnread(false);
                     messagesDb.put(msg.getId(), msg);
