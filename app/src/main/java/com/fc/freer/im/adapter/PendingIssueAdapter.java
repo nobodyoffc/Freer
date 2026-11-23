@@ -101,6 +101,10 @@ public class PendingIssueAdapter extends RecyclerView.Adapter<PendingIssueAdapte
                 bindMention(issue);
                 return;
             }
+            if (issue.getIssueType() == PendingIssue.IssueType.ANNOUNCEMENT) {
+                bindAnnouncement(issue);
+                return;
+            }
             com.fc.freer.nobody.NobodyUi.setName(peerFidText, issue.getPeerFid(),
                     com.fc.freer.contact.ContactLabel.inline(itemView.getContext(),
                             issue.getPeerFid(), issue.getPeerFid()));
@@ -185,6 +189,22 @@ public class PendingIssueAdapter extends RecyclerView.Adapter<PendingIssueAdapte
             avatarView.setImageResource(R.drawable.ic_person);
             descriptionText.setText(ctx.getString(R.string.issue_mention) + " - "
                     + ctx.getString(R.string.issue_mention_messages, issue.getMessageCount()));
+            timeText.setText(issue.getCreatedAt() != null
+                    ? TIME_FORMAT.format(new Date(issue.getCreatedAt())) : "");
+            acceptBtn.setVisibility(View.GONE);
+            rejectBtn.setVisibility(View.GONE);
+            itemView.setOnClickListener(v -> {
+                if (itemClickListener != null) itemClickListener.onItemClick(issue);
+            });
+        }
+
+        /** "Announcement - 2 announcement(s)", under the group's name; a tap reads them. */
+        private void bindAnnouncement(PendingIssue issue) {
+            Context ctx = itemView.getContext();
+            peerFidText.setText(issue.getPeerAlias());
+            avatarView.setImageResource(R.drawable.ic_campaign);
+            descriptionText.setText(ctx.getString(R.string.announcement) + " - "
+                    + ctx.getString(R.string.announcement_count, issue.getMessageCount()));
             timeText.setText(issue.getCreatedAt() != null
                     ? TIME_FORMAT.format(new Date(issue.getCreatedAt())) : "");
             acceptBtn.setVisibility(View.GONE);

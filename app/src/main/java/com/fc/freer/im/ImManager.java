@@ -153,6 +153,9 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
         addToConversationIndex(message);
         updateConversation(message);
         noteTeamNotification(message);
+        // A team's or room's announcement, filed for confirming. Our own (from another
+        // device) are confirmed already.
+        AnnouncementCenter.note(liveFid, message, message.isOutgoing(liveFid));
         mainHandler.post(() -> {
             for (ImListener l : listeners) l.onMessageReceived(message);
         });
@@ -925,6 +928,8 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
             messagesDb.put(message.getId(), message);
             addToConversationIndex(message);
             updateConversation(message);
+            // Ours, so there is nothing for us to confirm.
+            AnnouncementCenter.note(liveFid, message, true);
 
             // Initiating a P2P conversation is implicit acceptance of the peer:
             // whitelist them so their replies are delivered without a separate
@@ -1206,6 +1211,9 @@ public class ImManager implements BaseHandler.MessageListener, MessageQueue.Mess
                         applyPendingAmends(msg, false);
                         messagesDb.put(msg.getId(), msg);
                         redecrypted.add(msg);
+                        // A sealed row says nothing until now, so an announcement in it is
+                        // first seen here.
+                        AnnouncementCenter.note(liveFid, msg, msg.isOutgoing(liveFid));
                         break;
                     }
                 }

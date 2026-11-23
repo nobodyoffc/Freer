@@ -737,6 +737,32 @@ public class PendingIssueManager {
         return out;
     }
 
+    /**
+     * One row per team or room with announcements this FID has not confirmed — read from
+     * {@link AnnouncementCenter}, not stored, so confirming them clears it.
+     */
+    public List<PendingIssue> getAnnouncementIssues() {
+        List<PendingIssue> out = new ArrayList<>();
+        if (imManager == null) return out;
+        try {
+            for (List<AnnouncementCenter.Item> group : AnnouncementCenter.unconfirmedByGroup(imManager, liveFid, null)) {
+                AnnouncementCenter.Item first = group.get(0);
+                PendingIssue issue = new PendingIssue();
+                issue.setId("announcement|" + first.conversationId());
+                issue.setIssueType(PendingIssue.IssueType.ANNOUNCEMENT);
+                issue.setStatus(PendingIssue.IssueStatus.PENDING);
+                issue.setPeerAlias(first.groupName());
+                issue.setMessageCount(group.size());
+                issue.setCreatedAt(first.message.getTimestamp());
+                issue.setDataJson(first.conversationId());
+                out.add(issue);
+            }
+        } catch (Exception e) {
+            TimberLogger.e(TAG, "Failed to collect announcements: %s", e.getMessage());
+        }
+        return out;
+    }
+
     public int getPendingCount() {
         int count = 0;
         try {

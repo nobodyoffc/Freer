@@ -1245,9 +1245,11 @@ public class ChatActivity extends BaseCryptoActivity
         // The thread is open: our own @s of ourselves in it have been seen.
         MentionCenter.markSeen(messages, liveFid);
         
+        adapter.setAnnouncers(AnnouncementCenter.announcers(imManager, imType, targetId));
         adapter.notifyDataSetChanged();
         scrollToBottom();
         refreshSymkeyAskBanner();
+        refreshAnnouncementStrip();
 
         imManager.markConversationAsRead(imType, targetId);
     }
@@ -1744,6 +1746,75 @@ public class ChatActivity extends BaseCryptoActivity
                 if (imManager != null) {
                     imManager.markConversationAsRead(imType, targetId);
                 }
+                refreshAnnouncementStrip();
+            });
+        }
+    }
+
+    // ── Announcements ─────────────────────────────────────────────────
+
+    /** This chat as a conversation, for the announcement pages. */
+    private com.fc.fc_ajdk.data.fcData.Conversation thisConversation() {
+        com.fc.fc_ajdk.data.fcData.Conversation conv = new com.fc.fc_ajdk.data.fcData.Conversation();
+        conv.setType(imType);
+        conv.setTargetId(targetId);
+        conv.setDisplayName(displayName);
+        return conv;
+    }
+
+    /**
+     * The strip above the messages while this team or room has announcements not yet
+     * confirmed: the oldest one's first line. A tap reads and confirms them.
+     */
+    private void refreshAnnouncementStrip() {
+        TextView strip = findViewById(R.id.announcement_strip);
+        if (strip == null) return;
+        if (imManager == null || (imType != ImType.TEAM && imType != ImType.ROOM)) {
+            strip.setVisibility(View.GONE);
+            return;
+        }
+        List<AnnouncementCenter.Item> waiting = new ArrayList<>();
+        for (AnnouncementCenter.Item item : AnnouncementCenter.unconfirmed(imManager, liveFid, imType)) {
+            if (targetId.equals(item.conversation.getTargetId())) waiting.add(item);
+        }
+        if (waiting.isEmpty()) {
+            strip.setVisibility(View.GONE);
+            return;
+        }
+        String first = waiting.get(0).body().split("\n", 2)[0];
+        strip.setText(waiting.size() > 1 ? first + "  (+" + (waiting.size() - 1) + ")" : first);
+        strip.setVisibility(View.VISIBLE);
+        strip.setOnClickListener(v -> AnnouncementDialogs.showRead(this, imManager, liveFid, waiting,
+                this::refreshAnnouncementStrip));
+    }
+
+    /** Send an announcement's wire text as this page sends any message. */
+    private void postAnnouncement(String wire) {
+        if (imManager == null) return;
+        if (isSymkeyRequired() && !hasSymkey()) {
+            ToastUtils.makeText(this, getString(R.string.no_symkey_available));
+            return;
+        }
+        ImMessage message = ImMessage.createText(imType, liveFid, targetId, wire);
+        messages.add(message);
+        adapter.notifyItemInserted(messages.size() - 1);
+        scrollToBottom();
+        imManager.send(message);
+    }
+
+    /** The menu's two announcement items: the history for all, posting for who may. */
+    private void bindAnnouncementMenu(View menuView, PopupWindow popup) {
+        menuView.findViewById(R.id.menu_announcements).setOnClickListener(v -> {
+            popup.dismiss();
+            AnnouncementDialogs.showHistory(this, imManager, liveFid, thisConversation(),
+                    this::postAnnouncement, this::refreshAnnouncementStrip);
+        });
+        View post = menuView.findViewById(R.id.menu_new_announcement);
+        if (AnnouncementCenter.mayAnnounce(imManager, liveFid, imType, targetId)) {
+            post.setVisibility(View.VISIBLE);
+            post.setOnClickListener(v -> {
+                popup.dismiss();
+                AnnouncementDialogs.showCompose(this, this::postAnnouncement);
             });
         }
     }
@@ -2061,7 +2132,10 @@ public class ChatActivity extends BaseCryptoActivity
         TextView withdrawItem = menuView.findViewById(R.id.action_withdraw);
 
         boolean amendable = imManager != null && imManager.canAmend(message);
-        if (amendable && com.fc.fc_ajdk.data.fcData.MessageAmend.isEditable(message)) {
+        // An announcement is withdrawn and posted again rather than edited: members may already
+        // have confirmed what it said.
+        if (amendable && com.fc.fc_ajdk.data.fcData.MessageAmend.isEditable(message)
+                && !com.fc.fc_ajdk.data.fcData.Announcements.isAnnouncement(message)) {
             editItem.setVisibility(View.VISIBLE);
             editItem.setOnClickListener(v -> {
                 popup.dismiss();
@@ -2662,6 +2736,8 @@ public class ChatActivity extends BaseCryptoActivity
             });
         }
 
+        bindAnnouncementMenu(menuView, popup);
+
         menuView.findViewById(R.id.menu_ask_room_info).setOnClickListener(v -> {
             popup.dismiss();
             addSystemMessage(getString(R.string.asking_room_info));
@@ -3028,6 +3104,8 @@ public class ChatActivity extends BaseCryptoActivity
             popup.dismiss();
             showRequestHistoryMemberPicker();
         });
+
+        bindAnnouncementMenu(menuView, popup);
 
         menuView.findViewById(R.id.menu_leave_team).setOnClickListener(v -> {
             popup.dismiss();

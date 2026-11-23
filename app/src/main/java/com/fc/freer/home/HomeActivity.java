@@ -1702,6 +1702,8 @@ public class HomeActivity extends AppCompatActivity {
                 todoCount = pendingMgrForBadge.getPendingCount();
                 // Each group where somebody @mentioned you, unread, is one more thing to do.
                 todoCount += pendingMgrForBadge.getMentionIssues().size();
+                // And each team or room with announcements not yet confirmed.
+                todoCount += pendingMgrForBadge.getAnnouncementIssues().size();
             }
             setBadgeCount(badgeTodo, todoCount);
 

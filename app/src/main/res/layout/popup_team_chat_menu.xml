@@ -96,6 +96,31 @@
         android:focusable="true" />
 
     <TextView
+        android:id="@+id/menu_announcements"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/announcement_history"
+        android:textSize="16sp"
+        android:textColor="@color/text"
+        android:padding="12dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <TextView
+        android:id="@+id/menu_new_announcement"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/announcement_new"
+        android:textSize="16sp"
+        android:textColor="@color/text"
+        android:padding="12dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
+
+    <TextView
         android:id="@+id/menu_request_history"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

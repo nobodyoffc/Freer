@@ -55,6 +55,10 @@ public class PendingIssueActivity extends BaseCryptoActivity {
                 openMentionedChat(issue);
                 return;
             }
+            if (issue.getIssueType() == PendingIssue.IssueType.ANNOUNCEMENT) {
+                readAnnouncements(issue);
+                return;
+            }
             PendingIssueDetailActivity.start(PendingIssueActivity.this, issue);
         });
 
@@ -148,6 +152,7 @@ public class PendingIssueActivity extends BaseCryptoActivity {
 
         // Somebody waiting on you in a group first: the most direct question there is.
         List<PendingIssue> issues = new java.util.ArrayList<>(pendingIssueManager.getMentionIssues());
+        issues.addAll(pendingIssueManager.getAnnouncementIssues());
         issues.addAll(pendingIssueManager.getOpenIssues());
         adapter.setItems(issues);
         showEmpty(issues.isEmpty());
@@ -155,6 +160,17 @@ public class PendingIssueActivity extends BaseCryptoActivity {
         for (PendingIssue issue : issues) peers.add(issue.getPeerFid());
         com.fc.freer.nobody.NobodyUi.resolveAsync(peers);
         swipeRefreshLayout.setRefreshing(false);
+    }
+
+    /** An announcement is answered here: read it and confirm, one at a time. */
+    private void readAnnouncements(PendingIssue issue) {
+        if (imManager == null || issue.getDataJson() == null) return;
+        String liveFid = imManager.getLiveFid();
+        List<AnnouncementCenter.Item> items = new java.util.ArrayList<>();
+        for (AnnouncementCenter.Item item : AnnouncementCenter.unconfirmed(imManager, liveFid, null)) {
+            if (issue.getDataJson().equals(item.conversationId())) items.add(item);
+        }
+        AnnouncementDialogs.showRead(this, imManager, liveFid, items, this::loadIssues);
     }
 
     /** A mention is answered by reading it: open the group's chat. */

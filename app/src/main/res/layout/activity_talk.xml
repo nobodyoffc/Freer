@@ -64,6 +64,17 @@
 
     <!-- Groups on this page where somebody @mentioned you in a message not yet read.
          One row per group, filled by MentionBanner. -->
+    <!-- Teams or rooms on this page with announcements not yet confirmed. One row per group,
+         filled by AnnouncementBanner. -->
+    <LinearLayout
+        android:id="@+id/announcements_banner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:visibility="gone" />
+
     <LinearLayout
         android:id="@+id/mentions_banner"
         android:layout_width="match_parent"

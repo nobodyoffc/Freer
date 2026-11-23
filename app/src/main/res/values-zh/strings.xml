@@ -3023,4 +3023,21 @@
     <string name="im_mentioned_times">%1$s——有人@了你 %2$d 次</string>
     <string name="issue_mention">有人@我</string>
     <string name="issue_mention_messages">%1$d 条消息</string>
+
+    <!-- Announcements in teams and rooms -->
+    <string name="announcement">公告</string>
+    <string name="announcement_history">群公告</string>
+    <string name="announcement_new">发布公告</string>
+    <string name="announcement_none">还没有公告</string>
+    <string name="announcement_post">发给所有成员</string>
+    <string name="announcement_hint">每位成员都需要打开并确认。确认后，公告不再提醒，但仍可在历史公告中查看。</string>
+    <string name="announcement_confirm">确认</string>
+    <string name="announcement_later">稍后</string>
+    <string name="announcement_close">关闭</string>
+    <string name="announcement_of">第 %1$d 条，共 %2$d 条</string>
+    <string name="announcement_to_confirm_one">%1$s——有一条公告待确认</string>
+    <string name="announcement_to_confirm_many">%1$s——有 %2$d 条公告待确认</string>
+    <string name="announcement_confirmed">已确认</string>
+    <string name="announcement_count">%1$d 条公告</string>
+    <string name="announcement_post_failed">发布失败：%1$s</string>
 </resources>

@@ -35,7 +35,13 @@ public class PendingIssue extends FcEntity {
          * out from the unread messages each time (see {@link MentionCenter}), so reading the
          * thread is what clears it. Its {@code dataJson} is the conversation id.
          */
-        MENTION
+        MENTION,
+        /**
+         * A team's or room's announcement this FID has not confirmed. Never stored here: read
+         * from {@link AnnouncementCenter} each time, so confirming is what clears it. Its
+         * {@code dataJson} is the conversation id.
+         */
+        ANNOUNCEMENT
     }
 
     public enum IssueStatus {

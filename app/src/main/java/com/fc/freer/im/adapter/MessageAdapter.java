@@ -93,6 +93,16 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         this.mentionCid = cid;
     }
 
+    /**
+     * Who may announce in this group — a team's owner and managers, a room's owner. Their
+     * announcements are drawn as one; anybody else's {@code [ANNOUNCEMENT]} is the text it is.
+     */
+    private java.util.Set<String> announcers = java.util.Collections.emptySet();
+
+    public void setAnnouncers(java.util.Set<String> announcers) {
+        this.announcers = announcers != null ? announcers : java.util.Collections.emptySet();
+    }
+
     /** Light up the row of {@code messageId} once, the next time it is drawn. */
     public void flash(String messageId) {
         this.flashId = messageId;
@@ -489,6 +499,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                     outgoingHatContainer.setVisibility(View.GONE);
                     bindText(outgoingContent, content, sealedText);
                     if (sealedText == null) applyMentions(outgoingContent, message, true, isP2P);
+                    if (sealedText == null) applyAnnouncement(outgoingContent, message, true);
                 }
                 bindQuote(outgoingQuote, message, true, listener);
 
@@ -540,6 +551,7 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                     incomingHatContainer.setVisibility(View.GONE);
                     bindText(incomingContent, content, sealedText);
                     if (sealedText == null) applyMentions(incomingContent, message, false, isP2P);
+                    if (sealedText == null) applyAnnouncement(incomingContent, message, false);
                 }
                 bindQuote(incomingQuote, message, false, listener);
 
@@ -631,6 +643,26 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
                 any = true;
             }
             if (any) view.setText(text);
+        }
+
+        /**
+         * An announcement from somebody who may post one: a bold "Announcement" line above its
+         * words, in place of the prefix.
+         */
+        private void applyAnnouncement(TextView view, ImMessage message, boolean isOutgoing) {
+            if (owner.announcers.isEmpty() || message.getSenderId() == null
+                    || !owner.announcers.contains(message.getSenderId())
+                    || !com.fc.fc_ajdk.data.fcData.Announcements.isAnnouncement(message)) return;
+            String body = com.fc.fc_ajdk.data.fcData.Announcements.body(message.getContent());
+            String head = "📢 " + itemView.getContext().getString(R.string.announcement);
+            android.text.SpannableStringBuilder text = new android.text.SpannableStringBuilder(head);
+            text.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                    0, head.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            text.setSpan(new android.text.style.ForegroundColorSpan(isOutgoing ? android.graphics.Color.WHITE
+                            : itemView.getContext().getColor(R.color.accent)),
+                    0, head.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            text.append("\n").append(body);
+            view.setText(text);
         }
 
         /** What a quote shows of a message that is not plain text, as the thread list does. */

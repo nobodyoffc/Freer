@@ -44,6 +44,26 @@
 
     <!-- Outstanding symkey asks (docs/SYMKEY_IDENTITY_SPEC.md §7): who was asked, and
          how long ago. An ask that shows nothing reads as a request that went nowhere. -->
+    <!-- Pinned while this team or room has announcements not yet confirmed: the oldest one's
+         first line. A tap reads and confirms them. Filled by ChatActivity. -->
+    <TextView
+        android:id="@+id/announcement_strip"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginTop="4dp"
+        android:padding="10dp"
+        android:background="@drawable/container_outline"
+        android:drawableStart="@drawable/ic_campaign"
+        android:drawablePadding="8dp"
+        android:gravity="center_vertical"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textSize="14sp"
+        android:textColor="@color/text"
+        android:visibility="gone" />
+
     <LinearLayout
         android:id="@+id/symkey_ask_banner"
         android:layout_width="match_parent"

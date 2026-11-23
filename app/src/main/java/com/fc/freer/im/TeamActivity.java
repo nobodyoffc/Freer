@@ -310,6 +310,8 @@ public class TeamActivity extends BaseCryptoActivity implements ConversationAdap
         adapter.setUnavailableTargetIds(imManager.getUnavailableTargetIds("team"));
         // Groups here where somebody @mentioned you, unread: the banner, and a chip on each row.
         adapter.setMentioned(MentionBanner.bind(this, imManager, liveFid, ImType.TEAM));
+        // Groups here with announcements not yet confirmed: a banner row each.
+        AnnouncementBanner.bind(this, imManager, liveFid, ImType.TEAM);
         filterConversations(searchEditText.getText().toString());
         swipeRefreshLayout.setRefreshing(false);
     }
